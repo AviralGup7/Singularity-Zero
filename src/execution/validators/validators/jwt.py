@@ -16,8 +16,9 @@ from collections.abc import Callable
 from typing import Any
 
 from src.core.models import ValidationResult
-from src.core.scoring import ScoringConfig, bounded_confidence
+from src.core.scoring import ScoringConfig as CoreScoringConfig
 from src.execution.validators.config.scoring_config import DEFAULT_SCORING_CONFIG
+from src.execution.validators.config.scoring_config import ScoringConfig as ExecutionScoringConfig
 from src.execution.validators.status import ValidationStatus
 
 logger = logging.getLogger(__name__)
@@ -336,7 +337,7 @@ def validate_jwt_token(target: dict[str, Any], context: dict[str, Any]) -> Valid
 
         evaluation = evaluate_jwt(
             token=token,
-            scoring=DEFAULT_SCORING_CONFIG.get("jwt_weakness") or ScoringConfig(),
+            scoring=DEFAULT_SCORING_CONFIG.get("jwt_weakness") or ExecutionScoringConfig(),
             candidate_secrets=candidate_secrets,
             in_scope=in_scope,
         )
@@ -344,7 +345,7 @@ def validate_jwt_token(target: dict[str, Any], context: dict[str, Any]) -> Valid
         evaluation = evaluate_jwt(
             endpoint=target_url,
             jwks_endpoint=context.get("jwks_endpoint"),
-            scoring=ScoringConfig(),
+            scoring=ExecutionScoringConfig(),
             in_scope=in_scope,
         )
 

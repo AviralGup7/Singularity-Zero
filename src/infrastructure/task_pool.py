@@ -50,12 +50,13 @@ class SimpleTaskPool:
         self._running = True
         self._dispatcher = asyncio.ensure_future(self._dispatcher_loop())
 
-    async def submit(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task:
+    def submit(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task[Any]:
         """Schedule *coroutine* with an optional priority (higher runs first)."""
         if not self._running:
             raise RuntimeError("SimpleTaskPool is not running. Call start() first.")
         await self._queue.put((priority, asyncio.ensure_future(coroutine)))
-        return self._queue.get_nowait()[1]
+        task = self._queue.get_nowait()[1]
+        return task
 
     async def shutdown(self) -> None:
         """Cancel pending tasks and wait for the queue to drain."""

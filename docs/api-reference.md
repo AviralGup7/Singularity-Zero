@@ -75,7 +75,6 @@ paths:
       tags:
       - System
       summary: Health Check Ready
-      description: Readiness probe with subsystem checks.
       operationId: health_check_ready_api_health_ready_get
       responses:
         '200':
@@ -171,6 +170,10 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Self Healing Snapshot Api Health Self Healing Get
+        '401':
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
   /api/health/self-healing/evaluate:
     post:
       tags:
@@ -189,6 +192,10 @@ paths:
                 type: object
                 title: Response Evaluate Self Healing Api Health Self Healing Evaluate
                   Post
+        '401':
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
   /api/health/self-healing/tile:
     get:
       tags:
@@ -206,6 +213,161 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Self Healing Tile Api Health Self Healing Tile Get
+        '401':
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
+  /api/health/self-healing/circuit-breakers:
+    get:
+      tags:
+      - Self-Healing
+      - Self-Healing
+      summary: List Circuit Breakers
+      description: 'Return a serializable snapshot of every per-tool circuit breaker.
+
+
+        The response is sourced from the bound
+
+        :class:`~src.pipeline.services.tool_execution.ToolExecutionService` (or
+
+        the module-level default if the controller has none wired).'
+      operationId: list_circuit_breakers_api_health_self_healing_circuit_breakers_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response List Circuit Breakers Api Health Self Healing Circuit
+                  Breakers Get
+        '401':
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
+  /api/health/self-healing/circuit-breakers/{tool_name}/force-open:
+    post:
+      tags:
+      - Self-Healing
+      - Self-Healing
+      summary: Force Open Tool Breaker
+      description: 'Trip a tool''s circuit breaker.
+
+
+        The ``TRIP_TOOL_CIRCUIT_BREAKER`` corrective action calls the same
+
+        backend.  Operators can invoke this endpoint to manually cool down a
+
+        tool that is hammering a rate-limited upstream.'
+      operationId: force_open_tool_breaker_api_health_self_healing_circuit_breakers__tool_name__force_open_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tool_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tool Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForceOpenRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Force Open Tool Breaker Api Health Self Healing Circuit
+                  Breakers  Tool Name  Force Open Post
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/health/self-healing/circuit-breakers/{tool_name}/reset:
+    post:
+      tags:
+      - Self-Healing
+      - Self-Healing
+      summary: Reset Tool Breaker
+      description: Manually reset a tool's breaker back to CLOSED.
+      operationId: reset_tool_breaker_api_health_self_healing_circuit_breakers__tool_name__reset_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tool_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tool Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Reset Tool Breaker Api Health Self Healing Circuit
+                  Breakers  Tool Name  Reset Post
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/health/self-healing/tools/check:
+    post:
+      tags:
+      - Self-Healing
+      - Self-Healing
+      summary: Check Tool Availability
+      description: 'Check if required tool binaries are available on the system.
+
+
+        Returns a map of tool name to availability status, including whether
+
+        the tool is installed, its resolved path, and circuit breaker state.'
+      operationId: check_tool_availability_api_health_self_healing_tools_check_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolAvailabilityRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Check Tool Availability Api Health Self Healing Tools
+                  Check Post
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
   /api/audit/entries:
     get:
       tags:
@@ -359,53 +521,6 @@ paths:
       x-ai-action: reconcile_bloom_mesh
       x-ai-idempotency: true
       x-ai-impact: medium
-  /api/cockpit/attack-chains:
-    get:
-      tags:
-      - Cockpit
-      - Cockpit
-      summary: Get lateral movement attack chains
-      description: Return identified attack chains linking multiple vulnerabilities
-        and assets.
-      operationId: get_attack_chains_api_cockpit_attack_chains_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: target
-        in: query
-        required: true
-        schema:
-          type: string
-          minLength: 1
-          title: Target
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AttackChainSchema'
-                title: Response Get Attack Chains Api Cockpit Attack Chains Get
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Bad Request
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/cockpit/graph:
     get:
       tags:
@@ -458,75 +573,6 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response Get Cockpit Graph Api Cockpit Graph Get
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Bad Request
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/cockpit/events:
-    get:
-      tags:
-      - Cockpit
-      - Cockpit
-      summary: Get cockpit event timeline
-      description: Return a timeline of cockpit-relevant events.
-      operationId: get_cockpit_events_api_cockpit_events_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: target
-        in: query
-        required: true
-        schema:
-          type: string
-          minLength: 1
-          title: Target
-      - name: run
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Run
-      - name: job_id
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Job Id
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Cursor
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-                title: Response Get Cockpit Events Api Cockpit Events Get
         '400':
           content:
             application/json:
@@ -703,6 +749,75 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/cockpit/events:
+    get:
+      tags:
+      - Cockpit
+      - Cockpit
+      summary: Get cockpit event timeline
+      description: Return a timeline of cockpit-relevant events.
+      operationId: get_cockpit_events_api_cockpit_events_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: target
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Target
+      - name: run
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run
+      - name: job_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Cockpit Events Api Cockpit Events Get
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad Request
         '401':
           content:
             application/json:
@@ -1216,6 +1331,7 @@ paths:
     get:
       tags:
       - Jobs
+      - Jobs
       summary: Stream job logs (SSE)
       description: Stream process logs in real-time, optionally enriched with progress
         metadata.
@@ -1257,9 +1373,10 @@ paths:
     get:
       tags:
       - Jobs
+      - Jobs
       summary: Stream job progress events (SSE)
       description: Stream real-time job execution stage transitions, metrics, and
-        consistent hashing topology.
+        topology.
       operationId: stream_job_progress_api_jobs__job_id__progress_stream_get
       security:
       - APIKeyHeader: []
@@ -1485,9 +1602,11 @@ paths:
       tags:
       - Learning
       - learning
-      summary: Get Threshold History
+      summary: Get threshold history (authenticated)
       description: Get the history of automated threshold calibrations (Phase 5.3).
       operationId: get_threshold_history_api_learning_thresholds_get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: run_id
         in: query
@@ -1522,6 +1641,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/ThresholdHistoryEntry'
                 title: Response Get Threshold History Api Learning Thresholds Get
+        '401':
+          description: Unauthorized
         '422':
           description: Validation Error
           content:
@@ -1533,10 +1654,12 @@ paths:
       tags:
       - Learning
       - learning
-      summary: Get Fp Patterns
+      summary: Get learned FP patterns (authenticated)
       description: Get the current repository of learned false positive patterns (Phase
         5.3).
       operationId: get_fp_patterns_api_learning_fp_patterns_get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: category
         in: query
@@ -1563,6 +1686,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/FpPatternEntry'
                 title: Response Get Fp Patterns Api Learning Fp Patterns Get
+        '401':
+          description: Unauthorized
         '422':
           description: Validation Error
           content:
@@ -1574,9 +1699,11 @@ paths:
       tags:
       - Learning
       - learning
-      summary: Get Learning Kpis
+      summary: Get learning KPIs (authenticated)
       description: Get high-level learning performance indicators (Phase 5.3).
       operationId: get_learning_kpis_api_learning_kpis_get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: target
         in: query
@@ -1593,6 +1720,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TelemetryKpis'
+        '401':
+          description: Unauthorized
         '422':
           description: Validation Error
           content:
@@ -1604,9 +1733,11 @@ paths:
       tags:
       - Learning
       - learning
-      summary: Get Feedback Events
+      summary: Get feedback events (authenticated)
       description: Get feedback events for analysis and inspection (Phase 5.3).
       operationId: get_feedback_events_api_learning_feedback_get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: limit
         in: query
@@ -1635,6 +1766,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/FeedbackEventEntry'
                 title: Response Get Feedback Events Api Learning Feedback Get
+        '401':
+          description: Unauthorized
         '422':
           description: Validation Error
           content:
@@ -1646,7 +1779,7 @@ paths:
       tags:
       - Learning
       - learning
-      summary: Get Learning Db Stats
+      summary: Get telemetry database statistics (authenticated)
       description: Get statistics about the telemetry database (Phase 5.3).
       operationId: get_learning_db_stats_api_learning_db_stats_get
       responses:
@@ -1659,13 +1792,24 @@ paths:
                   type: integer
                 type: object
                 title: Response Get Learning Db Stats Api Learning Db Stats Get
+        '401':
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
   /api/mesh/elect-leader:
     post:
       tags:
       - Mesh
       - Mesh
-      summary: Elect Leader
-      description: Manually trigger deterministic local leader election.
+      summary: Manually trigger deterministic local leader election (admin only)
+      description: 'Manually trigger deterministic local leader election.
+
+
+        SECURITY: requires admin authentication. The previous unauthenticated
+
+        version allowed any caller to disrupt the mesh by forcing a leader
+
+        election under a forged identity.'
       operationId: elect_leader_api_mesh_elect_leader_post
       responses:
         '200':
@@ -1676,10 +1820,31 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Elect Leader Api Mesh Elect Leader Post
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - APIKeyHeader: []
   /api/targets:
     get:
       tags:
       - Targets
+      - Targets CRUD
       summary: List all targets
       operationId: list_targets_api_targets_get
       responses:
@@ -1701,6 +1866,7 @@ paths:
     delete:
       tags:
       - Targets
+      - Targets CRUD
       summary: Delete a target
       description: Delete a target output directory. (SEC-FIX)
       operationId: delete_target_api_targets__target_name__delete
@@ -1744,6 +1910,7 @@ paths:
     get:
       tags:
       - Targets
+      - Targets CRUD
       summary: Get findings for a target
       description: Retrieve findings for a specific target with traversal protection.
         (SEC-FIX)
@@ -1792,51 +1959,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/targets/{target_name}/risk-score:
-    get:
-      tags:
-      - Targets
-      summary: Get risk score for a target
-      description: Get risk score with traversal protection. (SEC-FIX)
-      operationId: get_risk_score_api_targets__target_name__risk_score_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: target_name
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Target Name
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RiskScoreResponse'
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/targets/{target_name}/timeline:
     get:
       tags:
       - Targets
+      - Targets CRUD
       summary: Get timeline data for a target
       description: Retrieve timeline with traversal protection. (SEC-FIX)
       operationId: get_timeline_api_targets__target_name__timeline_get
@@ -1874,51 +2001,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/targets/{target_name}/historical-scores:
-    get:
-      tags:
-      - Targets
-      summary: Get historical scores for a target
-      description: Get historical scores with traversal protection. (SEC-FIX)
-      operationId: get_historical_scores_api_targets__target_name__historical_scores_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: target_name
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Target Name
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HistoricalScoreResponse'
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/targets/{target_name}/compliance:
     get:
       tags:
       - Targets
+      - Targets CRUD
       summary: Get compliance report for a target
       description: Get the latest compliance report with traversal protection. (SEC-FIX)
       operationId: get_target_compliance_api_targets__target_name__compliance_get
@@ -1963,6 +2050,7 @@ paths:
     get:
       tags:
       - Targets
+      - Targets CRUD
       summary: List all findings with pagination
       description: List all findings with traversal protection on target filter. (SEC-FIX)
       operationId: list_all_findings_api_targets_findings_list_get
@@ -1984,7 +2072,7 @@ paths:
         required: false
         schema:
           type: integer
-          maximum: 200
+          maximum: 1000
           minimum: 1
           description: Items per page
           default: 50
@@ -2031,10 +2119,95 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/targets/{target_name}/risk-score:
+    get:
+      tags:
+      - Targets
+      - Targets Scoring
+      summary: Get risk score for a target
+      description: Get risk score with traversal protection. (SEC-FIX)
+      operationId: get_risk_score_api_targets__target_name__risk_score_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: target_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Target Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskScoreResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/targets/{target_name}/historical-scores:
+    get:
+      tags:
+      - Targets
+      - Targets Scoring
+      summary: Get historical scores for a target
+      description: Get historical scores with traversal protection. (SEC-FIX)
+      operationId: get_historical_scores_api_targets__target_name__historical_scores_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: target_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Target Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoricalScoreResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/targets/compare:
     get:
       tags:
       - Targets
+      - Targets Scoring
       summary: Compare two targets side by side
       description: Compare targets with traversal protection. (SEC-FIX)
       operationId: compare_targets_api_targets_compare_get
@@ -2536,6 +2709,167 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/notifications:
+    get:
+      tags:
+      - Notifications
+      - Notifications
+      summary: List Notifications
+      description: Return paginated notifications, newest first.
+      operationId: list_notifications_api_notifications_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: unread_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Unread Only
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Notifications
+      - Notifications
+      summary: Delete All Notifications
+      description: Delete all notifications.
+      operationId: delete_all_notifications_api_notifications_delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+  /api/notifications/unread-count:
+    get:
+      tags:
+      - Notifications
+      - Notifications
+      summary: Unread Count
+      description: Return the count of unread notifications.
+      operationId: unread_count_api_notifications_unread_count_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCountResponse'
+  /api/notifications/{notification_id}/read:
+    patch:
+      tags:
+      - Notifications
+      - Notifications
+      summary: Mark Notification Read
+      description: Mark a single notification as read.
+      operationId: mark_notification_read_api_notifications__notification_id__read_patch
+      parameters:
+      - name: notification_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Notification Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkReadResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/notifications/read-all:
+    patch:
+      tags:
+      - Notifications
+      - Notifications
+      summary: Mark All Read
+      description: Mark all notifications as read.
+      operationId: mark_all_read_api_notifications_read_all_patch
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkReadResponse'
+  /api/notifications/{notification_id}:
+    delete:
+      tags:
+      - Notifications
+      - Notifications
+      summary: Delete Notification
+      description: Delete a single notification.
+      operationId: delete_notification_api_notifications__notification_id__delete
+      parameters:
+      - name: notification_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Notification Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/notifications/stream:
+    get:
+      tags:
+      - Notifications
+      - Notifications
+      summary: Notification Stream
+      description: SSE endpoint for real-time notification streaming.
+      operationId: notification_stream_api_notifications_stream_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Notification Stream Api Notifications Stream Get
   /api/cache/stats:
     get:
       tags:
@@ -3288,19 +3622,19 @@ paths:
         required: false
         schema:
           type: string
-          description: Authorization header value
+          description: Bearer token for bearer mode
           default: ''
           title: Authorization
-        description: Authorization header value
+        description: Bearer token for bearer mode
       - name: cookie
         in: query
         required: false
         schema:
           type: string
-          description: Cookie value
+          description: Cookie value to forward to the replay target
           default: ''
           title: Cookie
-        description: Cookie value
+        description: Cookie value to forward to the replay target
       responses:
         '200':
           description: Successful Response
@@ -3405,6 +3739,516 @@ paths:
                 title: Response Get Risk Factors Api Risk Factors Get
       security:
       - APIKeyHeader: []
+  /api/risk-domain/assets:
+    get:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: List registered assets
+      operationId: list_assets_api_risk_domain_assets_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: asset_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asset Type
+      - name: active_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Active Only
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          minimum: 1
+          default: 200
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Assets Api Risk Domain Assets Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Create a new asset
+      operationId: create_asset_api_risk_domain_assets_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Asset Api Risk Domain Assets Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/assets/{asset_id}:
+    delete:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Delete an asset
+      operationId: delete_asset_api_risk_domain_assets__asset_id__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: asset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Asset Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Delete Asset Api Risk Domain Assets  Asset Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/acceptances:
+    get:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: List risk acceptances
+      operationId: list_acceptances_api_risk_domain_acceptances_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: state
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+      - name: finding_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finding Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          minimum: 1
+          default: 200
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Acceptances Api Risk Domain Acceptances Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Create a risk acceptance
+      operationId: create_acceptance_api_risk_domain_acceptances_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Acceptance Api Risk Domain Acceptances Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/acceptances/{acceptance_id}/revoke:
+    post:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Revoke a previously accepted risk
+      operationId: revoke_acceptance_api_risk_domain_acceptances__acceptance_id__revoke_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: acceptance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Acceptance Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Revoke Acceptance Api Risk Domain Acceptances  Acceptance
+                  Id  Revoke Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/controls:
+    get:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: List compensating controls
+      operationId: list_controls_api_risk_domain_controls_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finding Id
+      - name: control_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Control Type
+      - name: active_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Active Only
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          minimum: 1
+          default: 200
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Controls Api Risk Domain Controls Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Add a compensating control
+      operationId: create_control_api_risk_domain_controls_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Control Api Risk Domain Controls Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/findings/{finding_id}/review:
+    post:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Record a structured reviewer action (FindingReviewPanel)
+      operationId: record_reviewer_action_api_risk_domain_findings__finding_id__review_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Record Reviewer Action Api Risk Domain Findings  Finding
+                  Id  Review Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/findings/{finding_id}/review-history:
+    get:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Get the structured-review history for a finding
+      operationId: get_review_history_api_risk_domain_findings__finding_id__review_history_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response Get Review History Api Risk Domain Findings  Finding
+                  Id  Review History Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/sla/summary:
+    get:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Get lifecycle SLA summary (avg/worst per-stage lag, breaches)
+      description: 'Return aggregate per-stage SLA metrics.
+
+
+        The summary is derived from the ``sla_events`` table, not from
+
+        the live state of individual findings, so it can answer historical
+
+        questions (e.g. "how long did triage take in the past N days?")
+
+        without re-walking the entire ``findings`` table.'
+      operationId: get_sla_summary_api_risk_domain_sla_summary_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Sla Summary Api Risk Domain Sla Summary Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/findings/{finding_id}/lifecycle:
+    get:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Get the lifecycle timeline for a single finding
+      operationId: get_finding_lifecycle_api_risk_domain_findings__finding_id__lifecycle_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response Get Finding Lifecycle Api Risk Domain Findings  Finding
+                  Id  Lifecycle Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/risk-domain/findings/{finding_id}/transition:
+    post:
+      tags:
+      - Risk Domain
+      - Risk Domain
+      summary: Record a lifecycle state transition for a finding
+      operationId: transition_finding_api_risk_domain_findings__finding_id__transition_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Transition Finding Api Risk Domain Findings  Finding
+                  Id  Transition Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/remediation/planner:
     get:
       tags:
@@ -3449,6 +4293,24 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response Get Ai Executive Summary Api Reports Ai Summary Get
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
         '422':
           description: Validation Error
           content:
@@ -3518,8 +4380,82 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Get Sla Trending Api Reports Sla Trending Get
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       security:
       - APIKeyHeader: []
+  /api/reports/platforms:
+    get:
+      tags:
+      - Reports
+      summary: List configured bug-bounty platform clients
+      description: Return a per-platform readiness summary.
+      operationId: list_platforms_api_reports_platforms_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response List Platforms Api Reports Platforms Get
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - APIKeyHeader: []
+  /api/reports/runs/{run_id}/findings/{finding_id}/submit:
+    post:
+      tags:
+      - Reports
+      summary: Submit a finding to a bug-bounty platform
+      description: Push a finding to one of the supported platforms.
+      operationId: submit_finding_to_platform_api_reports_runs__run_id__findings__finding_id__submit_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitFindingPayload'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Submit Finding To Platform Api Reports Runs  Run Id  Findings  Finding
+                  Id  Submit Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/registry/modules:
     get:
       tags:
@@ -3778,6 +4714,12 @@ paths:
                 additionalProperties:
                   type: string
                 title: Response Import Semgrep Api Imports Semgrep Post
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad Request
         '401':
           content:
             application/json:
@@ -3796,6 +4738,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Conflict
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Request Entity Too Large
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unsupported Media Type
         '422':
           description: Validation Error
           content:
@@ -3833,7 +4787,7 @@ paths:
           content:
             application/json:
               schema:
-                title: Response 401 Get Gap Analysis Api Gap Analysis Get
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         '422':
           description: Validation Error
@@ -3859,6 +4813,12 @@ paths:
                   type: string
                 type: object
                 title: Response Refresh Gap Analysis Api Gap Analysis Refresh Post
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       security:
       - APIKeyHeader: []
   /api/csrf-token:
@@ -3867,19 +4827,32 @@ paths:
       - Security
       - Security
       summary: Retrieve the current active CSRF token for the session
-      description: Exposes the session's active CSRF token securely to verified SPA
-        clients.
+      description: 'Issue a fresh CSRF token, set it as an HttpOnly cookie, and return
+        it.
+
+
+        The endpoint now requires authentication. The cookie is ``HttpOnly``,
+
+        ``Secure`` (in production) and ``SameSite=Strict`` so it cannot be
+
+        exfiltrated by client-side scripts. The response body returns the
+
+        token so SPAs can copy it into the ``X-CSRF-Token`` header.'
       operationId: get_csrf_token_api_csrf_token_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
+              schema: {}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
               schema:
-                additionalProperties:
-                  type: string
-                type: object
-                title: Response Get Csrf Token Api Csrf Token Get
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - APIKeyHeader: []
   /api/auth/token:
     post:
       tags:
@@ -3932,6 +4905,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       security:
       - APIKeyHeader: []
   /api/security/events:
@@ -3969,6 +4948,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
         '422':
           description: Validation Error
           content:
@@ -3994,6 +4979,12 @@ paths:
                 title: Response List Api Keys Api Security Api Keys Get
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -4126,6 +5117,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
         '422':
           description: Validation Error
           content:
@@ -4147,8 +5144,15 @@ paths:
       tags:
       - Tracing
       - Tracing
-      summary: Tracing Config
-      description: Return OTLP exporter configuration and reachability.
+      summary: Return OTLP exporter configuration (authenticated)
+      description: 'Return OTLP exporter configuration and reachability.
+
+
+        SECURITY: requires authentication. The configuration includes the
+
+        OTLP endpoint URL and the service name, both of which leak
+
+        internal architecture if exposed unauthenticated.'
       operationId: tracing_config_api_tracing_config_get
       responses:
         '200':
@@ -4159,14 +5163,20 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Tracing Config Api Tracing Config Get
+        '401':
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
   /api/traces:
     get:
       tags:
       - Tracing
       - Tracing
-      summary: List Traces
+      summary: List recent traces (authenticated)
       description: List recent traces from the local SQLite span store.
       operationId: list_traces_api_traces_get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: service_name
         in: query
@@ -4210,6 +5220,8 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response List Traces Api Traces Get
+        '401':
+          description: Unauthorized
         '422':
           description: Validation Error
           content:
@@ -4221,9 +5233,11 @@ paths:
       tags:
       - Tracing
       - Tracing
-      summary: Get Trace
+      summary: Return all spans for a trace (authenticated)
       description: Return all spans for a trace in waterfall order.
       operationId: get_trace_api_traces__trace_id__get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: trace_id
         in: path
@@ -4240,6 +5254,10 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response Get Trace Api Traces  Trace Id  Get
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
         '422':
           description: Validation Error
           content:
@@ -4474,12 +5492,948 @@ paths:
                 title: Response Reset Evasion Metrics Api Evasion Reset Post
       security:
       - APIKeyHeader: []
+  /api/evasion/hunt-mode:
+    post:
+      tags:
+      - Evasion Telemetry
+      - Evasion Telemetry
+      summary: Toggle bug-bounty hunt mode on or off
+      description: 'Enable or disable hunt mode.
+
+
+        Hunt mode prioritises high-value categories, skips low-yield stages,
+
+        and enforces a budget to maximise payout per hour.'
+      operationId: set_hunt_mode_api_evasion_hunt_mode_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HuntModeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Set Hunt Mode Api Evasion Hunt Mode Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /api/compliance/access-logs:
+    get:
+      tags:
+      - Compliance
+      - Compliance
+      summary: List compliance access log entries
+      operationId: list_access_logs_api_compliance_access_logs_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          minimum: 1
+          default: 200
+          title: Limit
+      - name: user
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Access Logs Api Compliance Access Logs Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Compliance
+      - Compliance
+      summary: Record a compliance access log entry
+      operationId: create_access_log_api_compliance_access_logs_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Access Log Api Compliance Access Logs Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/compliance/evidence:
+    get:
+      tags:
+      - Compliance
+      - Compliance
+      summary: List evidence custody records
+      operationId: list_evidence_api_compliance_evidence_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          minimum: 1
+          default: 200
+          title: Limit
+      - name: finding_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Evidence Api Compliance Evidence Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Compliance
+      - Compliance
+      summary: Create an evidence custody record
+      operationId: create_evidence_api_compliance_evidence_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Evidence Api Compliance Evidence Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/compliance/evidence/{evidence_id}/access:
+    post:
+      tags:
+      - Compliance
+      - Compliance
+      summary: Log an access event on an evidence record
+      operationId: log_evidence_access_api_compliance_evidence__evidence_id__access_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Log Evidence Access Api Compliance Evidence  Evidence
+                  Id  Access Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/compliance/evidence/{evidence_id}/verify:
+    post:
+      tags:
+      - Compliance
+      - Compliance
+      summary: Verify the cryptographic integrity of an evidence record
+      operationId: verify_evidence_api_compliance_evidence__evidence_id__verify_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Verify Evidence Api Compliance Evidence  Evidence
+                  Id  Verify Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/forensics/trace/{run_id}/{stage_name}:
+    get:
+      tags:
+      - Forensics Trace
+      - Forensics Trace
+      summary: Get the full StageTrace for a run+stage combination
+      operationId: get_stage_trace_api_forensics_trace__run_id___stage_name__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: Pipeline run ID
+          title: Run Id
+        description: Pipeline run ID
+      - name: stage_name
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: Stage name
+          title: Stage Name
+        description: Stage name
+      - name: trace_dir
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Override trace directory
+          title: Trace Dir
+        description: Override trace directory
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Stage Trace Api Forensics Trace  Run Id   Stage
+                  Name  Get
+        '404':
+          description: Trace not found
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/forensics/trace/{run_id}:
+    get:
+      tags:
+      - Forensics Trace
+      - Forensics Trace
+      summary: List all StageTraces for a run
+      operationId: list_run_traces_api_forensics_trace__run_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: Pipeline run ID
+          title: Run Id
+        description: Pipeline run ID
+      - name: trace_dir
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Override trace directory
+          title: Trace Dir
+        description: Override trace directory
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Run Traces Api Forensics Trace  Run Id  Get
+        '404':
+          description: Run not found
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/forensics/trace/{run_id}/{stage_name}/causal-chain/{finding_id}:
+    get:
+      tags:
+      - Forensics Trace
+      - Forensics Trace
+      summary: Get all stages that contributed to a specific finding
+      operationId: get_finding_causal_chain_api_forensics_trace__run_id___stage_name__causal_chain__finding_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: Pipeline run ID
+          title: Run Id
+        description: Pipeline run ID
+      - name: stage_name
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: Stage name
+          title: Stage Name
+        description: Stage name
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          description: Finding identifier
+          title: Finding Id
+        description: Finding identifier
+      - name: trace_dir
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Override trace directory
+          title: Trace Dir
+        description: Override trace directory
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Finding Causal Chain Api Forensics Trace  Run
+                  Id   Stage Name  Causal Chain  Finding Id  Get
+        '404':
+          description: Finding or trace not found
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/access-logs:
+    get:
+      tags:
+      - Access Logs
+      - Access Logs
+      summary: List access-log entries
+      description: Return access-log entries, optionally filtered by user or action.
+      operationId: list_access_logs_api_access_logs_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 200
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: user
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Access Logs Api Access Logs Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Access Logs
+      - Access Logs
+      summary: Create an access-log entry
+      description: Record a new access-log entry.
+      operationId: create_access_log_api_access_logs_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessLogCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Access Log Api Access Logs Post
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Access Logs
+      - Access Logs
+      summary: Clear all access-log entries
+      description: Clear all access-log entries.
+      operationId: clear_access_logs_api_access_logs_delete
+      security:
+      - APIKeyHeader: []
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Clear Access Logs Api Access Logs Delete
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+  /api/access-logs/export:
+    get:
+      tags:
+      - Access Logs
+      - Access Logs
+      summary: Export access logs as JSON
+      description: Export all access-log entries.
+      operationId: export_access_logs_api_access_logs_export_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^(json|csv)$
+          default: json
+          title: Format
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Export Access Logs Api Access Logs Export Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/evidence-custody:
+    get:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: List all evidence records
+      description: Return evidence records, optionally filtered by finding_id.
+      operationId: list_evidence_api_evidence_custody_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 200
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: finding_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Evidence Api Evidence Custody Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: Create an evidence record
+      description: Create a new evidence record with an initial custody entry.
+      operationId: create_evidence_api_evidence_custody_post
+      security:
+      - APIKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Evidence Api Evidence Custody Post
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/evidence-custody/{evidence_id}:
+    get:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: Get a single evidence record
+      description: Return a single evidence record by ID.
+      operationId: get_evidence_api_evidence_custody__evidence_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Evidence Api Evidence Custody  Evidence Id  Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: Delete an evidence record
+      description: Remove an evidence record.
+      operationId: delete_evidence_api_evidence_custody__evidence_id__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Delete Evidence Api Evidence Custody  Evidence Id  Delete
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/evidence-custody/{evidence_id}/access:
+    post:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: Log evidence access
+      description: Append an 'accessed' entry to the custody chain.
+      operationId: log_evidence_access_api_evidence_custody__evidence_id__access_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceAccessRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Log Evidence Access Api Evidence Custody  Evidence
+                  Id  Access Post
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/evidence-custody/{evidence_id}/modify:
+    post:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: Modify evidence data
+      description: Update evidence data and append a 'modified' custody entry.
+      operationId: modify_evidence_api_evidence_custody__evidence_id__modify_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceModifyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Modify Evidence Api Evidence Custody  Evidence Id  Modify
+                  Post
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/evidence-custody/{evidence_id}/verify:
+    get:
+      tags:
+      - Evidence Custody
+      - Evidence Custody
+      summary: Verify evidence integrity
+      description: Verify that the stored hash matches the current data.
+      operationId: verify_evidence_api_evidence_custody__evidence_id__verify_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: evidence_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Evidence Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Verify Evidence Api Evidence Custody  Evidence Id  Verify
+                  Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/version:
     get:
       tags:
       - System
       summary: Get Version
-      description: Return build and runtime version metadata.
       operationId: get_version_api_version_get
       responses:
         '200':
@@ -4495,7 +6449,6 @@ paths:
       tags:
       - System
       summary: Get Metrics
-      description: Prometheus metrics endpoint.
       operationId: get_metrics_metrics_get
       responses:
         '200':
@@ -4504,12 +6457,13 @@ paths:
             application/json:
               schema:
                 title: Response Get Metrics Metrics Get
+      security:
+      - APIKeyHeader: []
   /api/dashboard:
     get:
       tags:
       - Analytics
       summary: Get Dashboard Stats
-      description: Compute and return global pipeline health and risk metrics.
       operationId: get_dashboard_stats_api_dashboard_get
       responses:
         '200':
@@ -4518,13 +6472,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardStatsResponse'
+  /api/telemetry:
+    post:
+      tags:
+      - Analytics
+      summary: Report Frontend Telemetry
+      operationId: report_frontend_telemetry_api_telemetry_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrontendTelemetryEvent'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Report Frontend Telemetry Api Telemetry Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     APIKeyCreateRequest:
       properties:
         role:
           type: string
-          pattern: ^(read_only|worker|admin)$
+          pattern: ^(viewer|operator|admin)$
           title: Role
       additionalProperties: false
       type: object
@@ -4608,6 +6589,36 @@ components:
       - created_at
       title: APIKeyResponse
       description: Masked API key inventory item.
+    AccessLogCreateRequest:
+      properties:
+        action:
+          type: string
+          title: Action
+        resource:
+          type: string
+          title: Resource
+        reason:
+          type: string
+          title: Reason
+          default: ''
+        details:
+          additionalProperties: true
+          type: object
+          title: Details
+        user:
+          type: string
+          title: User
+          default: anonymous
+        outcome:
+          type: string
+          title: Outcome
+          default: success
+      type: object
+      required:
+      - action
+      - resource
+      title: AccessLogCreateRequest
+      description: Body for creating a new access-log entry.
     ApiDefaults:
       properties:
         default_mode:
@@ -4623,48 +6634,6 @@ components:
       - default_mode
       - form_defaults
       title: ApiDefaults
-    AttackChainSchema:
-      properties:
-        id:
-          type: string
-          title: Id
-        steps:
-          items:
-            $ref: '#/components/schemas/AttackStepSchema'
-          type: array
-          title: Steps
-        confidence:
-          type: number
-          title: Confidence
-        description:
-          type: string
-          title: Description
-      type: object
-      required:
-      - id
-      - steps
-      - confidence
-      - description
-      title: AttackChainSchema
-      description: Complete lateral movement path.
-    AttackStepSchema:
-      properties:
-        asset_id:
-          type: string
-          title: Asset Id
-        finding_id:
-          type: string
-          title: Finding Id
-        severity:
-          type: string
-          title: Severity
-      type: object
-      required:
-      - asset_id
-      - finding_id
-      - severity
-      title: AttackStepSchema
-      description: Single hop in a multi-stage attack chain.
     Body_import_semgrep_api_imports_semgrep_post:
       properties:
         file:
@@ -4983,19 +6952,6 @@ components:
         pipeline_health_label:
           type: string
           title: Pipeline Health Label
-        trend_data:
-          items:
-            type: integer
-          type: array
-          title: Trend Data
-        findings_summary:
-          additionalProperties: true
-          type: object
-          title: Findings Summary
-        mesh_health:
-          additionalProperties: true
-          type: object
-          title: Mesh Health
       type: object
       required:
       - active_jobs
@@ -5022,6 +6978,19 @@ components:
       type: object
       title: DeduplicationStats
       description: Duplicate removal statistics.
+    DeleteResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+        deleted:
+          type: integer
+          title: Deleted
+      type: object
+      required:
+      - success
+      - deleted
+      title: DeleteResponse
     DetectionGapResponse:
       properties:
         target:
@@ -5086,6 +7055,55 @@ components:
       - error
       title: ErrorResponse
       description: Standard error response.
+    EvidenceAccessRequest:
+      properties:
+        user:
+          type: string
+          title: User
+          default: anonymous
+        details:
+          type: string
+          title: Details
+          default: Evidence accessed for review
+      type: object
+      title: EvidenceAccessRequest
+      description: Body for logging evidence access.
+    EvidenceCreateRequest:
+      properties:
+        finding_id:
+          type: string
+          title: Finding Id
+        data:
+          type: string
+          title: Data
+        user:
+          type: string
+          title: User
+          default: anonymous
+      type: object
+      required:
+      - finding_id
+      - data
+      title: EvidenceCreateRequest
+      description: Body for creating an evidence record.
+    EvidenceModifyRequest:
+      properties:
+        new_data:
+          type: string
+          title: New Data
+        user:
+          type: string
+          title: User
+          default: anonymous
+        details:
+          type: string
+          title: Details
+          default: Evidence modified
+      type: object
+      required:
+      - new_data
+      title: EvidenceModifyRequest
+      description: Body for modifying evidence data.
     FeedbackEventEntry:
       properties:
         event_id:
@@ -5233,6 +7251,25 @@ components:
       - total_findings
       title: FindingsSummaryResponse
       description: Findings summary response.
+    ForceOpenRequest:
+      properties:
+        reason:
+          type: string
+          maxLength: 512
+          title: Reason
+          default: dashboard-operator
+        duration_seconds:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Duration Seconds
+          description: Optional fixed cool-down window. Defaults to the breaker's
+            configured recovery_timeout when omitted. 0 = indefinite (stays OPEN until
+            reset).
+      type: object
+      title: ForceOpenRequest
+      description: Body for the force-open tool circuit breaker endpoint.
     FpPatternEntry:
       properties:
         pattern_id:
@@ -5319,6 +7356,21 @@ components:
       - updated_at
       title: FpPatternEntry
       description: Learned false positive pattern entry.
+    FrontendTelemetryEvent:
+      properties:
+        event_type:
+          type: string
+          title: Event Type
+        payload:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Payload
+      type: object
+      required:
+      - event_type
+      title: FrontendTelemetryEvent
     GapAnalysisEntry:
       properties:
         module:
@@ -5419,6 +7471,28 @@ components:
       - target
       title: HistoricalScoreResponse
       description: Historical scores response.
+    HuntModeRequest:
+      properties:
+        enabled:
+          type: boolean
+          title: Enabled
+        reason:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Reason
+        actor:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Actor
+      type: object
+      required:
+      - enabled
+      title: HuntModeRequest
+      description: Body for the hunt-mode toggle endpoint.
     JobCreateRequest:
       properties:
         base_url:
@@ -5678,8 +7752,6 @@ components:
       - id
       - base_url
       - hostname
-      - scope_entries
-      - enabled_modules
       - mode
       - target_name
       - status
@@ -5688,10 +7760,7 @@ components:
       - status_message
       - progress_percent
       - started_at
-      - warnings
-      - execution_options
       - can_stop
-      - latest_logs
       - config_href
       - scope_href
       - stdout_href
@@ -5699,6 +7768,19 @@ components:
       - target_href
       title: JobResponse
       description: Single job response.
+    MarkReadResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+        unread_count:
+          type: integer
+          title: Unread Count
+      type: object
+      required:
+      - success
+      - unread_count
+      title: MarkReadResponse
     MeshNodeSchema:
       properties:
         id:
@@ -5902,6 +7984,34 @@ components:
       - finding_id
       title: NoteUpdateRequest
       description: Request body for updating a note.
+    NotificationListResponse:
+      properties:
+        notifications:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Notifications
+        total:
+          type: integer
+          title: Total
+        unread_count:
+          type: integer
+          title: Unread Count
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+      type: object
+      required:
+      - notifications
+      - total
+      - unread_count
+      - limit
+      - offset
+      title: NotificationListResponse
     PipelineTelemetryEvent:
       properties:
         event_id:
@@ -6146,21 +8256,6 @@ components:
       - enabled
       title: RateLimitStatusResponse
       description: Rate-limit telemetry response.
-    ReadinessResponse:
-      properties:
-        ready:
-          type: boolean
-          title: Ready
-        checks:
-          additionalProperties:
-            type: boolean
-          type: object
-          title: Checks
-      type: object
-      required:
-      - ready
-      title: ReadinessResponse
-      description: Readiness check response.
     RedisCacheOverview:
       properties:
         connected:
@@ -6585,11 +8680,30 @@ components:
       - timestamp
       title: StageTransitionEntry
       description: Stage transition audit trail entry.
+    SubmitFindingPayload:
+      properties:
+        platform:
+          type: string
+          pattern: ^(hackerone|bugcrowd|intigriti|synack|yeswehack|openbugbounty|googlevrp|meta|apple|aws|msrc|mozilla|govdefense)$
+          title: Platform
+        draft:
+          type: boolean
+          title: Draft
+          default: true
+        additional_notes:
+          type: string
+          title: Additional Notes
+          default: ''
+      type: object
+      required:
+      - platform
+      title: SubmitFindingPayload
     TargetComparisonDetail:
       properties:
         name:
           type: string
           title: Name
+          default: ''
         risk_score:
           type: number
           title: Risk Score
@@ -6624,10 +8738,8 @@ components:
           type: object
           title: Severity Counts
       type: object
-      required:
-      - name
       title: TargetComparisonDetail
-      description: Comparative stats for a single target.
+      description: Single side of a target comparison response.
     TargetComparisonResponse:
       properties:
         target_a:
@@ -6639,7 +8751,7 @@ components:
       - target_a
       - target_b
       title: TargetComparisonResponse
-      description: Comparison response between two targets.
+      description: Side-by-side target comparison response.
     TargetFindingsResponse:
       properties:
         findings:
@@ -7015,13 +9127,17 @@ components:
     TokenRequest:
       properties:
         api_key:
-          type: string
-          minLength: 1
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Api Key
+        mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
       additionalProperties: false
       type: object
-      required:
-      - api_key
       title: TokenRequest
       description: Request body for dashboard token exchange.
     TokenResponse:
@@ -7046,6 +9162,28 @@ components:
       - role
       title: TokenResponse
       description: Short-lived dashboard token response.
+    ToolAvailabilityRequest:
+      properties:
+        tools:
+          items:
+            type: string
+          type: array
+          title: Tools
+          description: List of tool names to check availability for
+      type: object
+      required:
+      - tools
+      title: ToolAvailabilityRequest
+      description: Body for the tool availability check endpoint.
+    UnreadCountResponse:
+      properties:
+        unread_count:
+          type: integer
+          title: Unread Count
+      type: object
+      required:
+      - unread_count
+      title: UnreadCountResponse
     ValidationError:
       properties:
         loc:

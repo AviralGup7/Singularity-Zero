@@ -17,7 +17,7 @@ import json
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +199,10 @@ def _load_capability_profile(profile_name: str) -> dict[str, Any] | None:
         text = manifest_path.read_text(encoding="utf-8")
         manifest = json.loads(text)
         profiles = manifest.get("pipeline_profiles", {})
-        return profiles.get(profile_name)
+        profile = profiles.get(profile_name)
+        if not isinstance(profile, dict) or not profile:
+            return None
+        return cast(dict[str, Any], profile)
     except Exception as exc:
         logger.debug("Failed to load capability profile %r: %s", profile_name, exc)
         return None

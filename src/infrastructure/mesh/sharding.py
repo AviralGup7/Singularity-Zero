@@ -328,7 +328,7 @@ class MeshShardManager:
                         ):
                             moved += 1
                 stats.last_target_sample_moved = moved
-                self._last_target_sample = (sample, set(current.values()))
+                self._last_target_sample = (sample, {str(v) for v in current.values()})
             return stats
 
     # --------------------------------------------------------------- internal
@@ -336,7 +336,7 @@ class MeshShardManager:
     def _rebuild_locked(self, *, force: bool = False) -> bool:
         if not self._nodes and not force:
             return False
-        old_leaders: dict[str, str] = {}
+        old_leaders: dict[str, str | None] = {}
         if self._ring and self._last_target_sample is not None:
             prev_targets, _ = self._last_target_sample
             old_leaders = {t: self.get_shard_leader(t) for t in prev_targets}

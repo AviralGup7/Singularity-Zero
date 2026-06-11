@@ -82,7 +82,7 @@ def _make_plugin_handler(kind: str, key: str) -> Callable[[Job], Any]:
 
     handler.__name__ = f"queue_handler({canonical})"
     handler.__qualname__ = f"queue_handler({canonical})"
-    return handler
+    return cast("Callable[[Job], Any]", handler)
 
 
 def register_all_plugin_handlers(queue: Any) -> int:

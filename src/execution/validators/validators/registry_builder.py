@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # adapter helpers below keep both call styles working while
 # delegating to the engine registry as the single source of truth.
 
-_BASE_RUNNERS: dict[str, Validator] = {
+_BASE_RUNNERS: dict[str, Any] = {
     "redirect": validate_redirect,
     "ssrf": validate_ssrf,
     "token_reuse": validate_token_reuse,
@@ -71,7 +71,7 @@ def _stub_validator(name: str) -> Validator:
     return validate
 
 
-_RUNNERS: dict[str, Validator] = dict(_BASE_RUNNERS)
+_RUNNERS: dict[str, Any] = dict(_BASE_RUNNERS)
 for _validator_name in VALIDATOR_ORDER:
     _RUNNERS.setdefault(_validator_name, _stub_validator(_validator_name))
 
@@ -171,7 +171,7 @@ for _name in list(VALIDATOR_ORDER):
     if _strategy_runner is not None:
         _RUNNERS[_name] = _strategy_runner
 
-VALIDATOR_REGISTRY: dict[str, Validator] = {name: _RUNNERS[name] for name in VALIDATOR_ORDER}
+VALIDATOR_REGISTRY: dict[str, Any] = {name: _RUNNERS[name] for name in VALIDATOR_ORDER}
 
 __all__ = [
     "VALIDATOR_REGISTRY",

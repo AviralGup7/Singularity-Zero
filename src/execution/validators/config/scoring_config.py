@@ -63,35 +63,23 @@ class ScoringConfig:
         """Return a copy with overrides applied. Unknown keys are ignored."""
         if not overrides:
             return self
-        data = {
-            "base": float(str(overrides.get("base", self.base))),
-            "cap": float(str(overrides.get("cap", self.cap))),
-            "floor": float(str(overrides.get("floor", self.floor))),
-            "max_total_bonus": float(str(overrides.get("max_total_bonus", self.max_total_bonus))),
-            "max_total_penalty": float(
-                str(overrides.get("max_total_penalty", self.max_total_penalty))
-            ),
-            "score_weight": float(str(overrides.get("score_weight", self.score_weight))),
-            "signal_weight": float(str(overrides.get("signal_weight", self.signal_weight))),
-            "required_signals": tuple(
-                str(value)
-                for value in overrides.get("required_signals", self.required_signals)  # type: ignore[arg-type]
-            ),
-            "min_independent_signals": int(
-                str(overrides.get("min_independent_signals", self.min_independent_signals))
-            ),
-        }
         return ScoringConfig(
-            base=float(data["base"]),
-            cap=float(data["cap"]),
-            floor=float(data["floor"]),
-            max_total_bonus=float(data["max_total_bonus"]),
-            max_total_penalty=float(data["max_total_penalty"]),
-            score_weight=float(data["score_weight"]),
-            signal_weight=float(data["signal_weight"]),
-            required_signals=data["required_signals"],
-            min_independent_signals=int(data["min_independent_signals"]),
+            base=float(overrides.get("base", self.base)),
+            cap=float(overrides.get("cap", self.cap)),
+            floor=float(overrides.get("floor", self.floor)),
+            max_total_bonus=float(overrides.get("max_total_bonus", self.max_total_bonus)),
+            max_total_penalty=float(overrides.get("max_total_penalty", self.max_total_penalty)),
+            score_weight=float(overrides.get("score_weight", self.score_weight)),
+            signal_weight=float(overrides.get("signal_weight", self.signal_weight)),
+            required_signals=tuple(
+                str(v) for v in overrides.get("required_signals", self.required_signals)
+            ),
+            min_independent_signals=int(
+                overrides.get("min_independent_signals", self.min_independent_signals)
+            ),
         )
+
+
 
 
 # Default per-validator scoring constants. These mirror the previously
