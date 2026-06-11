@@ -41,7 +41,7 @@ dependencies = [
     "networkx==3.0.0",
     "beartype==0.20.1",
     "mmh3==5.1.0",
-    "argon2-cffi==23.1.0",
+    "argon2-cffi==25.1.0",
     "msgspec==0.21.1",
     "msgpack==1.0.0",
     "cloudpickle==3.0.0",
