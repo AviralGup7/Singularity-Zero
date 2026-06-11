@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import shutil
-from typing import Any, cast
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
