@@ -145,11 +145,11 @@ def create_worker_discovery(
     }
     try:
         discovery = WorkerDiscovery(
-            worker_id=node.id,
+            node.id,
             port=node.port,
             metadata=advertised,
             secret=secret,
-            on_change=None,  # wired in lifespan to feed the gossip engine
+            on_change=None,
         )
     except Exception as exc:  # noqa: BLE001 - keep bootstrap resilient
         logger.warning("mDNS discovery unavailable: %s", exc)

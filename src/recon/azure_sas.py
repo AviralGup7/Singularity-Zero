@@ -123,6 +123,8 @@ class AzureReconResult:
     public_listing_findings: list[dict[str, Any]] = field(default_factory=list)
     sas_patterns: list[AzureSasUrlPattern] = field(default_factory=list)
     errors: int = 0
+    web_endpoints: list[str] = field(default_factory=list)
+    listing_endpoints: list[str] = field(default_factory=list)
 
     def _normalize_web_findings(self) -> None:
         self.web_endpoints = [
@@ -426,8 +428,8 @@ async def scan_azure_accounts(
         for account in accounts:
             result.sas_patterns.extend(generate_sas_patterns_for_account(account))
 
-    result.web_endpoints = list(result.public_web_findings)
-    result.listing_endpoints = list(result.public_listing_findings)
+    result.web_endpoints = [f.get("url", str(f)) if isinstance(f, dict) else str(f) for f in result.public_web_findings]
+    result.listing_endpoints = [f.get("url", str(f)) if isinstance(f, dict) else str(f) for f in result.public_listing_findings]
 
     return result
 

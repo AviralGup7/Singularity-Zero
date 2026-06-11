@@ -29,6 +29,8 @@ from logging.handlers import QueueListener, RotatingFileHandler
 from queue import SimpleQueue
 from typing import Any
 
+_logger = logging.getLogger(__name__)
+
 from src.infrastructure.observability.config import get_config
 
 _trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
@@ -465,7 +467,7 @@ class AsyncLogHandler(logging.Handler):
         try:
             self._queue.put_nowait(record)
         except Exception as exc:
-            logging.getLogger(__name__).warning(
+            _logger.warning(
                 "Structured log queue overflow, record dropped: %s", exc
             )
 

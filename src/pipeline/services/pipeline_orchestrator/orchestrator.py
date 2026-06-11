@@ -214,7 +214,7 @@ class StageDispatcher:
             job_id = await self._queue.enqueue(envelope, priority=priority)
             self._pending_job_ids[stage_name] = job_id
             logger.info("Enqueued stage '%s' as job %s", stage_name, job_id)
-            return job_id
+            return str(job_id)
         except Exception as exc:
             logger.warning(
                 "Failed to enqueue stage '%s', will execute locally: %s",
@@ -273,7 +273,7 @@ class StageDispatcher:
 
                 result_raw = _decode(job_data.get(b"result", b"{}"))
                 try:
-                    return json.loads(result_raw)
+                    return cast(dict[str, Any], json.loads(result_raw))
                 except (json.JSONDecodeError, TypeError):
                     return {"status": "ok"}
             elif state in ("dead_letter", "cancelled"):
@@ -311,6 +311,8 @@ class PipelineOrchestrator:
         self.dispatcher = StageDispatcher(queue=queue)
 
         self._migration_handler: ProactiveMigrationHandler | None = None
+        self._run_lock: Any = None
+        self._run_lock_scan_id: str | None = None
 
     @property
     def _pipeline_input(self) -> PipelineInput | None:
@@ -569,7 +571,7 @@ class PipelineOrchestrator:
             args=args,
         )
 
-    def _acquire_distributed_lock(self, target_name: str):
+    def _acquire_distributed_lock(self, target_name: str) -> str | None:
         from src.infrastructure.task_pool import RunLock
 
         scan_id = target_name

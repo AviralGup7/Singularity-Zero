@@ -6,7 +6,7 @@ import html
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from src.core.models import Finding
 from src.core.models.entities import SeverityLevel
@@ -200,9 +200,9 @@ def parse_sitemap_json(path: str) -> list[dict[str, Any]]:
             "params": params,
         }
         if "path" in item:
-            record["path"] = item.get("path")
+            record["path"] = cast(Any, item.get("path"))
         if "status" in item:
-            record["burp_status"] = item.get("status")
+            record["burp_status"] = cast(Any, item.get("status"))
         priority_urls.append(record)
     return priority_urls
 

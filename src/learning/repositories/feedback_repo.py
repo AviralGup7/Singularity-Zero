@@ -53,8 +53,13 @@ class FeedbackRepo(BaseRepo):
             params["tech_stack"] = ",".join(list(params["tech_stack"]))
 
         for key in ("was_validated", "was_false_positive"):
-            if isinstance(params[key], bool):
-                params[key] = self._bool_to_int(params[key])
+            raw_val = params[key]
+            if raw_val is None:
+                params[key] = 0
+            elif isinstance(raw_val, bool):
+                params[key] = self._bool_to_int(raw_val)
+            else:
+                params[key] = self._bool_to_int(bool(raw_val))
 
         with self._cursor() as cur:
             cur.execute(

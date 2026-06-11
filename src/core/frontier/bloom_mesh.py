@@ -292,7 +292,7 @@ class NeuralBloomMesh:
 
         schema_raw = data.get("schema")
         try:
-            schema_int = int(schema_raw)
+            schema_int = int(schema_raw)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             schema_int = -1
         if not (BLOOM_SNAPSHOT_MIN_ACCEPTED <= schema_int <= BLOOM_SNAPSHOT_MAX_ACCEPTED):

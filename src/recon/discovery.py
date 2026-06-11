@@ -353,7 +353,7 @@ def run_enhanced_recon_layer(
             "hosts": sorted(reprobed_hosts),
             "count": len(reprobed_hosts),
         }
-        live_hosts.update(reprobed_hosts)
+        live_hosts = live_hosts | reprobed_hosts  # type: ignore[assignment]
 
     urls = collect_urls(live_hosts, scope_entries, config)
     parameters = extract_parameters(urls)
@@ -520,7 +520,8 @@ def run_enhanced_recon_layer(
                 _, waf_live_hosts = probe_live_hosts(
                     waf_hosts | waf_ips, config, progress_callback=progress_callback
                 )
-                live_hosts.update(waf_live_hosts)
+                combined: set[str] = live_hosts | set(waf_live_hosts)
+                live_hosts = combined  # type: ignore[assignment]
             except Exception:  # noqa: BLE001
                 pass
         report = _safe_call(

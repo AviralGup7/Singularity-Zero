@@ -162,7 +162,10 @@ async def send_h2_request(
     Returns:
         The stream ID.
     """
-    stream_id = conn.get_next_available_stream_id()
+    stream_id_result = conn.get_next_available_stream_id()
+    if stream_id_result is None:
+        raise RuntimeError("No available H2 stream ID")
+    stream_id = int(stream_id_result)
     conn.send_headers(stream_id, headers, end_stream=end_stream and not body)
     transport.write(conn.data_to_send())
 
@@ -255,7 +258,7 @@ class _H2ClientProtocol(asyncio.Protocol):
     def __init__(self, conn: h2.connection.H2Connection) -> None:
         self.conn = conn
 
-    def connection_made(self, transport: asyncio.Transport) -> None:
+    def connection_made(self, transport: Any) -> None:
         logger.debug("H2 connection established")
 
     def data_received(self, data: bytes) -> None:

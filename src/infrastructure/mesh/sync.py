@@ -196,11 +196,12 @@ class MeshSync:
         raw_payload = raw.get("payload")
         if not isinstance(raw_payload, dict):
             return None
-        payload: dict[str, Any] = raw_payload
+        payload: dict[str, Any] = cast(dict[str, Any], raw_payload)
 
         idem_key = raw.get("idempotency_key")
-        if not isinstance(idem_key, str) or not idem_key:
+        if idem_key is None or not isinstance(idem_key, str):
             idem_key = _stable_hash(payload)
+        idem_key = str(idem_key)
         if self._seen_idempotency_key(idem_key):
             self._duplicates_dropped_total += 1
             _inc_metric(

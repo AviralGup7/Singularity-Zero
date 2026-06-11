@@ -396,21 +396,21 @@ class ResponseCache:
             target_name=target_name,
             auth_override=auth_override,
         )
-
-        with self._lock:
-            now = time.time()
-            expired = [k for k, (_, exp) in list(self._active_records.items()) if now > exp]
-            for k in expired:
-                self._active_records.pop(k, None)
-            if len(self._active_records) >= 1000:
-                to_remove = len(self._active_records) - 999
-                oldest = sorted(
-                    ((k, exp) for k, (_, exp) in self._active_records.items()),
-                    key=lambda x: x[1],
-                )
-                for k, _ in oldest[:to_remove]:
+        if record is not None and isinstance(record, dict):
+            with self._lock:
+                now = time.time()
+                expired = [k for k, (_, exp) in list(self._active_records.items()) if now > exp]
+                for k in expired:
                     self._active_records.pop(k, None)
-            self._active_records[active_key] = (record, now + (self.cache_ttl_hours * 3600))
+                if len(self._active_records) >= 1000:
+                    to_remove = len(self._active_records) - 999
+                    oldest = sorted(
+                        ((k, exp) for k, (_, exp) in self._active_records.items()),
+                        key=lambda x: x[1],
+                    )
+                    for k, _ in oldest[:to_remove]:
+                        self._active_records.pop(k, None)
+                self._active_records[active_key] = (record, now + (self.cache_ttl_hours * 3600))
 
         return record
 
@@ -576,6 +576,7 @@ def _fetch_response_stream(
             url,
             headers=headers,
             body=request_body,
+            cert=cert,
             preload_content=False,
             redirect=True,
             timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
@@ -649,46 +650,6 @@ def _fetch_response_stream(
                 resp.release_conn()
             except (OSError, AttributeError, RuntimeError) as release_exc:
                 logger.debug("urllib3 response.release_conn() failed: %s", release_exc)
-
-
-def fetch_response(
-    url: str,
-    timeout_seconds: int,
-    max_bytes: int,
-    *,
-    method: str = "GET",
-    extra_headers: dict[str, str] | None = None,
-    body: str | bytes | None = None,
-    stream: bool = False,
-    capture_forensics: bool = False,
-    output_dir: Path | None = None,
-    target_name: str | None = None,
-) -> dict[str, Any] | None:
-    if stream:
-        return _fetch_response_stream(
-            url, timeout_seconds, max_bytes, method=method, extra_headers=extra_headers, body=body
-        )
-
-    result = _fetch_response_once(
-        url, timeout_seconds, max_bytes, method=method, extra_headers=extra_headers, body=body
-    )
-    if capture_forensics and result.record and output_dir and target_name:
-        from src.analysis.passive.forensics import ForensicExchange, save_forensic_exchange
-
-        exchange = ForensicExchange(
-            url=url,
-            method=method,
-            request_headers=extra_headers or {},
-            request_body=body,
-            response_status=result.status_code,
-            response_headers=result.record.get("headers", {}),
-            response_body=result.record.get("body_text", ""),
-            latency_seconds=result.latency_seconds,
-        )
-        save_forensic_exchange(output_dir, exchange, target_name)
-        return {**result.record, "exchange_id": exchange.exchange_id}
-
-    return result.record
 
 
 def _fetch_response_once(

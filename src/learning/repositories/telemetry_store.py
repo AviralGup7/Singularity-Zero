@@ -499,7 +499,7 @@ class TelemetryStore:
         conn = self._get_conn()
         cur = conn.execute(query, params or [])
         conn.commit()
-        return cur.rowcount
+        return int(cur.rowcount or 0)
 
     def execute_write_many(self, query: str, params_list: list[list[Any]]) -> int:
         """Execute a write query with multiple parameter sets in one transaction.

@@ -11,7 +11,7 @@ import logging
 import sqlite3
 import time
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -75,7 +75,7 @@ def _get_conn(request: Request) -> sqlite3.Connection:
     services = getattr(request.app.state, "services", None)
     store = getattr(services, "store", None) if services else None
     if store is not None and hasattr(store, "_get_conn"):
-        conn = store._get_conn()
+        conn = cast(sqlite3.Connection, store._get_conn())
         _ensure_db(conn)
         return conn
     # Fallback: use a standalone SQLite database file
@@ -83,7 +83,7 @@ def _get_conn(request: Request) -> sqlite3.Connection:
 
     fallback = TelemetryStore()
     fallback.initialize()
-    conn = fallback._get_conn()
+    conn = cast(sqlite3.Connection, fallback._get_conn())
     _ensure_db(conn)
     return conn
 

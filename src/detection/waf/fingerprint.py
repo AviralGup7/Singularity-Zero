@@ -50,7 +50,7 @@ def fingerprint_response(
     body: str | bytes | None = None,
     *,
     cookies: Mapping[str, str] | None = None,
-) -> WAFMatch:
+) -> WAFMatch | None:
     """Identify the WAF/CDN that produced the response.
 
     Returns a `WAFMatch` with the best candidate and its confidence.

@@ -27,7 +27,7 @@ import struct
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 try:
     import httpx
@@ -653,9 +653,9 @@ class RaceCoordinator:
         if request_factory is not None:
             spawned = request_factory(worker_url, index)
             if asyncio.iscoroutine(spawned):
-                return await spawned
+                return cast(dict[str, Any], await spawned)
             if hasattr(spawned, "__await__"):
-                return await spawned.__await__()
+                return cast(dict[str, Any], await spawned.__await__())
             if spawned is not None:
                 return dict(spawned)
             return {
@@ -994,7 +994,8 @@ class ActorRaceTester:
         async def _paired_race() -> tuple[dict[str, Any], dict[str, Any]]:
             coro_a = asyncio.to_thread(_fire, actor_a)
             coro_b = asyncio.to_thread(_fire, actor_b)
-            return tuple(await asyncio.gather(coro_a, coro_b))
+            results = await asyncio.gather(coro_a, coro_b)
+            return (results[0] or {}, results[1] or {})
 
         if loop is not None and loop.is_running():
             future = asyncio.run_coroutine_threadsafe(_paired_race(), loop)
