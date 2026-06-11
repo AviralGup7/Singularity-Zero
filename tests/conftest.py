@@ -2,6 +2,7 @@ import ipaddress
 import socket
 import sys
 import types
+
 import pytest
 
 _original_getaddrinfo = socket.getaddrinfo

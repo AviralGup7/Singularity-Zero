@@ -33,8 +33,10 @@ import httpx
 try:
     from src.intelligence.severity_model import enrich_findings_with_model_severity
 except ImportError:
+
     def enrich_findings_with_model_severity(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return findings
+
 
 try:
     import dns.asyncresolver
