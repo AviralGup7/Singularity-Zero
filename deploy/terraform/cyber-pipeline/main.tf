@@ -1,3 +1,26 @@
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+  # SECURITY: Remote state backend with encryption and locking.
+  # Configure these values for your environment before running terraform init.
+  # backend "s3" {
+  #   bucket         = "your-terraform-state-bucket"
+  #   key            = "cyber-pipeline/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "terraform-locks"
+  #   encrypt        = true
+  # }
+}
+
 locals {
   labels = merge(
     {
@@ -19,6 +42,17 @@ resource "random_password" "db_password" {
   length  = 32
   special = true
 }
+
+# SECURITY WARNING: The generated password is stored in Terraform state.
+# For production, use AWS Secrets Manager or GCP Secret Manager instead:
+#   resource "aws_secretsmanager_secret" "db_password" {
+#     name = "${var.name}-db-password"
+#   }
+#   resource "aws_secretsmanager_secret_version" "db_password" {
+#     secret_id     = aws_secretsmanager_secret.db_password.id
+#     secret_string = random_password.db_password.result
+#   }
+# Then reference: aws_secretsmanager_secret_version.db_password.secret_string
 
 resource "aws_db_subnet_group" "postgres" {
   count      = var.platform == "aws" ? 1 : 0
@@ -305,4 +339,63 @@ resource "kubernetes_service" "dashboard" {
       target_port = "http"
     }
   }
+}
+
+# ──────────────────────────────────────────────────────────────────────
+# CloudWatch Monitoring & Alerting
+# ──────────────────────────────────────────────────────────────────────
+
+resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
+  count                     = var.platform == "aws" ? 1 : 0
+  alarm_name                = "${var.name}-rds-high-cpu"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 3
+  metric_name               = "CPUUtilization"
+  namespace                 = "AWS/RDS"
+  period                    = 300
+  statistic                 = "Average"
+  threshold                 = 80
+  alarm_description         = "RDS CPU utilization exceeds 80% for 15 minutes"
+  alarm_actions             = var.alarm_sns_topic_arns
+  ok_actions                = var.alarm_sns_topic_arns
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.postgres[0].identifier
+  }
+  tags = local.labels
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage" {
+  count                     = var.platform == "aws" ? 1 : 0
+  alarm_name                = "${var.name}-rds-low-storage"
+  comparison_operator       = "LessThanThreshold"
+  evaluation_periods        = 3
+  metric_name               = "FreeStorageSpace"
+  namespace                 = "AWS/RDS"
+  period                    = 300
+  statistic                 = "Average"
+  threshold                 = 5368709120  # 5GB in bytes
+  alarm_description         = "RDS free storage below 5GB"
+  alarm_actions             = var.alarm_sns_topic_arns
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.postgres[0].identifier
+  }
+  tags = local.labels
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_connections" {
+  count                     = var.platform == "aws" ? 1 : 0
+  alarm_name                = "${var.name}-rds-high-connections"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 2
+  metric_name               = "DatabaseConnections"
+  namespace                 = "AWS/RDS"
+  period                    = 300
+  statistic                 = "Average"
+  threshold                 = 80
+  alarm_description         = "RDS connections exceed 80"
+  alarm_actions             = var.alarm_sns_topic_arns
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.postgres[0].identifier
+  }
+  tags = local.labels
 }

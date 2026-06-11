@@ -16,7 +16,7 @@ function safe(s: string | number | undefined | null): string {
   return String(s);
 }
 
-function formatRequest(req: any): string {
+function formatRequest(req: { method?: string; url?: string; headers?: Record<string, string>; body?: string } | undefined): string {
   if (!req) return 'N/A';
   const headerLines = Object.entries(req.headers || {})
     .map(([k, v]) => `${k}: ${v}`)
@@ -24,7 +24,7 @@ function formatRequest(req: any): string {
   return `${req.method || 'GET'} ${req.url || '/'} HTTP/1.1\n${headerLines}\n\n${req.body || ''}`;
 }
 
-function formatResponse(res: any): string {
+function formatResponse(res: { status?: number; headers?: Record<string, string>; body?: string } | undefined): string {
   if (!res) return 'N/A';
   const headerLines = Object.entries(res.headers || {})
     .map(([k, v]) => `${k}: ${v}`)

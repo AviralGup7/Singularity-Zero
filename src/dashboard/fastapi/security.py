@@ -52,7 +52,7 @@ except Exception:  # pragma: no cover - argon2-cffi is a project dep but be defe
     VerifyMismatchError = Exception  # type: ignore[assignment,misc]
     _ARGON2_AVAILABLE = False
 
-ROLE_ORDER = {"read_only": 1, "worker": 2, "guest": 2, "admin": 3}
+ROLE_ORDER = {"viewer": 1, "operator": 2, "admin": 3}
 VALID_ROLES = frozenset(ROLE_ORDER)
 
 # Minimum acceptable entropy (Shannon) of a configured secret in production.
@@ -109,6 +109,9 @@ def app_secret_key() -> str:
     1. ``APP_SECRET_KEY`` or ``DASHBOARD_API_KEY`` environment variable.
     2. In non-production environments, a per-process random fallback
        generated on first call.  In production this raises.
+
+    NOTE: In multi-worker deployments, always set APP_SECRET_KEY to
+    ensure JWTs are valid across all workers.
     """
     key = os.getenv("APP_SECRET_KEY") or os.getenv("DASHBOARD_API_KEY")
     is_prod = os.getenv("APP_ENV") == "production"
@@ -120,6 +123,8 @@ def app_secret_key() -> str:
                 "A high-entropy secret key must be configured in production via environment variables."
             )
         # Lazy, thread-safe initialization of the dev fallback.
+        # NOTE: In multi-worker mode this produces different secrets per worker.
+        # Always set APP_SECRET_KEY in production or multi-worker deployments.
         global _fallback_secret
         if _fallback_secret is None:
             with _fallback_secret_lock:
@@ -127,9 +132,9 @@ def app_secret_key() -> str:
                     _fallback_secret = secrets.token_hex(32)
         return _fallback_secret  # type: ignore[return-value]
 
-    if is_prod and key in ("change-me-in-production", "dev-dashboard-secret"):
+    if is_prod and key in ("change-me-in-production", "dev-dashboard-secret", "REPLACE_WITH_SECURE_RANDOM_VALUE_DO_NOT_USE_DEFAULT"):
         raise ValueError(
-            f"CRITICAL SECURITY RISK: The APP_SECRET_KEY is set to a default value ('{key}'). "
+            f"CRITICAL SECURITY RISK: The APP_SECRET_KEY is set to a placeholder/default value ('{key[:20]}...'). "
             "A high-entropy secret key must be configured in production environments."
         )
     if is_prod and _shannon_entropy_bits_per_char(key) < _MIN_SECRET_ENTROPY_BITS_PER_CHAR:
@@ -595,7 +600,7 @@ def _load_configured_keys() -> list[tuple[str, str]]:
 def _parse_key_config(payload: Any) -> list[tuple[str, str]]:
     if isinstance(payload, dict) and isinstance(payload.get("keys"), list):
         return [
-            (str(item["key"]), str(item.get("role", "read_only")))
+            (str(item["key"]), str(item.get("role", "viewer")))
             for item in payload["keys"]
             if isinstance(item, dict) and item.get("key")
         ]
@@ -634,7 +639,7 @@ def authenticate_jwt_token(token: str) -> Principal | None:
         )
     except jwt.PyJWTError:
         return None
-    role = str(payload.get("role") or (payload.get("roles") or ["read_only"])[0])
+    role = str(payload.get("role") or (payload.get("roles") or ["viewer"])[0])
     if role not in VALID_ROLES:
         return None
     return Principal(
@@ -677,3 +682,33 @@ def raise_for_roles(principal: Principal, allowed_roles: set[str]) -> None:
 
 def compare_key(candidate: str, expected: str) -> bool:
     return hmac.compare_digest(candidate or "", expected or "")
+
+
+_PLACEHOLDER_PATTERNS = {
+    "REPLACE_WITH_",
+    "change-me-in-production",
+    "REPLACE_WITH_SECURE_RANDOM_VALUE_DO_NOT_USE_DEFAULT",
+}
+
+
+def validate_env_placeholders() -> list[str]:
+    """Check environment variables for common placeholder values that must be replaced.
+
+    Returns a list of warning messages for any detected placeholder values.
+    """
+    warnings: list[str] = []
+    # Redis password
+    redis_pw = os.getenv("REDIS_PASSWORD", "")
+    if any(p in redis_pw for p in _PLACEHOLDER_PATTERNS):
+        warnings.append(
+            "REDIS_PASSWORD appears to contain a placeholder value. "
+            "Set a strong, unique password before running in production."
+        )
+    # Grafana admin password
+    grafana_pw = os.getenv("GRAFANA_ADMIN_PASSWORD", "")
+    if any(p in grafana_pw for p in _PLACEHOLDER_PATTERNS):
+        warnings.append(
+            "GRAFANA_ADMIN_PASSWORD appears to contain a placeholder value. "
+            "Set a strong password before running in production."
+        )
+    return warnings

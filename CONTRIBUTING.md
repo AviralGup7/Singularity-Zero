@@ -35,7 +35,7 @@ hooks are configured in `.pre-commit-config.yaml`; install them with
 
 ## Code style
 
-* **Python 3.14 baseline** � use modern type hints (`list[str]`,
+* **Python 3.14 baseline** � use modern type hints (`list[str]`,
   `dict[str, int]`, `T | None`) and `from __future__ import annotations`
   is no longer required.  Imports are sorted with `isort` (via ruff).
 * **Formatting** — `ruff format` is the source of truth.  Do not
@@ -54,9 +54,14 @@ hooks are configured in `.pre-commit-config.yaml`; install them with
 
 ## Pull request workflow
 
-1. **Branch from `main`**.  Use a descriptive name
-   (`fix/redis-timeout-drift`, `feat/sso-oidc`, `docs/contributing`).
-2. **Make focused commits** — one logical change per commit.
+1. **Branch from `main`**.  Use a descriptive name with a category prefix:
+   - `fix/redis-timeout-drift` — bug fixes
+   - `feat/sso-oidc` — new features
+   - `docs/contributing` — documentation
+   - `security/csrf-hardening` — security improvements
+   - `refactor/cleanup-middleware` — refactoring
+   - `test/csrf-middleware` — test additions
+2. **Make focused commits** — one logical change per commit. Write clear commit messages following [Conventional Commits](https://www.conventionalcommits.org/).
 3. **Run the full lint + test + typecheck pipeline locally** before
    pushing:
    ```bash
@@ -69,6 +74,9 @@ hooks are configured in `.pre-commit-config.yaml`; install them with
    the change is needed, and call out any new configuration knobs.
 5. **Be patient with review** — security-sensitive code gets at least
    two reviewers.
+6. **CI requirements** — all CI checks must pass before merge. PRs to
+   `main` require at least one approval. Direct pushes to `main` are
+   not permitted; all changes go through PRs.
 
 ## Adding a new detector / active probe
 

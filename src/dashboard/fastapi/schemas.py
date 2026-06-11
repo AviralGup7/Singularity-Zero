@@ -679,7 +679,7 @@ class TokenResponse(BaseModel):
 class APIKeyCreateRequest(StrictRequestModel):
     """Request body for generating an API key."""
 
-    role: str = Field(..., pattern="^(read_only|worker|admin)$")
+    role: str = Field(..., pattern="^(viewer|operator|admin)$")
 
 
 class APIKeyResponse(BaseModel):

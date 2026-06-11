@@ -93,15 +93,26 @@ def main(argv: list[str] | None = None) -> None:
     try:
         import uvicorn
 
-        uvicorn.run(
-            app,
-            host=config.host,
-            port=config.port,
-            log_level=args.log_level.lower(),
-            workers=args.workers,
-            reload=args.reload,
-            **uvicorn_ssl_kwargs,
-        )
+        if args.workers > 1:
+            uvicorn.run(
+                "src.dashboard.fastapi.main:app",
+                host=config.host,
+                port=config.port,
+                log_level=args.log_level.lower(),
+                workers=args.workers,
+                reload=args.reload,
+                **uvicorn_ssl_kwargs,
+            )
+        else:
+            uvicorn.run(
+                app,
+                host=config.host,
+                port=config.port,
+                log_level=args.log_level.lower(),
+                workers=args.workers,
+                reload=args.reload,
+                **uvicorn_ssl_kwargs,
+            )
     except ImportError:
         logger.error("uvicorn is required to run the dashboard server.")
         logger.error("Install it with: pip install uvicorn")

@@ -1,8 +1,11 @@
+import pytest
+
 from tests.stress.test_mesh_failover import dummy_logic
 
 from src.core.frontier.ghost_actor import ScanActor
 
 
+@pytest.mark.chaos
 def test_network_split_and_crdt_heal_convergence() -> None:
     """Chaos test: Verify independent partitions accumulate state and reconcile deterministically when network heals."""
     # Let's instantiate a ScanActor running on a partitioned sub-mesh

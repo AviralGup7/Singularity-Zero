@@ -21,7 +21,9 @@ try:
     target_metadata = Base.metadata
 except Exception:
     target_metadata = None
-    logger.warning("Could not load model metadata; autogenerate disabled. Run migrations manually.")
+    # Raise instead of just warning — without metadata, autogenerate produces empty/wrong migrations
+    logger.error("Could not load model metadata; autogenerate disabled. Run migrations manually.")
+    raise
 
 
 def get_url() -> str:
@@ -127,4 +129,5 @@ def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
+    verify_schema_versions()
     run_migrations_online()

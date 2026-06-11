@@ -64,6 +64,8 @@ dev = [
     "pytest>=9.0.0",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-snapshot>=0.7.0",
     "ruff==0.15.*",
     "jsonschema>=4.0.0",
     "safety>=3.7.0",
@@ -94,7 +96,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
-addopts = "-v --tb=short --strict-markers --disable-warnings --import-mode=importlib --cov=src.analysis --cov=src.core --cov=src.pipeline --cov=src.dashboard --cov=src.recon --cov=src.execution --cov=src.reporting --cov=src.intelligence --cov=src.detection --cov=src.decision --cov=src.fuzzing --cov=src.infrastructure.queue --cov=src.infrastructure.execution_engine --cov=src.infrastructure.cache --cov=src.infrastructure.observability --cov=src.infrastructure.security --cov=src.infrastructure.notifications --cov=src.dashboard.fastapi --cov=src.websocket_server --cov=src.learning --cov=src.exploitation"
+addopts = "-v --tb=short --strict-markers --import-mode=importlib --cov=src.analysis --cov=src.core --cov=src.pipeline --cov=src.dashboard --cov=src.recon --cov=src.execution --cov=src.reporting --cov=src.intelligence --cov=src.detection --cov=src.decision --cov=src.fuzzing --cov=src.infrastructure.queue --cov=src.infrastructure.execution_engine --cov=src.infrastructure.cache --cov=src.infrastructure.observability --cov=src.infrastructure.security --cov=src.infrastructure.notifications --cov=src.dashboard.fastapi --cov=src.websocket_server --cov=src.learning --cov=src.exploitation"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
@@ -102,6 +104,7 @@ markers = [
     "unit: marks tests as unit tests",
     "regression: marks tests as regression tests",
     "security: marks tests as security tests",
+    "chaos: marks chaos tests requiring infrastructure (docker, redis, etc.)",
 ]
 filterwarnings = []
 
@@ -125,7 +128,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 70
+fail_under = 80
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
@@ -152,7 +155,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+select = ["E", "F", "I", "N", "W", "UP", "S601", "S603", "S607", "S608"]
 ignore = [
     "E501",
     "BLE001",
@@ -171,10 +174,6 @@ ignore = [
     "S310",
     "S311",
     "S324",
-    "S601",
-    "S603",
-    "S607",
-    "S608",
     "E701",
     "E402",
     "N806",
@@ -198,10 +197,9 @@ disallow_untyped_defs = true
 exclude = [
     "scripts/",
     "frontend/",
-    "tests/",
     "benchmarks/",
 ]
-ignore_missing_imports = true
+ignore_missing_imports = false
 
 
 [build-system]

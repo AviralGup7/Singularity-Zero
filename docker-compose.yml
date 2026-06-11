@@ -18,8 +18,8 @@ services:
     networks:
       - cyber-pipeline-dev
     healthcheck:
-      # Use PING command without exposing password in process list
-      test: ["CMD", "redis-cli", "ping"]
+      # Use PING command with AUTH via REDISCLI_AUTH to avoid exposing password in process list
+      test: ["CMD", "sh", "-c", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -99,9 +99,7 @@ async def authenticate_websocket(
         allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
     allowed = {o.strip() for o in allowed if o.strip()}
 
-    is_production = (
-        os.environ.get("ENV") == "production" or os.environ.get("NODE_ENV") == "production"
-    )
+    is_production = os.environ.get("APP_ENV") == "production"
     if not allowed and is_production:
         logger.error(
             "Strict origin validation failed: no allowed origins configured in production mode!"
@@ -110,6 +108,11 @@ async def authenticate_websocket(
             code="auth_invalid_origin",
             detail="Origin validation failed: no allowed origins configured in production mode",
             status_code=4003,
+        )
+    if not allowed and not is_production:
+        logger.warning(
+            "WS_ALLOWED_ORIGINS is empty in non-local environment. "
+            "Cross-Site WebSocket Hijacking (CSWSH) may be possible."
         )
 
     if allowed and "*" not in allowed:
@@ -315,8 +318,14 @@ def _authenticate_api_key(
     roles = {"api_key_user"}
     if ":" in user_id:
         maybe_role, _identifier = user_id.split(":", 1)
-        if maybe_role:
+        if maybe_role and maybe_role in {"admin", "operator", "viewer", "api_key_user"}:
             roles = {maybe_role}
+        elif maybe_role:
+            logger.warning(
+                "API key user_id contains unrecognized role '%s' in '%s'. "
+                "Role must be one of: admin, operator, viewer, api_key_user.",
+                maybe_role, user_id,
+            )
 
     if required_roles is not None and not roles.intersection(required_roles):
         raise AuthenticationError(

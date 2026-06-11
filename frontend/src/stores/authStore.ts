@@ -71,7 +71,12 @@ function getInitialUser() {
     }
   }
   // Playwright E2E Test bypass: automatically authorize as admin when running in Playwright harness
-  if (import.meta.env.DEV && typeof window !== 'undefined' && window.navigator.userAgent.includes('Playwright')) {
+  // SECURITY: Only bypass in E2E test environment, never in production.
+  if (
+    import.meta.env.VITE_E2E_AUTH_BYPASS === '1' &&
+    typeof window !== 'undefined' &&
+    window.navigator.userAgent.includes('Playwright')
+  ) {
     return {
       id: 'e2e-user',
       name: 'E2E Analyst',
@@ -95,7 +100,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
     login: (name: string, role: UserRole, unlockPassword?: string) => {
       const newUser = {
-        id: `user-${Date.now()}`,
+        id: `user-${crypto.randomUUID()}`,
         name,
         role,
         unlockPassword,
@@ -114,7 +119,8 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     },
 
     loginWithGuestToken: async () => {
-      // Lazy import to break circular dependency with settingsStore
+      // NOTE: Dynamic import breaks circular dependency between authStore and settingsStore.
+      // This is intentional — direct import creates a cycle that prevents module initialization.
       const { useSettingsStore } = await import('./settingsStore');
       const baseUrl = useSettingsStore.getState().settings.api.baseUrl
         || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -124,12 +130,15 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       }
       const token = result.data;
       const newUser = {
-        id: `guest-${Date.now()}`,
+        id: `guest-${crypto.randomUUID()}`,
         name: 'Guest',
         role: 'viewer' as UserRole,
         tenantId: 'tenant-default',
         organizationId: 'org-default',
       };
+      // Store JWT access token in sessionStorage (cleared on tab close, better than localStorage
+      // but still accessible to XSS). For stronger security, use HTTP-only cookies instead.
+      // Ensure CSP prevents inline scripts and all user content is sanitized.
       safeSession.set('auth_token', token.access_token);
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({
@@ -143,7 +152,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       const role = mapApiRole(token.role);
       const tokenExt = token as TokenResponse & { tenant_id?: string; organization_id?: string };
       const newUser = {
-        id: `api-${Date.now()}`,
+        id: `api-${crypto.randomUUID()}`,
         name: `${token.role} API key`,
         role,
         tenantId: tokenExt.tenant_id || 'tenant-default',
@@ -184,7 +193,14 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     verifyUnlockPassword: (password: string) => {
       const state = get();
       if (!state.user) return false;
-      return state.user.unlockPassword === password;
+      const expected = state.user.unlockPassword ?? '';
+      // Constant-time comparison to prevent timing attacks
+      if (password.length !== expected.length) return false;
+      let result = 0;
+      for (let i = 0; i < password.length; i++) {
+        result |= password.charCodeAt(i) ^ expected.charCodeAt(i);
+      }
+      return result === 0;
     },
 
     hydrateAuth: async () => {
@@ -193,7 +209,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       if (!state.user) return;
       const token = safeSession.get('auth_token');
       if (!token) {
-        // Token was cleared (e.g.另一 tab) — clear the user too
+        // Token was cleared (e.g., in another tab) — clear the user too
         set({ user: null, permissions: ROLE_PERMISSIONS.viewer });
         return;
       }

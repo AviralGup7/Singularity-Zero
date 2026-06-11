@@ -47,3 +47,8 @@ data:
   NUCLEI_TEMPLATE_PATH: "/app/nuclei-templates"
   NUCLEI_RATE_LIMIT: "50"
   NUCLEI_CONCURRENCY: "10"
+
+# SECURITY NOTE: ConfigMaps are NOT encrypted at rest in etcd by default.
+# Do NOT store sensitive data (passwords, API keys, tokens) here.
+# Use Kubernetes Secrets (or External Secrets Operator) for any secret values.
+# See: deploy/kubernetes/secrets.yaml for the companion Secret resource.

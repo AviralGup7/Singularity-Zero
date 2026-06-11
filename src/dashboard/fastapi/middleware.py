@@ -85,20 +85,18 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     """Middleware for measuring and logging request processing time and request ID tracing."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # TODO: Propagate this request_id to downstream pipeline stages via contextvars
-        # so that every log line in a request's lifecycle can carry the same correlation ID.
         request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
         request.state.request_id = request_id
-
-        # Use monotonic time so that clock adjustments can't make the
-        # reported latency go negative or roll backwards.
-        start_time = time.monotonic()
-        response = await call_next(request)
-        process_time = time.monotonic() - start_time
-
-        response.headers["X-Request-ID"] = request_id
-        response.headers["X-Process-Time"] = f"{process_time:.6f}"
-        return response
+        token = request_id_var.set(request_id)
+        try:
+            start_time = time.monotonic()
+            response = await call_next(request)
+            process_time = time.monotonic() - start_time
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Process-Time"] = f"{process_time:.6f}"
+            return response
+        finally:
+            request_id_var.reset(token)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -149,12 +147,16 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # When auth is disabled (development mode), CSRF protection is
         # disabled too. Otherwise the SPA / curl-based smoke tests cannot
         # exercise endpoints that would otherwise need a CSRF cookie.
-        if os.getenv("DASHBOARD_AUTH_DISABLED", "").lower() in {"1", "true", "yes"}:
+        # SECURITY: Never disable CSRF in production.
+        if os.getenv("APP_ENV") != "production" and os.getenv("DASHBOARD_AUTH_DISABLED", "").lower() in {"1", "true", "yes"}:
             return await call_next(request)
-        # Bearer / API-key auth isn't a CSRF vector.
-        if request.headers.get("Authorization", "").lower().startswith(
-            "bearer "
-        ) or request.headers.get("X-API-Key"):
+        # Bearer / API-key auth isn't a CSRF vector, BUT only exempt
+        # if the request does NOT carry session cookies. An attacker
+        # could add a fake X-API-Key header to bypass CSRF when the
+        # browser sends session cookies automatically.
+        has_session_cookie = _CSRF_COOKIE_NAME in request.cookies
+        has_auth_header = request.headers.get("Authorization", "").lower().startswith("bearer ") or request.headers.get("X-API-Key")
+        if has_auth_header and not has_session_cookie:
             return await call_next(request)
 
         cookie_token = request.cookies.get(_CSRF_COOKIE_NAME)
@@ -181,7 +183,12 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
 
 class AuditLoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware for audit logging dashboard API requests."""
+    """Middleware for audit logging dashboard API requests.
+
+    IMPORTANT: This middleware must be added AFTER the authentication middleware
+    in the middleware stack. Otherwise, request.state.user_id will not be set
+    and audit logs will show "anonymous" for authenticated users.
+    """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
@@ -212,5 +219,5 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                     },
                 )
             except (OSError, ValueError, TypeError, AttributeError) as log_exc:
-                logger.debug("Audit log write failed: %s", log_exc)
+                logger.warning("Audit log write failed: %s", log_exc)
         return response

@@ -191,15 +191,26 @@ async def create_asset(
         "metadata": json.dumps(payload.get("metadata") or {}),
         "is_active": 1 if payload.get("is_active", True) else 0,
     }
-    columns = ", ".join(k for k in record.keys() if k in _VALID_ASSET_COLUMNS)
-    placeholders = ", ".join(["?"] * len(record))
     store = _get_store(request)
     conn = store._get_conn()
-    conn.execute(  # nosec B608
-        f"INSERT OR REPLACE INTO assets ({columns}) VALUES ({placeholders})",  # noqa: S608
-        [record[k] for k in record.keys() if k in _VALID_ASSET_COLUMNS],
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO assets "
+            "(asset_id, name, host_pattern, path_prefix, asset_type, entity_type, criticality, "
+            "tier, business_value, compliance_requirements, owner, notes, metadata, is_active) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                record["asset_id"], record["name"], record["host_pattern"],
+                record["path_prefix"], record["asset_type"], record["entity_type"],
+                record["criticality"], record["tier"], record["business_value"],
+                record["compliance_requirements"], record["owner"], record["notes"],
+                record["metadata"], record["is_active"],
+            ],
+        )
+        conn.commit()
+    except sqlite3.OperationalError as exc:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
     return {"asset_id": asset_id, "status": "created"}
 
 
@@ -273,13 +284,19 @@ async def create_acceptance(
         "created_by": payload.get("created_by"),
         "metadata": json.dumps(payload.get("metadata") or {}),
     }
-    columns = ", ".join(k for k in record.keys() if k in _VALID_ACCEPTANCE_COLUMNS)
-    placeholders = ", ".join(["?"] * len(record))
     store = _get_store(request)
     conn = store._get_conn()
-    conn.execute(  # nosec B608
-        f"INSERT OR REPLACE INTO risk_acceptances ({columns}) VALUES ({placeholders})",  # noqa: S608
-        [record[k] for k in record.keys() if k in _VALID_ACCEPTANCE_COLUMNS],
+    conn.execute(
+        "INSERT OR REPLACE INTO risk_acceptances "
+        "(acceptance_id, finding_id, asset_id, accepted_until, accepted_by, justification, "
+        "compensating_control_ref, review_date, scope, state, created_by, metadata) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            record["acceptance_id"], record["finding_id"], record["asset_id"],
+            record["accepted_until"], record["accepted_by"], record["justification"],
+            record["compensating_control_ref"], record["review_date"], record["scope"],
+            record["state"], record["created_by"], record["metadata"],
+        ],
     )
     conn.commit()
     return {"acceptance_id": acceptance_id, "status": "created"}
@@ -363,13 +380,19 @@ async def create_control(
         "is_active": 1 if payload.get("is_active", True) else 0,
         "metadata": json.dumps(payload.get("metadata") or {}),
     }
-    columns = ", ".join(k for k in record.keys() if k in _VALID_CONTROL_COLUMNS)
-    placeholders = ", ".join(["?"] * len(record))
     store = _get_store(request)
     conn = store._get_conn()
-    conn.execute(  # nosec B608
-        f"INSERT OR REPLACE INTO compensating_controls ({columns}) VALUES ({placeholders})",  # noqa: S608
-        [record[k] for k in record.keys() if k in _VALID_CONTROL_COLUMNS],
+    conn.execute(
+        "INSERT OR REPLACE INTO compensating_controls "
+        "(control_id, finding_id, control_type, description, discount_factor, evidence_url, "
+        "owner, expires_at, is_active, metadata) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            record["control_id"], record["finding_id"], record["control_type"],
+            record["description"], record["discount_factor"], record["evidence_url"],
+            record["owner"], record["expires_at"], record["is_active"],
+            record["metadata"],
+        ],
     )
     conn.commit()
     return {"control_id": control_id, "status": "created"}
@@ -557,17 +580,17 @@ async def transition_finding(
     # Stamp the new state on the finding row so the rest of the
     # pipeline (sort/filter) can use it without re-walking the events
     # table.
+    _VALID_TIMESTAMP_COLUMNS = {"triaged_at", "remediation_started_at", "fixed_at", "verified_at"}
     timestamp_col = {
         "triaged": "triaged_at",
         "in_remediation": "remediation_started_at",
         "fixed": "fixed_at",
         "verified": "verified_at",
     }.get(to_state)
-    if timestamp_col:
+    if timestamp_col and timestamp_col in _VALID_TIMESTAMP_COLUMNS:
         try:
-            # nosemgrep: python.lang.security.audit.formatted-sql-query
             conn.execute(
-                f"UPDATE findings SET {timestamp_col} = CURRENT_TIMESTAMP WHERE finding_id = ?",  # noqa: S608
+                f"UPDATE findings SET {timestamp_col} = CURRENT_TIMESTAMP WHERE finding_id = ?",
                 [finding_id],
             )
         except Exception as exc:  # noqa: BLE001

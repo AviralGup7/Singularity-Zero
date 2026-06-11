@@ -24,9 +24,15 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     # WebSocket support and TLS configuration (snippets disabled for CVE-2021-25742 compliance)
     # TLS configuration
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    cert-manager.io/cluster-issuer: letsencrypt-prod
     # Rate limiting
     nginx.ingress.kubernetes.io/limit-rps: "10"
+    # WAF (ModSecurity) - enable if ingress controller supports it
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/modsecurity-snippet: |
+      SecRuleEngine On
+      SecRule REQUEST_URI "@beginsWith /api/" "id:1001,phase:1,pass,nolog,setvar:tx.paranoia_level=1"
+      SecRule REQUEST_URI "@beginsWith /ws" "id:1002,phase:1,pass,nolog,setvar:tx.paranoia_level=1"
 spec:
   ingressClassName: ingress-nginx
   tls:

@@ -41,11 +41,24 @@ function getRating(metric: string, value: number): 'good' | 'needs-improvement' 
   return 'poor';
 }
 
+const MAX_VITALS_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function pruneOldEntries(data: Record<string, { timestamp?: string }>): void {
+  const now = Date.now();
+  for (const [key, entry] of Object.entries(data)) {
+    if (entry?.timestamp && now - new Date(entry.timestamp).getTime() > MAX_VITALS_AGE_MS) {
+      delete data[key];
+    }
+  }
+}
+
 function storeMetric(metric: Metric): void {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data: Record<string, unknown> = raw ? JSON.parse(raw) : {};
-   
+
+    pruneOldEntries(data as Record<string, { timestamp?: string }>);
+
     data[metric.name] = {
       value: metric.value,
       rating: getRating(metric.name, metric.value),

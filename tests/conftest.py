@@ -3,6 +3,7 @@ import socket
 import sys
 import types
 
+
 _original_getaddrinfo = socket.getaddrinfo
 
 
@@ -59,26 +60,28 @@ def _mock_getaddrinfo(host, port, *args, **kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port or 80))]
 
 
-try:
-    import pykka
+def _setup_pykka_compat():
+    """Set up a minimal pykka compatibility shim if pykka is not installed."""
+    try:
+        import pykka  # noqa: F401
+    except (ImportError, AttributeError):
 
-    _ = pykka.ActorDeadError
-    _ = pykka.Timeout
-except (ImportError, AttributeError):
+        class ActorDeadError(Exception):
+            pass
 
-    class ActorDeadError(Exception):
-        pass
+        class ActorTimeout(Exception):
+            pass
 
-    class ActorTimeout(Exception):
-        pass
+        class PykkaCompatibility(types.ModuleType):
+            ActorDeadError = ActorDeadError
+            Timeout = ActorTimeout
+            ActorDeadError.__module__ = "pykka"
+            ActorTimeout.__module__ = "pykka"
 
-    class PykkaCompatibility(types.ModuleType):
-        ActorDeadError = ActorDeadError
-        Timeout = ActorTimeout
-        ActorDeadError.__module__ = "pykka"
-        ActorTimeout.__module__ = "pykka"
+        sys.modules["pykka"] = PykkaCompatibility("pykka")
 
-    sys.modules["pykka"] = PykkaCompatibility("pykka")
+
+_setup_pykka_compat()
 
 import tempfile  # noqa: E402
 from collections.abc import Generator  # noqa: E402
@@ -92,6 +95,24 @@ from tests.factories import (  # noqa: E402
     RequestBuilder,
     ResponseBuilder,
 )
+
+
+@pytest.fixture
+def test_db(tmp_path: Path) -> Generator[Path]:
+    """Provide a temporary SQLite database for integration tests.
+    
+    Creates a fresh database file in a temporary directory and yields
+    the path. The database is automatically cleaned up after the test.
+    """
+    db_path = tmp_path / "test.db"
+    yield db_path
+    # Cleanup is handled by tmp_path automatically
+
+
+@pytest.fixture
+def test_db_url(test_db: Path) -> str:
+    """Provide a SQLite database URL for SQLAlchemy."""
+    return f"sqlite:///{test_db}"
 
 
 @pytest.fixture

@@ -58,7 +58,18 @@ class DashboardConfig(BaseSettings):
     storage_config: dict[str, Any] | None = Field(default=None)
     cache_db_path: str = Field(default=str(_OUTPUT_ROOT / "cache" / "cache_layer.db"))
     cache_dir: str = Field(default=str(_OUTPUT_ROOT / "cache" / "files"))
-    model_config = {"env_prefix": "DASHBOARD_", "extra": "ignore"}
+    model_config = {"env_prefix": "DASHBOARD_", "extra": "forbid", "aliases": {"APP_DEBUG": "debug"}}
+
+    def model_post_init(self, __context: Any) -> None:
+        """Validate paths after initialization to prevent path traversal."""
+        # Validate output_root doesn't escape project root (Finding #182)
+        resolved_output = self.output_root.resolve()
+        resolved_project = self.workspace_root.resolve()
+        if not str(resolved_output).startswith(str(resolved_project)):
+            raise ValueError(
+                f"output_root must be within the project root. "
+                f"Got: {resolved_output}, expected under: {resolved_project}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump()

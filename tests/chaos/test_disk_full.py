@@ -1,9 +1,12 @@
 import uuid
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from src.core.frontier.wal import FrontierWAL
 
 
+@pytest.mark.chaos
 def test_wal_local_disk_full_resilience() -> None:
     """Chaos test: Verify WAL continues durably through Redis Stream events when local disk is full."""
     run_id = f"chaos_disk_{uuid.uuid4().hex[:8]}"

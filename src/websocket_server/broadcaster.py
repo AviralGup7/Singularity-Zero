@@ -125,6 +125,11 @@ class Broadcaster:
     or all connected clients. Includes message deduplication and backpressure
     handling that drops the oldest messages when a client's queue is full.
 
+    EXCEPTION CATEGORIZATION:
+    - Expected exceptions (client disconnects, network errors): logged at DEBUG/WARNING
+    - Unexpected exceptions (data corruption, serialization errors): logged at ERROR
+    - Redis connection failures: handled by circuit breaker and logged at WARNING/ERROR
+
     Attributes:
         manager: Connection manager for resolving target connections.
         dedup_window: Number of recent message IDs to track for deduplication.

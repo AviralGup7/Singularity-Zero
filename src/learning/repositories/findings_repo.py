@@ -2,11 +2,22 @@ import logging
 
 """Findings repository - CRUD operations for findings table."""
 
+import re
 import threading
 from pathlib import Path
 from typing import Any
 
 from .base import BaseRepo
+
+
+def safe_in_clause(n: int) -> str:
+    """Return a parameterized IN clause placeholder string for n items.
+
+    Example: safe_in_clause(3) -> "?, ?, ?"
+    """
+    if n <= 0:
+        raise ValueError("n must be positive")
+    return ", ".join("?" for _ in range(n))
 
 
 class FindingsRepo(BaseRepo):
@@ -105,11 +116,9 @@ class FindingsRepo(BaseRepo):
         """Get all findings for multiple runs in a single query."""
         if not run_ids:
             return []
-        placeholders_count = len(run_ids)
-        placeholders = ",".join("?" for _ in range(placeholders_count))
         with self._cursor() as cur:
             cur.execute(
-                f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
+                f"SELECT * FROM findings WHERE run_id IN ({safe_in_clause(len(run_ids))}) ORDER BY confidence DESC",
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -174,14 +183,14 @@ class FindingsRepo(BaseRepo):
             # findings whose ``tech_stack`` is NULL because callers may not
             # have recorded one but still want to surface the historical
             # finding when its category/target pattern aligns.
-            placeholders = ",".join("?" for _ in tech_stack)
+            placeholders = safe_in_clause(len(tech_stack))
             cur.execute(
                 f"""SELECT f.*, sr.target_name
                     FROM findings f
                     JOIN scan_runs sr ON f.run_id = sr.run_id
                     WHERE f.category = ? AND sr.target_name != ?
                       AND (f.tech_stack IN ({placeholders}) OR f.tech_stack IS NULL OR f.tech_stack = '')
-                    ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
+                    ORDER BY f.confidence DESC LIMIT ?""",
                 [category, exclude_target, *tech_stack, limit],
             )
             return [dict(r) for r in cur.fetchall()]

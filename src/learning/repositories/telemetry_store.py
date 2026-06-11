@@ -99,15 +99,24 @@ _COUNT_QUERIES = {  # noqa: S608  # nosec B608  (t is from hardcoded allowlisted
 }
 
 
+import re
+
+_SAFE_NAME_RE = re.compile(r"^[a-z_]+$")
+
+
 def _safe_table(table: str) -> str:
-    """Validate that a table name is in the known allowlist before SQL interpolation."""
+    """Validate that a table name is in the known allowlist and matches safe pattern."""
+    if not _SAFE_NAME_RE.match(table):
+        raise ValueError(f"SQL injection guard: table name contains invalid characters: {table!r}")
     if table not in _KNOWN_TABLES:
         raise ValueError(f"SQL injection guard: unknown table name '{table}'")
     return table
 
 
 def _safe_column(column: str) -> str:
-    """Validate that a column name is in the known allowlist before SQL interpolation."""
+    """Validate that a column name is in the known allowlist and matches safe pattern."""
+    if not _SAFE_NAME_RE.match(column):
+        raise ValueError(f"SQL injection guard: column name contains invalid characters: {column!r}")
     if column not in _KNOWN_TIME_COLUMNS:
         raise ValueError(f"SQL injection guard: unknown column name '{column}'")
     return column
@@ -467,6 +476,41 @@ class TelemetryStore:
             raise ValueError(f"Unknown table: {table!r}")
         if column not in TelemetryStore._KNOWN_TIME_COLUMNS:
             raise ValueError(f"Invalid column: {column!r}")
+
+    def execute_query(self, query: str, params: list[Any] | None = None) -> list[dict[str, Any]]:
+        """Execute a SELECT query and return results as list of dicts.
+
+        This is a public method that avoids exposing the raw connection
+        to external callers like routers.
+        """
+        conn = self._get_conn()
+        cur = conn.execute(query, params or [])
+        columns = [desc[0] for desc in cur.description] if cur.description else []
+        return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+    def execute_write(self, query: str, params: list[Any] | None = None) -> int:
+        """Execute a write query (INSERT/UPDATE/DELETE) and return rowcount.
+
+        This is a public method that avoids exposing the raw connection
+        to external callers like routers.
+        """
+        conn = self._get_conn()
+        cur = conn.execute(query, params or [])
+        conn.commit()
+        return cur.rowcount
+
+    def execute_write_many(self, query: str, params_list: list[list[Any]]) -> int:
+        """Execute a write query with multiple parameter sets in one transaction.
+
+        Returns total rowcount across all executions.
+        """
+        conn = self._get_conn()
+        total = 0
+        for params in params_list:
+            cur = conn.execute(query, params)
+            total += cur.rowcount
+        conn.commit()
+        return total
 
     def delete_expired_records(self, table: str, cutoff: str, column: str = "created_at") -> int:
         """Delete records older than cutoff. Returns count deleted."""

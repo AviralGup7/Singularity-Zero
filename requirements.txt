@@ -1,4 +1,6 @@
 # Generated Python dependency lock file
+# Auto-generated from pyproject.toml — do not edit manually.
+# To regenerate: pip-compile pyproject.toml -o requirements.txt
 httpx==0.28.0
 aiohttp==3.14.0
 urllib3==2.7.0

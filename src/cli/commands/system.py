@@ -89,7 +89,11 @@ def handle_doctor() -> int:
         for binary in required_bins:
             try:
                 bin_exec = resolved_paths[binary]
-                _args: list[str] = [bin_exec, "--version"]
+                # Defense-in-depth: validate resolved path has no traversal or shell metacharacters
+                bin_path_obj = Path(bin_exec).resolve()
+                if ".." in str(bin_path_obj) or any(c in str(bin_path_obj) for c in "|;&$`"):
+                    raise ValueError(f"Rejected suspicious binary path: {bin_exec}")
+                _args: list[str] = [str(bin_path_obj), "--version"]
                 result = subprocess.run(
                     _args,
                     capture_output=True,
