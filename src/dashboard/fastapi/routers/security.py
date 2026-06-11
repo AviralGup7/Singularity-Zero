@@ -8,6 +8,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 
+from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.dependencies import get_config, require_admin, require_auth
 
 # Maximum body size for CSP violation reports (256 KiB).

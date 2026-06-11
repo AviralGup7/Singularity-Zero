@@ -117,7 +117,7 @@ class FindingsRepo(BaseRepo):
             return []
         with self._cursor() as cur:
             cur.execute(
-                f"SELECT * FROM findings WHERE run_id IN ({safe_in_clause(len(run_ids))}) ORDER BY confidence DESC",
+                f"SELECT * FROM findings WHERE run_id IN ({safe_in_clause(len(run_ids))}) ORDER BY confidence DESC",  # noqa: S608
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -189,7 +189,7 @@ class FindingsRepo(BaseRepo):
                     JOIN scan_runs sr ON f.run_id = sr.run_id
                     WHERE f.category = ? AND sr.target_name != ?
                       AND (f.tech_stack IN ({placeholders}) OR f.tech_stack IS NULL OR f.tech_stack = '')
-                    ORDER BY f.confidence DESC LIMIT ?""",
+                    ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608
                 [category, exclude_target, *tech_stack, limit],
             )
             return [dict(r) for r in cur.fetchall()]

@@ -64,9 +64,7 @@ for py in file_list:
             for alias in node.names:
                 top = alias.name.split(".")[0]
                 if (
-                    top in STD_AND_THIRD_PARTY
-                    if "STD_AND_THIRD_PARTY" in globals()
-                    else top
+                    top
                     in {
                         "os",
                         "sys",

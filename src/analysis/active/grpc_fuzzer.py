@@ -182,9 +182,9 @@ def build_fuzz_messages(
     caller's transport.
     """
     out: list[dict[str, Any]] = []
-    for field in list(input_fields)[:8]:
-        for value in _build_fuzz_value(field):
-            out.append({field.get("name", "f"): value})
+    for field_def in list(input_fields)[:8]:
+        for value in _build_fuzz_value(field_def):
+            out.append({field_def.get("name", "f"): value})
             if len(out) >= max_messages:
                 return out
     return out

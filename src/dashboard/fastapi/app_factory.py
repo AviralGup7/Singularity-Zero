@@ -1,6 +1,7 @@
 """FastAPI application factory for the cyber security dashboard."""
 
 import asyncio
+import logging
 import os
 import sys
 import time
@@ -18,6 +19,7 @@ from src.core.exceptions import (
     ToolNotInstalledError,
 )
 from src.dashboard.fastapi.config import DashboardConfig
+from src.dashboard.fastapi.dependencies import require_admin
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
@@ -26,6 +28,7 @@ from src.dashboard.fastapi.security_setup import setup_security_store
 from src.dashboard.fastapi.spa import setup_spa_routes
 
 _dashboard_stats_lock = asyncio.Lock()
+logger = logging.getLogger(__name__)
 
 
 def create_app(config: DashboardConfig | None = None) -> FastAPI:
@@ -181,9 +184,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
     @app.exception_handler(Exception)
     async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
-        import logging
-
-        logging.getLogger(__name__).exception("Internal Server Error: %s", exc)
+        logger.exception("Internal Server Error: %s", exc)
         _record_security_error(request, 500, "Internal Server Error")
         detail = str(exc) if config.debug else "Internal Server Error"
         return JSONResponse(

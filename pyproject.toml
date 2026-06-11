@@ -37,7 +37,7 @@ dependencies = [
     "alembic==1.14.0",
     "aiosqlite==0.20.0",
     "numpy==2.0.0",
-    "Pillow==11.1.0",
+    "Pillow==12.2.0",
     "networkx==3.0.0",
     "beartype==0.20.1",
     "mmh3==5.1.0",

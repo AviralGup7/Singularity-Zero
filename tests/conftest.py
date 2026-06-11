@@ -2,6 +2,7 @@ import ipaddress
 import socket
 import sys
 import types
+import pytest
 
 _original_getaddrinfo = socket.getaddrinfo
 
@@ -87,7 +88,6 @@ from collections.abc import Generator  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Any  # noqa: E402
 
-import pytest  # noqa: E402
 from tests.factories import (  # noqa: E402
     ConfigBuilder,
     FindingBuilder,

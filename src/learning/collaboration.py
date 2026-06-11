@@ -390,7 +390,7 @@ class AssignmentStore:
                         chunk = to_delete[i : i + chunk_size]
                         placeholders = ",".join("?" for _ in chunk)
                         conn.execute(
-                            f"DELETE FROM finding_assignments WHERE finding_id IN ({placeholders})",
+                            f"DELETE FROM finding_assignments WHERE finding_id IN ({placeholders})",  # noqa: S608
                             chunk,
                         )
                     conn.commit()

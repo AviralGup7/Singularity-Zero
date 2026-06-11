@@ -490,8 +490,8 @@ def register_scheduler_task(
         # Windows Task Scheduler registration via schtasks CLI
         tr_value = f"{python_exe} {script_path} --output-root {output_root}"
         try:
-            ret = subprocess.run(
-                [
+            ret = subprocess.run(  # noqa: S603
+                [  # noqa: S607
                     "schtasks",
                     "/create",
                     "/tn",
@@ -522,8 +522,8 @@ def register_scheduler_task(
             temp_cron.write(cron_job.encode("utf-8"))
             temp_cron.close()
             try:
-                ret = subprocess.run(
-                    ["crontab", temp_cron.name],
+                ret = subprocess.run(  # noqa: S603
+                    ["crontab", temp_cron.name],  # noqa: S607
                     capture_output=True,
                     timeout=30,
                 )

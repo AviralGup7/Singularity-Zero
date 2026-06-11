@@ -94,7 +94,7 @@ def handle_doctor() -> int:
                 if ".." in str(bin_path_obj) or any(c in str(bin_path_obj) for c in "|;&$`"):
                     raise ValueError(f"Rejected suspicious binary path: {bin_exec}")
                 _args: list[str] = [str(bin_path_obj), "--version"]
-                result = subprocess.run(
+                result = subprocess.run(  # noqa: S603
                     _args,
                     capture_output=True,
                     text=True,

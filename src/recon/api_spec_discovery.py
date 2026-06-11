@@ -415,7 +415,7 @@ def extract_auth_headers_from_js_parsers(
 
 def _grpcurl_reflection_available() -> bool:
     try:
-        subprocess.run(["grpcurl", "--version"], capture_output=True, check=True, timeout=5)
+        subprocess.run(["grpcurl", "--version"], capture_output=True, check=True, timeout=5)  # noqa: S607
         return True
     except (FileNotFoundError, subprocess.SubprocessError, OSError, ValueError):
         return False
@@ -433,8 +433,8 @@ def grpcurl_list_services(host: str, *, timeout_seconds: int = 10) -> list[str]:
         return []
     target = host if "://" in host else f"{host}:443"
     try:
-        result = subprocess.run(
-            ["grpcurl", "-plaintext" if target.startswith("localhost") else "", target, "list"],
+        result = subprocess.run(  # noqa: S603
+            ["grpcurl", "-plaintext" if target.startswith("localhost") else "", target, "list"],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=max(5, timeout_seconds),
@@ -462,8 +462,8 @@ def grpcurl_describe_service(
         return None
     target = host if "://" in host else f"{host}:443"
     try:
-        result = subprocess.run(
-            [
+            result = subprocess.run(  # noqa: S603
+            [  # noqa: S607
                 "grpcurl",
                 "-plaintext" if target.startswith("localhost") else "",
                 target,

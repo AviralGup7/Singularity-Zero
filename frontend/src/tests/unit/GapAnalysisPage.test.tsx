@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { GapAnalysisPage } from '../../pages/GapAnalysisPage';
 
 const getGapAnalysisMock = vi.fn();
@@ -91,14 +91,19 @@ describe('GapAnalysisPage Component', () => {
     });
     getGapAnalysisMock.mockReturnValue(promise);
 
-    render(<GapAnalysisPage />);
+    let result: ReturnType<typeof render>;
+    await act(async () => {
+      result = render(<GapAnalysisPage />);
+    });
 
     // Skeletons are rendered by default
     const skeletons = document.querySelectorAll('[class*="bg-[var(--panel-2)]"]');
     expect(skeletons.length).toBeGreaterThan(0);
 
     // Clean up
-    resolveGap(mockGapData);
+    resolveGap!(mockGapData);
+    await act(async () => {});
+    result!.unmount();
   });
 
   it('renders stats card data and target choices successfully', async () => {
@@ -198,14 +203,18 @@ describe('GapAnalysisPage Component', () => {
   it('triggers gap analysis refresh successfully', async () => {
     refreshGapAnalysisMock.mockResolvedValue({ status: 'Analysis refresh triggered' });
 
-    render(<GapAnalysisPage />);
+    await act(async () => {
+      render(<GapAnalysisPage />);
+    });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Refresh Analysis/i })).toBeInTheDocument();
     });
 
-    const refreshBtn = screen.getByRole('button', { name: /Refresh Analysis/i });
-    fireEvent.click(refreshBtn);
+    await act(async () => {
+      const refreshBtn = screen.getByRole('button', { name: /Refresh Analysis/i });
+      fireEvent.click(refreshBtn);
+    });
 
     expect(refreshGapAnalysisMock).toHaveBeenCalledTimes(1);
   });

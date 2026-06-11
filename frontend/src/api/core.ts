@@ -185,8 +185,7 @@ apiClient.interceptors.response.use(
     if (schema) {
       const result = schema.safeParse(response.data);
       if (!result.success) {
-        if (import.meta.env.DEV) {
-          console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+        if (import.meta.env.DEV && process.env?.NODE_ENV !== 'test') {          console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
             errors: result.error.format(),
             received: response.data
           });
@@ -203,7 +202,7 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && process.env?.NODE_ENV !== 'test') {
    
       console.debug(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${responseTime}ms`);
     }
@@ -237,7 +236,7 @@ apiClient.interceptors.response.use(
       ? Date.now() - error.config.metadata.startTime
       : null;
        
-    if (import.meta.env.DEV && responseTime !== null) {
+    if (import.meta.env.DEV && process.env?.NODE_ENV !== 'test' && responseTime !== null) {
    
       console.debug(`[API] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${responseTime}ms (error)`);
     }

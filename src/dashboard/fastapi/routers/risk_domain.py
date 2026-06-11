@@ -613,7 +613,7 @@ async def transition_finding(
     if timestamp_col and timestamp_col in _VALID_TIMESTAMP_COLUMNS:
         try:
             conn.execute(
-                f"UPDATE findings SET {timestamp_col} = CURRENT_TIMESTAMP WHERE finding_id = ?",
+                f"UPDATE findings SET {timestamp_col} = CURRENT_TIMESTAMP WHERE finding_id = ?",  # noqa: S608
                 [finding_id],
             )
         except Exception as exc:  # noqa: BLE001

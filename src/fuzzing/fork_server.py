@@ -40,7 +40,7 @@ class ForkServer:
             seed = secrets.token_bytes(64)
             with open(os.path.join(self.corpus_dir, f"seed_{i}.bin"), "wb") as f:
                 f.write(seed)
-        self._process = subprocess.Popen(
+        self._process = subprocess.Popen(  # noqa: S603
             self.target_cmd,
             cwd=self.corpus_dir,
         )
@@ -64,7 +64,7 @@ class ForkServer:
             f.write(payload)
         try:
             cmd = self.target_cmd + [tmp_path]
-            proc = subprocess.run(cmd, capture_output=True, timeout=5)
+            proc = subprocess.run(cmd, capture_output=True, timeout=5)  # noqa: S603
             result = {
                 "exit_code": proc.returncode,
                 "output": proc.stdout.decode("utf-8", errors="replace"),

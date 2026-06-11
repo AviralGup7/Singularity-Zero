@@ -39,7 +39,7 @@ def run_jwt_attack_suite(token: str, url: str, session: Any, config: Any = None)
         "token_replay": test_token_replay(token, url, session),
         "expiration_bypass": test_expiration_bypass(token, url, session),
         "jku_injection": test_jku_injection(token, url, session),
-        "weak_secret": test_weak_secret(token, url, session),
+        "weak_secret": run_weak_secret(token, url, session),
     }
 
     vulnerable_attacks = [name for name, result in attacks.items() if result.get("vulnerable")]

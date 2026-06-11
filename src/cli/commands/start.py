@@ -42,7 +42,7 @@ def _ensure_frontend_built() -> bool:
 
     console.print("[info]Frontend assets stale or missing. Running npm run build...[/info]")
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [npm, "run", "build"],
             cwd=str(_FRONTEND_SRC),
             capture_output=True,
