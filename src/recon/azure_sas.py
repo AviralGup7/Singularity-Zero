@@ -428,8 +428,13 @@ async def scan_azure_accounts(
         for account in accounts:
             result.sas_patterns.extend(generate_sas_patterns_for_account(account))
 
-    result.web_endpoints = [f.get("url", str(f)) if isinstance(f, dict) else str(f) for f in result.public_web_findings]
-    result.listing_endpoints = [f.get("url", str(f)) if isinstance(f, dict) else str(f) for f in result.public_listing_findings]
+    result.web_endpoints = [
+        f.get("url", str(f)) if isinstance(f, dict) else str(f) for f in result.public_web_findings
+    ]
+    result.listing_endpoints = [
+        f.get("url", str(f)) if isinstance(f, dict) else str(f)
+        for f in result.public_listing_findings
+    ]
 
     return result
 

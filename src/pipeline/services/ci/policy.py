@@ -476,9 +476,7 @@ def _ci_filter_engine(ci: CIRule) -> Any | None:
     return engine
 
 
-def _ci_filter_findings(
-    findings: Sequence[Mapping[str, Any]], ci: CIRule
-) -> list[Any]:
+def _ci_filter_findings(findings: Sequence[Mapping[str, Any]], ci: CIRule) -> list[Any]:
     engine = _ci_filter_engine(ci)
     if engine is None:
         return list(findings)

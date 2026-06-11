@@ -530,7 +530,7 @@ def _apply_recon_degradation(
         return
 
     try:
-        from src.core.events import EventType, get_event_bus
+        pass
     except Exception as exc:  # noqa: BLE001
         logger.debug("EventBus unavailable for RECON_DEGRADED: %s", exc)
         _EventType = None  # type: ignore[assignment]

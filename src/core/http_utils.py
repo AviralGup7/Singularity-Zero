@@ -53,16 +53,16 @@ def _cleanup_async_clients() -> None:
         try:
             if not client.is_closed:
                 try:
-                  coro = client.aclose()
+                    coro = client.aclose()
                 except (AttributeError, TypeError):
-                  client.close()  # type: ignore[attr-defined]
+                    client.close()  # type: ignore[attr-defined]
                 else:
-                  try:
-                    loop = asyncio.get_event_loop()
-                    if not loop.is_closed():
-                      loop.run_until_complete(coro)
-                  except RuntimeError:
-                    pass
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if not loop.is_closed():
+                            loop.run_until_complete(coro)
+                    except RuntimeError:
+                        pass
         except Exception as exc:
             logger.debug("Failed to close httpx client during atexit: %s", exc)
     _ASYNC_CLIENTS.clear()
