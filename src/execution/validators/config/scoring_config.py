@@ -17,7 +17,7 @@ caps so high raw scores cannot dominate the final confidence.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any
 
 # Tiny per-unit weights (kept compatible with src.analysis.helpers.scoring).
 _SCORE_WEIGHT = 0.025
@@ -68,11 +68,14 @@ class ScoringConfig:
             "cap": float(str(overrides.get("cap", self.cap))),
             "floor": float(str(overrides.get("floor", self.floor))),
             "max_total_bonus": float(str(overrides.get("max_total_bonus", self.max_total_bonus))),
-            "max_total_penalty": float(str(overrides.get("max_total_penalty", self.max_total_penalty))),
+            "max_total_penalty": float(
+                str(overrides.get("max_total_penalty", self.max_total_penalty))
+            ),
             "score_weight": float(str(overrides.get("score_weight", self.score_weight))),
             "signal_weight": float(str(overrides.get("signal_weight", self.signal_weight))),
             "required_signals": tuple(
-                str(value) for value in overrides.get("required_signals", self.required_signals)  # type: ignore[arg-type]
+                str(value)
+                for value in overrides.get("required_signals", self.required_signals)  # type: ignore[arg-type]
             ),
             "min_independent_signals": int(
                 str(overrides.get("min_independent_signals", self.min_independent_signals))
