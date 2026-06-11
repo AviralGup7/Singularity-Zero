@@ -29,8 +29,6 @@ from types import MappingProxyType
 from typing import Any
 
 from src.core.frontier.state import VectorClock
-
-from src.core.frontier.state import VectorClock
 from src.infrastructure.mesh.gossip.models import MeshNode
 
 logger = logging.getLogger(__name__)

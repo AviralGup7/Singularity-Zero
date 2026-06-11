@@ -199,7 +199,9 @@ _QUIC_FRAMING_PAYLOADS = [
 ]
 
 
-async def run_quic_fuzzing_campaign(url: str, *, timeout_seconds: float = 5.0) -> list[dict[str, Any]]:
+async def run_quic_fuzzing_campaign(
+    url: str, *, timeout_seconds: float = 5.0
+) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     if not is_safe_url_with_dns_check(url):
         logger.warning("QUIC fuzzer: URL failed SSRF safety check, skipping: %s", url)
