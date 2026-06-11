@@ -97,6 +97,7 @@ fragment TypeRef on __Type {
 }
 """
 
+
 class _MutationTemplate(TypedDict):
     query: str
     operationName: str

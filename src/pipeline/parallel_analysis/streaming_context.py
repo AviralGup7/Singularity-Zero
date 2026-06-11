@@ -4,8 +4,6 @@ from collections.abc import Iterator
 from typing import Any
 
 
-
-
 class StreamingAnalysisContext:
     """Wraps a context object, exposing async generators for large collections."""
 
