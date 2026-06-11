@@ -34,7 +34,7 @@ import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote, urlencode
 
 import aiohttp
@@ -117,11 +117,16 @@ class AzureSasUrlPattern:
 class AzureReconResult:
     """Aggregated Azure storage recon result for a target."""
 
+    target: str = ""
     account_candidates: list[str] = field(default_factory=list)
     public_web_findings: list[dict[str, Any]] = field(default_factory=list)
     public_listing_findings: list[dict[str, Any]] = field(default_factory=list)
     sas_patterns: list[AzureSasUrlPattern] = field(default_factory=list)
     errors: int = 0
+
+    def _normalize_web_findings(self) -> None:
+        self.web_endpoints = [f if isinstance(f, str) else f.get("url", str(f)) for f in self.public_web_findings]
+        self.listing_endpoints = [f if isinstance(f, str) else f.get("url", str(f)) for f in self.public_listing_findings]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -417,6 +422,9 @@ async def scan_azure_accounts(
         for account in accounts:
             result.sas_patterns.extend(generate_sas_patterns_for_account(account))
 
+    result.web_endpoints = list(result.public_web_findings)
+    result.listing_endpoints = list(result.public_listing_findings)
+
     return result
 
 
@@ -424,7 +432,7 @@ def run_azure_recon_sync(target: str, **kwargs: Any) -> AzureReconResult:
     """Synchronous wrapper around :func:`scan_azure_accounts`."""
     from src.recon.common import run_async_in_sync_context
 
-    return run_async_in_sync_context(scan_azure_accounts(target, **kwargs))  # type: ignore[return-value]
+    return cast(AzureReconResult, run_async_in_sync_context(scan_azure_accounts(target, **kwargs)))
 
 
 __all__ = [

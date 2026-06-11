@@ -104,16 +104,16 @@ class ThreatIntelEnricher:
 
     def _get_epss(self) -> Any:
         if self._epss is None:
-            from src.intelligence.risk.epss import get_default_epss_client
+            from src.intelligence.risk.epss import get_default_epss_client as _get_epss_client
 
-            self._epss = get_default_epss_client()
+            self._epss = _get_epss_client()
         return self._epss
 
     def _get_kev(self) -> Any:
         if self._kev is None:
-            from src.intelligence.risk.cisa_kev import get_default_cisa_kev_client
+            from src.intelligence.risk.cisa_kev import get_default_cisa_kev_client as _get_kev_client
 
-            self._kev = get_default_cisa_kev_client()
+            self._kev = _get_kev_client()
         return self._kev
 
     def _get_correlator(self) -> Any | None:

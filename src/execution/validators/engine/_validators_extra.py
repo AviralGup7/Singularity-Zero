@@ -9,7 +9,7 @@ These classes are thin wrappers that delegate to the pure logic in
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from src.core.plugins import register_plugin
 from src.execution.validators.config.scoring_config import (
@@ -236,7 +236,11 @@ class RaceConditionValidator(BaseValidator):
         findings: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
         scoring = _resolve_scoring(context, "race_condition")
-        urls = list(context.ranked_priority_urls or [])
+        _priority_urls: list[str] = [
+            str(item.get("url", "") if isinstance(item, dict) else item)
+            for item in context.ranked_priority_urls or []
+        ]
+        urls = list(_priority_urls)
         concurrency = int(context.race_concurrency or 5)
         for url in urls[: context.per_validator_limit]:
             try:

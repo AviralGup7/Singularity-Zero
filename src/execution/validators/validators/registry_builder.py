@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 from src.core.models import ValidationResult
 from src.execution.validators.interfaces import Validator
@@ -26,11 +26,6 @@ from src.execution.validators.validators.xss import validate as validate_xss
 
 logger = logging.getLogger(__name__)
 
-# R1: The ``Validator`` Protocol is the canonical interface. The
-# ``ValidationStrategy`` Protocol is the engine interface. The
-# adapter helpers below keep both call styles working while
-# delegating to the engine registry as the single source of truth.
-
 _BASE_RUNNERS: dict[str, Any] = {
     "redirect": validate_redirect,
     "ssrf": validate_ssrf,
@@ -40,11 +35,11 @@ _BASE_RUNNERS: dict[str, Any] = {
     "xss": validate_xss,
     "ssti": validate_ssti,
     "file_upload": validate_file_upload,
-    "cors": validate_cors_endpoint,
-    "jwt_weakness": validate_jwt_token,
-    "cache_poisoning": validate_cache_poison,
-    "graphql_abuse": validate_graphql_endpoint,
-    "race_condition": validate_race_condition,
+    "cors": cast(Validator, validate_cors_endpoint),
+    "jwt_weakness": cast(Validator, validate_jwt_token),
+    "cache_poisoning": cast(Validator, validate_cache_poison),
+    "graphql_abuse": cast(Validator, validate_graphql_endpoint),
+    "race_condition": cast(Validator, validate_race_condition),
 }
 
 

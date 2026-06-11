@@ -35,7 +35,7 @@ class ProviderSpec:
     """
 
     name: str
-    func: Callable[..., tuple[set[str], dict[str, Any]]]
+    func: Callable[..., tuple[set[str], Any]]
     timeout_seconds: int
     per_host_limit: int
     max_workers: int | None = None

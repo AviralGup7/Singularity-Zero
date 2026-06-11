@@ -34,6 +34,7 @@ import re
 import subprocess
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -772,15 +773,23 @@ def discover_api_specs(
     workers = max(1, min(max_workers, len(candidate_urls)))
     results: list[SpecEndpoint] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [
-            ex.submit(
-                _probe,
-                url,
-                timeout_seconds=timeout_seconds,
-                auth_headers=merged_auth if _probe is _probe_spec_url_with_auth else None,
+        futures = []
+        for url in candidate_urls:
+            _probe_fn = (
+                partial(
+                    _probe_spec_url_with_auth,
+                    auth_headers=merged_auth,
+                )
+                if _probe is _probe_spec_url_with_auth
+                else _probe
             )
-            for url in candidate_urls
-        ]
+            futures.append(
+                ex.submit(
+                    _probe_fn,
+                    url,
+                    timeout_seconds=timeout_seconds,
+                )
+            )
         for fut in futures:
             try:
                 endpoint = fut.result()
