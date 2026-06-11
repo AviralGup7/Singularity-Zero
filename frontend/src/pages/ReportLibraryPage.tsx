@@ -5,7 +5,10 @@ import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shiel
 
 import { getReportLibrary, type ReportLibraryItem, getAiExecutiveSummary, type AiExecutiveSummary, getSlaTrending, type SlaTrendingResponse } from '@/api/reports';
 import { ApiError } from '@/api/core';
-import { GlassCard, AnimatedCounter, PageHeader, SkeletonTable } from '@/components/ui';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 
 function shortHash(value: string): string {
   if (!value) return 'pending';

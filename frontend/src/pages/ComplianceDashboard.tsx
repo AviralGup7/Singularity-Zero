@@ -11,7 +11,11 @@ import {
 } from 'lucide-react';
 import { useTargets } from '@/hooks';
 import { getComplianceReport, getAttestationUrl, type ComplianceReport } from '@/api/compliance';
-import { PageHeader, GlassCard, AnimatedCounter, GlowProgress, SafeResponsiveContainer } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { GlowProgress } from '@/components/ui/GlowProgress';
+import { SafeResponsiveContainer } from '@/components/ui/SafeResponsiveContainer';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 

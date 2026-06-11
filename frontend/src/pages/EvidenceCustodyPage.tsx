@@ -15,7 +15,9 @@ import {
   Plus,
   RefreshCw
 } from 'lucide-react';
-import { PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 import {
   loadEvidence,
   verifyEvidenceIntegrity,

@@ -4,7 +4,12 @@ import { KeyRound, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2, Copy, Chec
 import { AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip } from 'recharts';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { PageSkeleton, EmptyState, PageHeader, GlassCard, AnimatedCounter, SafeResponsiveContainer } from '@/components/ui';
+import { PageSkeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { SafeResponsiveContainer } from '@/components/ui/SafeResponsiveContainer';
 import {
   generateApiKey,
   getApiKeys,

@@ -1,4 +1,4 @@
-import { GlowProgress } from '@/components/ui';
+import { GlowProgress } from '@/components/ui/GlowProgress';
 
 export type ScanProgress = {
   targetName: string;
