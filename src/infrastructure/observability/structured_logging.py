@@ -465,7 +465,9 @@ class AsyncLogHandler(logging.Handler):
         try:
             self._queue.put_nowait(record)
         except Exception as exc:
-            logging.getLogger(__name__).warning("Structured log queue overflow, record dropped: %s", exc)
+            logging.getLogger(__name__).warning(
+                "Structured log queue overflow, record dropped: %s", exc
+            )
             self._wrapped.handle(record)
 
     def __enter__(self) -> AsyncLogHandler:

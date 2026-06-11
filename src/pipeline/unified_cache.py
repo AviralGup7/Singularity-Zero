@@ -766,7 +766,9 @@ def load_cached_json(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def save_cached_json(path: Path, payload: dict[str, Any] | list[Any], *, compress: bool = True) -> None:
+def save_cached_json(
+    path: Path, payload: dict[str, Any] | list[Any], *, compress: bool = True
+) -> None:
     data = json.dumps(payload).encode("utf-8")
     _atomic_write_bytes(path, data)
 

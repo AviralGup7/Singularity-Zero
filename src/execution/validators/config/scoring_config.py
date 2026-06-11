@@ -80,8 +80,6 @@ class ScoringConfig:
         )
 
 
-
-
 # Default per-validator scoring constants. These mirror the previously
 # hard-coded values in src/execution/validators/validators/shared.py and the
 # individual validator modules, but expressed via the bounded model.
