@@ -143,9 +143,7 @@ def _skipped_circuit_open_meta(spec: ProviderSpec) -> CollectorMeta:
         new_urls=0,
         hosts_scanned=0,
         provider_name=spec.name,
-        warnings=(
-            f"circuit breaker open; cool-down remaining={int(remaining)}s",
-        ),
+        warnings=(f"circuit breaker open; cool-down remaining={int(remaining)}s",),
     )
 
 
