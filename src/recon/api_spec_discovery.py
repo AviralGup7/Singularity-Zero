@@ -462,7 +462,7 @@ def grpcurl_describe_service(
         return None
     target = host if "://" in host else f"{host}:443"
     try:
-            result = subprocess.run(  # noqa: S603
+        result = subprocess.run(  # noqa: S603
             [  # noqa: S607
                 "grpcurl",
                 "-plaintext" if target.startswith("localhost") else "",
