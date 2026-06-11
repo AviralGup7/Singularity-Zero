@@ -29,6 +29,8 @@ from types import MappingProxyType
 from typing import Any
 
 from src.core.frontier.state import VectorClock
+
+from src.core.frontier.state import VectorClock
 from src.infrastructure.mesh.gossip.models import MeshNode
 
 logger = logging.getLogger(__name__)
@@ -99,7 +101,11 @@ def _merge_node(
             return False
 
     incoming_clock = _clock_from_node_data(node_data)
-    existing_clock = VectorClock(existing.version_vector) if existing is not None else VectorClock()
+    existing_clock = (
+        VectorClock(MappingProxyType(existing.version_vector))
+        if existing is not None
+        else VectorClock()
+    )
 
     if existing is None:
         node = MeshNode(**node_data)

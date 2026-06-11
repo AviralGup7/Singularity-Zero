@@ -60,7 +60,9 @@ RESUME_BEHAVIORS: dict[str, StageResumeBehavior] = {
 
 
 class PartialResumePlanner:
-    def __init__(self, checkpoint_mgr, resume_policy: ResumePolicy = ResumePolicy.FROM_CACHE):
+    def __init__(
+        self, checkpoint_mgr: Any, resume_policy: ResumePolicy = ResumePolicy.FROM_CACHE
+    ) -> None:
         self.checkpoint_mgr = checkpoint_mgr
         self.resume_policy = resume_policy
 

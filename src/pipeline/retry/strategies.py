@@ -51,7 +51,7 @@ class RetryAfterAwareMixin:
         retry_after = parse_retry_after(stderr_text)
         if retry_after is not None:
             return float(retry_after)
-        return base_policy.delay_for_attempt(attempt_number)
+        return float(base_policy.delay_for_attempt(attempt_number))
 
 
 logger = get_pipeline_logger(__name__)

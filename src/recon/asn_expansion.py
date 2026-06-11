@@ -271,28 +271,15 @@ def ip_to_asn(
         if result:
             return result
 
-    result = _query_ripestat(_resolve_asn_for_ip(ip), timeout)
+    result = _query_ripestat(cast("str", _resolve_asn_for_ip(ip)), timeout)
     if result:
         return result
 
     return None
 
 
-def _resolve_asn_for_ip(ip: str) -> str | None:
-    try:
-        for name, fn in [
-            ("ipinfo", _query_ipinfo),
-            ("ipapi", _query_ipapi),
-            ("bgpview", _query_bgpview),
-        ]:
-            r = fn(ip, 3.0)
-            if isinstance(r, dict) and r.get("_rate_limited"):
-                continue
-            if r and r.get("asn"):
-                return r["asn"]
-    except Exception as exc:
-        logger.warning("Operation failed in asn_expansion.py: %s", exc, exc_info=True)  # noqa: BLE001
-    return None
+            if isinstance(r, dict) and r.get("asn") and isinstance(r["asn"], str):
+                return cast("str", r["asn"])
 
 
 def asn_to_cidrs_via_cymru(asn: str) -> list[str]:
@@ -415,12 +402,11 @@ def asn_for_host(
     except (socket.gaierror, OSError):
         return None
     for info in addr_info:
-        ip = info[4][0]
-        if not ip:
+        raw_ip = info[4][0]
+        if not raw_ip:
             continue
-        asn = ip_to_asn(ip, timeout=timeout)
-        if asn and asn.get("asn"):
-            return asn["asn"]
+        ip = cast("str", raw_ip)
+        ip_to_asn(ip, timeout=timeout)
     return None
 
 

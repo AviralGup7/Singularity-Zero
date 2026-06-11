@@ -130,7 +130,7 @@ def evaluate_oauth(
     Returns:
         Dict with status/confidence/signals/evidence.
     """
-    signals: list[str] = []
+    signals: list[tuple[str, float]] = []
     notes: list[str] = []
     responses: dict[str, Any] = {}
 
@@ -153,7 +153,6 @@ def evaluate_oauth(
                     authorize_endpoint,
                     crafted_redirect,
                     client_id=client_id,
-                    redirect_uri=redirect_uri,
                 )
                 try:
                     resp = http_request("GET", auth_url, None)

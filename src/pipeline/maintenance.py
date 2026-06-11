@@ -231,8 +231,8 @@ class MaintenanceLock:
                 if conn is not None:
                     try:
                         conn.close()
-                    except Exception as exc:
-                        logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    except Exception as close_exc:
+                        logger.warning("Operation failed in maintenance.py: %s", close_exc, exc_info=True)  # noqa: BLE001
                 import sqlite3
 
                 if isinstance(exc, sqlite3.OperationalError) and any(
@@ -244,8 +244,8 @@ class MaintenanceLock:
                         content = self.lockfile_path.read_text().strip()
                         if content == "sqlite-lock":
                             raise RuntimeError("Maintenance task already running.") from exc
-                    except Exception as exc:
-                        logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    except Exception as lock_exc:
+                        logger.warning("Operation failed in maintenance.py: %s", lock_exc, exc_info=True)  # noqa: BLE001
                 self._use_sqlite = False
         return self._acquire_pid_lock()
 

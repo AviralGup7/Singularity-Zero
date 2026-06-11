@@ -33,7 +33,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from http.cookiejar import CookieJar
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
@@ -398,7 +398,9 @@ class OAuthAuthenticator:
 
     def _capture_cookies(self, response: httpx.Response) -> None:
         for cookie in response.cookies.jar:
-            self._cookies[cookie.name] = cookie.value
+            cookie_value: str | None = cookie.value
+            if cookie_value is not None:
+                self._cookies[cookie.name] = cookie_value
 
     def _extract_login_form(
         self, response: httpx.Response, base_url: str
@@ -451,7 +453,7 @@ class OAuthAuthenticator:
             return None
         params = parse_qs(parsed.query)
         if "code" in params and params["code"]:
-            return params["code"][0]
+            return cast("str", params["code"][0])
         return None
 
     def _try_extract_code_from_html(self, response: httpx.Response) -> str | None:

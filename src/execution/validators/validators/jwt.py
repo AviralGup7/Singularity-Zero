@@ -336,7 +336,7 @@ def validate_jwt_token(target: dict[str, Any], context: dict[str, Any]) -> Valid
 
         evaluation = evaluate_jwt(
             token=token,
-            scoring=DEFAULT_SCORING_CONFIG.get("jwt_weakness", ScoringConfig()),
+            scoring=DEFAULT_SCORING_CONFIG.get("jwt_weakness") or ScoringConfig(),
             candidate_secrets=candidate_secrets,
             in_scope=in_scope,
         )

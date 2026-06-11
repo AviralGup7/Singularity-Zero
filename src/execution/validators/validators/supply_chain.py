@@ -24,7 +24,7 @@ _INTERNAL_PACKAGE_PATTERNS: list[str] = [
 ]
 
 # Known vulnerable packages for version checking
-_KNOWN_VULNERABLE_PACKAGES: dict[str, list[str]] = {
+_KNOWN_VULNERABLE_PACKAGES: dict[str, dict[str, list[str]]] = {
     "npm": {
         "package-1": ["<1.0.0"],
     },

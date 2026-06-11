@@ -29,7 +29,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def _build_default_graph(profile=None):
+def _build_default_graph(profile: str | None = None) -> Graph:
     profile = profile if profile is not None else _load_capability_profile("default")
     return build_pipeline_graph(profile=profile)
 

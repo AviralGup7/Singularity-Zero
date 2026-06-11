@@ -177,7 +177,7 @@ class MeshSync:
 
         schema = raw.get("schema")
         try:
-            schema_int = int(schema)
+            schema_int = -1 if schema is None else int(schema)
         except (TypeError, ValueError):
             schema_int = -1
         if not (MESH_SYNC_MIN_ACCEPTED_SCHEMA <= schema_int <= MESH_SYNC_MAX_ACCEPTED_SCHEMA):

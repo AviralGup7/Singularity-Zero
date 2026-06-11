@@ -15,6 +15,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import httpx
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+from src.core.models.entities import Request
 from src.core.mutation_engine import detect_parameter_type
 from src.core.utils.url_validation import is_safe_url_with_dns_check
 from src.fuzzing.stop_conditions import (
@@ -348,11 +349,15 @@ class FuzzingOrchestrator:
             try:
                 if active_session is not None:
                     base_req = active_session.attach(
-                        {"method": "GET", "url": url, "timeout_seconds": int(timeout_seconds)}
+                        Request(
+                            method="GET",
+                            url=url,
+                            timeout_seconds=int(timeout_seconds),
+                        )
                     )
                     base_resp = await client.get(
-                        base_req.get("url", url),
-                        headers=base_req.get("headers", {}),
+                        base_req.url,
+                        headers=base_req.headers,
                         timeout=timeout_seconds,
                     )
                 else:

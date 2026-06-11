@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 _GRAPHQL_INTROSPECTION_QUERY = """
 query IntrospectionQuery {
@@ -118,8 +118,8 @@ _MUTATION_TEMPLATES = {
 
 def _build_alias_bomb(mutation_key: str) -> dict[str, Any]:
     template = _MUTATION_TEMPLATES[mutation_key]
-    base_query = template["query"]
-    base_vars = dict(template["variables"])
+    base_query: str = template["query"]
+    base_vars = cast(dict[str, Any], template["variables"])
     operation_name = template["operationName"]
     selection_set = base_query.split("{", 1)[1].rsplit("}", 1)[0].strip()
     aliases = "".join(f"alias{i}: {selection_set} " for i in range(5))
@@ -139,8 +139,8 @@ def _build_alias_bomb(mutation_key: str) -> dict[str, Any]:
 
 def _build_fragment_duplication(mutation_key: str) -> dict[str, Any]:
     template = _MUTATION_TEMPLATES[mutation_key]
-    base_query = template["query"]
-    base_vars = dict(template["variables"])
+    base_query: str = template["query"]
+    base_vars = cast(dict[str, Any], template["variables"])
     operation_name = template["operationName"]
     selection_set = base_query.split("{", 1)[1].rsplit("}", 1)[0].strip()
     fragments = "".join(f"fragment F{i} on Query {{ __typename }} " for i in range(3))
@@ -160,8 +160,8 @@ def _build_fragment_duplication(mutation_key: str) -> dict[str, Any]:
 
 def _build_directive_injection(mutation_key: str) -> dict[str, Any]:
     template = _MUTATION_TEMPLATES[mutation_key]
-    base_query = template["query"]
-    base_vars = dict(template["variables"])
+    base_query: str = template["query"]
+    base_vars = cast(dict[str, Any], template["variables"])
     operation_name = template["operationName"]
     injected_query = base_query.replace("mutation", "mutation @skip(if: true)")
     return {
@@ -179,7 +179,8 @@ def _build_directive_injection(mutation_key: str) -> dict[str, Any]:
 
 def _build_recursive_input(mutation_key: str) -> dict[str, Any]:
     template = _MUTATION_TEMPLATES[mutation_key]
-    base_vars = dict(template["variables"])
+    base_query: str = template["query"]
+    base_vars = cast(dict[str, Any], template["variables"])
     operation_name = template["operationName"]
     if mutation_key == "login":
         recursive_query = "mutation RecursiveLogin($username: String!, $password: String!) { login(username: {username: $username, password: {password: $password}}, password: $password) { token } }"

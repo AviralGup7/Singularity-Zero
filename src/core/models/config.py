@@ -44,6 +44,7 @@ class Config:
     concurrency: dict[str, Any]
     output: dict[str, Any]
     notifications: dict[str, Any]
+    _resume_from: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert Config dataclass to a dictionary representation."""

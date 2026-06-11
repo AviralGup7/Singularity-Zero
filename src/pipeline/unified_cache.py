@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.cache_backend import PersistentCache
@@ -761,7 +761,7 @@ def cache_enabled(settings: dict[str, Any]) -> bool:
 def load_cached_json(path: Path) -> dict[str, Any] | None:
     try:
         raw = path.read_bytes()
-        return json.loads(raw.decode("utf-8"))
+        return dict(json.loads(raw.decode("utf-8")))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
@@ -776,5 +776,5 @@ def load_cached_set(path: Path) -> set[str]:
     return set(loaded) if isinstance(loaded, list) else set()
 
 
-def save_cached_set(path: Path, items: set[str], *, compress: bool = True) -> None:
+def save_cached_set(path: Path, items: Iterable[str], *, compress: bool = True) -> None:
     save_cached_json(path, list(items), compress=compress)

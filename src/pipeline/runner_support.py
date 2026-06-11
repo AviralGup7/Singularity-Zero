@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +58,6 @@ def check_max_duration(args: argparse.Namespace, started_at: float) -> bool:
     max_dur = getattr(args, "max_duration_seconds", None)
     if max_dur is None:
         return False
-    import time
 
     return (time.time() - started_at) >= max_dur
 
