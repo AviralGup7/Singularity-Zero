@@ -541,7 +541,9 @@ class CalibratedSeverityModel:
             self._record_rate(self.category_rates, category, label)
             self._record_rate(self.plugin_rates, f"{category}|{plugin}", label)
             self._record_rate(self.param_rates, parameter_type, label)
-            self._record_rate(self.asset_type_rates, str(finding.get("asset_type", "unknown")), label)
+            self._record_rate(
+                self.asset_type_rates, str(finding.get("asset_type", "unknown")), label
+            )
             examples.append(_TrainingExample(finding=finding, label=label, weight=weight))
         return examples
 

@@ -125,8 +125,12 @@ class AzureReconResult:
     errors: int = 0
 
     def _normalize_web_findings(self) -> None:
-        self.web_endpoints = [f if isinstance(f, str) else f.get("url", str(f)) for f in self.public_web_findings]
-        self.listing_endpoints = [f if isinstance(f, str) else f.get("url", str(f)) for f in self.public_listing_findings]
+        self.web_endpoints = [
+            f if isinstance(f, str) else f.get("url", str(f)) for f in self.public_web_findings
+        ]
+        self.listing_endpoints = [
+            f if isinstance(f, str) else f.get("url", str(f)) for f in self.public_listing_findings
+        ]
 
     def to_dict(self) -> dict[str, Any]:
         return {
