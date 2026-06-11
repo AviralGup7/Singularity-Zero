@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.plugins import GLOBAL_PLUGIN_REGISTRY, list_plugins
@@ -120,8 +120,8 @@ def resolve_handler_for_job_type(queue: Any, job_type: str) -> Callable[[Job], A
     canonical = normalize_job_type(job_type)
     handler = queue.get_handler(canonical)
     if handler is not None:
-        return handler
+        return cast("Callable[[Job], Any] | None", handler)
     handler = queue.get_handler(job_type)
     if handler is not None:
-        return handler
+        return cast("Callable[[Job], Any] | None", handler)
     return None

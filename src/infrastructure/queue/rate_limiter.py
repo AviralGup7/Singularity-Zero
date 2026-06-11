@@ -12,7 +12,8 @@ logger = get_pipeline_logger(__name__)
 class JobQueueRateLimiterMixin:
     async def get_next_job_for_worker(self, worker_id: str) -> Job | None:
         if not self.scheduler:
-            return await self.claim_job(worker_id)  # type: ignore[return-value]
+            result: Job | None = await self.claim_job(worker_id)
+            return result  # type: ignore[return-value]
 
         try:
             workers_key = self._key("workers")
