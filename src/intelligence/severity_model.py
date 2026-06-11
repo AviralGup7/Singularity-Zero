@@ -575,7 +575,7 @@ class CalibratedSeverityModel:
 
     def _calibrate(
         self, raw_probability: float, finding: dict[str, Any]
-    ) -> tuple[float, dict[str, float]]:
+    ) -> tuple[float, dict[str, Any]]:
         category = _normalise_token(finding.get("category") or finding.get("finding_category"))
         plugin = _normalise_token(finding.get("plugin_name") or finding.get("module"))
         parameter_type = _normalise_token(finding.get("parameter_type"))
