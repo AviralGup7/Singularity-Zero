@@ -105,6 +105,7 @@ function useOnboardingTour() {
 
   return {
     active,
+    // eslint-disable-next-line security/detect-object-injection
     step: TOUR_STEPS[currentStep],
     currentStep,
     totalSteps: TOUR_STEPS.length,

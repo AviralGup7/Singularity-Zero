@@ -44,8 +44,10 @@ function estimateBounty(score: number, epss: number, criticality: number): { min
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const remediationCache = new Map<string, RemediationSuggestion[]>();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function prefetchRemediation(id: string) {
   if (!id || remediationCache.has(id)) return;
   getFindingRemediation(id)
@@ -160,7 +162,7 @@ export function FindingDetailPanel({
       const { updateFinding } = await import('../../../api/findings');
       await updateFinding(finding.id, {
         bounty_value: bountyValue,
-        bounty_source: bountySource as any,
+        bounty_source: bountySource as 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'estimate' | 'manual',
         bounty_currency: bountyCurrency,
         already_reported: alreadyReported,
       });

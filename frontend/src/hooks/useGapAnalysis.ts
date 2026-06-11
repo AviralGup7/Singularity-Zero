@@ -23,7 +23,7 @@ export function useGapAnalysis() {
       const targetToFetch = targetVal !== undefined ? targetVal : selectedTarget;
       const res = await getGapAnalysis(targetToFetch || null);
       setData(res);
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to load gap analysis data');
     } finally {
       setLoading(false);
@@ -44,7 +44,7 @@ export function useGapAnalysis() {
 
   useEffect(() => {
     loadData();
-  }, [selectedTarget]);
+  }, [loadData, selectedTarget]);
 
   return {
     data,

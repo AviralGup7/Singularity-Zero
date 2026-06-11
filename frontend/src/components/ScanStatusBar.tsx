@@ -28,6 +28,7 @@ export function ScanStatusBar() {
   useEffect(() => {
     const running = (jobsResponse?.jobs ?? []).find(j => j.status === 'running');
     if (running) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveScan({
         jobId: running.id,
         targetName: running.target_name,

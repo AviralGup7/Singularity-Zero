@@ -56,6 +56,7 @@ export function CockpitPage() {
   const [selectedExchange, setSelectedExchange] = useState<ForensicExchange | null>(null);
   const [probing, setProbing] = useState(false);
   const [newNote, setNewNote] = useState('');
+  const [now, setNow] = useState(() => Date.now());
 
   // R3: Persist cockpit-side UI state via settingsStore. The active side tab,
   // scan control deck open/closed, and selected scan mode all now survive a
@@ -76,6 +77,11 @@ export function CockpitPage() {
     [updateCockpitLayout]
   );
   const { sidebarTab, deckOpen: isDeckOpen, scanMode } = cockpitLayout;
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>([
@@ -438,7 +444,7 @@ export function CockpitPage() {
           />
         )}
 
-        <GraphLegend nodes={nodes} edges={edges} meshHealth={meshHealth} migrations={migrations} />
+        <GraphLegend nodes={nodes} edges={edges} meshHealth={meshHealth} migrations={migrations} now={now} />
 
         <AnimatePresence>
           {sidebarOpen && (

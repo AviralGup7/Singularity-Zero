@@ -101,6 +101,7 @@ export function LoginPage() {
             <label htmlFor="login-api-key">API Key</label>
             <div className={`auth-field ${inputFocusClass}`}>
               <LockKeyhole size={24} strokeWidth={1.7} aria-hidden="true" />
+              {/* eslint-disable jsx-a11y/no-autofocus */}
               <input
                 id="login-api-key"
                 type="password"
@@ -109,6 +110,7 @@ export function LoginPage() {
                 placeholder="Enter API key"
                 autoFocus
               />
+              {/* eslint-enable jsx-a11y/no-autofocus */}
             </div>
 
             {authError && (

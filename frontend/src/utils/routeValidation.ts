@@ -1,6 +1,6 @@
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NUMERIC_ID_REGEX = /^\d+$/;
-const SAFE_PATH_REGEX = /^[a-zA-Z0-9_\-]+$/;
+const SAFE_PATH_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 export function isValidUUID(value: string): boolean {
   return UUID_REGEX.test(value);

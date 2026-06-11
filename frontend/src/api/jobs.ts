@@ -75,7 +75,7 @@ export interface StartJobPayload {
 }
 
 export async function startJob(payload: StartJobPayload, signal?: AbortSignal): Promise<Job> {
-  const { depth, concurrency, rate_limit_rps, excluded_paths, ...rest } = payload;
+  const { depth, concurrency, rate_limit_rps, excluded_paths: _excluded_paths, ...rest } = payload;
 
   const runtime_overrides = { ...(rest.runtime_overrides ?? {}) };
   if (concurrency !== undefined) {

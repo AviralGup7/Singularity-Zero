@@ -166,12 +166,12 @@ jobs:
       - name: Run safety check
         run: safety check
       - name: Run Semgrep
-        uses: semgrep/semgrep-action@fcd4295b0818e0e4090834aee3e6b3b3e0e4e4a2 # v2
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
         with:
           config: auto
           auditOn: push
       - name: Install Trivy
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947e795f2d79f2b51f2 # v0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           version: 'latest'
       - name: Run Trivy vulnerability scanner on Dockerfile

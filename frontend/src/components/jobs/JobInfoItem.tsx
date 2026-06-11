@@ -8,6 +8,7 @@ export function InfoItem({ label, value }: { label: string; value?: string }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatDurationLabel(seconds: number): string {
   const roundedSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(roundedSeconds / 60);

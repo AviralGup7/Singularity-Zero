@@ -1,6 +1,6 @@
 import type { DetectionGapResponse } from '@/types/api';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface GapAnalysisStatsProps {
   data: DetectionGapResponse;

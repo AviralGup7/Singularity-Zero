@@ -78,6 +78,7 @@ export function useSSEProgress<T = SseEventData>({
 
   const [connectionState, setConnectionState] = useState<SSEConnectionState>('closed');
   const [isPollingFallback, setIsPollingFallback] = useState(false);
+  const [pendingEventCount, setPendingEventCount] = useState(0);
   const pendingEventCountRef = useRef(0);
 
   const esRef = useRef<EventSource | null>(null);
@@ -115,6 +116,7 @@ export function useSSEProgress<T = SseEventData>({
     bufferRef.current = [];
     lastFlushRef.current = Date.now();
     pendingEventCountRef.current = 0;
+    setPendingEventCount(0);
     const handler = onEventRef.current;
     if (!handler) return;
     for (let i = 0; i < batch.length; i++) {
@@ -138,6 +140,7 @@ export function useSSEProgress<T = SseEventData>({
     }
     buffer.push(event);
     pendingEventCountRef.current = buffer.length;
+    setPendingEventCount(buffer.length);
     if (flushTimerRef.current) return;
     const elapsed = Date.now() - lastFlushRef.current;
     const delay = elapsed >= flushIntervalMs ? 0 : flushIntervalMs - elapsed;
@@ -233,7 +236,10 @@ export function useSSEProgress<T = SseEventData>({
 
   useEffect(() => {
     mountedRef.current = true;
-    if (enabled && jobId) connect();
+    if (enabled && jobId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      connect();
+    }
     return () => {
       mountedRef.current = false;
       if (esRef.current) esRef.current.close();
@@ -247,7 +253,7 @@ export function useSSEProgress<T = SseEventData>({
   return {
     connectionState,
     isPollingFallback,
-    pendingEventCount: pendingEventCountRef.current,
+    pendingEventCount,
     /**
      * Force an immediate buffer flush. Useful when the consumer wants to
      * guarantee up-to-date state at a transition (e.g. right before opening

@@ -67,6 +67,7 @@ export function FindingsPage() {
       if (!lastSeenIdsRef.current.has(id)) fresh.push(id);
     });
     if (fresh.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNewFindingIds(prev => Array.from(new Set([...prev, ...fresh])));
     }
     lastSeenIdsRef.current = currentIds;
@@ -164,6 +165,7 @@ export function FindingsPage() {
       // Check if we already have it in the list
       const existing = findingsData?.findings.find(f => f.id === fid);
       if (existing) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailFinding(existing);
       } else {
         // Fetch from the new singular endpoint

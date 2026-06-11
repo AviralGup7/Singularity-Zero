@@ -207,7 +207,7 @@ export function ScanDiffPage() {
           </p>
           <button
             className="btn btn-secondary btn-sm mt-2"
-            onClick={() => { errorA && refetchA(); errorB && refetchB(); }}
+            onClick={() => { if (errorA) refetchA(); if (errorB) refetchB(); }}
           >
             Retry
           </button>

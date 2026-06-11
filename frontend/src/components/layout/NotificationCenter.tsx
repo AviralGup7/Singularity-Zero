@@ -199,7 +199,7 @@ export function NotificationCenter({
                 className={`notification-filter-btn ${filter === type ? 'active' : ''}`}
                 onClick={() => setFilter(type)}
               >
-                {type === 'all' ? 'All' : TYPE_LABELS[type] || type}
+                {type === 'all' ? 'All' : TYPE_LABELS[type as keyof typeof TYPE_LABELS] || type}
               </button>
             ))}
           </div>

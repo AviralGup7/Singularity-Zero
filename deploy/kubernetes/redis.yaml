@@ -78,28 +78,28 @@ spec:
     spec:
       automountServiceAccountToken: false
       securityContext:
-        fsGroup: 999
-        runAsUser: 999
-        runAsGroup: 999
+        fsGroup: 65534
+        runAsUser: 65534
+        runAsGroup: 65534
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: redis
-          image: redis:7.2.4-alpine
+          image: redis@sha256:c8bb255c3559b3e458766db810aa7b3c7af1235b204cfdb304e79ff388fe1a5a
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             privileged: false
             runAsNonRoot: true
-            runAsUser: 999
-            runAsGroup: 999
+            runAsUser: 65534
+            runAsGroup: 65534
             capabilities:
               drop:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             - "sh"
             - "-c"

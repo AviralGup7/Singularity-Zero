@@ -12,8 +12,13 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
     <FocusTrap active={isOpen} onDeactivate={onClose}>
       <div
         className="modal-overlay-fixed animate-fade-in"
+        role="button"
+        tabIndex={-1}
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose();
         }}
       >
         <div

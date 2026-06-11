@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Target } from '@/types/api';
 
 export interface TargetFilters {
@@ -9,8 +9,6 @@ export interface TargetFilters {
   lastScanAfter: string;
   lastScanBefore: string;
 }
-
-const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
 
 export function emptyFilters(): TargetFilters {
   return {

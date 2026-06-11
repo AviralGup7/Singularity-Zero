@@ -39,7 +39,7 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
         error: false,
         lastChecked: new Date(),
       });
-    } catch (err) {
+    } catch (_err) {
       if (signal?.aborted) return;
       setState(prev => ({
         ...prev,
@@ -54,6 +54,7 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
 
   useEffect(() => {
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkHealth(controller.signal);
     const interval = setInterval(() => checkHealth(controller.signal), pollInterval);
     return () => {

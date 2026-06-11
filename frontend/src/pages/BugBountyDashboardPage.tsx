@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Shield, DollarSign, Send, CheckCircle2, HelpCircle, 
-  AlertCircle, Filter, Search, ArrowUpRight, Lock, 
-  RefreshCw, Edit2, TrendingUp, AlertOctagon 
+  DollarSign, Send, CheckCircle2, 
+  AlertCircle, Search, 
+  RefreshCw, Edit2
 } from 'lucide-react';
 
 import { getFindings, updateFinding } from '@/api/findings';
@@ -31,7 +31,6 @@ export function BugBountyDashboardPage() {
   const toast = useToast();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { filter: searchQuery, setFilter: setSearchQuery, debouncedFilter: debouncedSearch } = useDebouncedFilter(300);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
@@ -98,7 +97,6 @@ export function BugBountyDashboardPage() {
     findings.forEach(f => {
       const source = f.bounty_source || 'estimate';
       const val = calculateEstimatedBounty(f);
-      // eslint-disable-next-line security/detect-object-injection
       if (source in distribution) {
         // eslint-disable-next-line security/detect-object-injection
         distribution[source].count += 1;
@@ -503,7 +501,7 @@ export function BugBountyDashboardPage() {
           onClose={() => { setSubmitDialogOpen(false); setActiveFinding(null); }}
           onSubmitted={(res) => {
             if (res.submitted) {
-              setFindings(prev => prev.map(item => item.id === activeFinding.id ? { ...item, already_reported: true, bounty_source: res.platform as any } : item));
+              setFindings(prev => prev.map(item => item.id === activeFinding.id ? { ...item, already_reported: true, bounty_source: res.platform as 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'estimate' | 'manual' } : item));
               toast.success(`Successfully submitted to ${res.platform}`);
             } else {
               toast.error(`Submission failed: ${res.error}`);
