@@ -71,7 +71,9 @@ async def replay_request(
     """Replay a previously captured request and compare responses."""
     from src.analysis.behavior.analysis_support import compare_response_records
     from src.analysis.behavior.artifacts import load_plugin_artifact, plugin_artifact_path
-    from src.analysis.passive.runtime import fetch_response
+    from src.analysis.passive.runtime import _get_fetch_response
+
+    fetch_response = _get_fetch_response()
     from src.execution.exploiters.exploit_automation import replay_headers_for_mode
 
     # Refuse to even process the request if the caller put credentials in

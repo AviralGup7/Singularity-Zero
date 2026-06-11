@@ -290,6 +290,6 @@ async def compare_targets(
     res_b = _get_target_comparison_details(target_b, services)
 
     return TargetComparisonResponse(
-        target_a=res_a,
-        target_b=res_b,
+        target_a=TargetComparisonDetail(**res_a),
+        target_b=TargetComparisonDetail(**res_b),
     )

@@ -533,8 +533,8 @@ def _apply_recon_degradation(
         from src.core.events import EventType, get_event_bus
     except Exception as exc:  # noqa: BLE001
         logger.debug("EventBus unavailable for RECON_DEGRADED: %s", exc)
-        EventType = None  # type: ignore[assignment]
-        get_event_bus = None  # type: ignore[assignment]
+        _EventType = None  # type: ignore[assignment]
+        _get_event_bus = None  # type: ignore[assignment]
 
     for stage_name in policy.infra.degraded_stages:
         if ctx.result.stage_status.get(stage_name) != StageStatus.FAILED.value:
@@ -548,8 +548,6 @@ def _apply_recon_degradation(
             ctx.result.module_metrics[stage_name] = metrics
         metrics["degraded"] = True
         metrics["degraded_salvaged_by"] = salvaging
-        # Override the fatal flag so the policy evaluator (and any
-        # downstream consumer) treats this failure as non-fatal.
         metrics["fatal"] = False
         reason = str(metrics.get("failure_reason") or "stage failed")
         logger.warning(
@@ -575,16 +573,18 @@ def _apply_recon_degradation(
             "failure_reason": reason,
             "metrics": {k: v for k, v in metrics.items() if k != "retry_metrics"},
         }
-        if EventType is not None and get_event_bus is not None:
+        event_type = _EventType
+        get_event_bus_ref = _get_event_bus
+        if event_type is not None and get_event_bus_ref is not None:
             try:
                 emit = (
                     getattr(orchestrator, "_emit_event", None) if orchestrator is not None else None
                 )
                 if callable(emit):
-                    emit(EventType.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload)
+                    emit(event_type.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload)
                 else:
-                    get_event_bus().emit(
-                        EventType.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload
+                    get_event_bus_ref().emit(
+                        event_type.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload
                     )
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Failed to emit RECON_DEGRADED event: %s", exc)

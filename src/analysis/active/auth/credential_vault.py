@@ -263,13 +263,19 @@ class CredentialVault:
 
     def record_saml_assertion(
         self,
-        saml_response_b64: str,
+        saml_response_b64: str | bytes,
         *,
         source_url: str,
         request_body: str = "",
         response_body: str = "",
     ) -> CapturedCredential | None:
-        encoded = saml_response_b64 if isinstance(saml_response_b64, str) else ""
+        encoded = (
+            saml_response_b64.decode("utf-8", errors="replace")
+            if isinstance(saml_response_b64, bytes)
+            else saml_response_b64
+        )
+        if not isinstance(encoded, str):
+            encoded = str(encoded)
         try:
             base64.b64decode(encoded).decode("utf-8", errors="replace")
         except Exception:  # noqa: S110
@@ -363,7 +369,8 @@ class CredentialVault:
 
 def _safe_netloc(url: str | None) -> str:
     try:
-        return urlparse(url).hostname or ""
+        hostname = urlparse(url).hostname
+        return str(hostname) if hostname is not None else ""
     except Exception:  # noqa: S110
         return ""
 

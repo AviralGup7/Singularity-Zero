@@ -11,6 +11,8 @@ dashboards, and plugins.
 from __future__ import annotations
 
 import logging
+from typing import Any
+from typing import Any
 
 from ._graph_dsl import Graph
 from .graph_builder import _load_capability_profile, build_pipeline_graph
@@ -29,8 +31,9 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def _build_default_graph(profile: str | None = None) -> Graph:
-    profile = profile if profile is not None else _load_capability_profile("default")
+def _build_default_graph(profile: dict[str, Any] | None = None) -> Graph:
+    if profile is None:
+        profile = _load_capability_profile("default")
     return build_pipeline_graph(profile=profile)
 
 

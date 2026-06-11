@@ -92,7 +92,8 @@ async def probe_cswsh(
     ping, and immediately closes.
     """
     findings: list[WebSocketProbeFinding] = []
-    for origin in origins:
+    for origin_value in origins:
+        origin = str(origin_value)
         try:
             async with websockets.connect(
                 url,
@@ -168,9 +169,9 @@ async def probe_message_fuzz(
                     logger.warning("Operation failed in websocket_probe.py: %s", exc, exc_info=True)  # noqa: BLE001
                 else:
                     if isinstance(response, (bytes, bytearray)):
-                        preview = response[:200]
+                        preview = response[:200].decode("utf-8", errors="replace")
                     else:
-                        preview = response[:200]
+                        preview = str(response[:200])
                     findings.append(
                         WebSocketProbeFinding(
                             url=url,
@@ -252,7 +253,12 @@ async def discover_websocket_endpoints(
                     discovered.append(ws_target)
     # Deduplicate while preserving order
     seen: set[str] = set()
-    return [u for u in discovered if not (u in seen or seen.add(u))]
+    result_urls: list[str] = []
+    for u in discovered:
+        if u not in seen:
+            seen.add(u)
+            result_urls.append(u)
+    return result_urls
 
 
 def _http_to_ws(url: str) -> str:

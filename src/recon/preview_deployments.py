@@ -218,9 +218,9 @@ def _guess_project_name_from_inputs(
             with open(package_json_path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, dict) and isinstance(data.get("name"), str):
-                name = data["name"].strip().lower().split("/")[-1].replace("_", "-")
+                name = str(data["name"]).strip().lower().split("/")[-1].replace("_", "-")
                 if name:
-                    return str(name)
+                    return name
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Operation failed in preview_deployments.py: %s", exc, exc_info=True)  # noqa: BLE001
     return ""

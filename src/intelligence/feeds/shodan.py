@@ -19,7 +19,7 @@ Usage:
 import logging
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -40,7 +40,7 @@ def _safe_json(response: Any) -> dict[str, Any] | list[Any] | None:
         )
         return None
     try:
-        return response.json()
+        return cast(dict[str, Any] | list[Any] | None, response.json())
     except (ValueError, TypeError) as exc:
         logger.warning("Shodan response JSON parse error: %s", exc)
         return None

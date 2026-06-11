@@ -478,7 +478,7 @@ def _ci_filter_engine(ci: CIRule) -> Any | None:
 
 def _ci_filter_findings(
     findings: Sequence[Mapping[str, Any]], ci: CIRule
-) -> list[Mapping[str, Any]]:
+) -> list[Any]:
     engine = _ci_filter_engine(ci)
     if engine is None:
         return list(findings)
@@ -489,7 +489,7 @@ def _ci_filter_findings(
         if category in {c.lower() for c in ci.exclude_categories}:
             continue
         kept.append(f)
-    return engine.filter_items(kept)
+    return list(engine.filter_items(kept))
 
 
 def _count_findings(

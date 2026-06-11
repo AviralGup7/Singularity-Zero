@@ -1,3 +1,5 @@
+from typing import Any
+
 from src.analysis.automation.access_control import AccessControlAnalyzer, EnforcementResult
 from src.analysis.automation.auto_filters import (
     AutoFilterEngine,
@@ -57,7 +59,7 @@ from src.analysis.automation.workflow import (
 )
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     """Lazy re-exports of the pipeline-stage helpers.
 
     These names live in :mod:`src.pipeline.services.pipeline_orchestrator.stages`

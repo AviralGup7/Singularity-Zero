@@ -55,7 +55,7 @@ class SimpleTaskPool:
         if not self._running:
             raise RuntimeError("SimpleTaskPool is not running. Call start() first.")
         task = asyncio.ensure_future(coroutine)
-        await self._queue.put((priority, task))
+        await self._queue.put((priority, task))  # type: ignore[await-not-async]
         return task
 
     async def shutdown(self) -> None:
@@ -277,7 +277,9 @@ class MeshShim:
         return "0"
 
     async def submit_task(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task[Any]:
-        return await self._task_pool.submit(coroutine, priority=priority)
+        task_pool = self._task_pool
+        assert task_pool is not None
+        return await task_pool.submit(coroutine, priority=priority)
 
     @property
     def worker_count(self) -> int:

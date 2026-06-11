@@ -99,7 +99,7 @@ def _normalize_response_body(body: Any) -> Any:
             }
         )
 
-        normalized = {}
+        normalized: dict[str, Any] = {}
         for key, value in body.items():
             if value is None:
                 if key in _KNOWN_COUNT_FIELDS:
@@ -109,7 +109,6 @@ def _normalize_response_body(body: Any) -> Any:
                 elif key in _KNOWN_STRING_FIELDS:
                     normalized[key] = ""
                 else:
-                    # Preserve None for unknown/semantic fields
                     normalized[key] = None
             else:
                 normalized[key] = value

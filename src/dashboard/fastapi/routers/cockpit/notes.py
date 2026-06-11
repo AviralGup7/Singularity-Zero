@@ -90,7 +90,9 @@ async def trigger_cockpit_probe(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Trigger a manual probe with scope validation and forensic capture."""
-    from src.analysis.passive.runtime import fetch_response
+    from src.analysis.passive.runtime import _get_fetch_response
+
+    fetch_response = _get_fetch_response()
     from src.core.utils.url_validation import is_safe_url
 
     output_root = services.query.output_root

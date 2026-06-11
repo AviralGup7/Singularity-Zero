@@ -120,8 +120,10 @@ def resolve_handler_for_job_type(queue: Any, job_type: str) -> Callable[[Job], A
     canonical = normalize_job_type(job_type)
     handler = queue.get_handler(canonical)
     if handler is not None:
-        return cast(Callable[[Job], Any], handler)
+        resolved = cast(Callable[[Job], Any], handler)
+        return resolved
     handler = queue.get_handler(job_type)
     if handler is not None:
-        return cast(Callable[[Job], Any], handler)
+        resolved = cast(Callable[[Job], Any], handler)
+        return resolved
     return None

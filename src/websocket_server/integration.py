@@ -771,7 +771,7 @@ def setup_websocket_routes(
 
 
 def integrate_with_pipeline_progress(
-    services: WSServices,
+    services: WSServices | None,
     job_state_store: dict[str, Any],
     lock: Any = None,
 ) -> None:
@@ -828,8 +828,8 @@ def integrate_with_pipeline_progress(
             loop = None
 
         if loop is not None and loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                services.broadcast_progress(
+            async def _do_broadcast_progress() -> None:
+                await services.broadcast_progress(
                     job_id=job_id,
                     stage=stage,
                     stage_label=stage_label,
@@ -838,18 +838,22 @@ def integrate_with_pipeline_progress(
                     total=total if isinstance(total, int) else None,
                     message=message,
                     target=target,
-                ),
+                )
+            asyncio.run_coroutine_threadsafe(
+                _do_broadcast_progress(),
                 loop,
             )
 
             for log_line in job.get("latest_logs", [])[-3:]:
-                asyncio.run_coroutine_threadsafe(
-                    services.broadcast_log(
+                async def _do_broadcast_log(line: str = log_line) -> None:
+                    await services.broadcast_log(
                         job_id=job_id,
-                        line=log_line,
+                        line=line,
                         source="stdout",
-                        level="warning" if log_line.lower().startswith("warning") else "info",
-                    ),
+                        level="warning" if line.lower().startswith("warning") else "info",
+                    )
+                asyncio.run_coroutine_threadsafe(
+                    _do_broadcast_log(),
                     loop,
                 )
         else:

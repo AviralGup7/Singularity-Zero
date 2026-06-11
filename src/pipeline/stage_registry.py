@@ -8,16 +8,17 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
+
+from src.pipeline.services.pipeline_orchestrator._graph_dsl import (
+    AlwaysTrue,
+    Condition,
+)
 
 if TYPE_CHECKING:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
 
 logger = logging.getLogger(__name__)
-
-
-class Condition(Protocol):
-    def is_satisfied(self, ctx: Any, state: Any) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,7 @@ def get_by_capability(capability: str) -> list[StageNodeDefinition]:
 
 
 def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
-    from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
+    from src.pipeline.services.pipeline_orchestrator._graph_dsl import AlwaysTrue, StageNode
 
     return StageNode(
         name=defn.name,
@@ -109,7 +110,7 @@ def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
         weight=defn.weight,
         timeout=defn.timeout_seconds,
         critical=defn.critical,
-        when=defn.when,
+        when=defn.when if defn.when is not None else AlwaysTrue(),
     )
 
 

@@ -213,6 +213,7 @@ class MaintenanceLock:
         self._sqlite_path = lockfile_path.with_suffix(".sqlite-lock")
         self._fd: int | None = None
         self._use_sqlite: bool = True
+        self._conn: Any = None
 
     def __enter__(self) -> "MaintenanceLock":
         self.lockfile_path.parent.mkdir(parents=True, exist_ok=True)

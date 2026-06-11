@@ -106,12 +106,12 @@ class StagePlanner:
 
         if url_count > 0:
             default_concurrency = int(getattr(self.config, "default_concurrency", 10))
-            base_concurrency = default_concurrency
+            base_concurrency: int = default_concurrency
             depth = 2
-            stage_depth_map = {10: 2, 80: 3, 150: 5}
+            stage_depth_map: dict[int, int] = {10: 2, 80: 3, 150: 5}
             for threshold, d in sorted(stage_depth_map.items(), reverse=True):
                 if url_count >= threshold:
-                    base_concurrency = threshold
+                    base_concurrency = int(threshold)
                     depth = d
                     break
             cap = self.resource_guard.get_concurrency_cap("active_scan", base_concurrency)

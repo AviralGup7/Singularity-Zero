@@ -96,7 +96,7 @@ class ContinuousScanMode:
         return alerts_sent
 
     async def _run_pipeline_for_scope(
-        self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path
+        self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path | None = None
     ) -> ScanCycleResult:
         result = ScanCycleResult()
         current_assets = await self._inventory_mgr.discover_all()
@@ -122,7 +122,6 @@ class ContinuousScanMode:
         await self._run_pipeline_for_scope(
             sorted(scan_targets), output_dir, target_name, config_path
         )
-        result.scans_triggered = sorted(scan_targets)
 
         try:
             state = self._checkpoint_mgr.load()
@@ -162,16 +161,14 @@ class ContinuousScanMode:
         asset_diff_only: bool = False,
         config_path: Path | None = None,
     ) -> None:
+        self._asset_diff_only = asset_diff_only
         logger.info("Starting continuous scan mode (interval=%ds)", interval_seconds)
         try:
             while True:
                 cycle_start = asyncio.get_running_loop().time()
                 try:
                     result = await self._run_pipeline_for_scope(
-                        output_dir=output_dir,
-                        target_name=target_name,
-                        asset_diff_only=asset_diff_only,
-                        config_path=config_path,
+                        scope_entries=[], output_dir=output_dir, target_name=target_name, config_path=config_path
                     )
                     logger.info(
                         "Cycle complete: new=%d removed=%d scans=%d alerts=%d",

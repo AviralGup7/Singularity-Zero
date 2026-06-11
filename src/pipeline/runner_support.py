@@ -59,7 +59,8 @@ def check_max_duration(args: argparse.Namespace, started_at: float) -> bool:
     if max_dur is None:
         return False
 
-    return (time.time() - started_at) >= max_dur
+    max_dur_float = float(max_dur)
+    return (time.time() - started_at) >= max_dur_float
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

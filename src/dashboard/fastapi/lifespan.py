@@ -170,7 +170,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         )
         app.state.ws_services = ws_services
 
-        if hasattr(app.state.services, "jobs") and hasattr(app.state.services, "lock"):
+        if ws_services is not None and hasattr(app.state.services, "jobs") and hasattr(app.state.services, "lock"):
             integrate_with_pipeline_progress(
                 ws_services,
                 job_state_store=app.state.services.jobs,

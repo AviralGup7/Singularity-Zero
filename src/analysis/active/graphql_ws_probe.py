@@ -130,7 +130,7 @@ async def _probe_one_subprotocol(
 
         async with websockets.connect(
             ws_url,
-            subprotocols=[subprotocol],
+            subprotocols=[subprotocol],  # type: ignore[list-item]
             ssl=ssl_ctx,
             additional_headers=extra_headers or None,
             open_timeout=5.0,
@@ -238,7 +238,7 @@ def graphql_ws_injection_probe(
         List of finding dicts. Each finding contains the URL, the
         per-subprotocol results, and the corresponding issue labels.
     """
-    origins = origins or [None, "https://evil.example.com", "null"]
+    origin_values: list[str | None] = origins if origins is not None else [None, "https://evil.example.com", "null"]
 
     candidates: list[str] = []
     for entry in priority_urls:
@@ -273,7 +273,7 @@ def graphql_ws_injection_probe(
         if len(findings) >= limit:
             break
         per_origin_results: list[dict[str, Any]] = []
-        for origin in origins:
+        for origin in origin_values:
             try:
                 result = asyncio.run(_probe_url(ws_url, origin=origin, verify_tls=verify_tls))
             except RuntimeError:

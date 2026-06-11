@@ -277,25 +277,25 @@ class _SubdomainCenterBackend:
     def query(domain: str) -> set[str]:
         from src.recon.sources.subdomain_center import query_subdomain_center as _q
 
-        return set(run_async_in_sync_context(_q(domain)))
+        return set(run_async_in_sync_context(_q(domain)))  # type: ignore[no-any-return]
 
 
 class _GitHubSearchBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
-        return set(run_async_in_sync_context(_fetch_github_code_search(domain)))
+        return set(run_async_in_sync_context(_fetch_github_code_search(domain)))  # type: ignore[no-any-return]
 
 
 class _GitLabSearchBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
-        return set(run_async_in_sync_context(_fetch_gitlab_search(domain)))
+        return set(run_async_in_sync_context(_fetch_gitlab_search(domain)))  # type: ignore[no-any-return]
 
 
 class _BinaryEdgeBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
-        return set(run_async_in_sync_context(_fetch_binaryedge_passive(domain)))
+        return set(run_async_in_sync_context(_fetch_binaryedge_passive(domain)))  # type: ignore[no-any-return]
 
 
 try:
