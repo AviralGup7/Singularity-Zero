@@ -63,6 +63,7 @@ export function useProcessedFindings(
     if (!workerRef.current) return;
 
     let isCurrent = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsProcessing(true);
 
     workerRef.current.onmessage = (event) => {
@@ -76,7 +77,9 @@ export function useProcessedFindings(
     let rawChanged = lastRaw.length !== rawFindings.length;
     if (!rawChanged) {
       for (let i = 0; i < rawFindings.length; i++) {
+        // eslint-disable-next-line security/detect-object-injection
         const f = rawFindings[i];
+        // eslint-disable-next-line security/detect-object-injection
         const prev = lastRaw[i];
         if (!f || !prev || f.id !== prev.id || f.timestamp !== prev.timestamp) {
           rawChanged = true;

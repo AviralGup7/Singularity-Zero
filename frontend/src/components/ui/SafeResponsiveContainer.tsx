@@ -59,9 +59,9 @@ export const SafeResponsiveContainer = ({
     >
       {dimensions ? (
         typeof children === "function"
-          ? (children as Function)(dimensions.width, dimensions.height)
+          ? (children as (width: number, height: number) => React.ReactNode)(dimensions.width, dimensions.height)
           : React.isValidElement(children)
-            ? React.cloneElement(children as React.ReactElement<any>, {
+            ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
                 width: dimensions.width,
                 height: dimensions.height,
               })

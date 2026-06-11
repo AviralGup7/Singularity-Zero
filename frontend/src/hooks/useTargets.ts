@@ -1,6 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useApi } from '@/hooks/useApi';
-import { useToast } from '@/hooks/useToast';
 import { emptyFilters, type TargetFilters } from '@/hooks/useTargetFilters';
 import type { Target } from '@/types/api';
 
@@ -10,7 +9,6 @@ export interface TargetsResponse {
 
 export function useTargets() {
   const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets');
-  const toast = useToast();
 
   const [filter, setFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);

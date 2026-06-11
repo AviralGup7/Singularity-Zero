@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import type { TargetFilters } from '@/hooks/useTargetFilters';
 
 interface TargetsFilterPanelProps {

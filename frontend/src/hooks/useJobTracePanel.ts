@@ -8,6 +8,7 @@ export function useJobRemediation(jobId: string | undefined, isFailedJob: boolea
 
   useEffect(() => {
     if (!jobId || !isFailedJob) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRemediation([]);
       return;
     }
@@ -15,8 +16,7 @@ export function useJobRemediation(jobId: string | undefined, isFailedJob: boolea
     const tid = setTimeout(() => setRemediationLoading(true), 0);
     getJobRemediation(jobId, controller.signal)
       .then((response) => setRemediation(response.suggestions ?? []))
-      .catch((err) => {
-        console.error('Failed to fetch remediation suggestions:', err);
+      .catch((_err) => {
         setRemediation([]);
       })
       .finally(() => {

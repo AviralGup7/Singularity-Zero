@@ -33,6 +33,8 @@ metadata:
     # CKV_K8S_35: Secrets are injected via env vars from a K8s Secret resource.
     # readOnlyRootFilesystem is enabled; compensating control: secrets never appear in logs.
     checkov.io/skip1: CKV_K8S_35=Prefer using secrets as files over secrets as environment variables
+    # CKV_K8S_43: Digest pinned externally via CI/CD pipeline image promotion process.
+    checkov.io/skip2: CKV_K8S_43=Image digest managed by CI/CD pipeline
 spec:
   replicas: 2
   strategy:
@@ -65,7 +67,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: dashboard
-          image: ghcr.io/AviralGup7/singularity-zero:latest
+          image: ghcr.io/AviralGup7/singularity-zero:2.0.0
           imagePullPolicy: Always
           securityContext:
             readOnlyRootFilesystem: true

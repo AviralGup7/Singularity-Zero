@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import type { CockpitNode, CockpitEdge } from '@/api/cockpit';
 
@@ -6,10 +7,11 @@ interface GraphLegendProps {
   edges: CockpitEdge[];
   meshHealth: { avg_latency_ms: number; peer_count: number } | null;
   migrations: { timestamp: number }[];
+  now: number;
 }
 
-export function GraphLegend({ nodes, edges, meshHealth, migrations }: GraphLegendProps) {
-  const recentMigrations = migrations.filter((m) => Date.now() - m.timestamp < 30000).length;
+export function GraphLegend({ nodes, edges, meshHealth, migrations, now }: GraphLegendProps) {
+  const recentMigrations = useMemo(() => migrations.filter((m) => now - m.timestamp < 30000).length, [migrations, now]);
 
   return (
     <div className="absolute bottom-8 left-8 z-10 flex flex-wrap gap-4">

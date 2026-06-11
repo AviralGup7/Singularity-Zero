@@ -35,7 +35,7 @@ const ALLOWED_PROTOCOLS = ['http:', 'https:'];
 // Request deduplication: prevent duplicate concurrent GET requests for the same URL
 const pendingRequests = new Map<string, Promise<unknown>>();
 
-function deduplicateKey(url: string, params?: Record<string, unknown>): string {
+function _deduplicateKey(url: string, params?: Record<string, unknown>): string {
   return params ? `${url}?${JSON.stringify(params)}` : url;
 }
 
@@ -285,8 +285,6 @@ interface CachedRequestOptions {
   timeout?: number;
   schema?: z.ZodSchema;
 }
-
-const pendingRequests = new Map<string, Promise<unknown>>();
 
 export async function cachedGet<T>(url: string, options?: CachedRequestOptions): Promise<T> {
   const key = apiCache.generateKey(url, options?.params);

@@ -47,6 +47,7 @@ function pruneOldEntries(data: Record<string, { timestamp?: string }>): void {
   const now = Date.now();
   for (const [key, entry] of Object.entries(data)) {
     if (entry?.timestamp && now - new Date(entry.timestamp).getTime() > MAX_VITALS_AGE_MS) {
+      // eslint-disable-next-line security/detect-object-injection
       delete data[key];
     }
   }

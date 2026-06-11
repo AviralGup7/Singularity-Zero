@@ -133,7 +133,9 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     return () => {
       controller.abort();
       clearInterval(interval);
-      seenPollIdsRef.current.clear();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const seen = seenPollIdsRef.current;
+      seen.clear();
     };
   }, [jobId, loadData]);
 

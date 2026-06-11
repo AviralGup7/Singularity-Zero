@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import type { CockpitNode } from '@/api/cockpit';
 
 interface IntelSidebarProps {

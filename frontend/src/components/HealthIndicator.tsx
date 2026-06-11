@@ -1,15 +1,7 @@
 import { useHealthStatus } from '@/hooks/useHealthStatus';
 
-function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${Math.floor(seconds)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}h ${m}m`;
-}
-
 export default function HealthIndicator() {
-  const { ready, status, degradedReasons, loading, error, lastChecked } = useHealthStatus();
+  const { ready, status, degradedReasons, loading, error } = useHealthStatus();
 
   if (loading) return null;
 
@@ -32,8 +24,6 @@ export default function HealthIndicator() {
       </div>
     );
   }
-
-  const uptimeMs = lastChecked?.getTime();
 
   return (
     <div className="flex items-center gap-2 text-xs text-ok" role="status" aria-label="Backend is online">

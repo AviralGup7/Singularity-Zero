@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import type { Target } from '@/types/api';
 
 export const PAGE_SIZE = 10;
 

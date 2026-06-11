@@ -84,7 +84,9 @@ const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/trace': () => import('@/pages/TracePage'),
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function prefetchRoute(path: string) {
+  // eslint-disable-next-line security/detect-object-injection
   const loader = ROUTE_PREFETCH_MAP[path];
   if (loader) {
     loader().catch(() => {});
