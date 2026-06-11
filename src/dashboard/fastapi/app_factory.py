@@ -188,9 +188,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         detail = str(exc) if config.debug else "Internal Server Error"
         return JSONResponse(
             status_code=500,
-            content=_error_payload(
-                "Internal Server Error", detail, "internal_server_error"
-            ),
+            content=_error_payload("Internal Server Error", detail, "internal_server_error"),
         )
 
     @app.get("/api/health/live", tags=["System"])
@@ -408,8 +406,15 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         payload: dict[str, Any] | None = None
 
     _TELEMETRY_PAYLOAD_ALLOWLIST: set[str] = {
-        "page_view", "button_click", "error", "performance", "feature_usage",
-        "session_duration", "load_time", "render_time", "api_latency",
+        "page_view",
+        "button_click",
+        "error",
+        "performance",
+        "feature_usage",
+        "session_duration",
+        "load_time",
+        "render_time",
+        "api_latency",
     }
 
     @app.post("/api/telemetry", tags=["Analytics"])

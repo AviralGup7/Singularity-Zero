@@ -148,14 +148,18 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # disabled too. Otherwise the SPA / curl-based smoke tests cannot
         # exercise endpoints that would otherwise need a CSRF cookie.
         # SECURITY: Never disable CSRF in production.
-        if os.getenv("APP_ENV") != "production" and os.getenv("DASHBOARD_AUTH_DISABLED", "").lower() in {"1", "true", "yes"}:
+        if os.getenv("APP_ENV") != "production" and os.getenv(
+            "DASHBOARD_AUTH_DISABLED", ""
+        ).lower() in {"1", "true", "yes"}:
             return await call_next(request)
         # Bearer / API-key auth isn't a CSRF vector, BUT only exempt
         # if the request does NOT carry session cookies. An attacker
         # could add a fake X-API-Key header to bypass CSRF when the
         # browser sends session cookies automatically.
         has_session_cookie = _CSRF_COOKIE_NAME in request.cookies
-        has_auth_header = request.headers.get("Authorization", "").lower().startswith("bearer ") or request.headers.get("X-API-Key")
+        has_auth_header = request.headers.get("Authorization", "").lower().startswith(
+            "bearer "
+        ) or request.headers.get("X-API-Key")
         if has_auth_header and not has_session_cookie:
             return await call_next(request)
 

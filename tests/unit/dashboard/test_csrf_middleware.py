@@ -1,11 +1,8 @@
 """Tests for CSRFProtectionMiddleware double-submit cookie CSRF protection."""
 
 import secrets
-from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from starlette.applications import Starlette
-from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
@@ -36,6 +33,7 @@ def _create_app(auth_disabled: bool = False, app_env: str = "development"):
 
     if auth_disabled:
         import os
+
         os.environ["DASHBOARD_AUTH_DISABLED"] = "1"
         os.environ["APP_ENV"] = app_env
 
@@ -138,6 +136,7 @@ class TestCSRFProtectionMiddleware:
         assert response.status_code == 200
         # Cleanup
         import os
+
         os.environ.pop("DASHBOARD_AUTH_DISABLED", None)
 
     def test_csrf_not_disabled_in_production(self):
@@ -148,5 +147,6 @@ class TestCSRFProtectionMiddleware:
         assert response.status_code == 403
         # Cleanup
         import os
+
         os.environ.pop("DASHBOARD_AUTH_DISABLED", None)
         os.environ["APP_ENV"] = "development"

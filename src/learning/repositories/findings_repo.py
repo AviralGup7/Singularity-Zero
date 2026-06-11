@@ -2,7 +2,6 @@ import logging
 
 """Findings repository - CRUD operations for findings table."""
 
-import re
 import threading
 from pathlib import Path
 from typing import Any

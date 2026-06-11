@@ -361,15 +361,11 @@ def enforce_sandbox_restrictions(module_globals: dict[str, Any]) -> None:
     """
     for name in _BLOCKED_NAMES:
         if name in module_globals:
-            raise PluginValidationError(
-                f"Plugin module contains blocked name '{name}'"
-            )
+            raise PluginValidationError(f"Plugin module contains blocked name '{name}'")
 
     for name in ("__builtins__",):
         if name in module_globals:
-            raise PluginValidationError(
-                f"Plugin module contains blocked attribute '{name}'"
-            )
+            raise PluginValidationError(f"Plugin module contains blocked attribute '{name}'")
 
 
 def verify_plugin_signature(plugin_path: Path, expected_sha256: str | None = None) -> bool:

@@ -58,7 +58,11 @@ class DashboardConfig(BaseSettings):
     storage_config: dict[str, Any] | None = Field(default=None)
     cache_db_path: str = Field(default=str(_OUTPUT_ROOT / "cache" / "cache_layer.db"))
     cache_dir: str = Field(default=str(_OUTPUT_ROOT / "cache" / "files"))
-    model_config = {"env_prefix": "DASHBOARD_", "extra": "forbid", "aliases": {"APP_DEBUG": "debug"}}
+    model_config = {
+        "env_prefix": "DASHBOARD_",
+        "extra": "forbid",
+        "aliases": {"APP_DEBUG": "debug"},
+    }
 
     def model_post_init(self, __context: Any) -> None:
         """Validate paths after initialization to prevent path traversal."""
