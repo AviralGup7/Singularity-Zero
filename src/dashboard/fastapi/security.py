@@ -132,7 +132,11 @@ def app_secret_key() -> str:
                     _fallback_secret = secrets.token_hex(32)
         return _fallback_secret  # type: ignore[return-value]
 
-    if is_prod and key in ("change-me-in-production", "dev-dashboard-secret", "REPLACE_WITH_SECURE_RANDOM_VALUE_DO_NOT_USE_DEFAULT"):
+    if is_prod and key in (
+        "change-me-in-production",
+        "dev-dashboard-secret",
+        "REPLACE_WITH_SECURE_RANDOM_VALUE_DO_NOT_USE_DEFAULT",
+    ):
         raise ValueError(
             f"CRITICAL SECURITY RISK: The APP_SECRET_KEY is set to a placeholder/default value ('{key[:20]}...'). "
             "A high-entropy secret key must be configured in production environments."

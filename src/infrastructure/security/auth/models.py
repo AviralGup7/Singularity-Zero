@@ -263,6 +263,7 @@ class PasswordHash(BaseModel):
         """
         try:
             from argon2 import PasswordHasher
+
             hasher = PasswordHasher()
             argon2_hash = hasher.hash(password)
             return cls(
@@ -309,6 +310,7 @@ class PasswordHash(BaseModel):
                     VerificationError,
                     VerifyMismatchError,
                 )
+
                 hasher = PasswordHasher()
                 try:
                     hasher.verify(self.hash, password)

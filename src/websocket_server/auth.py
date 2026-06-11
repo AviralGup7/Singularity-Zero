@@ -324,7 +324,8 @@ def _authenticate_api_key(
             logger.warning(
                 "API key user_id contains unrecognized role '%s' in '%s'. "
                 "Role must be one of: admin, operator, viewer, api_key_user.",
-                maybe_role, user_id,
+                maybe_role,
+                user_id,
             )
 
     if required_roles is not None and not roles.intersection(required_roles):

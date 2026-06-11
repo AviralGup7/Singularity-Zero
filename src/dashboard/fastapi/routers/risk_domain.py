@@ -200,11 +200,20 @@ async def create_asset(
             "tier, business_value, compliance_requirements, owner, notes, metadata, is_active) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                record["asset_id"], record["name"], record["host_pattern"],
-                record["path_prefix"], record["asset_type"], record["entity_type"],
-                record["criticality"], record["tier"], record["business_value"],
-                record["compliance_requirements"], record["owner"], record["notes"],
-                record["metadata"], record["is_active"],
+                record["asset_id"],
+                record["name"],
+                record["host_pattern"],
+                record["path_prefix"],
+                record["asset_type"],
+                record["entity_type"],
+                record["criticality"],
+                record["tier"],
+                record["business_value"],
+                record["compliance_requirements"],
+                record["owner"],
+                record["notes"],
+                record["metadata"],
+                record["is_active"],
             ],
         )
         conn.commit()
@@ -292,10 +301,18 @@ async def create_acceptance(
         "compensating_control_ref, review_date, scope, state, created_by, metadata) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            record["acceptance_id"], record["finding_id"], record["asset_id"],
-            record["accepted_until"], record["accepted_by"], record["justification"],
-            record["compensating_control_ref"], record["review_date"], record["scope"],
-            record["state"], record["created_by"], record["metadata"],
+            record["acceptance_id"],
+            record["finding_id"],
+            record["asset_id"],
+            record["accepted_until"],
+            record["accepted_by"],
+            record["justification"],
+            record["compensating_control_ref"],
+            record["review_date"],
+            record["scope"],
+            record["state"],
+            record["created_by"],
+            record["metadata"],
         ],
     )
     conn.commit()
@@ -388,9 +405,15 @@ async def create_control(
         "owner, expires_at, is_active, metadata) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            record["control_id"], record["finding_id"], record["control_type"],
-            record["description"], record["discount_factor"], record["evidence_url"],
-            record["owner"], record["expires_at"], record["is_active"],
+            record["control_id"],
+            record["finding_id"],
+            record["control_type"],
+            record["description"],
+            record["discount_factor"],
+            record["evidence_url"],
+            record["owner"],
+            record["expires_at"],
+            record["is_active"],
             record["metadata"],
         ],
     )

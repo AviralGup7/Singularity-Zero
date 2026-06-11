@@ -3,7 +3,6 @@ import socket
 import sys
 import types
 
-
 _original_getaddrinfo = socket.getaddrinfo
 
 
@@ -100,7 +99,7 @@ from tests.factories import (  # noqa: E402
 @pytest.fixture
 def test_db(tmp_path: Path) -> Generator[Path]:
     """Provide a temporary SQLite database for integration tests.
-    
+
     Creates a fresh database file in a temporary directory and yields
     the path. The database is automatically cleaned up after the test.
     """

@@ -199,10 +199,23 @@ _STALE_TTL = 300
 _BINARY_CACHE_MAX = 1000
 
 _ALLOWED_TOOL_NAMES: set[str] = {
-    "nuclei", "httpx", "subfinder", "naabu", "katana",
-    "gau", "waybackurls", "gobuster", "ffuf", "feroxbuster",
-    "nikto", "whatweb", "wpscan", "sqlmap", "dalfox",
+    "nuclei",
+    "httpx",
+    "subfinder",
+    "naabu",
+    "katana",
+    "gau",
+    "waybackurls",
+    "gobuster",
+    "ffuf",
+    "feroxbuster",
+    "nikto",
+    "whatweb",
+    "wpscan",
+    "sqlmap",
+    "dalfox",
 }
+
 
 def _validate_tool_name(tool_name: str) -> None:
     """Validate tool name against allowlist to prevent arbitrary command execution."""

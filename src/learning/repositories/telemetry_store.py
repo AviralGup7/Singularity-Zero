@@ -116,7 +116,9 @@ def _safe_table(table: str) -> str:
 def _safe_column(column: str) -> str:
     """Validate that a column name is in the known allowlist and matches safe pattern."""
     if not _SAFE_NAME_RE.match(column):
-        raise ValueError(f"SQL injection guard: column name contains invalid characters: {column!r}")
+        raise ValueError(
+            f"SQL injection guard: column name contains invalid characters: {column!r}"
+        )
     if column not in _KNOWN_TIME_COLUMNS:
         raise ValueError(f"SQL injection guard: unknown column name '{column}'")
     return column
