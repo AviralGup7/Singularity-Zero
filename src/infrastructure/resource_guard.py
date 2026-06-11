@@ -66,9 +66,12 @@ class ResourceGuard:
             return cast("dict[str, Any]", json.loads(json.dumps(_BUILTIN_DEFAULTS)))
 
     def _get_profile(self, tool_name: str) -> dict[str, Any]:
-        return cast("dict[str, Any]", self.tool_profiles.get(
-            tool_name, self.tool_profiles.get("default", {"base_ram_mb": 128})
-        ))
+        return cast(
+            "dict[str, Any]",
+            self.tool_profiles.get(
+                tool_name, self.tool_profiles.get("default", {"base_ram_mb": 128})
+            ),
+        )
 
     def _tool_ram(self, tool_name: str, target_count: int, url_count: int) -> int:
         profile = self._get_profile(tool_name)

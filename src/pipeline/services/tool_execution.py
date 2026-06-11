@@ -29,7 +29,6 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import StderrClassification, classify_stderr_lines
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
 from src.pipeline.retry.strategies import detect_rate_limit, parse_retry_after
-from typing import Protocol
 from src.pipeline.waf_profile import WafTuningProfile
 
 from .circuit_breaker import (

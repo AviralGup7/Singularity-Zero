@@ -17,11 +17,8 @@ from typing import Any
 
 from src.core.models import ValidationResult
 from src.core.scoring import bounded_confidence
-
-
 from src.execution.validators.config.scoring_config import (
     DEFAULT_SCORING_CONFIG,
-    ScoringConfig,
 )
 from src.execution.validators.config.scoring_config import ScoringConfig as ExecutionScoringConfig
 from src.execution.validators.status import ValidationStatus
