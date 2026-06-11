@@ -935,6 +935,7 @@ class ToolExecutionService:
                 if output:
                     return output.splitlines()[0][:256]
             except Exception:
+                logger.debug("Failed to get version with flag %s: %s", flag, exc_info=True)
                 continue
         return None
 

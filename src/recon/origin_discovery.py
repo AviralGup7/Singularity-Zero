@@ -165,7 +165,8 @@ def _probe_cdn_hint_headers(url: str, timeout: float = 5.0) -> dict[str, Any]:
                         matches = host_pattern.findall(value)
                         if matches:
                             result.setdefault(key.lower(), []).extend(matches)
-            except Exception:
+            except Exception as exc:
+                logger.debug("CDN header probe failed for %s: %s", url, exc)
                 continue
         return result
     except Exception:

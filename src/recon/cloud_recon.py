@@ -488,7 +488,8 @@ class CloudBucketScanner:
                 ) as resp:
                     if resp.status in (200, 301, 302):
                         public_regions.append(region)
-            except Exception:  # noqa: S110
+            except Exception:
+                logger.debug("S3 website probe failed for %s", url)
                 continue
         return public_regions
 
@@ -513,7 +514,8 @@ class CloudBucketScanner:
                 ) as resp:
                     if resp.status == 200:
                         public_paths.append(path)
-            except Exception:  # noqa: S110
+            except Exception:
+                logger.debug("Common object path probe failed for %s", url)
                 continue
         return public_paths
 
@@ -804,7 +806,8 @@ class CloudBucketScanner:
                                 ),
                             }
                         )
-            except Exception:  # noqa: S110
+            except Exception:
+                logger.debug("Cloud Run probe failed for %s", url)
                 continue
         return findings
 
@@ -916,7 +919,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("GCP Cloud Function probe failed for %s", url)
                     continue
         second_gen_base = f"https://{project_id}-{self.gcp_regions[0]}.cloudfunctions.net"
         try:
@@ -971,7 +975,8 @@ class CloudBucketScanner:
                                 "details": (f"App Engine URL responded with HTTP {resp.status}."),
                             }
                         )
-            except Exception:  # noqa: S110
+            except Exception:
+                logger.debug("GCP App Engine probe failed for %s", url)
                 continue
         return findings
 
@@ -1011,7 +1016,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("AWS Lambda URL probe failed for %s", url)
                     continue
         return findings
 
@@ -1054,7 +1060,8 @@ class CloudBucketScanner:
                                         ),
                                     }
                                 )
-                    except Exception:  # noqa: S110
+                    except Exception:
+                        logger.debug("API Gateway probe failed for %s", url)
                         continue
         return findings
 
@@ -1096,7 +1103,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("AWS Amplify probe failed for %s", url)
                     continue
         return findings
 
@@ -1134,7 +1142,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("Firebase Hosting probe failed for %s", url)
                     continue
         return findings
 
@@ -1178,7 +1187,8 @@ class CloudBucketScanner:
                                         ),
                                     }
                                 )
-                    except Exception:  # noqa: S110
+                    except Exception:
+                        logger.debug("Azure Functions probe failed for %s", url)
                         continue
         return findings
 
@@ -1216,7 +1226,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("Azure Logic Apps probe failed for %s", url)
                     continue
         return findings
 
@@ -1257,7 +1268,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("Azure Static Web Apps probe failed for %s", url)
                     continue
         return findings
 
@@ -1296,7 +1308,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("S3 Access Point probe failed for %s", url)
                     continue
         return findings
 
@@ -1330,7 +1343,8 @@ class CloudBucketScanner:
                                 "details": (f"S3 endpoint responded with HTTP {resp.status}."),
                             }
                         )
-            except Exception:  # noqa: S110
+            except Exception:
+                logger.debug("Multi-region S3 probe failed for %s", url)
                 continue
         return findings
 
@@ -1380,7 +1394,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("DigitalOcean Spaces probe failed for %s", url)
                     continue
         return findings
 
@@ -1417,7 +1432,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("Backblaze B2 probe failed for %s", url)
                     continue
         return findings
 
@@ -1454,7 +1470,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("Wasabi probe failed for %s", url)
                     continue
         return findings
 
@@ -1491,7 +1508,8 @@ class CloudBucketScanner:
                                     ),
                                 }
                             )
-                except Exception:  # noqa: S110
+                except Exception:
+                    logger.debug("OCI Object Storage probe failed for %s", url)
                     continue
         return findings
 

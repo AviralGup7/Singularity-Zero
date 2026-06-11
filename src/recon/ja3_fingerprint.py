@@ -117,6 +117,7 @@ def _run_tlsx(
 
             data = _json.loads(line)
         except Exception:  # noqa: BLE001
+            logger.debug("Skipping unparseable tlsx JSON line: %s", line)
             continue
         if isinstance(data, dict):
             ja3 = str(data.get("ja3") or ja3)

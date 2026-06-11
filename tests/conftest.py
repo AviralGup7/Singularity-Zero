@@ -73,9 +73,12 @@ def _setup_pykka_compat():
         class ActorTimeout(Exception):
             pass
 
+        _ActorDeadError = ActorDeadError
+        _ActorTimeout = ActorTimeout
+
         class PykkaCompatibility(types.ModuleType):
-            ActorDeadError = ActorDeadError
-            Timeout = ActorTimeout
+            ActorDeadError = _ActorDeadError
+            Timeout = _ActorTimeout
             ActorDeadError.__module__ = "pykka"
             ActorTimeout.__module__ = "pykka"
 

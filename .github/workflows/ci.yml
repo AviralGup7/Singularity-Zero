@@ -170,12 +170,12 @@ jobs:
         with:
           config: auto
           auditOn: push
-      - name: Install Trivy
+      - name: Run Trivy filesystem vulnerability scanner
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          version: 'latest'
-      - name: Run Trivy vulnerability scanner on Dockerfile
-        run: trivy fs --scanners vuln --severity HIGH,CRITICAL .
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
       - name: Generate SBOM
         run: |
           pip install cyclonedx-bom

@@ -233,7 +233,8 @@ def headless_crawl_host(
                                 timeout=page_timeout_seconds * 1000,
                             )
                             pages_visited += 1
-                        except Exception:  # noqa: BLE001
+                        except Exception as exc:  # noqa: BLE001
+                            logger.debug("Failed to navigate to %s: %s", absolute, exc)
                             continue
                         discovered.update(requested)
                         hrefs.extend(_extract_shadow_links(page))

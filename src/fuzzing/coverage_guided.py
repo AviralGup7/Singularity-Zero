@@ -466,6 +466,7 @@ async def _execute_fork_server_rounds(
             try:
                 result = await fork_server.run_iteration(mutated.encode("utf-8", errors="ignore"))
             except Exception:
+                logger.debug("fork_server.run_iteration raised", exc_info=True)
                 continue
 
             exit_cat = result.get("exit_code_category", "unknown")

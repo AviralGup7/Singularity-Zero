@@ -431,7 +431,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                         continue
                     if isinstance(value, (int, float)):
                         _reg.counter("frontend_payload_" + key).inc(value)
-        except Exception:  # noqa: BLE001
+        except Exception:
+            logger.debug("Failed to record frontend telemetry event", exc_info=True)
             pass
         return {"status": "accepted", "event_type": event.event_type}
 

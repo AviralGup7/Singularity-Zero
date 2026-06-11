@@ -1,6 +1,9 @@
 import ast
+import logging
 from collections import defaultdict
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path("src").resolve()
 
@@ -35,6 +38,7 @@ for py in all_py:
     try:
         tree = ast.parse(py.read_text(encoding="utf-8", errors="ignore"))
     except Exception:
+        logger.debug("Could not parse %s", py, exc_info=True)
         continue
     rel = py.relative_to(ROOT)
     cur_pkg_parts = rel.parts[:-1]

@@ -1,5 +1,8 @@
 import ast
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path("src").resolve()
 
@@ -10,7 +13,8 @@ edges = {}
 for py in sorted(ROOT.rglob("*.py")):
     try:
         tree = ast.parse(py.read_text(encoding="utf-8", errors="ignore"))
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to parse %s: %s", py, exc, exc_info=True)
         continue
     rel = py.relative_to(ROOT)
     parts = list(rel.parts)

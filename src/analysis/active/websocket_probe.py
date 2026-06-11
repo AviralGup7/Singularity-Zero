@@ -243,7 +243,8 @@ async def discover_websocket_endpoints(
                             "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
                         },
                     )
-                except Exception:
+                except Exception as e:
+                    logger.debug("WebSocket discovery request failed for %s: %s", target, e)
                     continue
                 if response.status_code in {101, 200, 426}:
                     discovered.append(ws_target)
