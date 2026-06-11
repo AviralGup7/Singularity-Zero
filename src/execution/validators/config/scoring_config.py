@@ -78,7 +78,17 @@ class ScoringConfig:
                 overrides.get("min_independent_signals", self.min_independent_signals)
             ),
         }
-        return ScoringConfig(**data)
+        return ScoringConfig(
+            base=float(data["base"]),
+            cap=float(data["cap"]),
+            floor=float(data["floor"]),
+            max_total_bonus=float(data["max_total_bonus"]),
+            max_total_penalty=float(data["max_total_penalty"]),
+            score_weight=float(data["score_weight"]),
+            signal_weight=float(data["signal_weight"]),
+            required_signals=data["required_signals"],
+            min_independent_signals=int(data["min_independent_signals"]),
+        )
 
 
 # Default per-validator scoring constants. These mirror the previously
@@ -290,7 +300,7 @@ def confidence_from_config(
     )
 
 
-_REQUIRED_SIGNAL_GROUPS_FIELD = field(default_factory=dict)
+_REQUIRED_SIGNAL_GROUPS_FIELD: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

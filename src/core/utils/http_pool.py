@@ -41,7 +41,7 @@ def get_pooled_connection(
     """
     global _pool_manager, _pool_config
 
-    requested_config = {
+    requested_config: dict[str, object] = {
         "pool_connections": pool_connections,
         "max_retries": max_retries,
         "block": block,

@@ -1,0 +1,44 @@
+# Python dependency lock file
+# Auto-generated from pyproject.toml / requirements.txt — do not edit manually.
+# Generated: 2026-06-11
+httpx==0.28.0
+aiohttp==3.14.0
+urllib3==2.7.0
+requests==2.33.0
+pydantic==2.12.0
+pydantic-settings==2.13.0
+pyyaml==6.0.3
+jinja2==3.1.6
+click==8.3.0
+rich==14.0.0
+loguru==0.7.3
+dnspython==2.8.0
+cryptography==46.0.7
+beautifulsoup4==4.14.0
+fastapi==0.136.3
+starlette==1.0.1
+uvicorn[standard]==0.30.0
+python-multipart==0.0.27
+email-validator==2.0.0
+sse-starlette==3.0.0
+redis[hiredis]==6.4.0
+websockets==15.0
+PyJWT==2.13.0
+prometheus-client==0.24.0
+opentelemetry-api==1.41.1
+opentelemetry-sdk==1.41.1
+opentelemetry-exporter-otlp-proto-http==1.41.1
+psutil==5.9.8
+sqlalchemy==2.0.30
+alembic==1.14.0
+aiosqlite==0.20.0
+numpy==2.0.0
+Pillow==12.2.0
+networkx==3.0.0
+beartype==0.20.1
+mmh3==5.1.0
+argon2-cffi==23.1.0
+msgspec==0.21.1
+msgpack==1.0.0
+cloudpickle==3.0.0
+watchfiles==1.0.4

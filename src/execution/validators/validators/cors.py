@@ -60,7 +60,7 @@ SENSITIVE_EXPOSED_HEADERS = [
 #   - https://evil.example.com%2eattacker.com: encoded dot bypass
 #   - https://evil.example.com: attacker-controlled (modern CDN bypass)
 #   - https://evil.example.com\t: tab character bypass
-CORS_PROBE_ORIGINS: list[str] = [
+CORS_PROBE_ORIGINS: list[str | None] = [
     None,  # No origin (browser would not send Origin header naturally)
     "null",
     "https://null",

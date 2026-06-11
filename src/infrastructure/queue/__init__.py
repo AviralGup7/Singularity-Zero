@@ -29,6 +29,7 @@ from src.infrastructure.queue.plugin_handler_bridge import (
     resolve_handler_for_job_type,
 )
 from src.infrastructure.queue.redis_client import RedisClient
+from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.queue.worker import Worker
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "QueueConfig",
     "QueueConfigModel",
     "RedisClient",
+    "RetryPolicy",
     "Worker",
     "WorkerInfo",
     "register_all_plugin_handlers",

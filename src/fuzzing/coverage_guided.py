@@ -70,7 +70,7 @@ class CoverageTracker:
     def __init__(self, max_entries: int = 500) -> None:
         self._coverage_map: dict[str, set[str]] = {}
         self._edge_counter: int = 0
-        self._branch_map: dict[str, str] = {}
+        self._branch_map: dict[tuple[str, str], str] = {}
 
     def record_edge(
         self, endpoint: str, status_code: int, response_len: int, content_hash: str

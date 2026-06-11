@@ -183,19 +183,16 @@ def _wildcard_candidate_ips(host: str) -> list[ipaddress.IPv4Address | ipaddress
         addrinfo = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
         seen: set[str] = set()
         for family, _type, _proto, _canon, sockaddr in addrinfo:
-            ip_str = sockaddr[0]
-            if ip_str in seen:
+            ip_key = str(sockaddr[0])
+            if ip_key in seen:
                 continue
-            seen.add(ip_str)
+            seen.add(ip_key)
             try:
-                candidates.append(ipaddress.ip_address(ip_str))
+                candidates.append(ipaddress.ip_address(ip_key))
             except ValueError:
                 continue
             if len(candidates) >= 4:
                 break
-        # If we have no resolved IPs, synthesize 4 candidate IPs covering
-        # common wildcard resolution patterns. The pre-flight check
-        # is intentionally permissive (any non-private IP is OK).
         if not candidates:
             candidates = [
                 ipaddress.ip_address(f"203.0.113.{random.randint(1, 254)}"),  # noqa: S311
@@ -214,10 +211,12 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
                 return False, f"Scope entry '{entry}' is a private RFC1918 network"
             # 6to4 / 6rd / IPv4-mapped IPv6 networks that are effectively
             # RFC1918 when interpreted as IPv4 also rejected.
-            if isinstance(net, ipaddress.IPv6Network) and net.sixtofour:
-                return False, f"Scope entry '{entry}' is a 6to4-mapped IPv4 range"
-            if isinstance(net, ipaddress.IPv6Network) and net.teredo:
-                return False, f"Scope entry '{entry}' is a Teredo-mapped IPv4 range"
+            if isinstance(net, ipaddress.IPv6Network):
+                first_addr = ipaddress.IPv6Address(net.network_address)
+                if bool(getattr(first_addr, "sixtofour", False)):
+                    return False, f"Scope entry '{entry}' is a 6to4-mapped IPv4 range"
+                if bool(getattr(first_addr, "teredo", False)):
+                    return False, f"Scope entry '{entry}' is a Teredo-mapped IPv4 range"
         except Exception:
             return False, f"Invalid CIDR: '{entry}'"
     else:
@@ -225,8 +224,9 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
             ip = ipaddress.ip_address(clean_entry)
             if ip.is_private:
                 return False, f"Scope entry '{entry}' is a private RFC1918 IP address"
-            if isinstance(ip, ipaddress.IPv6Address) and ip.sixtofour:
-                return False, f"Scope entry '{entry}' is a 6to4-mapped IPv4 address"
+            if isinstance(ip, ipaddress.IPv6Address):
+                if bool(getattr(ip, "sixtofour", False)):
+                    return False, f"Scope entry '{entry}' is a 6to4-mapped IPv4 address"
         except ValueError:
             # Resolve hostname best-effort to check for RFC1918 constipation
             resolve_target = clean_entry

@@ -33,10 +33,10 @@ class _UdpQuicProtocol(asyncio.DatagramProtocol):
         self.response: bytes = b""
         self._done: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
 
-    def connection_made(self, transport: asyncio.DatagramTransport) -> None:
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
 
-    def datagram_received(self, data: bytes, addr: tuple) -> None:
+    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         if not self._done.done():
             self.response = data
             self._done.set_result(True)
@@ -136,6 +136,8 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
     protocol._done = asyncio.get_running_loop().create_future()
 
     try:
+        if transport is None:
+            return
         dcid = random.randbytes(random.randint(8, 20))
         scid = random.randbytes(random.randint(8, 20))
         initial_pkt = _build_quic_initial_packet(dcid, scid)
@@ -144,10 +146,14 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
         await asyncio.sleep(0.1)
 
         crypto_pkt = _build_quic_crypto_frame(_CRYPTO_FLOOD_DATA, frame_type=0x05)
+        if transport is None:
+            return
         transport.sendto(crypto_pkt)
         crypto_sent = True
 
         invalid_pkt = _build_quic_invalid_packet()
+        if transport is None:
+            return
         transport.sendto(invalid_pkt)
 
         try:
@@ -193,7 +199,7 @@ _QUIC_FRAMING_PAYLOADS = [
 ]
 
 
-async def run_quic_fuzzing_campaign(url, *, timeout_seconds=5.0) -> list[dict[str, Any]]:
+async def run_quic_fuzzing_campaign(url: str, *, timeout_seconds: float = 5.0) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     if not is_safe_url_with_dns_check(url):
         logger.warning("QUIC fuzzer: URL failed SSRF safety check, skipping: %s", url)

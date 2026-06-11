@@ -423,7 +423,8 @@ class AuthFlowRunner:
 
     def _capture_cookies(self, response: httpx.Response, cookies: dict[str, str]) -> None:
         for cookie in response.cookies.jar:
-            cookies[cookie.name] = cookie.value
+            if cookie.value is not None:
+                cookies[cookie.name] = cookie.value
 
     def _render_form_body(self, body: dict[str, Any]) -> dict[str, str]:
         return {k: self._render(str(v)) or "" for k, v in body.items()}

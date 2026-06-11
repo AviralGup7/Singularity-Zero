@@ -99,44 +99,6 @@ class ContinuousScanMode:
     async def _run_pipeline_for_scope(
         self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path
     ) -> int:
-        scope_file = None
-        try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-                f.write("\n".join(scope_entries) + "\n")
-                scope_file = f.name
-            cycle_args = argparse.Namespace(
-                config=str(config_path),
-                scope=scope_file,
-                force_fresh_run=True,
-                dry_run=False,
-                skip_crtsh=False,
-                refresh_cache=False,
-                validate_config=False,
-                policy=None,
-                incremental=False,
-                base_ref=None,
-                branch=None,
-                legacy_exit_codes=False,
-                resume_from=None,
-                max_duration_seconds=None,
-                ci_fail_on_severity=None,
-                continuous=False,
-                monitor_interval=3600,
-                asset_diff_only=False,
-                replay_archive=None,
-            )
-            return self._orchestrator.run_sync(cycle_args)
-        finally:
-            if scope_file and Path(scope_file).exists():
-                Path(scope_file).unlink(missing_ok=True)
-
-    async def run_cycle(
-        self,
-        output_dir: Path,
-        target_name: str = "continuous",
-        asset_diff_only: bool = False,
-        config_path: Path | None = None,
-    ) -> ScanCycleResult:
         result = ScanCycleResult()
         current_assets = await self._inventory_mgr.discover_all()
         asset_diff = self._inventory_mgr.diff_against_checkpoint(

@@ -169,7 +169,7 @@ class WorkflowFuzzer:
                 Request(
                     method=method,
                     url=url,
-                    body=httpx.QueryParams(combined).encode() if combined else None,
+                    body=str(httpx.QueryParams(combined)).encode() if combined else None,
                     timeout_seconds=int(timeout_seconds),
                 )
             )
@@ -236,7 +236,7 @@ class WorkflowFuzzer:
 
         pre_balance = _num(pre_state.get("balance"))
         post_balance = _num(post_state.get("balance"))
-        refund_amount = _num(post_state.get("refund_amount", 0))
+        refund_amount = _num(post_state.get("refund_amount", 0)) or 0.0
         if pre_balance is not None and post_balance is not None:
             expected = pre_balance + refund_amount
             if post_balance > expected:

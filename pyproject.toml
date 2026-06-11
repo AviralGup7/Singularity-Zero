@@ -46,6 +46,8 @@ dependencies = [
     "msgpack==1.0.0",
     "cloudpickle==3.0.0",
     "watchfiles==1.0.4",
+    "scipy==1.14.0",
+    "pykka==4.0.0",
 ]
 
 [project.scripts]
@@ -199,9 +201,10 @@ exclude = [
     "frontend/",
     "benchmarks/",
     "tmp_scratch/",
-    "tmp_*.py",
-    "import_audit*.py",
-    "circular_check*.py",
+    "tmp_reports/",
+    "tmp_.*.py",
+    "import_audit.*.py",
+    "circular_check.*.py",
     "analyze_coverage.py",
     "coverage_deep.py",
     "find_missing_inits.py",

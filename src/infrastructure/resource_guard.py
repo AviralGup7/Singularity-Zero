@@ -38,7 +38,7 @@ class ResourceGuard:
         )
         self.stage_tools = self.model.get("stage_tools", _BUILTIN_DEFAULTS["stage_tools"])
 
-    def _load_model(self, path: str) -> dict:
+    def _load_model(self, path: str) -> Any:
         if not os.path.isabs(path):
             base = os.getcwd()
             candidate = os.path.join(base, path)
@@ -64,7 +64,7 @@ class ResourceGuard:
             )
             return json.loads(json.dumps(_BUILTIN_DEFAULTS))
 
-    def _get_profile(self, tool_name: str) -> dict:
+    def _get_profile(self, tool_name: str) -> Any:
         return self.tool_profiles.get(
             tool_name, self.tool_profiles.get("default", {"base_ram_mb": 128})
         )

@@ -28,7 +28,7 @@ import secrets
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
@@ -155,6 +155,8 @@ class AuthFlowRunner:
         cookie_header = "; ".join(f"{k}={v}" for k, v in ctx.cookies.items())
         if cookie_header:
             headers.setdefault("Cookie", cookie_header)
+        if spec.validation_url is None:
+            return
         step = AuthStep(method="GET", url=spec.validation_url, headers=headers)
         status, _, _, _ = await self._invoke(step)
         if status != spec.validation_status:
@@ -297,6 +299,8 @@ class OAuthAuthenticator:
         }
         if self.client_secret:
             form["client_secret"] = self.client_secret
+        if self._invoke is None:
+            raise RuntimeError("OAuthAuthenticator.refresh requires an invoke()")
         status, _, body = await self._invoke("POST", self.token_url, {}, form)
         if status >= 400:
             raise RuntimeError(f"OAuth refresh failed: status={status} body={body[:200]}")
@@ -333,7 +337,7 @@ def _extract_value(spec_str: str, body: str, headers: dict[str, str]) -> str | N
             payload = json.loads(body)
         except (json.JSONDecodeError, TypeError):
             return None
-        return _extract_from_json(payload, path)
+        return cast("str | None", _extract_from_json(payload, path))
     if spec_str.startswith("cookie:"):
         return None  # handled by Set-Cookie parser
     if spec_str.startswith("header:"):

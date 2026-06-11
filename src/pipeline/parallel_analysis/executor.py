@@ -195,9 +195,9 @@ async def run_parallel_analyzers(
     outcome = ParallelAnalysisOutcome(results=all_results, layer_results=layer_results)
     if duration_cache is not None and outcome.results:
         try:
-            from src.pipeline.unified_cache import get_unified_cache
+            from src.pipeline.unified_cache import _unified_cache
 
-            uc = get_unified_cache()
+            uc = _unified_cache
             duration_cache.save(uc)
         except Exception as exc:
             logger.warning("Operation failed in executor.py: %s", exc, exc_info=True)  # noqa: BLE001
