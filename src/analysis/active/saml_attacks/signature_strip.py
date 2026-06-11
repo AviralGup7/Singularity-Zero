@@ -47,7 +47,7 @@ def _endpoint_key(url: str) -> str:
 
 def _netloc(url: str) -> str:
     try:
-        return _clean(urlparse(url).hostname)
+        return _clean(urlparse(url).hostname or "")
     except Exception:  # noqa: S110
         return ""
 

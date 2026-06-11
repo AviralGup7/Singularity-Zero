@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 _GRAPHQL_INTROSPECTION_QUERY = """
 query IntrospectionQuery {
@@ -97,7 +97,13 @@ fragment TypeRef on __Type {
 }
 """
 
-_MUTATION_TEMPLATES = {
+class _MutationTemplate(TypedDict):
+    query: str
+    operationName: str
+    variables: dict[str, Any]
+
+
+_MUTATION_TEMPLATES: dict[str, _MutationTemplate] = {
     "login": {
         "query": "mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token user { id } } }",
         "operationName": "Login",
@@ -179,7 +185,6 @@ def _build_directive_injection(mutation_key: str) -> dict[str, Any]:
 
 def _build_recursive_input(mutation_key: str) -> dict[str, Any]:
     template = _MUTATION_TEMPLATES[mutation_key]
-    base_query: str = template["query"]
     base_vars = cast(dict[str, Any], template["variables"])
     operation_name = template["operationName"]
     if mutation_key == "login":

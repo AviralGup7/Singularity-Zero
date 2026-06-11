@@ -512,7 +512,7 @@ async def _execute_race(
     url: str,
     count: int,
     method: str,
-    headers: dict[str, str],
+    headers: dict[str, str] | None,
     body: bytes | None,
 ) -> list[RaceResponse]:
     request_headers = dict(headers or {})
@@ -656,15 +656,13 @@ class RaceCoordinator:
                 return await spawned
             if hasattr(spawned, "__await__"):
                 return await spawned.__await__()
-            return (
-                dict(spawned)
-                if spawned is not None
-                else {
-                    "request_index": index,
-                    "worker_url": worker_url,
-                    "error": "factory returned non-awaitable",
-                }
-            )
+            if spawned is not None:
+                return dict(spawned)
+            return {
+                "request_index": index,
+                "worker_url": worker_url,
+                "error": "factory returned non-awaitable",
+            }
         # Default: POST a race trigger to the worker
         if httpx is None or hasattr(client, "NOOP"):
             return {

@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Any
 
 _RESUME_STAGE_ORDER = (
     "subdomains",

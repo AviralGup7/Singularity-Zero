@@ -35,6 +35,7 @@ class ContinuousScanMode:
         self._inventory_mgr = inventory_mgr
         self._checkpoint_mgr = checkpoint_mgr
         self._alert_callback = alert_callback
+        self._asset_diff_only = False
         self._notification_manager: NotificationManager | None = None
 
     async def _ensure_notification_manager(self) -> NotificationManager | None:
@@ -106,7 +107,7 @@ class ContinuousScanMode:
         result.removed_assets = asset_diff.removed
 
         scan_targets = asset_diff.new | asset_diff.unchanged
-        if asset_diff_only:
+        if self._asset_diff_only:
             scan_targets = asset_diff.new
         result.scans_triggered = sorted(scan_targets)
 

@@ -8,7 +8,7 @@ Part B implementation:
 """
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 try:
@@ -26,7 +26,7 @@ class Finding:
     value_before: Any = None
     value_after: Any = None
     delta: Any = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)  # type: ignore[operator,misc]
 
 
 class ActorRaceTester:
@@ -277,13 +277,12 @@ class ActorRaceTester:
             loop = None
 
         async def _coro() -> list[dict[str, Any]]:
-            return list(
-                await asyncio.gather(  # type: ignore[return-value]
-                    asyncio.to_thread(_submit, actor_a),
-                    asyncio.to_thread(_submit, actor_b),
-                    return_exceptions=False,
-                )
+            gathered = await asyncio.gather(
+                asyncio.to_thread(_submit, actor_a),
+                asyncio.to_thread(_submit, actor_b),
+                return_exceptions=False,
             )
+            return [item for item in gathered if item is not None]
 
         if loop is not None and loop.is_running():
             future = asyncio.run_coroutine_threadsafe(_coro(), loop)

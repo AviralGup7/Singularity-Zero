@@ -44,7 +44,7 @@ def _replay_endpoints(base_url: str, scan_hosts: set[str]) -> list[str]:
 
 def _netloc(url: str) -> str:
     try:
-        return _clean(urlparse(url).hostname)
+        return _clean(urlparse(url).hostname or "")
     except Exception:  # noqa: S110
         return ""
 
