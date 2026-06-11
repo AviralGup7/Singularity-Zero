@@ -128,7 +128,9 @@ def _get_run_age_days(run_dir: Path, run_summary: dict[str, Any]) -> int:
         return 0
 
 
-def _prune_launcher_dirs(launcher_root: Path, keep_launcher_runs: int) -> list[tuple[float, str, Path]]:
+def _prune_launcher_dirs(
+    launcher_root: Path, keep_launcher_runs: int
+) -> list[tuple[float, str, Path]]:
     if not launcher_root.exists():
         return []
     job_dirs: list[tuple[float, str, Path]] = []
