@@ -312,7 +312,9 @@ class CredentialVault:
         return credential
 
     def _reconcile_session_map(self) -> None:
-        mapping: dict[str, CapturedCredential | None] = {key: None for key in self.sessions_by_privilege}
+        mapping: dict[str, CapturedCredential | None] = {
+            key: None for key in self.sessions_by_privilege
+        }
         for credential in self._credentials.values():
             privilege = self._privilege_for(credential)
             if privilege and mapping.get(privilege) is None:

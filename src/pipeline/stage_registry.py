@@ -10,7 +10,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
-
 if TYPE_CHECKING:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
 
