@@ -271,15 +271,11 @@ def ip_to_asn(
         if result:
             return result
 
-    result = _query_ripestat(cast("str", _resolve_asn_for_ip(ip)), timeout)
+    result = _query_ripestat(ip, timeout)
     if result:
         return result
 
     return None
-
-
-            if isinstance(r, dict) and r.get("asn") and isinstance(r["asn"], str):
-                return cast("str", r["asn"])
 
 
 def asn_to_cidrs_via_cymru(asn: str) -> list[str]:
@@ -405,7 +401,7 @@ def asn_for_host(
         raw_ip = info[4][0]
         if not raw_ip:
             continue
-        ip = cast("str", raw_ip)
+        ip = raw_ip
         ip_to_asn(ip, timeout=timeout)
     return None
 

@@ -196,26 +196,13 @@ def _dedupe(findings: list[SecretFinding]) -> list[SecretFinding]:
     for finding in findings:
         key = (
             finding.pattern_name,
-            finding._fingerprint(finding.matched_value)
-            if hasattr(finding, "_fingerprint")
-            else finding.matched_value,
-        )
-        fp = (
             finding.metadata.get("fingerprint")
-            or hashlib.sha256(finding.matched_value.encode()).hexdigest()[:16]
+            or hashlib.sha256(finding.matched_value.encode()).hexdigest()[:16],
         )
-        key = (finding.pattern_name, fp)
         if key not in seen:
             seen.add(key)
             out.append(finding)
     return out
-
-
-def _fingerprint(self, value: str) -> str:  # pragma: no cover - helper
-    return hashlib.sha256(value.encode()).hexdigest()[:16]
-
-
-SecretFinding._fingerprint = _fingerprint  # type: ignore[attr-defined]
 
 
 __all__ = ["SecretFinding", "scan_response"]

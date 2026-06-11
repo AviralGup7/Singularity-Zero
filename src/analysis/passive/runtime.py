@@ -298,9 +298,11 @@ class ResponseCache:
         self._records: dict[str, dict[str, Any] | None] = {}
         # Fix Audit #6: Cache for active probes with headers/body
         self._active_records: dict[tuple, tuple[dict[str, Any] | None, float]] = {}
-        self._persistent_records = (
-            load_cached_json(persistent_cache_path) if persistent_cache_path else {}
-        )
+        self._persistent_records: dict[str, Any] = {}
+        if persistent_cache_path is not None:
+            loaded = load_cached_json(persistent_cache_path)
+            if isinstance(loaded, dict):
+                self._persistent_records = loaded
         self._lock = threading.Lock()
         # Fix Audit #29: Cap in-memory records to prevent exhaustion
         self._max_memory_records = 2500
@@ -438,11 +440,9 @@ class ResponseCache:
                         import fcntl
 
                         fcntl.flock(fd, fcntl.LOCK_EX)
-                    current_on_disk = (
-                        load_cached_json(self.persistent_cache_path)
-                        if self.persistent_cache_path.exists()
-                        else {}
-                    )
+                    current_on_disk = load_cached_json(self.persistent_cache_path) or {}
+                    if not isinstance(current_on_disk, dict):
+                        current_on_disk = {}
                     current_on_disk.update(self._persistent_records)
                     save_cached_json(self.persistent_cache_path, current_on_disk)
                 except Exception as exc:
@@ -482,7 +482,6 @@ class ResponseCache:
 
         for attempt in range(1, policy.max_attempts + 1):
             self.scheduler.acquire()
-            cert = auth_override.get_client_cert() if auth_override is not None else None
             result = _fetch_response_once(
                 url,
                 self.timeout_seconds,
@@ -490,7 +489,6 @@ class ResponseCache:
                 method=method,
                 extra_headers=headers,
                 body=body,
-                cert=cert,
             )
 
             # Fix Audit #31: Extract Retry-After
@@ -614,7 +612,7 @@ def _fetch_response_stream(
                 body_parts.append(chunk)
                 bytes_read += len(chunk)
 
-        body_text = ""
+        body_text: str | None = ""
         raw = b"".join(body_parts)
         if is_textual_content_type(content_type) and raw:
             charset = extract_charset(content_type)
@@ -758,7 +756,7 @@ def build_response_record(
 ) -> dict[str, Any]:
     headers = dict(response.headers.items())
     content_type = headers.get("Content-Type", "")
-    body_text = ""
+    body_text: str | None = ""
     raw = b""
     if max_bytes > 0:
         if getattr(response, "data", None):

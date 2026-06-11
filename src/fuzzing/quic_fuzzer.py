@@ -34,7 +34,7 @@ class _UdpQuicProtocol(asyncio.DatagramProtocol):
         self._done: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = transport
+        self.transport = transport  # type: ignore[assignment]
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         if not self._done.done():
@@ -137,7 +137,12 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
 
     try:
         if transport is None:
-            return
+            return {
+                "reachable": False,
+                "crypto_sent": False,
+                "response_bytes": 0,
+                "response_preview": "",
+            }
         dcid = random.randbytes(random.randint(8, 20))
         scid = random.randbytes(random.randint(8, 20))
         initial_pkt = _build_quic_initial_packet(dcid, scid)
@@ -147,13 +152,23 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
 
         crypto_pkt = _build_quic_crypto_frame(_CRYPTO_FLOOD_DATA, frame_type=0x05)
         if transport is None:
-            return
+            return {
+                "reachable": False,
+                "crypto_sent": False,
+                "response_bytes": 0,
+                "response_preview": "",
+            }
         transport.sendto(crypto_pkt)
         crypto_sent = True
 
         invalid_pkt = _build_quic_invalid_packet()
         if transport is None:
-            return
+            return {
+                "reachable": False,
+                "crypto_sent": crypto_sent,
+                "response_bytes": 0,
+                "response_preview": "",
+            }
         transport.sendto(invalid_pkt)
 
         try:

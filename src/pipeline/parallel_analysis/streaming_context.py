@@ -1,8 +1,9 @@
 """Streaming context wrapper for large target sets."""
 
-from __future__ import annotations
-
 from collections.abc import Iterator
+from typing import Any
+
+
 
 
 class StreamingAnalysisContext:

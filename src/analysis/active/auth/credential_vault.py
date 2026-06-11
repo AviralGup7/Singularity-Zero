@@ -205,10 +205,10 @@ class CredentialVault:
         parsed_target = urlparse(url)
         target_netloc = (parsed_target.hostname or "").lower()
         target_path = parsed_target.path or ""
-        best = None
+        best: CapturedCredential | None = None
         best_score = -1.0
         for cred in candidates:
-            scope_netloc = _safe_netloc(cred.scope_url)
+            scope_netloc = _safe_netloc(cred.scope_url or "")
             if not scope_netloc or scope_netloc != target_netloc:
                 continue
             score = len(scope_netloc)
@@ -312,7 +312,7 @@ class CredentialVault:
         return credential
 
     def _reconcile_session_map(self) -> None:
-        mapping = {key: None for key in self.sessions_by_privilege}
+        mapping: dict[str, CapturedCredential | None] = {key: None for key in self.sessions_by_privilege}
         for credential in self._credentials.values():
             privilege = self._privilege_for(credential)
             if privilege and mapping.get(privilege) is None:
