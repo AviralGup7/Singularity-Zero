@@ -61,7 +61,6 @@ class DashboardConfig(BaseSettings):
     model_config = {
         "env_prefix": "DASHBOARD_",
         "extra": "forbid",
-        "aliases": {"APP_DEBUG": "debug"},
     }
 
     def model_post_init(self, __context: Any) -> None:
