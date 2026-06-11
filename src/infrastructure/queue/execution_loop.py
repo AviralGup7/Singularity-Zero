@@ -19,7 +19,6 @@ class WorkerExecutionLoopMixin:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._running: bool = False
-        self._shutdown_requested: bool = False
         super().__init__(*args, **kwargs)
 
     async def start(self) -> None:
