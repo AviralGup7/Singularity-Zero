@@ -3,6 +3,14 @@
 This project uses third-party software packages. The following notices are provided
 in accordance with the licenses of those packages.
 
+## License Compliance
+
+This file should be regenerated periodically to ensure license compliance.
+To generate an updated version:
+
+1. Python packages: `pip install pip-licenses && pip-licenses --format=markdown > THIRD-PARTY-PYTHON.md`
+2. npm packages: `npx license-checker --json > THIRD-PARTY-NPM.json`
+
 ## SciPy
 
 This project optionally depends on SciPy (scipy). SciPy is licensed under the BSD

@@ -1,0 +1,6 @@
+# ZAP Rules Customization
+# Format: <ruleId>\t<action>\t<strength>\t<threshold>
+# Actions: IGNORE, FAIL, WARN
+# 
+# Example: Ignore cookie security flag checks in dev environments
+# 10015	IGNORE	MEDIUM	LOW

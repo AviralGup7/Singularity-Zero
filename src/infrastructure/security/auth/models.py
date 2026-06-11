@@ -232,23 +232,27 @@ class Session(BaseModel):
 class PasswordHash(BaseModel):
     """Pydantic model for password hashing utilities.
 
-    Uses PBKDF2-HMAC-SHA256 with a random salt for secure password storage.
+    Uses Argon2id (preferred) when available, with PBKDF2-HMAC-SHA256
+    as a fallback. Argon2id is more resistant to GPU-based brute-force
+    attacks.
 
     Attributes:
         algorithm: Hashing algorithm identifier.
-        iterations: Number of PBKDF2 iterations.
-        salt: Random salt (hex-encoded).
-        hash: Password hash (hex-encoded).
+        iterations: Number of PBKDF2 iterations (ignored for Argon2).
+        salt: Random salt (hex-encoded, PBKDF2 only).
+        hash: Password hash (hex-encoded or Argon2 hash string).
     """
 
-    algorithm: str = Field(default="pbkdf2_sha256")
+    algorithm: str = Field(default="argon2id")
     iterations: int = Field(default=600000, ge=100000)
-    salt: str = Field(..., min_length=32)
-    hash: str = Field(..., min_length=64)
+    salt: str = Field(default="", min_length=0)
+    hash: str = Field(..., min_length=1)
 
     @classmethod
     def create(cls, password: str, iterations: int = 600000) -> PasswordHash:
         """Create a new password hash from a plaintext password.
+
+        Uses Argon2id when argon2-cffi is installed, PBKDF2 as fallback.
 
         Args:
             password: Plaintext password to hash.
@@ -257,6 +261,18 @@ class PasswordHash(BaseModel):
         Returns:
             PasswordHash instance with salt and hash.
         """
+        try:
+            from argon2 import PasswordHasher
+            hasher = PasswordHasher()
+            argon2_hash = hasher.hash(password)
+            return cls(
+                algorithm="argon2id",
+                iterations=iterations,
+                salt="",
+                hash=argon2_hash,
+            )
+        except ImportError:
+            pass
         salt = secrets.token_hex(32)
         pwd_hash = hashlib.pbkdf2_hmac(
             "sha256",
@@ -275,6 +291,7 @@ class PasswordHash(BaseModel):
         """Verify a plaintext password against this hash.
 
         Uses constant-time comparison to prevent timing attacks.
+        Supports both Argon2id and PBKDF2 hashes.
 
         Args:
             password: Plaintext password to verify.
@@ -282,12 +299,30 @@ class PasswordHash(BaseModel):
         Returns:
             True if the password matches.
         """
-        import hmac
+        import hmac as hmac_mod
 
-        pwd_hash = hashlib.pbkdf2_hmac(
-            "sha256",
-            password.encode("utf-8"),
-            self.salt.encode("utf-8"),
-            self.iterations,
-        )
-        return hmac.compare_digest(pwd_hash.hex(), self.hash)
+        if self.algorithm == "argon2id" and self.hash.startswith("$argon2"):
+            try:
+                from argon2 import PasswordHasher
+                from argon2.exceptions import (
+                    InvalidHashError,
+                    VerificationError,
+                    VerifyMismatchError,
+                )
+                hasher = PasswordHasher()
+                try:
+                    hasher.verify(self.hash, password)
+                    return True
+                except (VerifyMismatchError, VerificationError, InvalidHashError):
+                    return False
+            except ImportError:
+                return False
+        elif self.algorithm == "pbkdf2_sha256" and self.salt:
+            pwd_hash = hashlib.pbkdf2_hmac(
+                "sha256",
+                password.encode("utf-8"),
+                self.salt.encode("utf-8"),
+                self.iterations,
+            )
+            return hmac_mod.compare_digest(pwd_hash.hex(), self.hash)
+        return False

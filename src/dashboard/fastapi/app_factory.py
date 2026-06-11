@@ -1,12 +1,12 @@
 """FastAPI application factory for the cyber security dashboard."""
 
+import asyncio
 import os
 import sys
-import threading
 import time
 from typing import Any, cast
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -25,12 +25,21 @@ from src.dashboard.fastapi.schemas import DashboardStatsResponse
 from src.dashboard.fastapi.security_setup import setup_security_store
 from src.dashboard.fastapi.spa import setup_spa_routes
 
-_dashboard_stats_lock = threading.Lock()
+_dashboard_stats_lock = asyncio.Lock()
 
 
 def create_app(config: DashboardConfig | None = None) -> FastAPI:
     if config is None:
         config = DashboardConfig()
+
+    # Production safety guard: refuse SQLite in production (Finding #44)
+    if os.getenv("APP_ENV") == "production":
+        db_url = os.getenv("DATABASE_URL", "")
+        if "sqlite" in db_url.lower():
+            raise RuntimeError(
+                "SQLite is not supported in production deployments. "
+                "Set DATABASE_URL to a PostgreSQL connection string."
+            )
 
     app = FastAPI(
         title="Cyber Security Test Pipeline Dashboard",
@@ -149,12 +158,13 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     @app.exception_handler(RedisDegradedError)
     async def redis_degraded_handler(request: Request, exc: RedisDegradedError) -> JSONResponse:
         return JSONResponse(
-            status_code=200,
+            status_code=503,
             content=_error_payload(
                 "Service Degraded",
                 {"message": str(exc), "code": exc.error_code},
                 exc.error_code,
             ),
+            headers={"Retry-After": "10"},
         )
 
     @app.exception_handler(PipelineError)
@@ -175,10 +185,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
         logging.getLogger(__name__).exception("Internal Server Error: %s", exc)
         _record_security_error(request, 500, "Internal Server Error")
+        detail = str(exc) if config.debug else "Internal Server Error"
         return JSONResponse(
             status_code=500,
             content=_error_payload(
-                "Internal Server Error", "Internal Server Error", "internal_server_error"
+                "Internal Server Error", detail, "internal_server_error"
             ),
         )
 
@@ -247,22 +258,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "uptime_seconds": round(time.time() - (_START_TIME or time.time()), 1),
         }
 
-    @app.get("/metrics", tags=["System"])
+    @app.get("/metrics", tags=["System"], dependencies=[Depends(require_admin)])
     async def get_metrics(request: Request) -> Any:
-        from src.dashboard.fastapi.dependencies import _security_principal_from_request
-        from src.dashboard.fastapi.security import api_security_enabled
-
-        if api_security_enabled():
-            from fastapi import HTTPException as _HTTPException
-            from fastapi import status as _status
-
-            api_key = request.headers.get("X-API-Key")
-            principal = _security_principal_from_request(request, api_key)
-            if principal is None or principal.role != "admin":
-                raise _HTTPException(
-                    status_code=_status.HTTP_401_UNAUTHORIZED,
-                    detail="Metrics endpoint requires an admin-scoped API key.",
-                )
         try:
             from fastapi import Response
             from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -281,6 +278,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                 )
             except Exception:  # noqa: BLE001
                 combined = registry_metrics
+                logger.debug("Failed to merge cyber metrics with prometheus metrics")
             return Response(content=combined, media_type=CONTENT_TYPE_LATEST)
         except ImportError:
             from fastapi import Response
@@ -315,7 +313,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             if cached is not None:
                 return cast(dict[str, Any], cached)
         else:
-            with _dashboard_stats_lock:
+            async with _dashboard_stats_lock:
                 cached = getattr(app.state, "cached_dashboard_stats", None)
                 cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
                 if cached is not None and now - cache_time < 5.0:
@@ -398,7 +396,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         if cache_manager is not None:
             cache_manager.set("dashboard_stats", stats, ttl=5, namespace="analytics")
         else:
-            with _dashboard_stats_lock:
+            async with _dashboard_stats_lock:
                 app.state.cached_dashboard_stats = stats
                 app.state.dashboard_stats_cache_time = now
         return stats
@@ -409,6 +407,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         event_type: str
         payload: dict[str, Any] | None = None
 
+    _TELEMETRY_PAYLOAD_ALLOWLIST: set[str] = {
+        "page_view", "button_click", "error", "performance", "feature_usage",
+        "session_duration", "load_time", "render_time", "api_latency",
+    }
+
     @app.post("/api/telemetry", tags=["Analytics"])
     async def report_frontend_telemetry(event: FrontendTelemetryEvent) -> dict[str, Any]:
         try:
@@ -418,6 +421,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             _reg.counter("frontend_events_total", labels={"event_type": event.event_type}).inc()
             if event.payload:
                 for key, value in event.payload.items():
+                    if key not in _TELEMETRY_PAYLOAD_ALLOWLIST:
+                        continue
                     if isinstance(value, (int, float)):
                         _reg.counter("frontend_payload_" + key).inc(value)
         except Exception:  # noqa: BLE001

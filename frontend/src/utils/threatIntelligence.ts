@@ -37,11 +37,11 @@ interface CacheEntry<T> {
 
 function getCached<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(`${THREAT_INTEL_CACHE_KEY}:${key}`);
+    const raw = sessionStorage.getItem(`${THREAT_INTEL_CACHE_KEY}:${key}`);
     if (!raw) return null;
     const entry: CacheEntry<T> = JSON.parse(raw);
     if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-      localStorage.removeItem(`${THREAT_INTEL_CACHE_KEY}:${key}`);
+      sessionStorage.removeItem(`${THREAT_INTEL_CACHE_KEY}:${key}`);
       return null;
     }
     return entry.data;
@@ -53,7 +53,7 @@ function getCached<T>(key: string): T | null {
 function setCached<T>(key: string, data: T): void {
   try {
     const entry: CacheEntry<T> = { data, timestamp: Date.now() };
-    localStorage.setItem(`${THREAT_INTEL_CACHE_KEY}:${key}`, JSON.stringify(entry));
+    sessionStorage.setItem(`${THREAT_INTEL_CACHE_KEY}:${key}`, JSON.stringify(entry));
   } catch {
     console.warn('Failed to cache threat intel data');
   }

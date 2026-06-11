@@ -142,3 +142,9 @@ variable "resource_labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "alarm_sns_topic_arns" {
+  description = "SNS topic ARNs for CloudWatch alarm notifications. Leave empty to disable alarm actions."
+  type        = list(string)
+  default     = []
+}

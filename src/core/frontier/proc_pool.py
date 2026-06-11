@@ -198,6 +198,20 @@ class ResourceWatchdog:
 _STALE_TTL = 300
 _BINARY_CACHE_MAX = 1000
 
+_ALLOWED_TOOL_NAMES: set[str] = {
+    "nuclei", "httpx", "subfinder", "naabu", "katana",
+    "gau", "waybackurls", "gobuster", "ffuf", "feroxbuster",
+    "nikto", "whatweb", "wpscan", "sqlmap", "dalfox",
+}
+
+def _validate_tool_name(tool_name: str) -> None:
+    """Validate tool name against allowlist to prevent arbitrary command execution."""
+    if tool_name not in _ALLOWED_TOOL_NAMES:
+        raise ValueError(
+            f"Tool '{tool_name}' is not in the allowed tools list. "
+            f"Allowed: {', '.join(sorted(_ALLOWED_TOOL_NAMES))}"
+        )
+
 
 class FrontierProcessPool:
     """
@@ -277,6 +291,7 @@ class FrontierProcessPool:
 
     async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
         """Spawn initial process set."""
+        _validate_tool_name(tool_name)
         self._ensure_watchdog_started()
         self._base_args_map[tool_name] = base_args
         # Fix Audit #14: Windows compatibility for preexec_fn
@@ -331,6 +346,7 @@ class FrontierProcessPool:
         Execute a task using a pooled process.
         Uses Pipes for zero-disk IPC.
         """
+        _validate_tool_name(tool_name)
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": task_data})
         self._prune_stale_receipts()
         self._cap_task_receipts()

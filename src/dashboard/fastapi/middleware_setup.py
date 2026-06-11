@@ -31,11 +31,23 @@ def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
                 "these should be removed before deploying to a real environment.",
                 _localhost_origins,
             )
+            # SECURITY: Strip localhost origins in production to prevent
+            # cross-origin requests from any local service.
+            if os.getenv("APP_ENV") == "production":
+                origins = [o for o in origins if "localhost" not in o and "127.0.0.1" not in o]
+                logger.warning(
+                    "Stripped localhost origins for production deployment. Remaining: %s",
+                    origins,
+                )
+
+    # Validate: don't allow wildcard patterns when credentials are enabled
+    has_wildcard = any("*" in o or o == "*" for o in origins)
+    allow_credentials = not has_wildcard
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=True,
+        allow_credentials=allow_credentials,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=[
             "Content-Type",

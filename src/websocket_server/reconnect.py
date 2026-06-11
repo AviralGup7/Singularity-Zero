@@ -167,6 +167,11 @@ class ReconnectionManager:
     buffer per device. ``fingerprint`` defaults to a derived value when
     the caller does not supply one.
 
+    SECURITY NOTE: Reconnection tokens should only be used to reconnect
+    to the same host/origin. The validate_token method should be used
+    to verify that the reconnection target matches the original connection
+    to prevent connection hijacking.
+
     Attributes:
         reconnect_window_seconds: Seconds a reconnection token remains valid.
         max_missed_messages: Maximum messages to buffer per client.

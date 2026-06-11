@@ -20,6 +20,7 @@ ENV/
 # Caches
 .mypy_cache/
 .pytest_cache/
+.pytest-temp.ini
 .ruff_cache/
 .hypothesis/
 .coverage
@@ -50,6 +51,7 @@ nul
 *.swp
 *.swo
 *~
+.replit
 
 # Jupyter
 .ipynb_checkpoints/
@@ -189,6 +191,7 @@ src/core/frontier/_state_cython.c
 audit_report.txt
 import_analysis_*.txt
 duplication_report.md
+bandit-report.json
 # Ad-hoc analysis / patch scripts moved under scripts/audit/legacy/
 /apply_*.py
 /find_bugs.py

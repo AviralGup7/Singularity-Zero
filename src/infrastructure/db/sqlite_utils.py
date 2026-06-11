@@ -84,6 +84,11 @@ def retrying_connect(
             conn = sqlite3.connect(
                 str(db_path),
                 timeout=connect_timeout_seconds,
+                # NOTE: check_same_thread=False is required because this connection
+                # is shared across threads via the _RetryDB lock. The project uses
+                # WAL journal mode and a threading.RLock for write serialization,
+                # making this safe. Each thread should use its own connection via
+                # thread-local storage when possible.
                 check_same_thread=False,
             )
             conn.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
@@ -140,12 +145,20 @@ def configure_connection(
     themselves (e.g. to keep it open across multiple operations inside
     a thread lock) and only wants the configuration applied.
     """
+    # busy_timeout is validated as int by the caller's type annotation
     conn.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
     conn.execute("PRAGMA foreign_keys=ON")
     if wal:
         conn.execute("PRAGMA journal_mode=WAL")
     if synchronous:
-        conn.execute(f"PRAGMA synchronous={synchronous}")
+        # Validate synchronous value against known safe options to prevent injection
+        _VALID_SYNC_MODES = {"OFF", "NORMAL", "FULL", "EXTRA"}
+        sync_upper = synchronous.upper()
+        if sync_upper not in _VALID_SYNC_MODES:
+            raise ValueError(
+                f"Invalid synchronous mode '{synchronous}'. Must be one of: {', '.join(sorted(_VALID_SYNC_MODES))}"
+            )
+        conn.execute(f"PRAGMA synchronous={sync_upper}")
 
 
 def is_locked_error(exc: BaseException) -> bool:
@@ -154,9 +167,27 @@ def is_locked_error(exc: BaseException) -> bool:
     return "database is locked" in message or "database table is locked" in message
 
 
+def build_in_clause(n: int) -> str:
+    """Return a parameterized IN clause placeholder string for n items.
+
+    Example: build_in_clause(3) returns "?, ?, ?"
+    """
+    if n <= 0:
+        raise ValueError("build_in_clause requires n > 0")
+    return ", ".join(["?"] * n)
+
+
 class _RetryDB:
     """Thread-safe locked-DB retry helper for callers that manage their own
     :class:`sqlite3.Connection` lifecycle.
+
+    .. warning::
+
+        This class uses ``threading.RLock`` and is designed for **synchronous
+        code paths only**. Calling :meth:`run` from an async context (e.g.
+        inside an ``async def`` endpoint) will block the event loop. For async
+        callers, use ``aiosqlite`` or wrap the call with
+        ``await asyncio.to_thread(retrydb.run, operation)``.
 
     The default constants come from this module; tests may override them
     per-instance.
@@ -196,5 +227,6 @@ __all__ = [
     "safe_close",
     "configure_connection",
     "is_locked_error",
+    "build_in_clause",
     "_RetryDB",
 ]

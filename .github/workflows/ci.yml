@@ -137,6 +137,8 @@ jobs:
         run: npx vitest run
       - name: Build
         run: npm run build
+      - name: Check bundle size
+        run: npm run check:size
 
   security:
     runs-on: ubuntu-24.04

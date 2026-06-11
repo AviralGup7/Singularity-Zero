@@ -34,6 +34,7 @@ def mock_logic(task_input, state):
     return {"status": "ok"}
 
 
+@pytest.mark.chaos
 @pytest.mark.asyncio
 async def test_node_crash_mid_migration() -> None:
     """Chaos test: Verify registry transaction isolation prevents orphaned state during crash mid-migration."""

@@ -26,6 +26,9 @@ _config_instance: DashboardConfig | None = None
 _config_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
+# Cache api_security_enabled() at module load to avoid repeated env var reads
+_SECURITY_ENABLED = api_security_enabled()
+
 
 def get_config() -> DashboardConfig:
     """Return the dashboard configuration singleton."""
@@ -111,9 +114,9 @@ async def require_auth(
         # giving an unauthenticated client admin-level access. Callers that
         # actually need admin functionality will be rejected by ``require_admin``
         # and must enable real auth.
-        return {"user": "anonymous", "role": "read_only", "tenant_id": tenant_id}
+        return {"user": "anonymous", "role": "viewer", "tenant_id": tenant_id}
 
-    if api_security_enabled():
+    if _SECURITY_ENABLED:
         principal = _security_principal_from_request(request, api_key)
         if principal is None:
             _record_auth_failure(request)
@@ -143,7 +146,7 @@ async def require_auth(
             )
             tenant_id = request.headers.get("X-Tenant-ID") or "default"
             TenantContext.set_current_tenant(tenant_id)
-            return {"user": "anonymous", "role": "read_only", "tenant_id": tenant_id}
+            return {"user": "anonymous", "role": "viewer", "tenant_id": tenant_id}
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required: DASHBOARD_API_KEY is not set. Set DASHBOARD_AUTH_DISABLED=true to disable auth in development.",
@@ -170,12 +173,12 @@ async def require_auth(
     ]
     # Bug #27 fix: previously the non-admin role was the literal string
     # ``"read"``, which is not a member of ``ROLE_ORDER`` (the valid
-    # values are ``read_only``, ``worker``, ``admin``). When
+    # values are ``viewer``, ``operator``, ``admin``). When
     # ``api_security_enabled()`` was True, ``raise_for_roles`` would
     # treat the unknown role as rank 0 and refuse every request to
-    # endpoints that should accept ``read_only``. Use the canonical
-    # ``"read_only"`` string instead.
-    role = "admin" if api_key in admin_keys else "read_only"
+    # endpoints that should accept ``viewer``. Use the canonical
+    # ``"viewer"`` string instead.
+    role = "admin" if api_key in admin_keys else "viewer"
     tenant_id = request.headers.get("X-Tenant-ID") or "default"
     TenantContext.set_current_tenant(tenant_id)
 
@@ -244,10 +247,10 @@ async def require_admin(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required",
         )
-    if api_security_enabled():
+    if _SECURITY_ENABLED:
         principal = Principal(
             user=auth.get("user", ""),
-            role=auth.get("role", "read_only"),
+            role=auth.get("role", "viewer"),
             tenant_id=auth.get("tenant_id", "default"),
             api_key_id=auth.get("api_key_id") or None,
             auth_method=auth.get("auth_method", "api_key"),
@@ -278,15 +281,15 @@ async def require_worker(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Worker authentication required",
         )
-    if api_security_enabled():
+    if _SECURITY_ENABLED:
         principal = Principal(
             user=auth.get("user", ""),
-            role=auth.get("role", "read_only"),
+            role=auth.get("role", "viewer"),
             tenant_id=auth.get("tenant_id", "default"),
             api_key_id=auth.get("api_key_id") or None,
             auth_method=auth.get("auth_method", "api_key"),
         )
-        raise_for_roles(principal, {"worker", "admin"})
+        raise_for_roles(principal, {"operator", "admin"})
     return auth
 
 

@@ -21,13 +21,29 @@ declare module 'axios' {
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
+// Build-time validation: warn if API_BASE is not set in production
+if (!import.meta.env.DEV && !import.meta.env.VITE_API_BASE) {
+  console.warn(
+    '[API] VITE_API_BASE is not set. API calls will use the same origin. ' +
+    'Set VITE_API_BASE in your .env for production builds.'
+  );
+}
+
 const MAX_RESPONSE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_PROTOCOLS = ['http:', 'https:'];
+
+// Request deduplication: prevent duplicate concurrent GET requests for the same URL
+const pendingRequests = new Map<string, Promise<unknown>>();
+
+function deduplicateKey(url: string, params?: Record<string, unknown>): string {
+  return params ? `${url}?${JSON.stringify(params)}` : url;
+}
 
 function validateUrl(url: string, baseURL?: string): boolean {
   try {
     const base = baseURL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
     const resolved = new URL(url, base);
+    // Always validate protocol, even in dev mode
     if (!ALLOWED_PROTOCOLS.includes(resolved.protocol)) return false;
     if (typeof window !== 'undefined' && (
       resolved.host === window.location.host ||
@@ -36,7 +52,11 @@ function validateUrl(url: string, baseURL?: string): boolean {
     )) {
       return true;
     }
-    if (import.meta.env.DEV) return true;
+    if (import.meta.env.DEV) {
+      // In dev mode, allow localhost but still validate protocol
+      if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return true;
+      return true;
+    }
     if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return false;
     return true;
   } catch {
@@ -45,18 +65,26 @@ function validateUrl(url: string, baseURL?: string): boolean {
 }
 
 let csrfToken: string | null = null;
+let csrfPending: Promise<string | null> | null = null;
 
 async function fetchCsrfToken(): Promise<string | null> {
-  try {
-    const response = await axios.get<{ csrf_token: string }>(`${API_BASE}/api/csrf-token`, {
-      withCredentials: true,
-      timeout: 5000,
-    });
-    csrfToken = response.data.csrf_token;
-    return csrfToken;
-  } catch {
-    return null;
-  }
+  // Deduplicate concurrent CSRF token fetches
+  if (csrfPending) return csrfPending;
+  csrfPending = (async () => {
+    try {
+      const response = await axios.get<{ csrf_token: string }>(`${API_BASE}/api/csrf-token`, {
+        withCredentials: true,
+        timeout: 5000,
+      });
+      csrfToken = response.data.csrf_token;
+      return csrfToken;
+    } catch {
+      return null;
+    } finally {
+      csrfPending = null;
+    }
+  })();
+  return csrfPending;
 }
 
 function generateRequestId(): string {
@@ -78,7 +106,7 @@ export class ApiError extends Error {
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
-  timeout: 30000,
+  timeout: 10000,
   headers: { 
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'
@@ -107,11 +135,11 @@ apiClient.interceptors.request.use(
       config.headers['X-Organization-ID'] = user.organizationId;
     }
 
-    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase()) && config.url) {
+    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method) && config.url) {
       apiCache.markMutationStart(config.url);
     }
 
-    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method)) {
       if (csrfToken) {
         config.headers['X-CSRF-Token'] = csrfToken;
       } else {
@@ -163,6 +191,13 @@ apiClient.interceptors.response.use(
             received: response.data
           });
           dispatchToast('API Contract Violation Detected (check console)', 'warning');
+        } else {
+          // In production, track the violation and still reject the invalid response
+          captureException(
+            new Error(`API contract violation: ${response.config.method?.toUpperCase()} ${response.config.url}`),
+            { component: 'apiClient', action: 'schema_validation', metadata: { errors: result.error.format() } }
+          );
+          return Promise.reject(new Error('API response does not match expected schema'));
         }
         return response;
       }
@@ -251,10 +286,11 @@ interface CachedRequestOptions {
   schema?: z.ZodSchema;
 }
 
+const pendingRequests = new Map<string, Promise<unknown>>();
+
 export async function cachedGet<T>(url: string, options?: CachedRequestOptions): Promise<T> {
   const key = apiCache.generateKey(url, options?.params);
 
-  // Fix S0-3: Automatically bypass cache if a mutation is pending for this URL
   const shouldBypass = options?.bypassCache || apiCache.shouldBypassForMutation(url);
 
   if (!shouldBypass) {
@@ -264,28 +300,33 @@ export async function cachedGet<T>(url: string, options?: CachedRequestOptions):
     }
   }
 
-  const data = await withRetry(() =>
+  const existingPending = pendingRequests.get(key) as Promise<T> | undefined;
+  if (existingPending) {
+    return existingPending;
+  }
+
+  const requestPromise = withRetry(() =>
     apiClient.get<T>(url, { 
       signal: options?.signal, 
       params: options?.params, 
       timeout: options?.timeout,
       schema: options?.schema,
-      // Pass custom TTL to interceptor
       ...(options?.ttl ? { metadata: { ttl: options.ttl } } : {})
     } as AxiosRequestConfig).then((res) => res.data)
-  );
+  ).finally(() => {
+    pendingRequests.delete(key);
+  });
 
-  return data;
+  pendingRequests.set(key, requestPromise);
+  return requestPromise;
 }
 
 export async function cachedPost<T>(url: string, body?: unknown, options?: CachedRequestOptions): Promise<T> {
-  const res = await withRetry(() =>
-    apiClient.post<T>(url, body, { 
-      signal: options?.signal, 
-      params: options?.params, 
-      timeout: options?.timeout,
-      schema: options?.schema
-    } as AxiosRequestConfig).then((res) => res.data)
-  );
+  const res = await apiClient.post<T>(url, body, { 
+    signal: options?.signal, 
+    params: options?.params, 
+    timeout: options?.timeout,
+    schema: options?.schema
+  } as AxiosRequestConfig).then((res) => res.data);
   return res;
 }

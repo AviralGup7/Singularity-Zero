@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { type ZodSchema } from 'zod';
 
 /**
  * A hook that syncs state to localStorage with debounced writes.
@@ -17,6 +18,8 @@ export function usePersistedState<T>(
     serialize?: (value: T) => string;
     /** Transform value after reading from localStorage */
     deserialize?: (text: string) => T;
+    /** Optional Zod schema for runtime validation of stored values */
+    schema?: ZodSchema<T>;
   }
    
 ): [T, Dispatch<SetStateAction<T>>] {
@@ -29,7 +32,14 @@ export function usePersistedState<T>(
     try {
       const stored = localStorage.getItem(key);
       if (stored !== null) {
-        return deserialize(stored);
+        const parsed = deserialize(stored);
+        if (options?.schema) {
+          const result = options.schema.safeParse(parsed);
+          if (result.success) return result.data;
+          console.warn(`[usePersistedState] Schema validation failed for key "${key}", using default`);
+          return defaultValue;
+        }
+        return parsed;
       }
     } catch {
       /* ignore parse errors, use default */

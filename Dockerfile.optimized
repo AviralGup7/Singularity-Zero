@@ -58,7 +58,7 @@ FROM python:3.14-slim-bookworm AS production
 LABEL org.opencontainers.image.title="Cyber Security Test Pipeline" \
       org.opencontainers.image.description="Automated API security testing pipeline with intelligent analysis" \
       org.opencontainers.image.vendor="Cyber Security Pipeline Team" \
-      org.opencontainers.image.source="https://github.com/your-org/cyber-security-pipeline" \
+      org.opencontainers.image.source="https://github.com/AviralGup7/Singularity-Zero" \
       org.opencontainers.image.licenses="MIT"
 
 # Environment variables

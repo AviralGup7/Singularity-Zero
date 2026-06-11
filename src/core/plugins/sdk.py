@@ -44,14 +44,19 @@ _BLOCKED_NAMES: set[str] = {
     "compile",
     "eval",
     "exec",
+    "getattr",
+    "setattr",
+    "delattr",
     "globals",
     "input",
     "locals",
     "open",
+    "type",
     "vars",
 }
 _BLOCKED_ATTRIBUTES: set[str] = {
     "__bases__",
+    "__builtins__",
     "__class__",
     "__code__",
     "__dict__",
@@ -325,6 +330,8 @@ def _literal_manifest_value(node: ast.AST) -> dict[str, Any]:
             "PLUGIN_MANIFEST must contain strictly static literal data structures"
         )
 
+    # ast.literal_eval only evaluates constants (strings, numbers, tuples, lists, dicts, booleans, None).
+    # It does NOT execute arbitrary code, function calls, or name lookups — this is safe by design.
     value = ast.literal_eval(node)
     if not isinstance(value, dict):
         raise ValueError("manifest is not a dict")
@@ -337,3 +344,59 @@ def _is_manifest_helper_call(node: ast.Call) -> bool:
     if isinstance(node.func, ast.Attribute):
         return node.func.attr == "manifest"
     return False
+
+
+def enforce_sandbox_restrictions(module_globals: dict[str, Any]) -> None:
+    """Enforce sandbox restrictions on a loaded plugin module at runtime.
+
+    This function should be called after importing a plugin module to ensure
+    that the module's global namespace does not contain blocked names or
+    attributes that could be used to escape the sandbox.
+
+    Args:
+        module_globals: The __dict__ attribute of the loaded plugin module.
+
+    Raises:
+        PluginValidationError: If blocked names or attributes are found.
+    """
+    for name in _BLOCKED_NAMES:
+        if name in module_globals:
+            raise PluginValidationError(
+                f"Plugin module contains blocked name '{name}'"
+            )
+
+    for name in ("__builtins__",):
+        if name in module_globals:
+            raise PluginValidationError(
+                f"Plugin module contains blocked attribute '{name}'"
+            )
+
+
+def verify_plugin_signature(plugin_path: Path, expected_sha256: str | None = None) -> bool:
+    """Verify the integrity of a plugin file using SHA-256 hash.
+
+    This function can be used to verify that a plugin file has not been
+    tampered with since it was last verified.
+
+    Args:
+        plugin_path: Path to the plugin file.
+        expected_sha256: Expected SHA-256 hash. If None, computes and returns the hash.
+
+    Returns:
+        True if the hash matches expected_sha256, or if expected_sha256 is None.
+
+    Raises:
+        PluginValidationError: If the hash does not match.
+    """
+    actual_hash = hashlib.sha256(plugin_path.read_bytes()).hexdigest()
+
+    if expected_sha256 is None:
+        return True
+
+    if actual_hash != expected_sha256:
+        raise PluginValidationError(
+            f"Plugin signature verification failed for {plugin_path}. "
+            f"Expected: {expected_sha256}, Got: {actual_hash}"
+        )
+
+    return True

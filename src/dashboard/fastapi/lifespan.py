@@ -84,6 +84,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     validate_or_raise()
 
+    # Log unconfigured optional integrations (Finding #190)
+    optional_api_keys = {
+        "VIRUSTOTAL_API_KEY": "VirusTotal",
+        "SHODAN_API_KEY": "Shodan",
+        "ALIENVAULT_API_KEY": "AlienVault",
+        "CVE_API_KEY": "CVE",
+    }
+    unconfigured = [name for name, _ in optional_api_keys.items() if not os.getenv(name)]
+    if unconfigured:
+        logger.info(
+            "Optional API integrations not configured (feature disabled): %s",
+            ", ".join(unconfigured),
+        )
+
     refresh_dynamic_plugins()
     start_dynamic_plugin_watcher()
 
@@ -139,7 +153,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     try:
         ws_api_keys = {key: f"admin:{index}" for index, key in enumerate(config.admin_keys) if key}
         ws_required_roles = (
-            {"read_only", "worker", "admin", "guest"} if api_security_enabled() else None
+            {"viewer", "operator", "admin", "anonymous"} if api_security_enabled() else None
         )
         ws_services = setup_websocket(
             app,

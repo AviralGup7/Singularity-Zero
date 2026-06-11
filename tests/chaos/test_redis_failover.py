@@ -1,11 +1,13 @@
 import uuid
 from unittest.mock import MagicMock
 
+import pytest
 import redis
 
 from src.core.frontier.wal import FrontierWAL
 
 
+@pytest.mark.chaos
 def test_redis_failover_and_local_aof_fallback() -> None:
     """Chaos test: Verify WAL switches to AOF on Redis connection drop and recovers completely."""
     run_id = f"chaos_redis_{uuid.uuid4().hex[:8]}"

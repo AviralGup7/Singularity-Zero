@@ -207,6 +207,12 @@ def safe_request(
             "url": url,
             "detected_waf": detected_waf,
         }
+    except requests.ConnectionError as e:
+        logger.debug("Connection error for %s: %s", url, e)
+        return _error_response(str(e), url=url)
+    except requests.Timeout as e:
+        logger.debug("Timeout for %s: %s", url, e)
+        return _error_response(str(e), url=url)
     except requests.RequestException as e:
         # Feed error as potentially a WAF block / failure
         err_status = 0
@@ -361,6 +367,15 @@ async def async_safe_request(
             "url": url,
             "detected_waf": detected_waf,
         }
+    except httpx.ConnectError as e:
+        logger.debug("Connection error for %s: %s", url, e)
+        return _error_response(str(e), url=url)
+    except httpx.TimeoutException as e:
+        logger.debug("Timeout for %s: %s", url, e)
+        return _error_response(str(e), url=url)
+    except httpx.HTTPStatusError as e:
+        logger.debug("HTTP status error for %s: %s", url, e)
+        return _error_response(str(e), url=url)
     except httpx.HTTPError as e:
         # Feed error as potentially a WAF block / failure
         err_status = 0

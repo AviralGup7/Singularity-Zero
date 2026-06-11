@@ -25,7 +25,7 @@ def setup_websocket(
     ws_api_keys = api_keys or {}
     ws_required_roles = required_roles
     if security_enabled and not ws_required_roles:
-        ws_required_roles = {"read_only", "worker", "admin"}
+        ws_required_roles = {"viewer", "operator", "admin"}
 
     ws_services = setup_websocket_routes(
         app,
