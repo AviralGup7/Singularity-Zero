@@ -126,33 +126,33 @@ class GrpcFuzzer:
             )
         )
         # 2) String-heavy inputs (XSS / SQLi / traversal / SSTI / nulls).
-        for vec in _STRING_FUZZ_VECTORS:
-            payload = self._build_payload(field_types, vec)
+        for svec in _STRING_FUZZ_VECTORS:
+            payload = self._build_payload(field_types, svec)
             inputs.append(
                 FuzzInput(
                     method=name,
                     payload=payload,
-                    label=f"string:{vec[:24]!r}",
+                    label=f"string:{svec[:24]!r}",
                 )
             )
         # 3) Integer boundaries.
-        for vec in _INT_FUZZ_VECTORS:
-            payload = self._build_payload(field_types, vec)
+        for ivec in _INT_FUZZ_VECTORS:
+            payload = self._build_payload(field_types, ivec)
             inputs.append(
                 FuzzInput(
                     method=name,
                     payload=payload,
-                    label=f"int:{vec}",
+                    label=f"int:{ivec}",
                 )
             )
         # 4) Boolean toggles.
-        for vec in _BOOL_FUZZ_VECTORS:
-            payload = self._build_payload(field_types, vec)
+        for bvec in _BOOL_FUZZ_VECTORS:
+            payload = self._build_payload(field_types, bvec)
             inputs.append(
                 FuzzInput(
                     method=name,
                     payload=payload,
-                    label=f"bool:{vec}",
+                    label=f"bool:{bvec}",
                 )
             )
         return inputs[: self.max_attempts_per_method]

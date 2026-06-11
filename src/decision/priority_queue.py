@@ -346,7 +346,7 @@ class CorrelationPriorityQueue:
                 return None
             self._targets[0].refresh_bid()
             if len(self._targets) > 1:
-                heapq._siftup(self._targets, 0)
+                heapq.heapify(self._targets)
             target = heapq.heappop(self._targets)
             target.scanned = True
             self._pop_count += 1
@@ -359,7 +359,7 @@ class CorrelationPriorityQueue:
                 return None
             self._targets[0].refresh_bid()
             if len(self._targets) > 1:
-                heapq._siftup(self._targets, 0)
+                heapq.heapify(self._targets)
             return self._targets[0] if self._targets else None
 
     def push(self, target: ScanTarget) -> None:

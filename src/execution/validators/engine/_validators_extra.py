@@ -53,7 +53,8 @@ class CorsValidator(BaseValidator):
         errors: list[dict[str, Any]] = []
         scoring = _resolve_scoring(context, "cors")
         urls = list(context.ranked_priority_urls or [])
-        for url in urls[: context.per_validator_limit]:
+        for entry in urls[: context.per_validator_limit]:
+            url = str(entry.get("url", "") if isinstance(entry, dict) else entry)
             try:
                 response = context.http_client.request(url, method="GET")
             except Exception as exc:  # noqa: BLE001

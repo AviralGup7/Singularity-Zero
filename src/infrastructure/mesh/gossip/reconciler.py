@@ -100,13 +100,14 @@ def _merge_node(
 
     incoming_clock = _clock_from_node_data(node_data)
     existing_clock = (
-        VectorClock(MappingProxyType(existing.version_vector))
+        VectorClock(MappingProxyType(dict(existing.version_vector)))
         if existing is not None
         else VectorClock()
     )
 
     if existing is None:
-        node = MeshNode(**node_data)
+        node_data_copy = {**node_data, "version_vector": dict(node_data.get("version_vector", {}))}
+        node = MeshNode(**node_data_copy)
         node.last_seen = time.time()
         peers[node_id] = node
         if resurrected:

@@ -442,7 +442,8 @@ def persist_breaker_state(cache: Any, tool_name: str, breaker: CircuitBreaker) -
 def load_breaker_state(cache: Any, tool_name: str) -> dict[str, Any] | None:
     """Load persisted circuit breaker state. Returns None if absent."""
     try:
-        return cache.get(f"{_CB_PERSISTENCE_PREFIX}{tool_name}")
+        raw = cache.get(f"{_CB_PERSISTENCE_PREFIX}{tool_name}")
+        return raw if isinstance(raw, dict) else None
     except Exception:
         return None
 

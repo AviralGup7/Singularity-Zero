@@ -273,7 +273,7 @@ def _run_azure_for_scope(
     scope_entries: list[str], progress_callback: Any | None = None
 ) -> dict[str, Any]:
     """Run Azure Storage recon for each scope root in sequence."""
-    from src.recon.azure_sas import run_azure_recon_sync
+    from src.recon.azure_sas import AzureReconResult as _AzureReconResult, run_azure_recon_sync
 
     out: dict[str, Any] = {"results": [], "sas_patterns": 0}
     for entry in scope_entries:
