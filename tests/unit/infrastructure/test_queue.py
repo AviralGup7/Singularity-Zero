@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.infrastructure.queue.job_queue import JobQueue
-from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.queue.models import Job, JobState, WorkerInfo
+from src.infrastructure.queue.retry_policy import RetryPolicy
 
 
 class QueueTestBase(unittest.IsolatedAsyncioTestCase):

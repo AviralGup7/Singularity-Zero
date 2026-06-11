@@ -111,7 +111,9 @@ class ThreatIntelEnricher:
 
     def _get_kev(self) -> Any:
         if self._kev is None:
-            from src.intelligence.risk.cisa_kev import get_default_cisa_kev_client as _get_kev_client
+            from src.intelligence.risk.cisa_kev import (
+                get_default_cisa_kev_client as _get_kev_client,
+            )
 
             self._kev = _get_kev_client()
         return self._kev
