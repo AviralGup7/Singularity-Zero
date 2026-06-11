@@ -32,7 +32,6 @@ from src.infrastructure.queue.persistence import (
 from src.infrastructure.queue.rate_limiter import (
     JobQueueRateLimiterMixin as _JobQueueRateLimiter,
 )
-from src.infrastructure.queue.retry_policy import RetryPolicy
 
 
 class JobQueue(
