@@ -51,7 +51,7 @@ class ResourceGuard:
                 "ResourceGuard: performance_model.json not found at %s; using built-in defaults.",
                 candidate,
             )
-            return json.loads(json.dumps(_BUILTIN_DEFAULTS))
+            return cast("dict[str, Any]", json.loads(json.dumps(_BUILTIN_DEFAULTS)))
 
         try:
             with open(candidate, encoding="utf-8") as f:
@@ -63,12 +63,12 @@ class ResourceGuard:
             logger.warning(
                 "ResourceGuard: failed to load %s (%s); using built-in defaults.", candidate, exc
             )
-            return json.loads(json.dumps(_BUILTIN_DEFAULTS))
+            return cast("dict[str, Any]", json.loads(json.dumps(_BUILTIN_DEFAULTS)))
 
     def _get_profile(self, tool_name: str) -> dict[str, Any]:
-        return self.tool_profiles.get(
+        return cast("dict[str, Any]", self.tool_profiles.get(
             tool_name, self.tool_profiles.get("default", {"base_ram_mb": 128})
-        )
+        ))
 
     def _tool_ram(self, tool_name: str, target_count: int, url_count: int) -> int:
         profile = self._get_profile(tool_name)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.queue.models import Job, JobState, WorkerInfo
@@ -12,8 +13,8 @@ logger = get_pipeline_logger(__name__)
 class JobQueueRateLimiterMixin:
     async def get_next_job_for_worker(self, worker_id: str) -> Job | None:
         if not self.scheduler:
-            result: Job | None = await self.claim_job(worker_id)
-            return result  # type: ignore[return-value]
+            result: Job | None = cast("Job | None", await self.claim_job(worker_id))
+            return result
 
         try:
             workers_key = self._key("workers")
@@ -68,7 +69,7 @@ class JobQueueRateLimiterMixin:
 
             best_worker = self.scheduler.select_worker(job)
             if best_worker == worker_id:
-                result = await asyncio.to_thread(
+                script_result = await asyncio.to_thread(
                     self.redis.execute_script,
                     "claim_job",
                     keys=[
@@ -78,7 +79,7 @@ class JobQueueRateLimiterMixin:
                     ],
                     args=[worker_id, str(self.lease_seconds), str(time.time())],
                 )
-                if result and result[0] == 1:
+                if isinstance(script_result, list) and len(script_result) > 0 and script_result[0] == 1:
                     logger.info("Worker %s claimed job %s (scheduled)", worker_id, job_id)
                     return job
             else:
