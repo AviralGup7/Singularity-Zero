@@ -1,7 +1,10 @@
 import ast
 import importlib.util
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path("src").resolve()
 REPO_ROOT = ROOT.parent.resolve()
@@ -271,6 +274,7 @@ for py in sorted(ROOT.rglob("*.py")):
     try:
         txt = py.read_text(encoding="utf-8", errors="ignore")
     except Exception:
+        logger.debug("Failed to read %s", py, exc_info=True)
         continue
     if any(
         (

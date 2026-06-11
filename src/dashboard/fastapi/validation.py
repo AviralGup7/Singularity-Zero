@@ -83,7 +83,8 @@ def validate_url(url: str) -> bool:
             ".." in decoded_hostname or _is_path_traversal(decoded_hostname)
         ):
             return False
-    except Exception:  # noqa: BLE001
+    except Exception:
+        logger.debug("Failed to decode hostname for path-traversal check", exc_info=True)
         pass
     return True
 

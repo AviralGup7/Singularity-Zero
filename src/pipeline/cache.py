@@ -23,6 +23,10 @@ from src.pipeline.unified_cache import (
     CachePriority,
     TTLMode,
     cache_enabled,
+    load_cached_json,
+    load_cached_set,
+    save_cached_json,
+    save_cached_set,
 )
 
 logger = get_pipeline_logger(__name__)
@@ -31,6 +35,10 @@ __all__ = [
     "TTLMode",
     "Backend",
     "CachePriority",
+    "load_cached_json",
+    "load_cached_set",
+    "save_cached_json",
+    "save_cached_set",
     "response_cache_fresh",
     "cache_enabled",
 ]

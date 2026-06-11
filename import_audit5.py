@@ -1,7 +1,10 @@
 import ast
 import importlib.util
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path("src").resolve()
 REPO_ROOT = ROOT.parent.resolve()
@@ -268,7 +271,8 @@ CANDIDATE_FILES = []
 for py in sorted(ROOT.rglob("*.py")):
     try:
         txt = py.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
+    except Exception as e:
+        logger.debug("Skipping unreadable file %s: %s", py, e)
         continue
     # quick prefilter on raw text line prefixes (faster than AST)
     if any((ln.startswith("from src.") or ln.startswith("import src.")) for ln in txt.splitlines()):

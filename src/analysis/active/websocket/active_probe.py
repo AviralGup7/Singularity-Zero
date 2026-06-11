@@ -279,8 +279,8 @@ class WebSocketActiveProbe:
         result.received_frames = tuple(received)
         try:
             writer.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:
+            logger.debug("Failed to close writer: %s", exc, exc_info=True)
         return result
 
     async def run_all(self) -> list[WSProbeResult]:

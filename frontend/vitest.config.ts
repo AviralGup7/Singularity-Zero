@@ -16,7 +16,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
-    execArgv: ['--max-old-space-size=8192'],
+    execArgv: ['--max-old-space-size=4096'],
+    maxWorkers: 4,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],

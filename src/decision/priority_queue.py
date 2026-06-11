@@ -654,6 +654,7 @@ class CorrelationPriorityQueue:
             try:
                 previous.bind_to_priority_queue(self)
             except Exception:  # pragma: no cover - defensive
+                logger.debug("Rebind to priority queue failed for %s", previous, exc_info=True)
                 pass
 
     def budget_snapshot(self) -> dict[str, Any] | None:

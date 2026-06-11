@@ -223,6 +223,7 @@ async def run_wasm_fuzzing_campaign(
                     headers={"Content-Type": "application/wasm"},
                 )
             except Exception:
+                logger.debug("WASM fuzzer: request failed for %s, skipping", url)
                 continue
 
             if resp is None:

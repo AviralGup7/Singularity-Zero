@@ -3,8 +3,11 @@ Enhanced coverage analysis for the cyber security test pipeline.
 """
 
 import ast
+import logging
 from collections import defaultdict
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")
 SRC = ROOT / "src"
@@ -36,6 +39,7 @@ for tp in test_files:
     try:
         tree = ast.parse(tp.read_text(errors="ignore"))
     except Exception:
+        logger.debug("Failed to parse %s", tp, exc_info=True)
         continue
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):

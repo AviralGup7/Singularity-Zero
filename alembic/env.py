@@ -5,7 +5,7 @@ from logging.config import fileConfig
 from typing import Any
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import MetaData, pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 config = context.config
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 try:
     from src.core.models.pipeline_state import Base
 
-    target_metadata = Base.metadata
+    target_metadata: MetaData | None = Base.metadata
 except Exception:
     target_metadata = None
     # Raise instead of just warning — without metadata, autogenerate produces empty/wrong migrations

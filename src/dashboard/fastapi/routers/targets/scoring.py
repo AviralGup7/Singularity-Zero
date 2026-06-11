@@ -68,12 +68,14 @@ async def get_risk_score(
             if not isinstance(findings, list):
                 findings = []
         except Exception:
+            logger.debug("Failed to load findings: %s", findings_path)
             pass
 
     if summary_path.exists():
         try:
             run_summary = json.loads(summary_path.read_text(encoding="utf-8"))
         except Exception:
+            logger.debug("Failed to load summary: %s", summary_path)
             pass
 
     risk_data = compute_aggregate_risk_score(findings, run_summary)
@@ -126,6 +128,7 @@ async def get_historical_scores(
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
         except Exception:
+            logger.debug("Failed to parse findings in run dir: %s", run_dir)
             continue
 
         if not isinstance(findings, list):
@@ -138,6 +141,7 @@ async def get_historical_scores(
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
                 run_timestamp = summary.get("generated_at_utc", run_dir.name)
             except Exception:
+                logger.debug("Failed to load summary for run: %s", run_dir)
                 pass
 
         for finding in findings:

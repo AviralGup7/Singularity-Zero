@@ -545,6 +545,7 @@ def _detect_graphql_ws(url: str, *, timeout_seconds: int = 5) -> list[str]:
                 if resp.get("type") in ("connection_ack", "ka", "data"):
                     protocols.append(proto)
             except Exception:
+                logger.debug("WebSocket protocol probe failed", exc_info=True)
                 continue
     except ImportError as exc:
         logger.warning("Operation failed in graphql_introspection.py: %s", exc, exc_info=True)  # noqa: BLE001

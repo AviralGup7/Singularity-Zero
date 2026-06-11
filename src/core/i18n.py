@@ -1,5 +1,8 @@
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _CURRENT_LANGUAGE = "en"
 _TRANSLATIONS: dict[str, dict[str, str]] = {}
@@ -31,6 +34,7 @@ def load_locale_files() -> None:
                     if isinstance(catalog, dict):
                         load_translations(lang, catalog)
             except Exception:
+                logger.debug("Failed to load locale file %s", f)
                 pass
 
 

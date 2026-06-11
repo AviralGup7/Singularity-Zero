@@ -74,7 +74,8 @@ def _fetch_key_metadata(client: Any, keys: list[str], remaining: int) -> list[Ca
                         key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type
                     )
                 )
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to fetch metadata for key %s: %s", k, e)
                 continue
         return result[:remaining]
 

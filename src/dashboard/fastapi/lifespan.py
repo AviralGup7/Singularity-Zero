@@ -506,7 +506,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                         _reg.gauge("memory_usage_mb").set(
                             psutil.virtual_memory().used / 1024 / 1024
                         )
-                except Exception:  # noqa: BLE001
+                except Exception:
+                    logger.debug("Failed to update mesh telemetry gauges", exc_info=True)
                     pass
 
                 await asyncio.sleep(5.0)

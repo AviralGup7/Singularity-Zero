@@ -217,6 +217,7 @@ async def run_stateful_campaign_with_machine(
                         timeout=timeout_seconds,
                     )
                 except Exception:
+                    logger.debug("Stateful fuzzer: request failed for %s", full_url, exc_info=True)
                     continue
 
                 if resp is None:

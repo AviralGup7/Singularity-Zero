@@ -226,7 +226,8 @@ def _get_run_dir_safe(
                         summary = json.loads(summary_path.read_text(encoding="utf-8"))
                         if summary.get("job_id") == job_id:
                             return child
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse run_summary.json: %s", e)
                         continue
 
     runs = sorted(
