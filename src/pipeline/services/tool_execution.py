@@ -29,6 +29,7 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import StderrClassification, classify_stderr_lines
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
 from src.pipeline.retry.strategies import detect_rate_limit, parse_retry_after
+from typing import Protocol
 from src.pipeline.waf_profile import WafTuningProfile
 
 from .circuit_breaker import (
@@ -950,7 +951,7 @@ class ToolExecutionService:
         retry_after = parse_retry_after(stderr_text)
         if retry_after is not None:
             return float(retry_after)
-        base = policy.delay_for_attempt(attempt_number)
+        base = float(policy.delay_for_attempt(attempt_number))
         if waf_profile is not None and detect_rate_limit(stderr_text):
             return max(base, waf_profile.recovery_timeout_seconds)
         return base

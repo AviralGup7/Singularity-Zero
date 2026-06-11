@@ -16,7 +16,13 @@ from collections.abc import Callable
 from typing import Any
 
 from src.core.models import ValidationResult
-from src.execution.validators.config.scoring_config import DEFAULT_SCORING_CONFIG
+from src.core.scoring import bounded_confidence
+
+
+from src.execution.validators.config.scoring_config import (
+    DEFAULT_SCORING_CONFIG,
+    ScoringConfig,
+)
 from src.execution.validators.config.scoring_config import ScoringConfig as ExecutionScoringConfig
 from src.execution.validators.status import ValidationStatus
 
@@ -374,7 +380,7 @@ def evaluate_jwt(
     token: str | None = None,
     endpoint: str | None = None,
     jwks_endpoint: str | None = None,
-    scoring: ScoringConfig,
+    scoring: ExecutionScoringConfig,
     candidate_secrets: list[str] | tuple[str, ...] | None = None,
     jwt_evaluate: Callable[[str], dict[str, Any]] | None = None,
     kid_evaluate: Callable[[str, str], dict[str, Any]] | None = None,

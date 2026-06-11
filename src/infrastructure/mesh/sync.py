@@ -164,8 +164,8 @@ class MeshSync:
         # "schema" field). Treat them as schema=0 and de-duplicate using
         # a content hash so they participate in the idempotency window.
         if "schema" not in raw:
-            payload = raw
-            idem_key = _stable_hash(payload)
+            draft_payload = cast("dict[str, Any]", raw)
+            idem_key = _stable_hash(draft_payload)
             if self._seen_idempotency_key(idem_key):
                 self._duplicates_dropped_total += 1
                 _inc_metric(
@@ -173,7 +173,7 @@ class MeshSync:
                     "Total Redis mesh sync duplicate messages dropped",
                 )
                 return None
-            return payload
+            return draft_payload
 
         schema = raw.get("schema")
         try:
@@ -193,9 +193,10 @@ class MeshSync:
             )
             return None
 
-        payload = raw.get("payload")
-        if not isinstance(payload, dict):
+        raw_payload = raw.get("payload")
+        if not isinstance(raw_payload, dict):
             return None
+        payload: dict[str, Any] = raw_payload
 
         idem_key = raw.get("idempotency_key")
         if not isinstance(idem_key, str) or not idem_key:

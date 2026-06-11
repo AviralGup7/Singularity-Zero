@@ -38,7 +38,7 @@ def _resolve_scoring(context: ValidationContext, validator_name: str) -> Scoring
     """
     config = getattr(context, "validation_config", None)
     if config is not None and hasattr(config, "resolve_scoring"):
-        return config.resolve_scoring(validator_name)
+        return cast(ScoringConfig, config.resolve_scoring(validator_name))
     return DEFAULT_SCORING_CONFIG.get(validator_name, ScoringConfig())
 
 
@@ -91,9 +91,11 @@ class JwtValidator(BaseValidator):
         candidates = list(context.jwt_candidates or [])
         if not candidates:
             return findings, errors
-        in_scope_urls = {
-            url for url in context.ranked_priority_urls or [] if context.in_scope_for(url)
-        }
+        _priority_urls: list[str] = [
+            str(item.get("url", "") if isinstance(item, dict) else item)
+            for item in context.ranked_priority_urls or []
+        ]
+        in_scope_urls = {url for url in _priority_urls if context.in_scope_for(url)}
         candidate_secrets = list(context.jwt_test_secrets or ())
         for candidate in candidates[: context.per_validator_limit]:
             token = str(candidate.get("token", "") or "")
@@ -147,7 +149,11 @@ class CachePoisoningValidator(BaseValidator):
             context.cache_poisoning_unkeyed_headers
             or ("X-Forwarded-Host", "X-Original-URL", "X-Host")
         )
-        urls = list(context.ranked_priority_urls or [])
+        _priority_urls: list[str] = [
+            str(item.get("url", "") if isinstance(item, dict) else item)
+            for item in context.ranked_priority_urls or []
+        ]
+        urls = list(_priority_urls)
         for url in urls[: context.per_validator_limit]:
             for header in unkeyed_headers:
                 try:
@@ -158,8 +164,8 @@ class CachePoisoningValidator(BaseValidator):
                 evaluation = evaluate_cache_poison(
                     target_url=url,
                     unkeyed_header=header,
-                    probe_response=probe.get("probe_response") if probe else None,
-                    followup_response=probe.get("followup_response") if probe else None,
+                    probe_response=(cast(dict[str, Any], probe).get("probe_response") if probe else None),
+                    followup_response=(cast(dict[str, Any], probe).get("followup_response") if probe else None),
                     scoring=scoring,
                     in_scope=bool(context.in_scope_for(url)),
                 )

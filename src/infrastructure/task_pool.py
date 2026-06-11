@@ -50,12 +50,12 @@ class SimpleTaskPool:
         self._running = True
         self._dispatcher = asyncio.ensure_future(self._dispatcher_loop())
 
-    def submit(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task[Any]:
+    async def submit(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task[Any]:
         """Schedule *coroutine* with an optional priority (higher runs first)."""
         if not self._running:
             raise RuntimeError("SimpleTaskPool is not running. Call start() first.")
-        await self._queue.put((priority, asyncio.ensure_future(coroutine)))
-        task = self._queue.get_nowait()[1]
+        task = asyncio.ensure_future(coroutine)
+        await self._queue.put((priority, task))
         return task
 
     async def shutdown(self) -> None:
@@ -276,7 +276,7 @@ class MeshShim:
     def get_shard_for_target(self, target: str) -> str:
         return "0"
 
-    async def submit_task(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task:
+    async def submit_task(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task[Any]:
         return await self._task_pool.submit(coroutine, priority=priority)
 
     @property
