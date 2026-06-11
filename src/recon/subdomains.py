@@ -277,25 +277,25 @@ class _SubdomainCenterBackend:
     def query(domain: str) -> set[str]:
         from src.recon.sources.subdomain_center import query_subdomain_center as _q
 
-        return run_async_in_sync_context(_q(domain))
+        return set(run_async_in_sync_context(_q(domain)))
 
 
 class _GitHubSearchBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
-        return run_async_in_sync_context(_fetch_github_code_search(domain))
+        return set(run_async_in_sync_context(_fetch_github_code_search(domain)))
 
 
 class _GitLabSearchBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
-        return run_async_in_sync_context(_fetch_gitlab_search(domain))
+        return set(run_async_in_sync_context(_fetch_gitlab_search(domain)))
 
 
 class _BinaryEdgeBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
-        return run_async_in_sync_context(_fetch_binaryedge_passive(domain))
+        return set(run_async_in_sync_context(_fetch_binaryedge_passive(domain)))
 
 
 try:
@@ -420,7 +420,11 @@ def enumerate_subdomains(
     if not roots:
         return set()
 
-    stage_meta: dict[str, Any] = config.get("_stage_meta") if isinstance(config, dict) else None
+    stage_meta: dict[str, Any] = {}
+    if isinstance(config, dict):
+        raw_meta = config.get("_stage_meta")
+        if isinstance(raw_meta, dict):
+            stage_meta = raw_meta
 
     for reg in list_plugins(SUBDOMAIN_ENUMERATOR):
         if reg.key in ("assetfinder", "amass") and not tools_config.get(reg.key, False):

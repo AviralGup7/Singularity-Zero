@@ -143,9 +143,9 @@ def _skipped_circuit_open_meta(spec: ProviderSpec) -> CollectorMeta:
         new_urls=0,
         hosts_scanned=0,
         provider_name=spec.name,
-        warnings=[
+        warnings=(
             f"circuit breaker open; cool-down remaining={int(remaining)}s",
-        ],
+        ),
     )
 
 
@@ -171,24 +171,18 @@ def _invoke_provider(
     }
     if spec.max_workers is not None:
         kwargs["max_workers"] = spec.max_workers
-    # Session DI: thread the shared connection-pooled session so the
-    # underlying providers reuse TCP connections across the host list.
-    # We only pass ``session=`` when the provider's signature accepts
-    # it; this keeps backwards compatibility with test mocks whose
-    # narrow signatures don't know about the shared session.
     _add_session_kwarg_if_supported(spec.func, kwargs)
 
     discovered, meta = spec.func(hostnames, **kwargs)
 
-    # Defensive coercion: legacy providers may still return a plain dict.
     if not isinstance(meta, CollectorMeta):
         coerced = CollectorMeta.coerce(meta)
         coerced = coerced.with_updates(
             new_urls=len(discovered) if discovered is not None else 0,
             provider_name=spec.name,
         )
-        meta = coerced
-    elif discovered is not None and meta.new_urls != len(discovered):
+        return coerced
+    if discovered is not None and meta.new_urls != len(discovered):
         meta = meta.with_updates(new_urls=len(discovered))
 
     return meta

@@ -63,20 +63,52 @@ class ScoringConfig:
         """Return a copy with overrides applied. Unknown keys are ignored."""
         if not overrides:
             return self
+        try:
+            base_val = overrides["base"]
+        except KeyError:
+            base_val = self.base
+        try:
+            cap_val = overrides["cap"]
+        except KeyError:
+            cap_val = self.cap
+        try:
+            floor_val = overrides["floor"]
+        except KeyError:
+            floor_val = self.floor
+        try:
+            max_bonus_val = overrides["max_total_bonus"]
+        except KeyError:
+            max_bonus_val = self.max_total_bonus
+        try:
+            max_penalty_val = overrides["max_total_penalty"]
+        except KeyError:
+            max_penalty_val = self.max_total_penalty
+        try:
+            score_weight_val = overrides["score_weight"]
+        except KeyError:
+            score_weight_val = self.score_weight
+        try:
+            signal_weight_val = overrides["signal_weight"]
+        except KeyError:
+            signal_weight_val = self.signal_weight
+        try:
+            required_signals_val = overrides["required_signals"]
+        except KeyError:
+            required_signals_val = self.required_signals
+        try:
+            min_signals_val = overrides["min_independent_signals"]
+        except KeyError:
+            min_signals_val = self.min_independent_signals
         return ScoringConfig(
-            base=float(overrides.get("base", self.base)),
-            cap=float(overrides.get("cap", self.cap)),
-            floor=float(overrides.get("floor", self.floor)),
-            max_total_bonus=float(overrides.get("max_total_bonus", self.max_total_bonus)),
-            max_total_penalty=float(overrides.get("max_total_penalty", self.max_total_penalty)),
-            score_weight=float(overrides.get("score_weight", self.score_weight)),
-            signal_weight=float(overrides.get("signal_weight", self.signal_weight)),
-            required_signals=tuple(
-                str(v) for v in overrides.get("required_signals", self.required_signals)
-            ),
-            min_independent_signals=int(
-                overrides.get("min_independent_signals", self.min_independent_signals)
-            ),
+            base=float(base_val),
+            cap=float(cap_val),
+            floor=float(floor_val),
+            max_total_bonus=float(max_bonus_val),
+            max_total_penalty=float(max_penalty_val),
+            score_weight=float(score_weight_val),
+            signal_weight=float(signal_weight_val),
+            required_signals=tuple(str(v) for v in required_signals_val),
+            min_independent_signals=int(min_signals_val),
         )
 
 

@@ -61,7 +61,7 @@ _CYMRU_CONCURRENCY = 4
 
 
 def _next_backoff(attempt: int, base: float = 1.0, cap: float = 16.0) -> float:
-    return min(cap, base * (2 ** (attempt - 1)))
+    return min(cap, float(base) * float(2 ** (attempt - 1)))
 
 
 def _query_ipinfo(ip: str, timeout: float) -> dict[str, Any] | None:
@@ -401,7 +401,7 @@ def asn_for_host(
         raw_ip = info[4][0]
         if not raw_ip:
             continue
-        ip = raw_ip
+        ip = str(raw_ip)
         ip_to_asn(ip, timeout=timeout)
     return None
 

@@ -287,8 +287,8 @@ def _run_azure_for_scope(
         out["results"].append(
             {
                 "target": res.target,
-                "web_endpoints": [e.url for e in res.web_endpoints],
-                "listing_endpoints": [e.url for e in res.listing_endpoints],
+                "web_endpoints": res.web_endpoints,
+                "listing_endpoints": res.listing_endpoints,
                 "sas_pattern_count": len(res.sas_patterns),
             }
         )
@@ -353,7 +353,7 @@ def run_enhanced_recon_layer(
             "hosts": sorted(reprobed_hosts),
             "count": len(reprobed_hosts),
         }
-        live_hosts.extend(reprobed_hosts)
+        live_hosts.update(reprobed_hosts)
 
     urls = collect_urls(live_hosts, scope_entries, config)
     parameters = extract_parameters(urls)
@@ -518,9 +518,9 @@ def run_enhanced_recon_layer(
         if waf_hosts or waf_ips:
             try:
                 _, waf_live_hosts = probe_live_hosts(
-                    list(waf_hosts | waf_ips), config, progress_callback=progress_callback
+                    waf_hosts | waf_ips, config, progress_callback=progress_callback
                 )
-                live_hosts.extend(waf_live_hosts)
+                live_hosts.update(waf_live_hosts)
             except Exception:  # noqa: BLE001
                 pass
         report = _safe_call(

@@ -220,7 +220,7 @@ def _guess_project_name_from_inputs(
             if isinstance(data, dict) and isinstance(data.get("name"), str):
                 name = data["name"].strip().lower().split("/")[-1].replace("_", "-")
                 if name:
-                    return name
+                    return str(name)
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Operation failed in preview_deployments.py: %s", exc, exc_info=True)  # noqa: BLE001
     return ""

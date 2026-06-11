@@ -264,24 +264,20 @@ async def filter_subdomains_async(
     result = WildcardFilterResult(domain=clean or domain)
 
     if not clean or not HAS_DNSPYTHON:
-        # Without dnspython we cannot actively resolve; preserve input
-        # so the downstream stage at least sees the candidates.
         candidates = {s.lower().strip() for s in subdomains if s and s.strip()}
         result.kept_subdomains = candidates
         result.total_processed = len(candidates)
         return result
 
-    candidates = set()
+    resolved_candidates: set[str] = set()
     for sub in subdomains:
         if not sub:
             continue
         normalized = sub.strip().lower()
         if not normalized or normalized == clean:
             continue
-        # Strip the root suffix in case a caller passed a full FQDN; we
-        # want bare subdomains to make the wildcard comparison clean.
-        candidates.add(normalized)
-        if len(candidates) >= _MAX_SUBDOMAINS_PER_BATCH:
+        resolved_candidates.add(normalized)
+        if len(resolved_candidates) >= _MAX_SUBDOMAINS_PER_BATCH:
             logger.warning(
                 "dnsx_wildcard: capped input at %d subdomains for %s",
                 _MAX_SUBDOMAINS_PER_BATCH,
@@ -289,8 +285,8 @@ async def filter_subdomains_async(
             )
             break
 
-    result.total_processed = len(candidates)
-    if not candidates:
+    result.total_processed = len(resolved_candidates)
+    if not resolved_candidates:
         return result
 
     has_wildcard, wildcard_ips = await detect_wildcard_async(clean, timeout=timeout)
@@ -321,7 +317,7 @@ async def filter_subdomains_async(
         return host, ips
 
     resolutions = await asyncio.gather(
-        *(_resolve_one(h) for h in candidates), return_exceptions=True
+        *(_resolve_one(h) for h in resolved_candidates), return_exceptions=True
     )
 
     for item in resolutions:

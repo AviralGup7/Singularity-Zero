@@ -60,7 +60,6 @@ class EPSSScore:
             "age_seconds": max(0.0, time.time() - self.fetched_at),
         }
 
-    @property
     def is_stale(self, ttl: float = DEFAULT_CACHE_TTL_SECONDS) -> bool:
         return (time.time() - self.fetched_at) > ttl
 

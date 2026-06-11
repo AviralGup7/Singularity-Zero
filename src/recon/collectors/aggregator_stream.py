@@ -144,10 +144,10 @@ def collect_urls_stream(
                     new_urls=0,
                     hosts_scanned=0,
                     provider_name=spec.name,
-                    warnings=[
+                    warnings=(
                         f"circuit breaker open; cool-down remaining="
                         f"{int(cool_down_remaining(spec.name))}s",
-                    ],
+                    ),
                 )
                 stage_meta[spec.name] = meta
                 emit_collection_progress(
