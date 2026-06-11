@@ -21,10 +21,10 @@ the literal status strings used throughout the codebase still works.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import ItemsView, Iterator, KeysView, Mapping, ValuesView
 from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
-from typing import Any, ItemsView, KeysView, ValuesView
+from typing import Any
 
 
 class CollectorStatus(StrEnum):
