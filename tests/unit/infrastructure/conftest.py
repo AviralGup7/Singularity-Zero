@@ -11,8 +11,8 @@ from src.infrastructure.execution_engine.config import ExecutionConfig
 from src.infrastructure.execution_engine.models import Task, TaskPriority
 from src.infrastructure.execution_engine.resource_pool import ResourcePool as ResourcePoolImpl
 from src.infrastructure.queue.job_queue import JobQueue
-from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.queue.models import Job, JobState, QueueConfig
+from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.security.config import SecurityConfig
 
 

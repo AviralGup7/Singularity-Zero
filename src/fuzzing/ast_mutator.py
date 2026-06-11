@@ -12,7 +12,8 @@ import random
 import re
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 # Maximum time allowed for a single regex operation (seconds).
 _REGEX_TIMEOUT: float = 2.0
@@ -22,7 +23,14 @@ class _RegexTimeoutError(Exception):
     """Raised when a regex operation exceeds its time limit."""
 
 
-def _safe_re_sub(pattern: str, repl: str | Callable[[re.Match[str]], str], string: str, *, flags: int = 0, count: int = 0) -> str:
+def _safe_re_sub(
+    pattern: str,
+    repl: str | Callable[[re.Match[str]], str],
+    string: str,
+    *,
+    flags: int = 0,
+    count: int = 0,
+) -> str:
     """re.sub wrapper with a wall-clock timeout to prevent ReDoS."""
     import concurrent.futures
 

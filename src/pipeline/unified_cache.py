@@ -17,12 +17,12 @@ import os
 import tempfile
 import threading
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.cache_backend import PersistentCache
