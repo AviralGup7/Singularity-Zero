@@ -156,12 +156,12 @@ class TestRunGitDiffCrawl:
         (repo / "api").mkdir()
         (repo / "api" / "users.py").write_text("def users(): pass", encoding="utf-8")
         subprocess.run(  # noqa: S603
-            ["git", "-C", str(repo), "add", "."],
-            check=True,  # noqa: S607
+            ["git", "-C", str(repo), "add", "."],  # noqa: S607
+            check=True,
         )
         subprocess.run(  # noqa: S603
-            ["git", "-C", str(repo), "commit", "-q", "-m", "users"],
-            check=True,  # noqa: S607
+            ["git", "-C", str(repo), "commit", "-q", "-m", "users"],  # noqa: S607
+            check=True,
         )
         # Create prior run data
         target_root = repo / "target"

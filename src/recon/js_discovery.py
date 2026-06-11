@@ -9,6 +9,7 @@ reuse.
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -33,6 +34,9 @@ from src.recon.js_parsers_v2 import (
     follow_source_map_chain,
     is_source_map_body,
 )
+from src.recon.url_validation import is_safe_url
+
+logger = logging.getLogger(__name__)
 
 
 def _load_secret_patterns(config_path: str | None = None) -> list[tuple[re.Pattern[str], str]]:

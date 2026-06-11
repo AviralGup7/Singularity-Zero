@@ -18,7 +18,7 @@ from datetime import UTC
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import defusedxml.ElementTree as ET
+import defusedxml.ElementTree as ET  # noqa: N817
 
 from src.execution.validators.config.scoring_config import (
     DEFAULT_SCORING_CONFIG,

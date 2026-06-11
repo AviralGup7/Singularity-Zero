@@ -15,7 +15,7 @@ def _app(tmp_path, monkeypatch, guest_access_enabled: bool, enable_api_security:
         '{"keys":[{"key":"admin-key","role":"admin"}]}',
     )
     from src.dashboard.fastapi.app import create_app as create
-    from src.dashboard.fastapi.config import DashboardConfig as DC
+    from src.dashboard.fastapi.config import DashboardConfig as DC  # noqa: N817
 
     return create(
         DC(

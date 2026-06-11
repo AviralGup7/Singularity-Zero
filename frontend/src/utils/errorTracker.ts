@@ -138,6 +138,8 @@ export class ErrorTracker {
   }
 
   private logToConsole(trackedError: TrackedError): void {
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') return;
+   
     const { component, action, url, timestamp } = trackedError.context;
    
     console.group(`[ErrorTracker] ${trackedError.severity.toUpperCase()}`);
@@ -153,9 +155,8 @@ export class ErrorTracker {
 
   private sendToSentry(trackedError: TrackedError): void {
     if (!this.sentryDsn) return;
-    // Placeholder for actual Sentry client integration
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') return;
     if (import.meta.env.DEV) {
-   
       console.log('[Sentry Stub] Sending error:', trackedError.id);
     }
   }
@@ -196,7 +197,9 @@ export class ErrorTracker {
       });
       sessionStorage.setItem(ERROR_STORAGE_KEY, JSON.stringify(serialized));
     } catch {
-      console.warn('Failed to persist errors');
+      if (typeof process === 'undefined' || process.env?.NODE_ENV !== 'test') {
+        console.warn('Failed to persist errors');
+      }
     }
   }
 }

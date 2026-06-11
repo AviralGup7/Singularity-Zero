@@ -438,8 +438,6 @@ def _alias_authorization_bypass(schema: dict[str, Any]) -> dict[str, Any]:
             if not isinstance(f, dict):
                 continue
             fname = str(f.get("name", "")).lower()
-            args = f.get("args") or []
-            args_lower = [str(a.get("name", "")).lower() for a in args if isinstance(a, dict)]
             if any(tok in fname for tok in ("alias",)):
                 aliases_found.append(fname)
             for tok in _ALIAS_TOKENS:
@@ -602,11 +600,11 @@ def _probe_fields_for_auth_inference(
     for items in ops.values():
         candidates.extend(items or [])
     seen: set[str] = set()
-    for field in candidates:
-        if field in seen:
+    for candidate in candidates:
+        if candidate in seen:
             continue
-        seen.add(field)
-        q = "{ __typename " + field + " }"
+        seen.add(candidate)
+        q = "{ __typename " + candidate + " }"
         try:
             resp = requests.post(
                 url,

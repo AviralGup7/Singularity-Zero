@@ -139,7 +139,10 @@ class TestSessionKwargsInjection:
 
     def test_lambda_without_session_kwarg_does_not_receive_session(self) -> None:
         kwargs: dict = {"timeout_seconds": 30}
-        func = lambda hosts, timeout_seconds: (set(), {"status": "ok"})
+
+        def func(hosts, timeout_seconds):
+            return (set(), {"status": "ok"})
+
         aggregator._add_session_kwarg_if_supported(func, kwargs)
         assert "session" not in kwargs
 
