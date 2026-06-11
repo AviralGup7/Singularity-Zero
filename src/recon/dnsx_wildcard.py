@@ -271,7 +271,7 @@ async def filter_subdomains_async(
         result.total_processed = len(candidates)
         return result
 
-    candidates: set[str] = set()
+    candidates = set()
     for sub in subdomains:
         if not sub:
             continue
