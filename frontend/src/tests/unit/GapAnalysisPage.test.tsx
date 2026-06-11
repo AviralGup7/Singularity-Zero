@@ -127,9 +127,11 @@ describe('GapAnalysisPage Component', () => {
     const searchInput = screen.getByPlaceholderText('Filter by module or category...');
     fireEvent.change(searchInput, { target: { value: 'idor' } });
 
-    expect(screen.queryByText('ssrf_candidate_finder')).not.toBeInTheDocument();
-    expect(screen.queryByText('reflected_xss_probe')).not.toBeInTheDocument();
-    expect(screen.getByText('idor_validation')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('ssrf_candidate_finder')).not.toBeInTheDocument();
+      expect(screen.queryByText('reflected_xss_probe')).not.toBeInTheDocument();
+      expect(screen.getByText('idor_validation')).toBeInTheDocument();
+    });
   });
 
   it('filters rows based on status dropdown selection', async () => {
@@ -142,9 +144,11 @@ describe('GapAnalysisPage Component', () => {
     const statusDropdown = screen.getByLabelText('Filter Status');
     fireEvent.change(statusDropdown, { target: { value: 'complete' } });
 
-    expect(screen.queryByText('ssrf_candidate_finder')).not.toBeInTheDocument();
-    expect(screen.getByText('reflected_xss_probe')).toBeInTheDocument();
-    expect(screen.queryByText('idor_validation')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('ssrf_candidate_finder')).not.toBeInTheDocument();
+      expect(screen.getByText('reflected_xss_probe')).toBeInTheDocument();
+      expect(screen.queryByText('idor_validation')).not.toBeInTheDocument();
+    });
   });
 
   it('sorts rows when column headers are clicked', async () => {
