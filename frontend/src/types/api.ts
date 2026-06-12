@@ -183,6 +183,8 @@ export interface Job {
   stderr_href?: string;
   target_href?: string;
   streaming_findings?: Finding[];
+  mesh_health?: MeshHealth | null;
+  migration_events?: MigrationEvent[];
 }
 
 export interface PluginProgressEntry {
@@ -412,7 +414,7 @@ export interface Finding {
    */
   bounty_value?: number;
   bounty_currency?: string;
-  bounty_source?: 'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate';
+  bounty_source?: 'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate' | 'synack';
   /**
    * True when the finding has already been submitted to a bug-bounty platform
    * or filed as a duplicate; used by the run-diff view to suppress noise.

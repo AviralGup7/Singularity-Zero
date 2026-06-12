@@ -102,7 +102,7 @@ export function FindingsPage() {
     const ids = Array.from(selectedFindingIds);
     if (ids.length === 0) return;
     try {
-      await bulkUpdateFindings(ids, { lifecycle_state: status });
+      await bulkUpdateFindings(ids, { status });
       toast.success(`${ids.length} finding(s) updated to ${status}`);
       clearSelection();
     } catch {
@@ -126,7 +126,7 @@ export function FindingsPage() {
     const ids = Array.from(selectedFindingIds);
     if (ids.length === 0 || !bulkAssignee.trim()) return;
     try {
-      await bulkUpdateFindings(ids, { assignee: bulkAssignee.trim() });
+      await bulkUpdateFindings(ids, { assignedTo: bulkAssignee.trim() });
       toast.success(`${ids.length} finding(s) assigned to ${bulkAssignee.trim()}`);
       clearSelection();
     } catch {
@@ -139,7 +139,7 @@ export function FindingsPage() {
     if (ids.length === 0) return;
     if (!window.confirm(`Delete ${ids.length} finding(s)? This cannot be undone.`)) return;
     try {
-      await bulkUpdateFindings(ids, { deleted: true });
+      await bulkUpdateFindings(ids, { _deleted: true });
       toast.success(`${ids.length} finding(s) deleted`);
       clearSelection();
     } catch {

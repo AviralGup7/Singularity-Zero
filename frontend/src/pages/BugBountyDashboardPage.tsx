@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   DollarSign, Send, CheckCircle2, 
   AlertCircle, Search, 
-  RefreshCw, Edit2
+  RefreshCw, Edit2, Lock
 } from 'lucide-react';
 
 import { getFindings, updateFinding } from '@/api/findings';
@@ -45,7 +45,7 @@ export function BugBountyDashboardPage() {
   // Edit Bounty Value state
   const [editingFinding, setEditingFinding] = useState<Finding | null>(null);
   const [editBountyVal, setEditBountyVal] = useState<number>(0);
-  const [editSource, setEditSource] = useState<'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate'>('estimate');
+  const [editSource, setEditSource] = useState<'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate' | 'synack'>('estimate');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -459,7 +459,7 @@ export function BugBountyDashboardPage() {
                   Platform / Source
                   <select
                     value={editSource}
-                    onChange={e => setEditSource(e.target.value)}
+                    onChange={e => setEditSource(e.target.value as any)}
                     className="w-full mt-1 bg-[#151515] border border-white/10 rounded-lg py-2 px-3 text-xs font-mono text-text focus:border-accent/50 outline-none"
                   >
                     <option value="estimate">Estimate</option>

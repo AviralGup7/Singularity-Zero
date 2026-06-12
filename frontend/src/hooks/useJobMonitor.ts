@@ -206,7 +206,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: next, source: 'realtime' });
         },
         setJob: (updater) => {
-          const next = typeof updater === 'function' ? updater(currentState?.job) : updater;
+          const next = typeof updater === 'function' ? updater(currentState?.job ?? null) : updater;
           if (next) bufferDispatch({ type: 'UPDATE_JOB', payload: next, source: 'realtime' });
         },
         addPluginProgress: (entry) => bufferDispatch({ type: 'ADD_PLUGIN_PROGRESS', payload: entry }),

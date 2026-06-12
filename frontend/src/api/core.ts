@@ -166,7 +166,7 @@ apiClient.interceptors.response.use(
     const responseTime = Date.now() - (response.config.metadata?.startTime ?? Date.now());
      
     if (response.headers['content-length']) {
-      const size = parseInt(response.headers['content-length'], 10);
+      const size = parseInt(String(response.headers['content-length']), 10);
       if (size > MAX_RESPONSE_SIZE_BYTES) {
         captureException(new Error(`Response too large: ${size} bytes`), {
           component: 'apiClient',
@@ -280,7 +280,7 @@ interface CachedRequestOptions {
   signal?: AbortSignal;
   ttl?: number;
   bypassCache?: boolean;
-  params?: Record<string, unknown>;
+  params?: Record<string, any>;
   timeout?: number;
   schema?: z.ZodSchema;
 }

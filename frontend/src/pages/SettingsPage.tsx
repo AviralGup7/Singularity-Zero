@@ -96,16 +96,16 @@ export function SettingsPage() {
   const setAnimations = displayUpdater.setAnimations;
   const setGridBackground = displayUpdater.setGridBackground;
   
-  const setAutoRefresh = useCallback((v: boolean) => {
-    updateSection('dashboard', { autoRefresh: v });
-    showSaveConfirmation();
-  }, [updateSection, showSaveConfirmation]);
-
   const showSaveConfirmation = useCallback(() => {
     setSaveConfirmation('Settings saved');
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => setSaveConfirmation(null), 2000);
   }, []);
+
+  const setAutoRefresh = useCallback((v: boolean) => {
+    updateSection('dashboard', { autoRefresh: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
 
   const setRefreshInterval = useCallback((v: number) => {
     if (v < 1 || v > 300) return;

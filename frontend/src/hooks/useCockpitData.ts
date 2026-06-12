@@ -79,7 +79,6 @@ export function useCockpitData({
         retryTimeoutRef.current = null;
       }
       if (streamRef.current) {
-        streamRef.current.onclose = null;
         streamRef.current.onerror = null;
         streamRef.current.close();
         streamRef.current = null;
