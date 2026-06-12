@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 import typing
+from collections.abc import Callable
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ from src.recon.urls import extract_parameters  # noqa: E402
 async def run_url_collection_service(
     stage_input: StageInput,
     *,
-    collector: typing.Callable[..., Any] | None = None,
+    collector: Callable[..., Any] | None = None,
     progress_callback: Any = None,
 ) -> StageOutput:
     """Pure service implementation for URL collection with strict type guards."""
@@ -123,7 +124,7 @@ async def run_url_collection_service(
 async def run_live_hosts_service(
     stage_input: StageInput,
     *,
-    prober: typing.Callable[..., Any] | None = None,
+    prober: Callable[..., Any] | None = None,
     enricher: Any = None,
     force_recheck: bool = False,
 ) -> StageOutput:

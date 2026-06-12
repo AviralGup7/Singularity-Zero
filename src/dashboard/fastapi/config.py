@@ -73,6 +73,11 @@ class DashboardConfig(BaseSettings):
                 f"output_root must be within the project root. "
                 f"Got: {resolved_output}, expected under: {resolved_project}"
             )
+        # Validate frontend_dist exists; fall back to project-relative path
+        if not self.frontend_dist.exists():
+            fallback = self.workspace_root / "frontend" / "dist"
+            if fallback.exists():
+                object.__setattr__(self, "frontend_dist", fallback)
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump()

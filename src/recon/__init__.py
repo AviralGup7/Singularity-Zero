@@ -2,131 +2,116 @@
 
 Re-exports the public symbols of the recon module so that callers can
 write ``from src.recon import run_enhanced_recon_layer`` etc.
+
+Uses lazy imports via __getattr__ to avoid circular import cascades
+through the pipeline/tools chain at module load time.
 """
 
-from src.recon.alienurl import (
-    collect_archive_urls,
-    run_aggregated_archive,
-    run_alienurl_cli,
-)
-from src.recon.api_spec_discovery import (
-    discover_api_specs,
-    extract_operation_summaries,
-    merge_openapi_specs,
-)
-from src.recon.asn_expansion import (
-    asn_for_host,
-    asn_for_url,
-    asnmap_cli,
-    expand_ips_to_cidrs,
-    mapcidr_cli,
-)
-from src.recon.azure_sas import (
-    AzureReconResult,
-    AzureSasUrlPattern,
-    run_azure_recon_sync,
-    scan_azure_accounts,
-)
-from src.recon.discovery import (
-    build_focused_rescan_plan,
-    run_enhanced_recon_layer,
-    run_recon_layer,
-)
-from src.recon.dnsx_wildcard import (
-    WildcardFilterResult,
-    detect_wildcard_async,
-    detect_wildcard_sync,
-    filter_subdomains_async,
-    filter_subdomains_sync,
-    is_public_ip,
-    merge_wildcard_results,
-    run_dnsx_cli,
-)
-from src.recon.favicon_fingerprint import (
-    fetch_favicons,
-    lookup_faviconhash,
-    mmh3_hash_32,
-)
-from src.recon.filters import extract_parameters
-from src.recon.focused_rescan import build_focused_rescan_plan as _build_focused_rescan_plan
-from src.recon.graphql_introspection import (
-    GraphQLEndpoint,
-    discover_graphql_endpoints,
-    filter_introspection_ok,
-    introspect_endpoint_async,
-    summarize_endpoints,
-)
-from src.recon.ja3_fingerprint import (
-    identify_origin_stack,
-    scan_targets_for_origin_leak,
-)
-from src.recon.js_parsers_v2 import (
-    extract_endpoint_calls,
-    extract_endpoints_v2,
-    extract_html_attribute_endpoints,
-    extract_source_map_url,
-    extract_sources_content,
-    extract_websocket_endpoints,
-)
-from src.recon.live_hosts import (
-    probe_host_without_httpx,
-    probe_live_hosts,
-    probe_live_hosts_fallback,
-)
-from src.recon.models import ReconCandidate
-from src.recon.nuclei import (
-    build_nuclei_plan,
-    build_nuclei_plan_with_param_map,
-    run_nuclei,
-    run_nuclei_jsonl,
-    run_nuclei_with_parsing,
-)
-from src.recon.port_scanner import (
-    DEFAULT_TOP_PORTS,
-    host_in_scope,
-    parse_portspec,
-    run_naabu_cli,
-    run_port_scan,
-    run_port_scan_async,
-    socket_port_scan,
-)
-from src.recon.preview_deployments import (
-    all_candidates_for_project,
-    discover_preview_deployments,
-)
-from src.recon.scoring import (
-    infer_target_profile,
-    prioritize_urls,
-    query_parameter_names,
-    rank_urls,
-    resolve_priority_limit,
-    score_mode_bonus,
-    score_url,
-)
-from src.recon.shodan_censys import cross_reference_domain, cross_reference_ips
-from src.recon.spa_detection import (
-    FrameworkHit,
-    collect_recommended_paths,
-    detect_frameworks_from_content,
-    probe_framework_endpoints,
-    spa_aware_extra_urls,
-)
-from src.recon.standardize import standardize_recon_outputs
-from src.recon.subdomain_permutator import (
-    generate_permutations,
-    run_alterx_cli,
-)
-from src.recon.subdomains import enumerate_subdomains, fetch_crtsh_subdomains
-from src.recon.url_weighting import (
-    combined_score,
-    recency_score,
-    sort_urls_by_weight,
-    trim_urls,
-)
-from src.recon.url_weighting import (
-    score_url as score_url_weighted,
-)
-from src.recon.urls import collect_urls, emit_collection_progress
+_LAZY_IMPORT_MAP: dict[str, tuple[str, str]] = {
+    "AzureReconResult": ("src.recon.azure_sas", "AzureReconResult"),
+    "AzureSasUrlPattern": ("src.recon.azure_sas", "AzureSasUrlPattern"),
+    "DEFAULT_TOP_PORTS": ("src.recon.port_scanner", "DEFAULT_TOP_PORTS"),
+    "FrameworkHit": ("src.recon.spa_detection", "FrameworkHit"),
+    "GraphQLEndpoint": ("src.recon.graphql_introspection", "GraphQLEndpoint"),
+    "ReconCandidate": ("src.recon.models", "ReconCandidate"),
+    "WildcardFilterResult": ("src.recon.dnsx_wildcard", "WildcardFilterResult"),
+    "_build_focused_rescan_plan": ("src.recon.focused_rescan", "build_focused_rescan_plan"),
+    "all_candidates_for_project": ("src.recon.preview_deployments", "all_candidates_for_project"),
+    "asn_for_host": ("src.recon.asn_expansion", "asn_for_host"),
+    "asn_for_url": ("src.recon.asn_expansion", "asn_for_url"),
+    "asnmap_cli": ("src.recon.asn_expansion", "asnmap_cli"),
+    "build_focused_rescan_plan": ("src.recon.discovery", "build_focused_rescan_plan"),
+    "build_nuclei_plan": ("src.recon.nuclei", "build_nuclei_plan"),
+    "build_nuclei_plan_with_param_map": ("src.recon.nuclei", "build_nuclei_plan_with_param_map"),
+    "collect_archive_urls": ("src.recon.alienurl", "collect_archive_urls"),
+    "collect_recommended_paths": ("src.recon.spa_detection", "collect_recommended_paths"),
+    "collect_urls": ("src.recon.urls", "collect_urls"),
+    "combined_score": ("src.recon.url_weighting", "combined_score"),
+    "cross_reference_domain": ("src.recon.shodan_censys", "cross_reference_domain"),
+    "cross_reference_ips": ("src.recon.shodan_censys", "cross_reference_ips"),
+    "detect_frameworks_from_content": ("src.recon.spa_detection", "detect_frameworks_from_content"),
+    "detect_wildcard_async": ("src.recon.dnsx_wildcard", "detect_wildcard_async"),
+    "detect_wildcard_sync": ("src.recon.dnsx_wildcard", "detect_wildcard_sync"),
+    "discover_api_specs": ("src.recon.api_spec_discovery", "discover_api_specs"),
+    "discover_graphql_endpoints": ("src.recon.graphql_introspection", "discover_graphql_endpoints"),
+    "discover_preview_deployments": ("src.recon.preview_deployments", "discover_preview_deployments"),
+    "emit_collection_progress": ("src.recon.urls", "emit_collection_progress"),
+    "enumerate_subdomains": ("src.recon.subdomains", "enumerate_subdomains"),
+    "expand_ips_to_cidrs": ("src.recon.asn_expansion", "expand_ips_to_cidrs"),
+    "extract_endpoint_calls": ("src.recon.js_parsers_v2", "extract_endpoint_calls"),
+    "extract_endpoints_v2": ("src.recon.js_parsers_v2", "extract_endpoints_v2"),
+    "extract_html_attribute_endpoints": ("src.recon.js_parsers_v2", "extract_html_attribute_endpoints"),
+    "extract_operation_summaries": ("src.recon.api_spec_discovery", "extract_operation_summaries"),
+    "extract_parameters": ("src.recon.filters", "extract_parameters"),
+    "extract_source_map_url": ("src.recon.js_parsers_v2", "extract_source_map_url"),
+    "extract_sources_content": ("src.recon.js_parsers_v2", "extract_sources_content"),
+    "extract_websocket_endpoints": ("src.recon.js_parsers_v2", "extract_websocket_endpoints"),
+    "fetch_crtsh_subdomains": ("src.recon.subdomains", "fetch_crtsh_subdomains"),
+    "fetch_favicons": ("src.recon.favicon_fingerprint", "fetch_favicons"),
+    "filter_introspection_ok": ("src.recon.graphql_introspection", "filter_introspection_ok"),
+    "filter_subdomains_async": ("src.recon.dnsx_wildcard", "filter_subdomains_async"),
+    "filter_subdomains_sync": ("src.recon.dnsx_wildcard", "filter_subdomains_sync"),
+    "generate_permutations": ("src.recon.subdomain_permutator", "generate_permutations"),
+    "host_in_scope": ("src.recon.port_scanner", "host_in_scope"),
+    "identify_origin_stack": ("src.recon.ja3_fingerprint", "identify_origin_stack"),
+    "infer_target_profile": ("src.recon.scoring", "infer_target_profile"),
+    "introspect_endpoint_async": ("src.recon.graphql_introspection", "introspect_endpoint_async"),
+    "is_public_ip": ("src.recon.dnsx_wildcard", "is_public_ip"),
+    "lookup_faviconhash": ("src.recon.favicon_fingerprint", "lookup_faviconhash"),
+    "mapcidr_cli": ("src.recon.asn_expansion", "mapcidr_cli"),
+    "merge_openapi_specs": ("src.recon.api_spec_discovery", "merge_openapi_specs"),
+    "merge_wildcard_results": ("src.recon.dnsx_wildcard", "merge_wildcard_results"),
+    "mmh3_hash_32": ("src.recon.favicon_fingerprint", "mmh3_hash_32"),
+    "parse_portspec": ("src.recon.port_scanner", "parse_portspec"),
+    "prioritize_urls": ("src.recon.scoring", "prioritize_urls"),
+    "probe_framework_endpoints": ("src.recon.spa_detection", "probe_framework_endpoints"),
+    "probe_host_without_httpx": ("src.recon.live_hosts", "probe_host_without_httpx"),
+    "probe_live_hosts": ("src.recon.live_hosts", "probe_live_hosts"),
+    "probe_live_hosts_fallback": ("src.recon.live_hosts", "probe_live_hosts_fallback"),
+    "query_parameter_names": ("src.recon.scoring", "query_parameter_names"),
+    "rank_urls": ("src.recon.scoring", "rank_urls"),
+    "recency_score": ("src.recon.url_weighting", "recency_score"),
+    "run_aggregated_archive": ("src.recon.alienurl", "run_aggregated_archive"),
+    "run_alienurl_cli": ("src.recon.alienurl", "run_alienurl_cli"),
+    "run_alterx_cli": ("src.recon.subdomain_permutator", "run_alterx_cli"),
+    "run_azure_recon_sync": ("src.recon.azure_sas", "run_azure_recon_sync"),
+    "run_dnsx_cli": ("src.recon.dnsx_wildcard", "run_dnsx_cli"),
+    "run_enhanced_recon_layer": ("src.recon.discovery", "run_enhanced_recon_layer"),
+    "run_naabu_cli": ("src.recon.port_scanner", "run_naabu_cli"),
+    "run_nuclei": ("src.recon.nuclei", "run_nuclei"),
+    "run_nuclei_jsonl": ("src.recon.nuclei", "run_nuclei_jsonl"),
+    "run_nuclei_with_parsing": ("src.recon.nuclei", "run_nuclei_with_parsing"),
+    "run_port_scan": ("src.recon.port_scanner", "run_port_scan"),
+    "run_port_scan_async": ("src.recon.port_scanner", "run_port_scan_async"),
+    "run_recon_layer": ("src.recon.discovery", "run_recon_layer"),
+    "scan_azure_accounts": ("src.recon.azure_sas", "scan_azure_accounts"),
+    "scan_targets_for_origin_leak": ("src.recon.ja3_fingerprint", "scan_targets_for_origin_leak"),
+    "score_mode_bonus": ("src.recon.scoring", "score_mode_bonus"),
+    "score_url": ("src.recon.scoring", "score_url"),
+    "score_url_weighted": ("src.recon.url_weighting", "score_url"),
+    "socket_port_scan": ("src.recon.port_scanner", "socket_port_scan"),
+    "sort_urls_by_weight": ("src.recon.url_weighting", "sort_urls_by_weight"),
+    "spa_aware_extra_urls": ("src.recon.spa_detection", "spa_aware_extra_urls"),
+    "standardize_recon_outputs": ("src.recon.standardize", "standardize_recon_outputs"),
+    "summarize_endpoints": ("src.recon.graphql_introspection", "summarize_endpoints"),
+    "trim_urls": ("src.recon.url_weighting", "trim_urls"),
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_IMPORT_MAP:
+        module_path, attr = _LAZY_IMPORT_MAP[name]
+        import importlib
+        module = importlib.import_module(module_path)
+        value = getattr(module, attr)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return list(__all__)
+
 
 __all__ = [
     "AzureReconResult",

@@ -193,7 +193,8 @@ def _get_tool_executor() -> concurrent.futures.ThreadPoolExecutor:
 def _shutdown_tool_executor() -> None:
     global _TOOL_EXECUTOR
     if _TOOL_EXECUTOR is not None:
-        _TOOL_EXECUTOR.shutdown(wait=False)
+        _TOOL_EXECUTOR.shutdown(wait=True, cancel_futures=True)
+        _TOOL_EXECUTOR = None
 
 
 atexit.register(_shutdown_tool_executor)

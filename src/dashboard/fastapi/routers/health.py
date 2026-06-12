@@ -15,7 +15,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
 
-_START_TIME: float = time.time()
+
+def _get_start_time() -> float:
+    """Get the authoritative boot time from the lifespan module."""
+    try:
+        from src.dashboard.fastapi.lifespan import _START_TIME
+        return _START_TIME or time.monotonic()
+    except ImportError:
+        return time.monotonic()
 
 
 @router.get(
@@ -137,7 +144,7 @@ async def liveness_check() -> HealthResponse:
     """Liveness check. Returns OK if the process is alive and event loop is responsive."""
     from datetime import datetime
 
-    uptime = time.monotonic() - _START_TIME
+    uptime = time.monotonic() - _get_start_time()
     checks: dict[str, Any] = {
         "uptime_seconds": round(uptime, 2),
         "process_alive": True,
