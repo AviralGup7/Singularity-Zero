@@ -16,15 +16,15 @@ from typing import Any, cast
 
 from src.core.utils.math_utils import clamp as _clamp
 
+import numpy as np
+
 # Try importing scikit-learn gracefully
 try:
-    import numpy as np
     from sklearn.linear_model import LogisticRegression
 
     HAS_ML_LIBS = True
 except ImportError:
     HAS_ML_LIBS = False
-    import numpy as np
 
 DEFAULT_REPORT_THRESHOLD = 0.50
 HIGH_CONFIDENCE_FP_THRESHOLD = 0.78
