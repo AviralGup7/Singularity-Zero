@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from src.intelligence.ml.xgboost_pipeline import HAS_ML_LIBS, XGBoostSeverityPipeline
@@ -9,6 +8,8 @@ from src.intelligence.ml.xgboost_pipeline import HAS_ML_LIBS, XGBoostSeverityPip
 
 def test_ml_fallback_vs_pipeline_regression() -> None:
     """Regression test for hand-rolled NumPy fallback vs compiled ML pipeline on the Golden Set."""
+    import numpy as np
+
     golden_set_path = Path("tests/fixtures/ml_golden_set.json")
     assert golden_set_path.exists(), "Golden set fixture is missing!"
 
@@ -55,6 +56,8 @@ def test_ml_fallback_vs_pipeline_regression() -> None:
 
 def test_pure_numpy_fallback_mathematical_identity() -> None:
     """Verify that the NumPy fallback is mathematically identical to scikit-learn LogisticRegression with the same weights."""
+    import numpy as np
+
     from src.learning.signal_quality import HAS_ML_LIBS as SK_HAS_ML
     from src.learning.signal_quality import _get_ml_pipeline
 
