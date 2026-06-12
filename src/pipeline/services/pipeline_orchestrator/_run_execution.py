@@ -555,13 +555,13 @@ def _apply_recon_degradation(
     if not policy.infra.degraded_stages:
         return
 
+    _EventType: Any = None
+    _get_event_bus: Any = None
     try:
         from src.core.events import EventType as _EventType
         from src.core.events import get_event_bus as _get_event_bus
     except Exception as exc:  # noqa: BLE001
         logger.debug("EventBus unavailable for RECON_DEGRADED: %s", exc)
-        _EventType = None  # type: ignore[assignment]
-        _get_event_bus = None  # type: ignore[assignment]
 
     for stage_name in policy.infra.degraded_stages:
         if ctx.result.stage_status.get(stage_name) != StageStatus.FAILED.value:
