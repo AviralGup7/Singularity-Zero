@@ -3,7 +3,6 @@ import unittest
 from src.execution.validators import ValidationStatus, validate_target
 from src.execution.validators.engine import build_validator_registry
 from src.execution.validators.interfaces import Validator
-from src.execution.validators.strategy import ValidationStrategy
 from src.execution.validators.validators.registry_builder import VALIDATOR_REGISTRY
 
 
