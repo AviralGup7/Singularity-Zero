@@ -196,7 +196,7 @@ class EPSSClient:
                 url,
                 headers={"User-Agent": self.user_agent, "Accept": "application/json"},
             )
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310  # nosec
                 payload = json.loads(response.read().decode("utf-8"))
         except (
             urllib.error.URLError,

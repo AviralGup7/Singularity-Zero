@@ -117,7 +117,7 @@ class FindingsRepo(BaseRepo):
             return []
         with self._cursor() as cur:
             cur.execute(
-                f"SELECT * FROM findings WHERE run_id IN ({safe_in_clause(len(run_ids))}) ORDER BY confidence DESC",  # noqa: S608
+                f"SELECT * FROM findings WHERE run_id IN ({safe_in_clause(len(run_ids))}) ORDER BY confidence DESC",  # noqa: S608  # nosec
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -183,15 +183,15 @@ class FindingsRepo(BaseRepo):
             # have recorded one but still want to surface the historical
             # finding when its category/target pattern aligns.
             placeholders = safe_in_clause(len(tech_stack))
-            cur.execute(
-                f"""SELECT f.*, sr.target_name
-                    FROM findings f
-                    JOIN scan_runs sr ON f.run_id = sr.run_id
-                    WHERE f.category = ? AND sr.target_name != ?
-                      AND (f.tech_stack IN ({placeholders}) OR f.tech_stack IS NULL OR f.tech_stack = '')
-                    ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608
-                [category, exclude_target, *tech_stack, limit],
+            query = (
+                f"SELECT f.*, sr.target_name "  # noqa: S608  # nosec
+                f"FROM findings f "
+                f"JOIN scan_runs sr ON f.run_id = sr.run_id "
+                f"WHERE f.category = ? AND sr.target_name != ? "
+                f"AND (f.tech_stack IN ({placeholders}) OR f.tech_stack IS NULL OR f.tech_stack = '') "
+                f"ORDER BY f.confidence DESC LIMIT ?"
             )
+            cur.execute(query, [category, exclude_target, *tech_stack, limit])
             return [dict(r) for r in cur.fetchall()]
 
     def count_findings_for_param(self, parameter_name: str) -> int:

@@ -564,7 +564,7 @@ def _probe_spec_url_with_auth(
     if isinstance(auth_headers, dict):
         req_headers.update({k: str(v) for k, v in auth_headers.items() if v})
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec
             url,
             timeout=max(2, timeout_seconds),
             allow_redirects=True,
@@ -686,7 +686,7 @@ def _candidate_spec_urls(
 def _probe_spec_url(url: str, *, timeout_seconds: int) -> SpecEndpoint | None:
     host = (urlparse(url).hostname or "").lower()
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec
             url,
             timeout=max(2, timeout_seconds),
             allow_redirects=True,

@@ -318,7 +318,7 @@ async def _execute_coverage_guided_fuzz(
     parsed = urlparse(url)
     base_payload = parsed.query or parsed.path or "/"
     base_signature = (
-        f"seed:{hashlib.md5(base_payload.encode('utf-8', errors='ignore')).hexdigest()[:8]}"  # noqa: S324
+        f"seed:{hashlib.md5(base_payload.encode('utf-8', errors='ignore')).hexdigest()[:8]}"  # noqa: S324  # nosec
     )
     corpus.add(payload=base_payload, signature=base_signature)
 
@@ -373,7 +373,7 @@ async def _execute_coverage_guided_fuzz(
                 continue
 
             # Use a fixed-size slice to avoid materializing large copies
-            content_hash = hashlib.md5(body[:8192].encode("utf-8", errors="replace")).hexdigest()  # noqa: S324
+            content_hash = hashlib.md5(body[:8192].encode("utf-8", errors="replace")).hexdigest()  # noqa: S324  # nosec
             edge_signature = tracker.record_edge(url, status, resp_len, content_hash)
 
             if edge_signature:

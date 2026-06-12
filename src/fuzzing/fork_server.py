@@ -102,7 +102,7 @@ class ForkServer:
 
         exit_code = result["exit_code"]
         output_len = len(result["output"])
-        output_hash = hashlib.md5(  # noqa: S324
+        output_hash = hashlib.md5(  # noqa: S324  # nosec
             result["output"][:8192].encode("utf-8", errors="replace")
         ).hexdigest()
         payload_str = payload.decode("utf-8", errors="replace")

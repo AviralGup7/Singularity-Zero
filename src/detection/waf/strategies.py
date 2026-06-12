@@ -221,7 +221,7 @@ class StrategyBundle:
 _BASE_INJECTION_PAYLOADS: tuple[str, ...] = (
     "127.0.0.1",
     "localhost",
-    "0.0.0.0",  # noqa: S104 - literal SSRF probe payload, not a network bind
+    "0.0.0.0",  # noqa: S104 - literal SSRF probe payload, not a network bind  # nosec
     "0",
     "127.1",
     "127.0.1",

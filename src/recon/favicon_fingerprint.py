@@ -162,7 +162,7 @@ def _fetch_favicon_for_host(
     for path in _FAVICON_PATHS:
         url = urljoin(origin.rstrip("/") + "/", path.lstrip("/"))
         try:
-            resp = requests.get(
+            resp = requests.get(  # nosec
                 url,
                 timeout=max(2, int(timeout)),
                 allow_redirects=True,
@@ -242,7 +242,7 @@ def lookup_faviconhash(mmh3_value: int, *, timeout: int = 8) -> list[dict[str, A
         or the hash is unknown.
     """
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec
             f"https://faviconhash.com/api/hash/{mmh3_value}",
             timeout=max(2, int(timeout)),
             headers={"User-Agent": USER_AGENT},

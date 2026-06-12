@@ -240,7 +240,7 @@ def _probe_preview_host(
     if not host or not is_safe_url(f"https://{host}"):
         return None
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec
             f"https://{host}",
             timeout=max(2, int(timeout)),
             allow_redirects=True,

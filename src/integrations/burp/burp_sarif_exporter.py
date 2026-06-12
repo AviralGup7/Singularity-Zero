@@ -86,7 +86,7 @@ def export_to_burp_sarif(findings: Any, output_path: str) -> Path:
 def _rule_id_for(finding: dict[str, Any]) -> str:
     category = str(finding.get("category", "")).strip() or "external"
     severity = str(finding.get("severity", "")).strip() or "info"
-    suffix = hashlib.sha1(finding.get("url", "").encode("utf-8")).hexdigest()[:8]  # noqa: S324
+    suffix = hashlib.sha1(finding.get("url", "").encode("utf-8")).hexdigest()[:8]  # noqa: S324  # nosec
     return f"burp/{category}/{severity}/{suffix}"
 
 
