@@ -82,8 +82,8 @@ class _ShutdownFlagProxy:
     def clear(self) -> None:
         _shutdown_event_singleton().clear()
 
-    def __await__(self):
-        return _shutdown_event_singleton().__await__()
+    def __await__(self) -> Any:
+        return _shutdown_event_singleton().wait().__await__()
 
 
 shutdown_flag = _ShutdownFlagProxy()
