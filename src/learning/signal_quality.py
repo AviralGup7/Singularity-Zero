@@ -14,9 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-from src.core.utils.math_utils import clamp as _clamp
-
 import numpy as np
+
+from src.core.utils.math_utils import clamp as _clamp
 
 # Try importing scikit-learn gracefully
 try:
