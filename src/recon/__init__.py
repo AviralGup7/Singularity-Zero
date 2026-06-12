@@ -34,13 +34,19 @@ _LAZY_IMPORT_MAP: dict[str, tuple[str, str]] = {
     "detect_wildcard_sync": ("src.recon.dnsx_wildcard", "detect_wildcard_sync"),
     "discover_api_specs": ("src.recon.api_spec_discovery", "discover_api_specs"),
     "discover_graphql_endpoints": ("src.recon.graphql_introspection", "discover_graphql_endpoints"),
-    "discover_preview_deployments": ("src.recon.preview_deployments", "discover_preview_deployments"),
+    "discover_preview_deployments": (
+        "src.recon.preview_deployments",
+        "discover_preview_deployments",
+    ),
     "emit_collection_progress": ("src.recon.urls", "emit_collection_progress"),
     "enumerate_subdomains": ("src.recon.subdomains", "enumerate_subdomains"),
     "expand_ips_to_cidrs": ("src.recon.asn_expansion", "expand_ips_to_cidrs"),
     "extract_endpoint_calls": ("src.recon.js_parsers_v2", "extract_endpoint_calls"),
     "extract_endpoints_v2": ("src.recon.js_parsers_v2", "extract_endpoints_v2"),
-    "extract_html_attribute_endpoints": ("src.recon.js_parsers_v2", "extract_html_attribute_endpoints"),
+    "extract_html_attribute_endpoints": (
+        "src.recon.js_parsers_v2",
+        "extract_html_attribute_endpoints",
+    ),
     "extract_operation_summaries": ("src.recon.api_spec_discovery", "extract_operation_summaries"),
     "extract_parameters": ("src.recon.filters", "extract_parameters"),
     "extract_source_map_url": ("src.recon.js_parsers_v2", "extract_source_map_url"),
@@ -102,6 +108,7 @@ def __getattr__(name: str):
     if name in _LAZY_IMPORT_MAP:
         module_path, attr = _LAZY_IMPORT_MAP[name]
         import importlib
+
         module = importlib.import_module(module_path)
         value = getattr(module, attr)
         globals()[name] = value
