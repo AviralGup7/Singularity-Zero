@@ -1,25 +1,28 @@
-"""Root conftest – force critical C-extension imports before test collection.
+"""Root conftest -- pin numpy C-extension before test collection.
 
-On Python 3.13+ with numpy 2.x, the C-extension ``_multiarray_umath`` uses
-multi-phase init.  If it is loaded through *two* different module-resolution
-paths (easy to trigger with ``--import-mode=importlib`` and a package-style
-``src.`` tree), Python raises:
+On Python 3.13+ with numpy 2.x, the multi-phase-init C-extension
+``_multiarray_umath`` raises ``ImportError: cannot load module more than
+once per process`` when pytest's ``_import_module_using_spec`` creates
+fresh module namespaces.
 
-    ImportError: cannot load module more than once per process
-
-Importing numpy once here – before pytest touches *any* test module – pins
-it in ``sys.modules`` under a single identity so every subsequent
-``import numpy`` inside test code finds the already-loaded module.
+Importing numpy at pytest_configure time (earliest hook) pins it in
+``sys.modules`` so every later ``import numpy`` resolves to the cached
+module without re-loading the C-extension.
 """
 
 from __future__ import annotations
 
-import importlib
 import sys
 
-for _mod in ("numpy", "numpy.core", "numpy._core"):
-    if _mod not in sys.modules:
-        try:
-            importlib.import_module(_mod)
-        except ImportError:
-            pass
+
+def pytest_configure(config):  # type: ignore[no-untyped-def]
+    """Import numpy once before any test collection begins."""
+    import numpy  # noqa: F401
+
+    # Also pre-import critical sub-modules to prevent partial-load races.
+    for _sub in ("numpy.core", "numpy._core"):
+        if _sub not in sys.modules:
+            try:
+                __import__(_sub)
+            except Exception:
+                pass
