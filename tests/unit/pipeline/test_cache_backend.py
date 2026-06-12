@@ -12,8 +12,6 @@ import pytest
 
 from src.core.middleware.cache_bypass import CacheBypassMiddleware
 from src.pipeline.cache import (
-    load_cached_json,
-    load_cached_set,
     response_cache_fresh,
     save_cached_json,
     save_cached_set,

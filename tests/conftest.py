@@ -152,6 +152,7 @@ def _setup_pykka_compat():
                 self._stop_event = threading.Event()
                 self._thread = None
 
+            @classmethod
             def start(cls, *args, **kwargs):
                 actor_instance = cls(*args, **kwargs)
                 ref = ActorRef(actor_instance)
@@ -160,7 +161,6 @@ def _setup_pykka_compat():
                 actor_instance._ref = ref
                 t.start()
                 return ref
-            start = classmethod(start)
 
             def _run(self):
                 while not self._stop_event.is_set():
