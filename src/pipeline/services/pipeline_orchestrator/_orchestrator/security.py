@@ -390,6 +390,11 @@ async def run_secured(
     stage_methods = orchestrator._build_stage_methods()
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
 
+    if getattr(args, "dry_run", False):
+        logger.info("Dry-run mode: config and tools validated successfully; skipping stage execution.")
+        emit_progress("startup", "Dry-run complete", 100, status="completed")
+        return 0
+
     nuclei_status: Any = tool_status.get("nuclei", {})
     if isinstance(nuclei_status, dict):
         nuclei_available = nuclei_status.get("available", False)
