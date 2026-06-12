@@ -119,7 +119,7 @@ def _http_get(url: str, *, timeout: float = 5.0) -> dict[str, Any] | None:
         req = urllib.request.Request(  # noqa: S310
             url, method="GET", headers={"User-Agent": "finding-revalidator/1.0"}
         )  # noqa: S310
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310  # nosec
             return {
                 "status_code": int(getattr(resp, "status", 200) or 200),
                 "body": resp.read(2_000_000).decode("utf-8", errors="replace"),

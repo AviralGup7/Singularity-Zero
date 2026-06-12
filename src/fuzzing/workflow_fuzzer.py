@@ -390,7 +390,7 @@ class WorkflowFuzzer:
         return findings[:limit]
 
     def _record_edge(self, url: str, response: httpx.Response, endpoint_key: str) -> None:
-        body_hash = hashlib.md5(  # noqa: S324
+        body_hash = hashlib.md5(  # noqa: S324  # nosec
             response.text[:4096].encode("utf-8", errors="ignore")
         ).hexdigest()[:8]
         signature = f"wf:{endpoint_key}:{response.status_code}:{len(response.text)}:{body_hash}"

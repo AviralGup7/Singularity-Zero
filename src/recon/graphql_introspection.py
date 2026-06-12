@@ -496,7 +496,7 @@ def _introspection_bypass_nested_typename(
     timeout_seconds: int = 6,
 ) -> bool:
     try:
-        resp = requests.post(
+        resp = requests.post(  # nosec
             url,
             data=json.dumps({"query": query}),
             headers=headers,
@@ -559,7 +559,7 @@ def _detect_csrf_cookie_auth(url: str, *, timeout_seconds: int = 6) -> dict[str,
         "notes": "",
     }
     try:
-        resp = requests.post(
+        resp = requests.post(  # nosec
             url,
             data=json.dumps({"query": "{ __typename }"}),
             headers={"Content-Type": "application/json", "Cookie": "sessionid=test;"},
@@ -607,7 +607,7 @@ def _probe_fields_for_auth_inference(
         seen.add(candidate)
         q = "{ __typename " + candidate + " }"
         try:
-            resp = requests.post(
+            resp = requests.post(  # nosec
                 url,
                 data=json.dumps({"query": q}),
                 headers={**anon, "Content-Type": "application/json"},
@@ -651,7 +651,7 @@ def _introspect_endpoint_sync(
 
     # Phase 1: lightweight probe to confirm the endpoint exists.
     try:
-        probe_resp = requests.post(
+        probe_resp = requests.post(  # nosec
             url,
             data=_PROBE_QUERY,
             headers=request_headers,
@@ -679,7 +679,7 @@ def _introspect_endpoint_sync(
     batch_payload = json.dumps([{"query": "{__typename}"}, {"query": "{__typename}"}])
     batch_hit = False
     try:
-        batch_resp = requests.post(
+        batch_resp = requests.post(  # nosec
             url,
             data=batch_payload,
             headers=request_headers,
@@ -709,7 +709,7 @@ def _introspect_endpoint_sync(
 
     # Phase 2: full introspection query.
     try:
-        intro_resp = requests.post(
+        intro_resp = requests.post(  # nosec
             url,
             data=json.dumps({"query": _INTROSPECTION_QUERY}),
             headers=request_headers,

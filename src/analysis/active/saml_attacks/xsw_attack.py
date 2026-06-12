@@ -94,7 +94,7 @@ def _is_web_target(host: str) -> bool:
     host = host.lower().strip()
     if host.endswith((".local", ".lan", ".internal")):
         return False
-    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):  # noqa: S104
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):  # noqa: S104  # nosec
         return False
     import re
 

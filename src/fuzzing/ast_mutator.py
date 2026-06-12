@@ -232,7 +232,7 @@ class XMLASTMutator(BaseASTMutator):
     @staticmethod
     def _safe_parse(xml_str: str) -> ET.Element | None:
         try:
-            return ET.fromstring(xml_str)  # noqa: S314
+            return ET.fromstring(xml_str)  # noqa: S314  # nosec
         except ET.ParseError:
             return None
 

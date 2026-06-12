@@ -605,7 +605,7 @@ class VulnCorrelationEngine:
             [chain.chain_kind, chain.name]
             + [str(s.get("id") or s.get("url") or "") for s in chain.steps]
         )
-        return f"chain_{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:10]}"  # noqa: S324
+        return f"chain_{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:10]}"  # noqa: S324  # nosec
 
 
 def _parse_host_path(value: str) -> tuple[str, str]:

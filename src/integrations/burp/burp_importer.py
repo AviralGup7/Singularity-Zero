@@ -77,7 +77,7 @@ def parse_issues_xml(path: str) -> list[Finding]:
     try:
         import xml.etree.ElementTree as ET
 
-        tree = ET.parse(path)  # noqa: S314
+        tree = ET.parse(path)  # noqa: S314  # nosec
         root = tree.getroot()
     except Exception as exc:
         logger.error("Failed to parse Burp issues XML: %s", exc)

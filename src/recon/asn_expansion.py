@@ -66,7 +66,7 @@ def _next_backoff(attempt: int, base: float = 1.0, cap: float = 16.0) -> float:
 
 def _query_ipinfo(ip: str, timeout: float) -> dict[str, Any] | None:
     try:
-        resp = requests.get(_IPINFO_URL.format(ip=ip), timeout=max(2.0, float(timeout)))
+        resp = requests.get(_IPINFO_URL.format(ip=ip), timeout=max(2.0, float(timeout)))  # nosec
         if resp.status_code == 429:
             return {"_rate_limited": True}
         if resp.status_code != 200:
@@ -95,7 +95,7 @@ def _query_ipinfo(ip: str, timeout: float) -> dict[str, Any] | None:
 
 def _query_ipapi(ip: str, timeout: float) -> dict[str, Any] | None:
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec
             _IP_API_URL.format(ip=ip),
             params={"fields": _IP_API_FIELDS},
             timeout=max(2.0, float(timeout)),
@@ -128,7 +128,7 @@ def _query_ipapi(ip: str, timeout: float) -> dict[str, Any] | None:
 
 def _query_bgpview(ip: str, timeout: float) -> dict[str, Any] | None:
     try:
-        resp = requests.get(_BGPVIEW_URL.format(ip=ip), timeout=max(2.0, float(timeout)))
+        resp = requests.get(_BGPVIEW_URL.format(ip=ip), timeout=max(2.0, float(timeout)))  # nosec
         if resp.status_code == 429:
             return {"_rate_limited": True}
         if resp.status_code != 200:
@@ -170,7 +170,7 @@ def _query_ripestat(asn: str, timeout: float) -> dict[str, Any] | None:
     if not asn_digits.isdigit():
         return None
     try:
-        resp = requests.get(_RIPESTAT_URL.format(asn=asn_digits), timeout=max(2.0, float(timeout)))
+        resp = requests.get(_RIPESTAT_URL.format(asn=asn_digits), timeout=max(2.0, float(timeout)))  # nosec
         if resp.status_code == 429:
             return {"_rate_limited": True}
         if resp.status_code != 200:

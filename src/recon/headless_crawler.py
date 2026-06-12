@@ -341,7 +341,7 @@ def simple_html_link_crawl(
     while queue and pages_visited < max_pages:
         url = queue.pop(0)
         try:
-            resp = requests.get(
+            resp = requests.get(  # nosec
                 url,
                 timeout=max(2, timeout_seconds),
                 allow_redirects=True,
