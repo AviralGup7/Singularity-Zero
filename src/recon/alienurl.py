@@ -134,7 +134,7 @@ def run_aggregated_archive(
         if progress_callback is not None and urls:
             try:
                 progress_callback(provider, len(discovered) - before)
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     providers = (

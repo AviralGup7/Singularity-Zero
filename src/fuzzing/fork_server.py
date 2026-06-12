@@ -102,7 +102,7 @@ class ForkServer:
 
         exit_code = result["exit_code"]
         output_len = len(result["output"])
-        output_hash = hashlib.md5(
+        output_hash = hashlib.md5(  # noqa: S324
             result["output"][:8192].encode("utf-8", errors="replace")
         ).hexdigest()
         payload_str = payload.decode("utf-8", errors="replace")
@@ -168,7 +168,7 @@ class ForkServer:
                     seed = entry.payload.encode("utf-8", errors="ignore")
 
             if seed is None:
-                seed = secrets.token_bytes(random.randint(8, 64))
+                seed = secrets.token_bytes(random.randint(8, 64))  # noqa: S311
 
             # Mutate the seed
             mutated = mutation_func(seed)

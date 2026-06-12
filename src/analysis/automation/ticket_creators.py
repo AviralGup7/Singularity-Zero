@@ -102,7 +102,7 @@ class TicketCreatorBase:
         category = str(finding.get("category", ""))
         title = str(finding.get("title", ""))
         payload = f"{category}|{url}|{title}".encode()
-        return hashlib.sha1(payload).hexdigest()
+        return hashlib.sha1(payload).hexdigest()  # noqa: S324
 
     def _should_create(self, finding: Mapping[str, Any]) -> bool:
         if not self.enabled:

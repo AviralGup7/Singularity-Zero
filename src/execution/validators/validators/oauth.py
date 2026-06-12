@@ -69,7 +69,7 @@ SCOPE_ELEVATION_PAYLOADS: list[str] = [
 
 def _generate_state_token() -> str:
     """Generate a random state token for CSRF testing."""
-    return "".join(random.choices(string.ascii_letters + string.digits, k=16))
+    return "".join(random.choices(string.ascii_letters + string.digits, k=16))  # noqa: S311
 
 
 def _build_authorize_url(

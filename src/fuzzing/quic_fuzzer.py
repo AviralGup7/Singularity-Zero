@@ -60,7 +60,7 @@ def _build_quic_initial_packet(dcid: bytes, scid: bytes) -> bytes:
     header += struct.pack("!B", len(dcid)) + dcid
     header += struct.pack("!B", len(scid)) + scid
     header += struct.pack("!B", 0)  # token length
-    payload_len = random.randint(100, 400)
+    payload_len = random.randint(100, 400)  # noqa: S311
     payload = secrets.token_bytes(payload_len)
     return header + payload
 
@@ -74,7 +74,7 @@ def _build_quic_invalid_packet() -> bytes:
     header = struct.pack("!B4s", 0xC0, 0xFFFFFFFF)
     header += struct.pack("!B", 0)
     header += struct.pack("!B", 0)
-    payload_len = random.randint(50, 200)
+    payload_len = random.randint(50, 200)  # noqa: S311
     payload = secrets.token_bytes(payload_len)
     return header + payload
 
@@ -82,7 +82,7 @@ def _build_quic_invalid_packet() -> bytes:
 def _quic_continuation_flood_payload(base: bytes, num_frames: int = 50) -> bytes:
     frames = bytearray()
     for _ in range(num_frames):
-        length = random.randint(1, 4096)
+        length = random.randint(1, 4096)  # noqa: S311
         frame_data = secrets.token_bytes(length)
         frames += struct.pack("!B", 0x09) + struct.pack("!I", length)[1:] + frame_data
     return bytes(frames)
@@ -143,8 +143,8 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
                 "response_bytes": 0,
                 "response_preview": "",
             }
-        dcid = random.randbytes(random.randint(8, 20))
-        scid = random.randbytes(random.randint(8, 20))
+        dcid = random.randbytes(random.randint(8, 20))  # noqa: S311
+        scid = random.randbytes(random.randint(8, 20))  # noqa: S311
         initial_pkt = _build_quic_initial_packet(dcid, scid)
         transport.sendto(initial_pkt)
 

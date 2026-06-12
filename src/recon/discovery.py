@@ -201,7 +201,7 @@ def _reprobe_origin_hosts(
                 if progress_callback is not None:
                     try:
                         progress_callback(host, ["origin-discovery"])
-                    except Exception:  # noqa: BLE001
+                    except Exception:  # noqa: BLE001, S110
                         pass
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("origin re-probe failed: %s", exc)
@@ -260,7 +260,7 @@ def _run_spa_discovery(
             if progress_callback is not None:
                 try:
                     progress_callback(host, [h.framework for h in hits])
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
     return {
         "hits": [h.framework for h in all_hits],
@@ -296,7 +296,7 @@ def _run_azure_for_scope(
         if progress_callback is not None:
             try:
                 progress_callback(entry, len(res.web_endpoints))
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
     return out
 
@@ -377,7 +377,7 @@ def run_enhanced_recon_layer(
                 try:
                     asn_cidrs = _asn_cidrs_for_hosts(port_hosts)
                     port_hosts = list(set(port_hosts) | asn_cidrs)
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
             for source_hosts in (extras.get("probed_ips"), extras.get("waf_cdn_ips")):
                 if isinstance(source_hosts, set) and source_hosts:
@@ -522,7 +522,7 @@ def run_enhanced_recon_layer(
                 )
                 combined: set[str] = live_hosts | set(waf_live_hosts)
                 live_hosts = combined  # type: ignore[assignment]
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
         report = _safe_call(
             "waf-cdn-report",

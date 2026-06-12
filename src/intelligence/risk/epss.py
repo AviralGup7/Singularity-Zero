@@ -185,18 +185,18 @@ class EPSSClient:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
         return [c for c in cves if c]
 
     def _fetch_remote(self, cve: str) -> EPSSScore | None:
         url = f"{self.endpoint}?cve={cve}"
         try:
-            request = urllib.request.Request(
+            request = urllib.request.Request(  # noqa: S310
                 url,
                 headers={"User-Agent": self.user_agent, "Accept": "application/json"},
             )
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
                 payload = json.loads(response.read().decode("utf-8"))
         except (
             urllib.error.URLError,

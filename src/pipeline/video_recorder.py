@@ -158,11 +158,11 @@ class VideoRecorder:
                 result.duration_seconds = time.monotonic() - start
                 try:
                     await context.close()
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
                 try:
                     await browser.close()
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
 
         # Playwright writes the file with a generated name; rename it

@@ -343,7 +343,7 @@ class WebSocketHandler:
         # (e.g. cleanup or "ack" path).
         try:
             info.user_id = auth.user_id  # already set by manager.connect
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
         for channel in default_channels:
@@ -507,7 +507,7 @@ class WebSocketHandler:
         if not await self._authorize_subscription(info, message):
             try:
                 WS_AUTHZ_REJECTIONS.labels(reason="forbidden", channel=channel or "-").inc()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
             try:
                 err = ErrorMessage(
@@ -517,11 +517,11 @@ class WebSocketHandler:
                     recoverable=False,
                 )
                 await info.websocket.send_text(err.to_json())
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
             try:
                 await info.websocket.close(code=4003, reason="Forbidden")
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
             logger.warning(
                 "Subscription to %s denied for user %s on connection %s",

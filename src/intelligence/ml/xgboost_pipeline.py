@@ -119,7 +119,7 @@ class XGBoostSeverityPipeline:
             try:
                 # scikit-learn / xgboost both accept ``sample_weight``.
                 fit_kwargs["sample_weight"] = weights
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
 
             if hasattr(self.model, "fit"):

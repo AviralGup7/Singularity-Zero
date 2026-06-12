@@ -703,7 +703,7 @@ class Broadcaster:
             WS_DROPPED_MESSAGES.labels(
                 scope=scope, job_id=job_id_label or "-", user_id=info.user_id or "-"
             ).inc()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # Determine how many messages we are about to drop.
@@ -769,7 +769,7 @@ class Broadcaster:
                     )
             try:
                 WS_BACKPRESSURE_EVENTS.labels(scope=scope).inc()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
         except Exception as exc:  # noqa: BLE001
             logger.debug("Backpressure notification construction failed: %s", exc)

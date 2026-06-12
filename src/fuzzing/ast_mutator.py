@@ -169,7 +169,7 @@ class XMLASTMutator(BaseASTMutator):
             r">([^<]{0,10000})<",
             lambda m: (
                 ">"
-                + random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null", "${7*7}", ""])
+                + random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null", "${7*7}", ""])  # noqa: S311
                 + "<"
             ),
             xml_str,
@@ -197,7 +197,7 @@ class XMLASTMutator(BaseASTMutator):
             return None
         if len(root) == 0:
             return None
-        target = root[random.randint(0, len(root) - 1)]
+        target = root[random.randint(0, len(root) - 1)]  # noqa: S311
         for _ in range(20):
             wrapper = ET.Element("nested")
             wrapper.append(target)
@@ -220,7 +220,7 @@ class XMLASTMutator(BaseASTMutator):
             lambda m: (
                 m.group(1)
                 + '="'
-                + random.choice(["' OR '1'='1", "><script>", "", "null", "${7*7}"])
+                + random.choice(["' OR '1'='1", "><script>", "", "null", "${7*7}"])  # noqa: S311
                 + '"'
             ),
             xml_str,
@@ -232,7 +232,7 @@ class XMLASTMutator(BaseASTMutator):
     @staticmethod
     def _safe_parse(xml_str: str) -> ET.Element | None:
         try:
-            return ET.fromstring(xml_str)
+            return ET.fromstring(xml_str)  # noqa: S314
         except ET.ParseError:
             return None
 
@@ -268,7 +268,7 @@ class HTMLASTMutator(BaseASTMutator):
             lambda m: (
                 m.group(1)
                 + '="'
-                + random.choice(["javascript:alert(1)", "'';!--\"<XSS>=&{()}"])
+                + random.choice(["javascript:alert(1)", "'';!--\"<XSS>=&{()}"])  # noqa: S311
                 + '"'
             ),
             html_str,
@@ -287,8 +287,8 @@ class HTMLASTMutator(BaseASTMutator):
             tag = m.group(1)
             if any(ev.split("=")[0] in tag for ev in events):
                 return tag + ">"
-            event = random.choice(events)
-            handler = random.choice(handlers)
+            event = random.choice(events)  # noqa: S311
+            handler = random.choice(handlers)  # noqa: S311
             return f'{tag} {event}="{handler}">'
 
         result = tag_pattern.sub(_inject, html_str)
@@ -315,7 +315,7 @@ class HTMLASTMutator(BaseASTMutator):
             "<body onload=alert(1)>",
             "<input autofocus onfocus=alert(1)>",
         ]
-        result = html_str + random.choice(scripts)
+        result = html_str + random.choice(scripts)  # noqa: S311
         if not isinstance(result, str):
             return None
         return result

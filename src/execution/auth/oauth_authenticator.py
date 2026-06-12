@@ -115,7 +115,7 @@ class OAuthToken:
     """Resulting OAuth token bundle."""
 
     access_token: str
-    token_type: str = "Bearer"
+    token_type: str = "Bearer"  # noqa: S105
     refresh_token: str | None = None
     id_token: str | None = None
     scope: str | None = None
