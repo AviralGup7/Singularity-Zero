@@ -38,8 +38,8 @@ implement them, see docs/architecture-overview.md.
 ## Quick Start
 
 `ash
-# 1. Setup environment (Python 3.12 or newer required)
-python3.12 -m venv .venv
+# 1. Setup environment (Python 3.13 or newer required)
+python3.13 -m venv .venv
 source .venv/bin/activate           # Windows: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 

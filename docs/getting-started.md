@@ -7,7 +7,7 @@ This guide covers environment setup, contribution guidelines, and debugging reci
 ## 🚀 Quick Start
 
 ### 1. Prerequisites
-- **Python 3.12+** (Required)
+- **Python 3.13+** (Required)
 - **Node.js 18+** (For the React dashboard)
 - **Go** (For recon tools)
 - **Docker & Compose** (For containerized deployment)
@@ -16,7 +16,7 @@ This guide covers environment setup, contribution guidelines, and debugging reci
 ```bash
 git clone <repo-url> cyber-pipeline
 cd cyber-pipeline
-python3 -m venv .venv  # Python 3.12 or newer required
+python3 -m venv .venv  # Python 3.13 or newer required
 source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
 pip install -e ".[dev]"
 ```
