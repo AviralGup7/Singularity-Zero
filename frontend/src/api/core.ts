@@ -280,7 +280,7 @@ interface CachedRequestOptions {
   signal?: AbortSignal;
   ttl?: number;
   bypassCache?: boolean;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
   timeout?: number;
   schema?: z.ZodSchema;
 }

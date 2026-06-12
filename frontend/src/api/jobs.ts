@@ -19,7 +19,7 @@ export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl
   const res = await cachedGet<{ jobs: Job[]; total: number }>('/api/jobs', { 
     signal, 
     ttl,
-    params,
+    params: params as Record<string, unknown>,
     schema: z.object({ jobs: z.array(JobSchema) })
   });
   return res.jobs ?? [];
