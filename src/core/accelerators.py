@@ -8,10 +8,12 @@ from __future__ import annotations
 import logging
 import platform
 import re
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    import numpy as np
 
 import msgpack
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,8 @@ def vectorized_regex_search(data_list: list[str], pattern: str) -> np.ndarray:
     Search for a regex pattern across a large list of strings using vectorized dispatch.
     Returns a boolean mask.
     """
+    import numpy as np
+
     regex = re.compile(pattern)
     # Fast path: Vectorized search via numpy.frompyfunc
     vec_match = np.frompyfunc(lambda x: bool(regex.search(str(x))), 1, 1)
@@ -38,6 +42,8 @@ def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str
     """
     High-speed URL filtering using numpy-based extension matching.
     """
+    import numpy as np
+
     if not urls:
         return []
 
@@ -72,6 +78,7 @@ def compute_entropy_vectorized(data_list: list[str]) -> np.ndarray:
     Compute Shannon Entropy for a large set of strings in parallel.
     Useful for detecting encoded secrets/tokens.
     """
+    import numpy as np
 
     def shannon(s: str) -> float:
         if not s:

@@ -5,12 +5,17 @@ two screenshots. Accepts file paths or base64-encoded image data.
 Returns diff metrics and an annotated diff image.
 """
 
+from __future__ import annotations
+
 import base64
 import io
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFont
+
+if TYPE_CHECKING:
+    import numpy as np
 from pydantic import BaseModel, Field
 from scipy.signal import convolve2d
 
@@ -80,6 +85,8 @@ def _compute_mse(img_a: Image.Image, img_b: Image.Image) -> float:
 
 
 def _gaussian_kernel(size: int = 11, sigma: float = 1.5) -> np.ndarray:
+    import numpy as np
+
     x = np.arange(-(size // 2), size // 2 + 1)
     kernel = np.exp(-0.5 * (x**2) / sigma**2)
     kernel2d = np.outer(kernel, kernel)
@@ -91,6 +98,8 @@ def _compute_ssim(
     img_a: Image.Image, img_b: Image.Image, win_size: int = 11, sigma: float = 1.5
 ) -> float:
     """Compute structural similarity (SSIM) using a 2D Gaussian window."""
+    import numpy as np
+
     # Convert to grayscale float array
     arr_a = np.array(img_a.convert("L"), dtype=float)
     arr_b = np.array(img_b.convert("L"), dtype=float)
