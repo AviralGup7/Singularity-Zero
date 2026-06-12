@@ -125,7 +125,7 @@ class ObservabilityBus:
             # Clean up the LearningIntegration if registration fails
             try:
                 self.learning_integration.close()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
             self.learning_integration = LearningIntegration.get_or_create()
 

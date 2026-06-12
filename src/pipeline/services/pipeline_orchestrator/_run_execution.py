@@ -204,7 +204,7 @@ async def execute_remaining_stages(
             if state is not None and hasattr(state, "stage_outputs"):
                 for stage_name in state.stage_outputs:
                     completed_stages.add(stage_name)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
     # The recon validator is a post-completion hook on ``urls``.  It
