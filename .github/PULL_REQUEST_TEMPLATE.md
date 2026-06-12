@@ -40,7 +40,7 @@ Closes #
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings
 - [ ] I have updated the changelog (if applicable)
-- [ ] I have tested this on Python 3.14+
+- [ ] I have tested this on Python 3.13
 
 ## Screenshots
 
