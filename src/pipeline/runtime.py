@@ -323,12 +323,17 @@ async def _run_replay(args: argparse.Namespace) -> int:
         launcher_dirs = list(tmp_path.glob("_launcher/*"))
         if not launcher_dirs:
             is_reporting_skipped = (
-                config.get("dry_run", False) or
-                (isinstance(config.get("stages"), list) and "reporting" not in config["stages"]) or
-                (isinstance(config.get("skip_stages"), list) and "reporting" in config["skip_stages"])
+                config.get("dry_run", False)
+                or (isinstance(config.get("stages"), list) and "reporting" not in config["stages"])
+                or (
+                    isinstance(config.get("skip_stages"), list)
+                    and "reporting" in config["skip_stages"]
+                )
             )
             if is_reporting_skipped:
-                emit_info("No launcher artifacts expected (dry-run or reporting skipped). Replay successful.")
+                emit_info(
+                    "No launcher artifacts expected (dry-run or reporting skipped). Replay successful."
+                )
                 return 0
             emit_warning("No launcher artifacts produced during replay")
             return 1

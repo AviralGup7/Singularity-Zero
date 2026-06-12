@@ -12,7 +12,6 @@ from src.dashboard.job_state_helpers import (
     _coerce_float,
     _coerce_int,
     _event_texts,
-    _finalize_stage,
     _increment_state_version,
     _mark_stage_done,
     _mark_stage_running,
@@ -498,8 +497,6 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
     previous_status = _normalize_stage_status(sp.get("status"))
     stage_status = _normalize_stage_status(payload.get("status") or payload.get("stage_status"))
 
-
-
     if processed is not None:
         sp["processed"] = max(0, processed)
     if total is not None and total > 0:
@@ -607,9 +604,11 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
         )
 
     inferred = _infer_percent(job, stage, payload)
-    
+
     is_retry = False
-    retry_count = _coerce_int(payload.get("retry_count")) or _coerce_int(payload.get("retry_attempt"))
+    retry_count = _coerce_int(payload.get("retry_count")) or _coerce_int(
+        payload.get("retry_attempt")
+    )
     if retry_count and retry_count > 0:
         is_retry = True
     elif incoming_message and "retry" in incoming_message.lower():

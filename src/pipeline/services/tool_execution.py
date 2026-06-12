@@ -178,21 +178,23 @@ class ToolExecutionError(RuntimeError):
 _TOOL_EXECUTOR: concurrent.futures.ThreadPoolExecutor | None = None
 _TOOL_EXECUTOR_LOCK = threading.Lock()
 
+
 def _get_tool_executor() -> concurrent.futures.ThreadPoolExecutor:
     global _TOOL_EXECUTOR
     if _TOOL_EXECUTOR is None:
         with _TOOL_EXECUTOR_LOCK:
             if _TOOL_EXECUTOR is None:
                 _TOOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-                    max_workers=200,
-                    thread_name_prefix="tool_exec"
+                    max_workers=200, thread_name_prefix="tool_exec"
                 )
     return _TOOL_EXECUTOR
+
 
 def _shutdown_tool_executor() -> None:
     global _TOOL_EXECUTOR
     if _TOOL_EXECUTOR is not None:
         _TOOL_EXECUTOR.shutdown(wait=False)
+
 
 atexit.register(_shutdown_tool_executor)
 

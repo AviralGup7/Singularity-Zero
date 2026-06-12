@@ -96,14 +96,22 @@ class LearningIntegration:
         global _integration_instance
 
         if _integration_instance is not None:
-            target = ctx.get("target_name") if isinstance(ctx, dict) else getattr(ctx, "target_name", None)
+            target = (
+                ctx.get("target_name")
+                if isinstance(ctx, dict)
+                else getattr(ctx, "target_name", None)
+            )
             if ctx and getattr(_integration_instance, "_current_target", None) != target:
                 _integration_instance._current_target = target
             return _integration_instance
 
         with _integration_lock:
             if _integration_instance is not None:
-                target = ctx.get("target_name") if isinstance(ctx, dict) else getattr(ctx, "target_name", None)
+                target = (
+                    ctx.get("target_name")
+                    if isinstance(ctx, dict)
+                    else getattr(ctx, "target_name", None)
+                )
                 if ctx and getattr(_integration_instance, "_current_target", None) != target:
                     _integration_instance._current_target = target
                 return _integration_instance
@@ -189,6 +197,7 @@ class LearningIntegration:
             loop = None
 
         if loop is not None and loop.is_running():
+
             def run_coro(coro: Any) -> None:
                 import threading
 

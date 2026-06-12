@@ -312,6 +312,7 @@ def build_pipeline_graph(
                 )
         if pruned_stages:
             import dataclasses
+
             new_nodes = []
             for n in nodes:
                 if any(p in n.needs for p in pruned_stages):

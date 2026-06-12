@@ -145,6 +145,7 @@ class RunLock:
             True on success, False if the lock is already held.
         """
         import uuid
+
         with self._thread_lock:
             if self._acquired:
                 raise RuntimeError("RunLock is already acquired. Call release() first.")
@@ -178,7 +179,7 @@ class RunLock:
             self._lock_file = self._cache_dir / f"{scan_id}.lock"
             if self._lock_file.exists():
                 try:
-                    with open(self._lock_file, "r") as f:
+                    with open(self._lock_file) as f:
                         val = f.read().strip()
                     if owner_id and val == owner_id:
                         self._acquired = True

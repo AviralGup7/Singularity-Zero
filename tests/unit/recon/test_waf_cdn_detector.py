@@ -75,8 +75,9 @@ class TestWafCdnDetector:
             200, headers={"X-Served-By": "fastly"}, request=httpx.Request("GET", url2)
         )
 
-        with patch("httpx.AsyncClient.get") as mock_get, patch(
-            "src.recon.waf_cdn_detector.is_safe_url", return_value=True
+        with (
+            patch("httpx.AsyncClient.get") as mock_get,
+            patch("src.recon.waf_cdn_detector.is_safe_url", return_value=True),
         ):
             mock_get.side_effect = [mock_resp1, mock_resp2]
 

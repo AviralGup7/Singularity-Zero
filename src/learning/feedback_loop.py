@@ -170,7 +170,7 @@ class FeedbackLoopEngine:
     ) -> None:
         """Compute target endpoint boosts and suppressions."""
         # Create a mapping of run_id to decay factor based on position (newest to oldest)
-        run_decay = {run_id: (0.9 ** idx) for idx, run_id in enumerate(run_ids)}
+        run_decay = {run_id: (0.9**idx) for idx, run_id in enumerate(run_ids)}
 
         # Aggregate feedback by endpoint
         endpoint_stats: dict[str, dict[str, Any]] = {}
@@ -192,7 +192,7 @@ class FeedbackLoopEngine:
                 stats["validated"] += 1
             if event.get("was_false_positive"):
                 stats["fp"] += 1
-            
+
             event_run_id = event.get("run_id")
             decay = run_decay.get(event_run_id, 1.0) if event_run_id else 1.0
             stats["total_weight"] += event.get("feedback_weight", 1.0) * decay

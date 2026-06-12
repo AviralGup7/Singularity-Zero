@@ -77,7 +77,9 @@ def _prepare_job_for_storage(job: dict[str, Any]) -> dict[str, Any]:
 
 
 class _ConnWrapper:
-    def __init__(self, conn: sqlite3.Connection, on_close: Callable[[sqlite3.Connection], None]) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, on_close: Callable[[sqlite3.Connection], None]
+    ) -> None:
         self.conn = conn
         self.on_close = on_close
 
@@ -117,7 +119,7 @@ class JobStore:
                 except sqlite3.ProgrammingError as exc:
                     logger.warning("Operation failed in job_store.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise
-            
+
             def _remove_conn(c: sqlite3.Connection) -> None:
                 try:
                     c.close()
@@ -135,7 +137,10 @@ class JobStore:
 
     @staticmethod
     def _is_locked_error(exc: BaseException) -> bool:
-        return "database is locked" in str(exc).lower() or "database table is locked" in str(exc).lower()
+        return (
+            "database is locked" in str(exc).lower()
+            or "database table is locked" in str(exc).lower()
+        )
 
     def _drop_thread_conn(self) -> None:
         wrapper = getattr(self._local, "wrapper", None)
