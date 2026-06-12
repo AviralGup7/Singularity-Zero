@@ -36,7 +36,7 @@ dependencies = [
     "sqlalchemy==2.0.30",
     "alembic==1.14.0",
     "aiosqlite==0.20.0",
-    "numpy==2.0.0",
+    "numpy>=2.0.0",
     "Pillow==12.2.0",
     "networkx==3.0.0",
     "beartype==0.20.1",
@@ -46,7 +46,7 @@ dependencies = [
     "msgpack==1.0.0",
     "cloudpickle==3.0.0",
     "watchfiles==1.0.4",
-    "scipy==1.14.0",
+    "scipy>=1.14.0",
     "pykka==4.0.0",
 ]
 
@@ -81,7 +81,7 @@ dev = [
     "line-profiler>=4.2.0",
 ]
 ml = [
-    "scipy==1.14.0",
+    "scipy>=1.14.0",
     "kuzu==0.11.3",
     "xgboost==2.0.0",
     "scikit-learn==1.5.0",
