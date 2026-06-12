@@ -20,6 +20,7 @@ def _get_start_time() -> float:
     """Get the authoritative boot time from the lifespan module."""
     try:
         from src.dashboard.fastapi.lifespan import _START_TIME
+
         return _START_TIME or time.monotonic()
     except ImportError:
         return time.monotonic()
