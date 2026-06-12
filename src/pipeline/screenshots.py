@@ -10,14 +10,15 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import requests
 from PIL import Image
-from scipy.fft import dct
 
 from src.core.logging.pipeline_logging import emit_warning
+
+if TYPE_CHECKING:
+    import numpy as np  # noqa: F401
 from src.core.models import Config
 from src.pipeline.baseline_store import ScreenshotBaselineStore
 from src.pipeline.storage import ensure_dir
@@ -68,6 +69,8 @@ def compute_dom_hash(url: str) -> str:
 def is_blank_page(image_path: Path, threshold_pct: float = 0.5) -> bool:
     """Returns True if the non-white pixel count is below the given threshold percentage."""
     try:
+        import numpy as np
+
         with Image.open(image_path) as img:
             img_rgb = img.convert("RGB")
             arr = np.array(img_rgb)
@@ -85,6 +88,9 @@ def is_blank_page(image_path: Path, threshold_pct: float = 0.5) -> bool:
 def compute_phash(image_path: Path) -> str:
     """Compute an 8x8 DCT-based perceptual hash of an image."""
     try:
+        import numpy as np
+        from scipy.fft import dct
+
         with Image.open(image_path) as img:
             processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
             pixels = np.array(processed, dtype=float)

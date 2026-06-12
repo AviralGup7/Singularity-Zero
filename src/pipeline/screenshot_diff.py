@@ -17,7 +17,6 @@ from PIL import Image, ImageChops, ImageDraw, ImageFont
 if TYPE_CHECKING:
     import numpy as np
 from pydantic import BaseModel, Field
-from scipy.signal import convolve2d
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -99,6 +98,7 @@ def _compute_ssim(
 ) -> float:
     """Compute structural similarity (SSIM) using a 2D Gaussian window."""
     import numpy as np
+    from scipy.signal import convolve2d
 
     # Convert to grayscale float array
     arr_a = np.array(img_a.convert("L"), dtype=float)

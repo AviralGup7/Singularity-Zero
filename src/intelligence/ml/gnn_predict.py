@@ -10,9 +10,10 @@ prediction, and a Q-learning RL agent for optimal security probe selection.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ class GNNPredictor:
     """Pure-NumPy 2-layer Graph Convolutional Network (GCN) for predicting unseen attack paths."""
 
     def __init__(self, hidden_dim: int = 128, seed: int = 42) -> None:
+        import numpy as np
+
         self.hidden_dim = hidden_dim
         # Seed for deterministic and reproducible weight initialization
         rng = np.random.default_rng(seed)
@@ -32,6 +35,8 @@ class GNNPredictor:
 
     def _normalize_adjacency(self, A: np.ndarray) -> np.ndarray:
         """Compute the symmetric normalized adjacency matrix: D^-1/2 * (A + I) * D^-1/2."""
+        import numpy as np
+
         N = A.shape[0]
         # Add self-loops
         A_loop = A + np.eye(N)
@@ -58,6 +63,8 @@ class GNNPredictor:
         threshold: float = 0.65,
     ) -> list[dict[str, Any]]:
         """Run 2-layer GCN to generate node embeddings and predict unseen pivot links."""
+        import numpy as np
+
         if not nodes:
             return []
 

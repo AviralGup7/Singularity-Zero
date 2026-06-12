@@ -6,9 +6,10 @@ Implements intelligent task distribution based on multi-factor telemetry.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,8 @@ class NeuralMeshBalancer:
         (region / capacity).
         """
         node_id = node_data["id"]
+        import numpy as np
+
         stats = self._reputation.get(
             node_id, {"s": 1, "f": 0, "d": 5.0}
         )  # Initial optimistic stats

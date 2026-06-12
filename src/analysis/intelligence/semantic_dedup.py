@@ -6,9 +6,10 @@ Implements high-speed vector-space finding deduplication using NumPy.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np  # noqa: F401
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -36,6 +37,8 @@ class SemanticDeduplicator:
 
     def _vectorize(self, tokens: list[str]) -> np.ndarray:
         """Create a frequency vector for the given tokens."""
+        import numpy as np
+
         vec = np.zeros(max(len(self._vocabulary) + 100, 1000))
         for token in tokens:
             if token not in self._vocabulary:
@@ -49,6 +52,8 @@ class SemanticDeduplicator:
 
     def compute_similarity(self, vec_a: np.ndarray, vec_b: np.ndarray) -> float:
         """Compute cosine similarity between two vectors."""
+        import numpy as np
+
         norm_a = float(np.linalg.norm(vec_a))
         norm_b = float(np.linalg.norm(vec_b))
         if norm_a == 0 or norm_b == 0:

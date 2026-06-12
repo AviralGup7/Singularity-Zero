@@ -34,8 +34,10 @@ import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +384,8 @@ class MeshShardManager:
         self._pending_deadline = time.time() + self._rebalance_min_interval
 
     def _lookup(self, h: int, *, allowed: list[str] | None = None) -> str | None:
+        import numpy as np
+
         idx = int(np.searchsorted(self._ring, h))
         ring_len = len(self._ring)
         if ring_len == 0:
