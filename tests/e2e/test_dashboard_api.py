@@ -1,20 +1,68 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
+@asynccontextmanager
+async def _test_lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Lightweight lifespan for dashboard tests.
+
+    Only initialises the state attributes that route handlers read.
+    Skips gossip, mesh, bloom, websocket, self-healing, and other
+    heavy infrastructure that is irrelevant to HTTP contract tests.
+    """
+    from unittest.mock import MagicMock
+
+    from src.dashboard.fastapi.config import DashboardConfig
+    from src.dashboard.services import DashboardServices
+    from src.infrastructure.cache import CacheManager
+    from src.infrastructure.cache.config import CacheConfig
+
+    config: DashboardConfig = app.state.config
+
+    cache_config = CacheConfig(
+        sqlite_db_path=config.cache_db_path,
+        cache_dir=config.cache_dir,
+        redis_url=config.redis_url,
+    )
+    app.state.cache_manager = CacheManager(config=cache_config)
+
+    services = MagicMock(spec=DashboardServices)
+    services.list_jobs.return_value = []
+    services.list_targets.return_value = []
+    services.findings_summary.return_value = {"total_findings": 0, "severity_breakdown": {}}
+    services.detection_gap_summary.return_value = {"empty_modules": []}
+    services.api_defaults.return_value = {
+        "form_defaults": {},
+        "default_mode": "quick",
+        "config_template": {},
+    }
+    app.state.services = services
+    app.state.ws_services = None
+    app.state.gossip = None
+    app.state.bloom_filter = None
+    app.state.bloom_mesh = None
+    app.state.self_healing_controller = None
+    app.state.model_registry = MagicMock()
+
+    yield
+
+    if hasattr(app.state, "cache_manager"):
+        app.state.cache_manager.close()
+
+
 @pytest.fixture
-def dashboard_app(dashboard_config, mock_dashboard_services, monkeypatch):
-    # Bypass the CSRF middleware for in-process dashboard tests by
-    # flipping the development-mode flag. The auth contract is
-    # independently disabled below via ``require_auth`` override so
-    # the test cases can exercise handler-level response shapes
-    # without first minting a CSRF token.
+def dashboard_app(dashboard_config, monkeypatch):
     monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.dependencies import require_auth
 
     app = create_app(config=dashboard_config)
     app.dependency_overrides[require_auth] = lambda: None
+    app.router.lifespan_context = _test_lifespan
     yield app
 
 

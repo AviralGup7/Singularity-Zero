@@ -1,7 +1,51 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+
+@asynccontextmanager
+async def _test_lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Lightweight lifespan: only boot the state that routes read."""
+    from src.dashboard.fastapi.config import DashboardConfig
+    from src.dashboard.services import DashboardServices
+    from src.infrastructure.cache import CacheManager
+    from src.infrastructure.cache.config import CacheConfig
+
+    config: DashboardConfig = app.state.config
+
+    cache_config = CacheConfig(
+        sqlite_db_path=config.cache_db_path,
+        cache_dir=config.cache_dir,
+        redis_url=config.redis_url,
+    )
+    app.state.cache_manager = CacheManager(config=cache_config)
+
+    services = MagicMock(spec=DashboardServices)
+    services.list_jobs.return_value = []
+    services.list_targets.return_value = []
+    services.findings_summary.return_value = {"total_findings": 0, "severity_breakdown": {}}
+    services.detection_gap_summary.return_value = {"empty_modules": []}
+    services.api_defaults.return_value = {
+        "form_defaults": {},
+        "default_mode": "quick",
+        "config_template": {},
+    }
+    app.state.services = services
+    app.state.ws_services = None
+    app.state.gossip = None
+    app.state.bloom_filter = None
+    app.state.bloom_mesh = None
+    app.state.self_healing_controller = None
+    app.state.model_registry = MagicMock()
+
+    yield
+
+    if hasattr(app.state, "cache_manager"):
+        app.state.cache_manager.close()
 
 
 def _app(tmp_path: Path, monkeypatch):
@@ -14,7 +58,7 @@ def _app(tmp_path: Path, monkeypatch):
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.config import DashboardConfig
 
-    return create_app(
+    app = create_app(
         DashboardConfig(
             output_root=tmp_path / "output",
             workspace_root=tmp_path,
@@ -24,6 +68,8 @@ def _app(tmp_path: Path, monkeypatch):
             redis_url=None,
         )
     )
+    app.router.lifespan_context = _test_lifespan
+    return app
 
 
 def test_token_endpoint_exchanges_api_key_for_jwt(tmp_path, monkeypatch):
@@ -93,6 +139,7 @@ def test_unknown_json_fields_include_path_in_422(tmp_path, monkeypatch):
         )
     )
     app.state.services = MagicMock()
+    app.router.lifespan_context = _test_lifespan
     client = TestClient(app)
 
     response = client.post(
