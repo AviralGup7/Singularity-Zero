@@ -118,6 +118,7 @@ class FPTracker:
         redis_repo: RedisFPRepository | None = None,
     ):
         import threading
+
         self.store = store
         self._cache: dict[str, FPPattern] = {}
         self._loaded = False

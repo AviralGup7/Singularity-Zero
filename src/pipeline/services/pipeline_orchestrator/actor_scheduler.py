@@ -196,7 +196,7 @@ class ActorScheduler:
         )
 
         # Capture initial config keys before starting the readiness loop
-        initial_config_keys = {k for k in dir(self._config) if not k.startswith('_')}
+        initial_config_keys = {k for k in dir(self._config) if not k.startswith("_")}
         overridden_keys: set[str] = set()
 
         while True:

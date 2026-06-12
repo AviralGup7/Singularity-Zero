@@ -514,7 +514,9 @@ class PipelineOrchestrator:
                 if "compliance" in summary:
                     event_data["compliance"] = summary["compliance"]
 
-        event_type = EventType.PIPELINE_CANCELLED if exit_code == 130 else EventType.PIPELINE_COMPLETE
+        event_type = (
+            EventType.PIPELINE_CANCELLED if exit_code == 130 else EventType.PIPELINE_COMPLETE
+        )
         self._emit_event(
             event_type,
             source="orchestrator",
@@ -575,7 +577,9 @@ class PipelineOrchestrator:
             args=args,
         )
 
-    def _acquire_distributed_lock(self, target_name: str, owner_id: str | None = None) -> str | None:
+    def _acquire_distributed_lock(
+        self, target_name: str, owner_id: str | None = None
+    ) -> str | None:
         from src.infrastructure.task_pool import RunLock
 
         scan_id = target_name
@@ -632,8 +636,8 @@ class PipelineOrchestrator:
 
         target_name = str(getattr(config, "target_name", "unknown") or "unknown")
 
-        from src.core.checkpoint import attempt_recovery
         from pathlib import Path
+
         force_fresh = getattr(args, "force_fresh_run", False)
         can_recover, recovered_state = attempt_recovery(
             Path(config.output_dir),
@@ -745,7 +749,9 @@ class PipelineOrchestrator:
         checkpoint_mgr = getattr(self, "_checkpoint_mgr", None)
         if checkpoint_mgr is None:
             from pathlib import Path
+
             from src.core.checkpoint import create_checkpoint_manager
+
             checkpoint_mgr = create_checkpoint_manager(
                 Path(config.output_dir),
                 config.target_name,

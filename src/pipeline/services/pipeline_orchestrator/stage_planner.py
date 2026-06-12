@@ -227,6 +227,7 @@ class StagePlanner:
         for url in sample_urls:
             try:
                 import urllib.request
+
                 req_url = url
                 if not req_url.startswith(("http://", "https://")):
                     req_url = f"http://{req_url}"
@@ -234,7 +235,7 @@ class StagePlanner:
                 req = urllib.request.Request(
                     req_url,
                     headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"},
-                    method="HEAD"
+                    method="HEAD",
                 )
                 try:
                     with urllib.request.urlopen(req, timeout=2.0) as resp:
@@ -242,8 +243,10 @@ class StagePlanner:
                 except Exception:
                     req = urllib.request.Request(
                         req_url,
-                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"},
-                        method="GET"
+                        headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"
+                        },
+                        method="GET",
                     )
                     with urllib.request.urlopen(req, timeout=2.0) as resp:
                         headers_list.append(dict(resp.info()))
