@@ -189,6 +189,7 @@ def run_callable_isolated(
 
     import sys
 
+    ctx: Any
     try:
         if sys.platform == "win32":
             ctx = mp.get_context("spawn")
