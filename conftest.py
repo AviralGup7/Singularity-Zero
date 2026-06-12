@@ -11,6 +11,7 @@ Importing numpy once here – before pytest touches *any* test module – pins
 it in ``sys.modules`` under a single identity so every subsequent
 ``import numpy`` inside test code finds the already-loaded module.
 """
+
 from __future__ import annotations
 
 import importlib
