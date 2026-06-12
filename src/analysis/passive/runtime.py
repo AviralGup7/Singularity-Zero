@@ -769,7 +769,6 @@ def extract_charset(content_type: str) -> str:
 
 
 def fetch_response(
-
     url: str,
     timeout_seconds: int,
     max_bytes: int,
@@ -821,7 +820,6 @@ def fetch_response(
 
 def _get_fetch_response() -> Any:
     return fetch_response
-
 
 
 __all__ = [
