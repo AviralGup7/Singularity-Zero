@@ -316,6 +316,7 @@ def register_plugin_stages() -> None:
     """Register plugin stages at import time. Plugins may call this to
     inject their stage definitions into the global registry."""
     from src.pipeline.stage_registry import _global_stage_registry
+
     logger.debug(
         "register_plugin_stages called; global registry contains %d entries",
         len(_global_stage_registry.get_all()),
