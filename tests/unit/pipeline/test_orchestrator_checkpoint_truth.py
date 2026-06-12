@@ -155,9 +155,7 @@ def _patch_runtime_environment(
 
     monkeypatch.setenv("IGNORE_CAPABILITY_RESOURCE_BUDGET", "1")
     monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda self: None)
-    monkeypatch.setattr(
-        ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None)
-    )
+    monkeypatch.setattr(ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None))
     monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda self: None)
 
 

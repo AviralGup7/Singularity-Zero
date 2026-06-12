@@ -118,9 +118,7 @@ class ResourceGuard:
         except ImportError as exc:
             logger.warning("psutil not available for RAM check: %s", exc)
         except Exception as exc:
-            logger.debug(
-                "ResourceGuard: psutil check failed (%s).", exc
-            )
+            logger.debug("ResourceGuard: psutil check failed (%s).", exc)
 
         # When psutil is unavailable, return 0 to signal "unknown RAM"
         # rather than incorrectly using disk space. Returning 0 causes

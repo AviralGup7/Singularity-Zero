@@ -27,12 +27,14 @@ def _create_app(auth_disabled: bool = False, app_env: str = "development"):
     async def auth_token_endpoint(request: Request):
         return JSONResponse({"status": "auth"})
 
-    app = Starlette(routes=[
-        Route("/api/test", endpoint=test_endpoint, methods=["GET", "POST", "PUT", "DELETE"]),
-        Route("/api/csrf-token", endpoint=csrf_token_endpoint, methods=["GET"]),
-        Route("/ws/test", endpoint=ws_endpoint, methods=["GET", "POST"]),
-        Route("/api/auth/token", endpoint=auth_token_endpoint, methods=["POST"]),
-    ])
+    app = Starlette(
+        routes=[
+            Route("/api/test", endpoint=test_endpoint, methods=["GET", "POST", "PUT", "DELETE"]),
+            Route("/api/csrf-token", endpoint=csrf_token_endpoint, methods=["GET"]),
+            Route("/ws/test", endpoint=ws_endpoint, methods=["GET", "POST"]),
+            Route("/api/auth/token", endpoint=auth_token_endpoint, methods=["POST"]),
+        ]
+    )
 
     if auth_disabled:
         import os

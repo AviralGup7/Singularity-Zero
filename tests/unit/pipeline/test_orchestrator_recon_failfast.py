@@ -179,9 +179,7 @@ def _patch_runtime_environment(
 
     monkeypatch.setenv("IGNORE_CAPABILITY_RESOURCE_BUDGET", "1")
     monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda self: None)
-    monkeypatch.setattr(
-        ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None)
-    )
+    monkeypatch.setattr(ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None))
     monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda self: None)
 
 
@@ -488,8 +486,7 @@ async def test_live_hosts_success_transitions_to_urls_stage(
     assert exit_code == 0
     assert urls_runner.await_count == 1
     assert any(
-        stage == "urls" and "urls" in message.lower()
-        for stage, message, _ in emitted_progress
+        stage == "urls" and "urls" in message.lower() for stage, message, _ in emitted_progress
     )
 
 
@@ -571,8 +568,7 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
     assert exit_code == 0
     assert urls_runner.await_count == 1
     assert any(
-        stage == "urls" and "urls" in message.lower()
-        for stage, message, _ in emitted_progress
+        stage == "urls" and "urls" in message.lower() for stage, message, _ in emitted_progress
     )
 
 

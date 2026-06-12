@@ -56,7 +56,6 @@ except ModuleNotFoundError:
                 "StageOutput/finding contract enforcement."
             )
 
-
     _JSONSCHEMA_MISSING_LOGGED = False
 
     def install_jsonschema_warning() -> None:
@@ -79,9 +78,9 @@ except ModuleNotFoundError:
                 "Install the 'jsonschema' package to restore schema enforcement."
             )
 
-
     # Log warning at import time if jsonschema is not available
     import os as _os_warn
+
     if _os_warn.environ.get("PIPELINE_ALLOW_NO_SCHEMA", "").lower() in {"1", "true", "yes"}:
         install_jsonschema_warning()
 
