@@ -1,15 +1,6 @@
-import importlib
-import sys
-
-for _mod in ("numpy", "numpy._core", "numpy._core.multiarray", "numpy._core._multiarray_umath"):
-    if _mod not in sys.modules:
-        try:
-            importlib.import_module(_mod)
-        except Exception:
-            pass
-
 import ipaddress
 import socket
+import sys
 import types
 
 import pytest
