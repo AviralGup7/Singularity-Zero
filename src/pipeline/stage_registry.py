@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode, Condition
+    from src.pipeline.services.pipeline_orchestrator._graph_dsl import Condition, StageNode
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ def get_by_capability(capability: str) -> list[StageNodeDefinition]:
 
 
 def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
-    from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode, AlwaysTrue
+    from src.pipeline.services.pipeline_orchestrator._graph_dsl import AlwaysTrue, StageNode
 
     return StageNode(
         name=defn.name,
