@@ -72,7 +72,6 @@ class StagePlanner:
         active_stages = [s for s in adjusted_stages if s not in ("ranker", "deserialize_scope")]
         # Collect stages that are depended on by other stages in the current list
         dependent_stages: set[str] = set()
-        from ._graph_dsl import StageNode
 
         for s in active_stages:
             for node in _get_graph_nodes():
