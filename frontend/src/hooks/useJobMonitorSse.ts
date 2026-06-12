@@ -7,6 +7,8 @@ import type {
   PluginProgressEntry,
   ProgressTelemetry,
   StageProgressEntry,
+  MeshHealth,
+  MigrationEvent,
 } from '../types/api';
 
 import {
@@ -267,7 +269,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
     const data = event.data as Record<string, unknown>;
     ctx.setJob((prev) => {
       if (!prev) return prev;
-      return { ...prev, mesh_health: data as Job['mesh_health'] };
+      return { ...prev, mesh_health: data as unknown as MeshHealth };
     });
   }
 
@@ -276,7 +278,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
     ctx.setJob((prev) => {
       if (!prev) return prev;
       const migrations = Array.isArray(prev.migration_events) ? prev.migration_events : [];
-      return { ...prev, migration_events: [...migrations, data as Job['migration_events'][0]] };
+      return { ...prev, migration_events: [...migrations, data as unknown as MigrationEvent] };
     });
   }
 }

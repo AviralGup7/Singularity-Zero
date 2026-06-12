@@ -62,7 +62,7 @@ export function ReportBuilderPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await getFindings(signal);
+      const data = await getFindings(undefined, signal);
       setFindings(data);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;

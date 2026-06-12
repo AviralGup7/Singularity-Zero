@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
@@ -220,7 +220,7 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
 
   const fetchJobs = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await getJobs(signal);
+      const data = await getJobs(undefined, signal);
       setJobs(data ?? []);
       setError(null);
     } catch {
