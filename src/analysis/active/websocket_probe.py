@@ -32,8 +32,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from websockets.typing import Origin
 import websockets
+from websockets.typing import Origin
 
 logger = logging.getLogger(__name__)
 

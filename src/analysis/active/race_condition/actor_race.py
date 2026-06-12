@@ -12,7 +12,6 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
-
 try:
     import httpx
 except Exception:  # pragma: no cover - optional dependency guard
@@ -29,7 +28,6 @@ class Finding:
     value_after: Any = None
     delta: Any = None
     metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
-
 
 
 class ActorRaceTester:

@@ -111,7 +111,8 @@ async def run_iac_scan_stage(
                 if isinstance(data, list):
                     parsed_findings = data
                 elif isinstance(data, dict):
-                    raw_parsed = data.get("results", data.get("findings", [data])); parsed_findings = list(raw_parsed) if raw_parsed is not None else []
+                    raw_parsed = data.get("results", data.get("findings", [data]))
+                    parsed_findings = list(raw_parsed) if raw_parsed is not None else []
                 else:
                     parsed_findings = []
 

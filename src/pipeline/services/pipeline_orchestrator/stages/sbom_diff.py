@@ -18,7 +18,6 @@ def _component_key(component: dict[str, Any]) -> str:
     return str(component.get("purl") or component.get("name", ""))
 
 
-
 async def run_sbom_diff_stage(
     args: Any,
     config: Any,

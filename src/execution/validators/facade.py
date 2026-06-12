@@ -6,7 +6,6 @@ or batch validations against targets using named validators.
 
 from typing import Any, cast
 
-
 from src.core.models import ValidationResult
 from src.execution.validators.validators.registry_builder import VALIDATOR_REGISTRY
 

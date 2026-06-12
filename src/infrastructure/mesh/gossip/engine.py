@@ -11,7 +11,6 @@ import threading
 import time
 import uuid
 from dataclasses import asdict
-from types import MappingProxyType
 from typing import Any
 
 from src.infrastructure.mesh.gossip.fragmentation import (
