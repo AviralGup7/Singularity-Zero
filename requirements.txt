@@ -41,4 +41,4 @@ argon2-cffi==23.1.0
 msgspec==0.21.1
 msgpack==1.0.0
 cloudpickle==3.0.0
-watchfiles==1.0.4
+watchfiles==1.2.0
