@@ -32,7 +32,7 @@ import asyncio
 import json
 import logging
 import ssl
-from typing import Any
+from typing import Any, cast, cast, cast, cast, cast, cast
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -239,8 +239,11 @@ def graphql_ws_injection_probe(
         per-subprotocol results, and the corresponding issue labels.
     """
     origin_values: list[str | None] = (
-        origins if origins is not None else [None, "https://evil.example.com", "null"]
+        cast(list[str | None], origins)
+        if origins is not None
+        else [None, "https://evil.example.com", "null"]
     )
+
 
     candidates: list[str] = []
     for entry in priority_urls:
@@ -277,7 +280,7 @@ def graphql_ws_injection_probe(
         per_origin_results: list[dict[str, Any]] = []
         for origin in origin_values:
             try:
-                result = asyncio.run(_probe_url(ws_url, origin=origin, verify_tls=verify_tls))
+                result = asyncio.run(_probe_url(ws_url, origin=cast(str | None, origin), verify_tls=verify_tls))
             except RuntimeError:
                 # We're inside a running event loop; fall back to per-coroutine
                 # execution. Should not happen for sync probe entry points.

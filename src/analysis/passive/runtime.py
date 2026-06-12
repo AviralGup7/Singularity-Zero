@@ -768,11 +768,66 @@ def extract_charset(content_type: str) -> str:
     return content_type.split("charset=", 1)[1].split(";", 1)[0].strip() or "utf-8"
 
 
+def fetch_response(
+
+    url: str,
+    timeout_seconds: int,
+    max_bytes: int,
+    *,
+    method: str = "GET",
+    extra_headers: dict[str, str] | None = None,
+    body: str | bytes | None = None,
+    stream: bool = False,
+    capture_forensics: bool = False,
+    output_dir: Path | None = None,
+    target_name: str | None = None,
+) -> dict[str, Any] | None:
+    if stream:
+        return _fetch_response_stream(
+            url,
+            timeout_seconds,
+            max_bytes,
+            method=method,
+            extra_headers=extra_headers,
+            body=body,
+        )
+
+    result = _fetch_response_once(
+        url,
+        timeout_seconds,
+        max_bytes,
+        method=method,
+        extra_headers=extra_headers,
+        body=body,
+    )
+    if capture_forensics and result.record and output_dir and target_name:
+        from src.analysis.passive.forensics import ForensicExchange, save_forensic_exchange
+
+        exchange = ForensicExchange(
+            url=url,
+            method=method,
+            request_headers=extra_headers or {},
+            request_body=body,
+            response_status=result.status_code,
+            response_headers=result.record.get("headers", {}),
+            response_body=result.record.get("body_text", ""),
+            latency_seconds=result.latency_seconds,
+        )
+        save_forensic_exchange(output_dir, exchange, target_name)
+        return {**result.record, "exchange_id": exchange.exchange_id}
+
+    return result.record
+
+
+def _get_fetch_response() -> Any:
+    return fetch_response
+
+
+
 __all__ = [
     "FetchResponseResult",
     "RequestScheduler",
     "ResponseCache",
-    "fetch_response",
     "extract_key_fields",
     "normalize_compare_text",
     "redact_value",

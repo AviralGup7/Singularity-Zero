@@ -109,9 +109,9 @@ class StagePlanner:
             base_concurrency: int = default_concurrency
             depth = 2
             stage_depth_map: dict[int, int] = {10: 2, 80: 3, 150: 5}
-            for threshold, d in sorted(stage_depth_map.items(), reverse=True):
-                if url_count >= threshold:
-                    base_concurrency = int(threshold)
+            for threshold_val, d in sorted(stage_depth_map.items(), reverse=True):
+                if url_count >= threshold_val:
+                    base_concurrency = int(threshold_val)
                     depth = d
                     break
             cap = self.resource_guard.get_concurrency_cap("active_scan", base_concurrency)
@@ -153,8 +153,8 @@ class StagePlanner:
             stage_values[s] = val
             total_value += val
 
-        remaining_time = time_budget
-        threshold = 0.3
+        remaining_time: float = float(time_budget)
+        threshold: float = 0.3
         adjusted_order_map = {name: idx for idx, name in enumerate(adjusted_stages)}
         ordered_stages = sorted(
             stage_values.items(), key=lambda kv: adjusted_order_map.get(kv[0], 99)
@@ -197,6 +197,6 @@ class StagePlanner:
             return 0
         for headers in headers_list:
             match = fingerprint_response(headers)
-            if match.confidence > 0.25:
+            if match is not None and match.confidence > 0.25:
                 detection_count += 1
         return detection_count

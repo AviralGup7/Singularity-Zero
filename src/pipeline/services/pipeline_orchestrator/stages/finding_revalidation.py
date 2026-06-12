@@ -101,7 +101,7 @@ def _resolved_findings(
     current: Iterable[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     current_keys = {_finding_key(item) for item in current}
-    return [item for item in previous if _finding_key(item) not in current_keys]
+    return [dict(item) for item in previous if _finding_key(item) not in current_keys]
 
 
 def _http_get(url: str, *, timeout: float = 5.0) -> dict[str, Any] | None:

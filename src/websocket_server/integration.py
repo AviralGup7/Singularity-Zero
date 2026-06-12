@@ -827,8 +827,7 @@ def integrate_with_pipeline_progress(
         except RuntimeError:
             loop = None
 
-        if loop is not None and loop.is_running():
-
+        if loop is not None and loop.is_running() and services is not None:
             async def _do_broadcast_progress() -> None:
                 await services.broadcast_progress(
                     job_id=job_id,
@@ -840,14 +839,12 @@ def integrate_with_pipeline_progress(
                     message=message,
                     target=target,
                 )
-
             asyncio.run_coroutine_threadsafe(
                 _do_broadcast_progress(),
                 loop,
             )
 
             for log_line in job.get("latest_logs", [])[-3:]:
-
                 async def _do_broadcast_log(line: str = log_line) -> None:
                     await services.broadcast_log(
                         job_id=job_id,
@@ -855,12 +852,11 @@ def integrate_with_pipeline_progress(
                         source="stdout",
                         level="warning" if line.lower().startswith("warning") else "info",
                     )
-
                 asyncio.run_coroutine_threadsafe(
                     _do_broadcast_log(),
                     loop,
                 )
-        else:
+        elif services is not None:
             services.broadcast_progress(
                 job_id=job_id,
                 stage=stage,

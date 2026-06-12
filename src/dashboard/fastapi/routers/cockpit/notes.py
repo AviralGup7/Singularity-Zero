@@ -93,6 +93,7 @@ async def trigger_cockpit_probe(
     from src.analysis.passive.runtime import _get_fetch_response
 
     fetch_response = _get_fetch_response()
+
     from src.core.utils.url_validation import is_safe_url
 
     output_root = services.query.output_root

@@ -199,9 +199,9 @@ class ReportDistributor:
         attachments = self.resolve_attachments(run_dir)
         try:
             from src.infrastructure.notifications.base import (
-                EventType,
+                NotificationEvent,
                 NotificationPayload,
-                Priority,
+                NotificationPriority,
             )
             from src.infrastructure.notifications.email import EmailConfig, EmailNotifier
         except Exception as exc:  # noqa: BLE001
@@ -231,8 +231,8 @@ class ReportDistributor:
         notifier = EmailNotifier(config)
         try:
             payload = NotificationPayload(
-                event=EventType.PIPELINE_COMPLETE,
-                priority=Priority.MEDIUM,
+                event=NotificationEvent.SCAN_COMPLETED,
+                priority=NotificationPriority.MEDIUM,
                 title=f"Run report: {target_name} / {run_name}",
                 message=(
                     f"Pipeline run completed for target '{target_name}' (run '{run_name}'). "
@@ -246,7 +246,15 @@ class ReportDistributor:
                     "run": run_name,
                 },
             )
-            result = await notifier.send(payload)
+            result = await notifier.send(
+                NotificationEvent.SCAN_COMPLETED,
+                priority=payload.priority,
+                title=payload.title,
+                message=payload.message,
+                metadata=payload.metadata,
+                correlation_id=payload.correlation_id,
+            )
+
         finally:
             try:
                 await notifier.close()

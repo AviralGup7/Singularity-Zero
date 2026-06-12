@@ -13,6 +13,7 @@ from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     HistoricalScoreResponse,
     RiskScoreResponse,
+    TargetComparisonDetail,
     TargetComparisonResponse,
 )
 

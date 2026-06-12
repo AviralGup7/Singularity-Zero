@@ -78,7 +78,7 @@ async def run_sbom_generate_stage(
 
         sbom = _merge_sbom_fragments(fragments)
         sbom_cyclonedx = dict(sbom)
-        sbom_spdx = {
+        sbom_spdx: dict[str, Any] = {
             "spdxVersion": "SPDX-2.3",
             "dataLicense": "CC0-1.0",
             "SPDXID": "SPDXRef-DOCUMENT",
