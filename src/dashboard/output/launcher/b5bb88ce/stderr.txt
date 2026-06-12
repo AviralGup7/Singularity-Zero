@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\cyber security test pipeline - Copy\src\pipeline\runtime.py", line 24, in <module>
+    from src.pipeline.runner_support import parse_args
+  File "D:\cyber security test pipeline - Copy\src\pipeline\runner_support.py", line 10, in <module>
+    from src.pipeline.screenshots import detect_browser
+  File "D:\cyber security test pipeline - Copy\src\pipeline\screenshots.py", line 18, in <module>
+    from scipy.fft import dct
+ModuleNotFoundError: No module named 'scipy'
