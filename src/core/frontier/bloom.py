@@ -8,9 +8,10 @@ import os
 import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -63,6 +64,8 @@ class NeuralBloomFilter:
     """
 
     def __init__(self, capacity: int = 1000000, error_rate: float = 0.01) -> None:
+        import numpy as np
+
         if capacity <= 0:
             raise ValueError("Bloom filter capacity must be positive")
         if not 0.0 < error_rate < 1.0:
@@ -83,6 +86,8 @@ class NeuralBloomFilter:
 
     def _get_offsets(self, item: str) -> list[int]:
         """Compute bit offsets for the given item."""
+        import numpy as np
+
         offsets = []
         # Use MurmurHash3 for speed
         h1, h2 = mmh3_impl.hash64(item)
@@ -98,6 +103,8 @@ class NeuralBloomFilter:
 
     def _hash_arrays(self, items: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return two MurmurHash3 seed arrays used for double hashing."""
+        import numpy as np
+
         if items.size == 0:
             return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
 
@@ -108,6 +115,8 @@ class NeuralBloomFilter:
 
     def _offset_matrix(self, items: np.ndarray) -> np.ndarray:
         """Compute all Bloom bit offsets for a batch using NumPy C-level loops."""
+        import numpy as np
+
         h1, h2 = self._hash_arrays(items)
         if h1.size == 0:
             return np.empty((0, self.hash_count), dtype=np.int64)
@@ -118,6 +127,8 @@ class NeuralBloomFilter:
         return offsets.astype(np.int64, copy=False)
 
     def _byte_and_mask_arrays(self, items: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        import numpy as np
+
         offsets = self._offset_matrix(items)
         byte_idx = offsets >> 3
         bit_idx = offsets & 7
@@ -127,6 +138,8 @@ class NeuralBloomFilter:
     @staticmethod
     def normalize_urls(urls: Sequence[str] | np.ndarray) -> np.ndarray:
         """Normalize URL strings in bulk with numpy.char operations."""
+        import numpy as np
+
         arr = np.asarray(urls, dtype=np.str_)
         if arr.size == 0:
             return arr
@@ -197,6 +210,8 @@ class NeuralBloomFilter:
         self, items: Sequence[str] | np.ndarray, *, normalize: bool = True
     ) -> np.ndarray:
         """Vectorized membership test for a batch of URLs."""
+        import numpy as np
+
         arr = self.normalize_urls(items) if normalize else np.asarray(items, dtype=np.str_)
         if arr.size == 0:
             return np.array([], dtype=np.bool_)
@@ -207,6 +222,8 @@ class NeuralBloomFilter:
 
     def add_many(self, items: Sequence[str] | np.ndarray, *, normalize: bool = True) -> int:
         """Add a batch of URLs with vectorized byte and bit writes."""
+        import numpy as np
+
         arr = self.normalize_urls(items) if normalize else np.asarray(items, dtype=np.str_)
         if arr.size == 0:
             return 0
@@ -228,6 +245,8 @@ class NeuralBloomFilter:
         chunk_size: int | None = None,
     ) -> BloomProcessResult:
         """Filter URLs in adaptive chunks and optionally insert new members."""
+        import numpy as np
+
         if not isinstance(urls, Sequence):
             urls = list(urls)
 
@@ -276,6 +295,8 @@ class NeuralBloomFilter:
 
     def get_stats(self) -> dict[str, Any]:  # Fix #231: typed return hint
         """Return filter diagnostics."""
+        import numpy as np
+
         with self._lock:
             ones = int(np.unpackbits(self.bits).sum())
             fill_ratio = float(ones / self.bit_size)
@@ -350,6 +371,8 @@ class NeuralBloomFilter:
 
     def decode_snapshot_bytes(self, payload: bytes) -> np.ndarray:
         """Decode a Bloom snapshot without mutating the current filter."""
+        import numpy as np
+
         if len(payload) != self.bits.nbytes:
             raise ValueError("Snapshot bit array does not match this filter")
         bits = cast(np.ndarray, np.frombuffer(payload, dtype=np.uint8).copy())

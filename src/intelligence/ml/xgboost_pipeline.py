@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 from src.intelligence.ml.feature_vector import FeatureVector
 
@@ -57,6 +58,8 @@ class XGBoostSeverityPipeline:
 
     def _vectorize(self, vectors: list[FeatureVector]) -> np.ndarray:
         """Transform high-dimensional sparse tokens and numerical features into dense NumPy arrays."""
+        import numpy as np
+
         if not HAS_ML_LIBS or self.hasher is None:
             raise RuntimeError("ML Vectorization failed: xgboost or scikit-learn is not available.")
 
@@ -100,6 +103,8 @@ class XGBoostSeverityPipeline:
         argument is optional and falls back to uniform weights when
         omitted.
         """
+        import numpy as np
+
         if not HAS_ML_LIBS or self.model is None or not findings:
             return False
 
@@ -165,6 +170,8 @@ class XGBoostSeverityPipeline:
 
     def _fallback_inference(self, finding: dict[str, Any]) -> float:
         """Pure NumPy fallback algorithm to maintain functionality if compilation fails."""
+        import numpy as np
+
         vec = FeatureVector.from_finding(finding)
         feats = vec.to_features_dict()
 

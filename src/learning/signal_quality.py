@@ -12,9 +12,10 @@ import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 from src.core.utils.math_utils import clamp as _clamp
 
@@ -35,6 +36,8 @@ class SignalQualityMLPipeline:
     """LogisticRegression model classifier wrapper for evaluating signal qualities."""
 
     def __init__(self) -> None:
+        import numpy as np
+
         # Pre-initialize coefficients to mirror the exact behavior of the arithmetic scoring
         self.coef_ = np.array(
             [
@@ -71,6 +74,8 @@ class SignalQualityMLPipeline:
                 self.model = None
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        import numpy as np
+
         if HAS_ML_LIBS and self.model is not None:
             try:
                 return cast(np.ndarray, self.model.predict_proba(X))
@@ -84,6 +89,8 @@ class SignalQualityMLPipeline:
         return np.hstack([1.0 - probs, probs])
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+        import numpy as np
+
         if HAS_ML_LIBS and self.model is not None:
             if len(np.unique(y)) > 1:
                 try:
@@ -97,7 +104,14 @@ class SignalQualityMLPipeline:
                     pass
 
 
-ml_pipeline = SignalQualityMLPipeline()
+_ml_pipeline: SignalQualityMLPipeline | None = None
+
+
+def _get_ml_pipeline() -> SignalQualityMLPipeline:
+    global _ml_pipeline
+    if _ml_pipeline is None:
+        _ml_pipeline = SignalQualityMLPipeline()
+    return _ml_pipeline
 
 
 @dataclass(frozen=True)
@@ -316,6 +330,8 @@ def score_signal_quality(
 ) -> SignalQualityResult:
     """Predict whether a finding should stay in analyst triage using a fitted LogisticRegression model."""
 
+    import numpy as np
+
     evidence = _evidence(item)
     diff = _diff(item)
     signals = _signals(item)
@@ -351,7 +367,7 @@ def score_signal_quality(
     # Evaluate using ML pipeline
     features = extract_features(item, dynamic_fp_patterns)
     if weights:
-        coef = ml_pipeline.coef_.copy()
+        coef = _get_ml_pipeline().coef_.copy()
         if "confidence" in weights:
             coef[0, 0] = max(-100.0, min(100.0, weights["confidence"]))
         if "model_tp" in weights:
@@ -364,17 +380,17 @@ def score_signal_quality(
             coef[0, 8] = max(-100.0, min(100.0, weights["reproducible"]))
 
         X = np.array([features])
-        scores = np.dot(X, coef.T) + ml_pipeline.intercept_
+        scores = np.dot(X, coef.T) + _get_ml_pipeline().intercept_
         scores = np.clip(scores, -20.0, 20.0)
         tp_prob = 1.0 / (1.0 + np.exp(-scores))
         tp_probability = _clamp(float(tp_prob[0, 0]))
         fp_probability = _clamp(float(1.0 - tp_probability))
     else:
-        probs = ml_pipeline.predict_proba(np.array([features]))[0]
+        probs = _get_ml_pipeline().predict_proba(np.array([features]))[0]
         # Use model.classes_ to determine correct class ordering
-        if ml_pipeline.classes_ is not None and len(ml_pipeline.classes_) >= 2:
+        if _get_ml_pipeline().classes_ is not None and len(_get_ml_pipeline().classes_) >= 2:
             # classes_ may be [0, 1] or [1, 0] depending on fitting order
-            tp_idx = 1 if ml_pipeline.classes_[-1] == 1 else 0
+            tp_idx = 1 if _get_ml_pipeline().classes_[-1] == 1 else 0
             fp_idx = 1 - tp_idx
         else:
             tp_idx = 1
