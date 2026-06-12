@@ -47,7 +47,7 @@ dependencies = [
     "cloudpickle==3.0.0",
     "watchfiles==1.0.4",
     "scipy>=1.14.0",
-    "pykka==4.0.0",
+    "pykka==4.4.2",
 ]
 
 [project.scripts]
@@ -88,7 +88,7 @@ ml = [
     "zstandard==0.22.0",
 ]
 wasm = [
-    "pykka==4.0.0",
+    "pykka==4.4.2",
     "wasmtime==44.0.0",
 ]
 
