@@ -88,7 +88,7 @@ def _extract_shadow_links(page: Any) -> list[str]:
         }""")
         if isinstance(links, list):
             return [link for link in links if isinstance(link, str)]
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     return []
 
@@ -123,7 +123,7 @@ def _extract_api_tokens(
                         "page_url": page.url,
                     }
                 )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     try:
         storage = page.evaluate("""() => {
@@ -150,7 +150,7 @@ def _extract_api_tokens(
                             "page_url": page.url,
                         }
                     )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     return tokens, service_workers
 
@@ -206,7 +206,7 @@ def headless_crawl_host(
                     anchors = page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
                     if isinstance(anchors, list):
                         hrefs = [h for h in anchors if isinstance(h, str)]
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
                 hrefs.extend(_extract_shadow_links(page))
 

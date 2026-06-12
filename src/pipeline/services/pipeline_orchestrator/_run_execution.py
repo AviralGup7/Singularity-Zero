@@ -304,7 +304,7 @@ def resolve_pipeline_exit_code(
                 on_failure=policy.on_failure,
                 ci=policy.ci,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
     branch = _resolve_branch(args, config) if args is not None else ""
 

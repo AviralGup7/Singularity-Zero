@@ -306,7 +306,7 @@ def discover_preview_deployments(
             if progress_callback is not None:
                 try:
                     progress_callback(processed, total)
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
             if probe is not None:
                 results.append(probe)

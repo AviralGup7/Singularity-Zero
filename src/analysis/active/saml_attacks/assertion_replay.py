@@ -77,7 +77,7 @@ def _is_web_target(host: str) -> bool:
         return False
     if host.endswith((".local", ".lan", ".internal")):
         return False
-    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):  # noqa: S104
         return False
     import re
 

@@ -96,7 +96,7 @@ def _build_corrupted_wasm_module(corruption_type: str = "truncated") -> bytes:
     base = _build_minimal_wasm_module()
 
     if corruption_type == "truncated":
-        return base[: random.randint(4, len(base) - 1)]
+        return base[: random.randint(4, len(base) - 1)]  # noqa: S311
     elif corruption_type == "magic":
         return b"\x00\x00\x00\x00" + WASM_VERSION + base[8:]
     elif corruption_type == "version":

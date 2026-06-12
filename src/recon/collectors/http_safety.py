@@ -182,7 +182,7 @@ def reset_default_session() -> None:
         if _DEFAULT_SESSION is not None:
             try:
                 _DEFAULT_SESSION.close()
-            except Exception:  # pragma: no cover - defensive
+            except Exception:  # pragma: no cover - defensive  # noqa: S110
                 pass
         _DEFAULT_SESSION = None
 

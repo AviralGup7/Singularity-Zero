@@ -59,7 +59,7 @@ class GraphQLProbe:
 
 
 def _stable_id() -> str:
-    return "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    return "".join(random.choices(string.ascii_lowercase + string.digits, k=6))  # noqa: S311
 
 
 class GraphQLBatchAttack:
@@ -171,7 +171,7 @@ class GraphQLBatchAttack:
         """
         probes: list[GraphQLProbe] = []
         for i in range(attempts):
-            short_id = "".join(random.choices("0123456789abcdef", k=8))
+            short_id = "".join(random.choices("0123456789abcdef", k=8))  # noqa: S311
             probes.append(
                 GraphQLProbe(
                     label=f"graphql-persisted-query-{i}",

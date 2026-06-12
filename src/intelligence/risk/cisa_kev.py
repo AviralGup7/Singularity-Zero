@@ -235,7 +235,7 @@ class CISAKEVClient:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
         return [c for c in cves if c]
 

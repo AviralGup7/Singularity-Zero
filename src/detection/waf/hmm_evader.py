@@ -234,18 +234,18 @@ class HMMWafEvader:
         base_chars = list(base_payload)
         for _ in range(n):
             mutated = list(base_chars)
-            strategy = random.choice(["insert", "replace", "comment", "encode", "split"])
+            strategy = random.choice(["insert", "replace", "comment", "encode", "split"])  # noqa: S311
 
             if strategy == "insert" and top_safe:
-                insert_token = random.choice(top_safe)
-                pos = random.randint(0, len(mutated))
+                insert_token = random.choice(top_safe)  # noqa: S311
+                pos = random.randint(0, len(mutated))  # noqa: S311
                 mutated.insert(pos, insert_token[0])
 
             elif strategy == "replace":
-                idx = random.randint(0, len(mutated) - 1)
+                idx = random.randint(0, len(mutated) - 1)  # noqa: S311
                 if mutated[idx].isalpha():
                     mutated[idx] = (
-                        mutated[idx].upper() if random.random() < 0.5 else mutated[idx].lower()
+                        mutated[idx].upper() if random.random() < 0.5 else mutated[idx].lower()  # noqa: S311
                     )
 
             elif strategy == "comment":
@@ -255,25 +255,25 @@ class HMMWafEvader:
                     ("#", "#", ""),
                     ("--", "--", ""),
                 ]
-                _, open_c, close_c = random.choice(comment_pairs)
-                pos = random.randint(0, len(mutated))
+                _, open_c, close_c = random.choice(comment_pairs)  # noqa: S311
+                pos = random.randint(0, len(mutated))  # noqa: S311
                 mutated.insert(pos, open_c)
                 if close_c:
                     mutated.insert(pos + 2, close_c)
 
             elif strategy == "encode":
-                if random.random() < 0.5:
+                if random.random() < 0.5:  # noqa: S311
                     mutated = [
-                        f"%{ord(c):02x}" if random.random() < 0.3 and c.isalnum() else c
+                        f"%{ord(c):02x}" if random.random() < 0.3 and c.isalnum() else c  # noqa: S311
                         for c in mutated
                     ]
                 else:
                     mutated = [
-                        c.upper() if c.isalpha() and random.random() < 0.5 else c for c in mutated
+                        c.upper() if c.isalpha() and random.random() < 0.5 else c for c in mutated  # noqa: S311
                     ]
 
             elif strategy == "split" and len(mutated) > 3:
-                pos = random.randint(1, len(mutated) - 1)
+                pos = random.randint(1, len(mutated) - 1)  # noqa: S311
                 mutated = mutated[:pos] + ["+", " ", "/**/"] + mutated[pos:]
 
             results.append("".join(mutated))

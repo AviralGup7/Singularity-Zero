@@ -116,7 +116,7 @@ def _http_get(url: str, *, timeout: float = 5.0) -> dict[str, Any] | None:
     import urllib.request
 
     try:
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             url, method="GET", headers={"User-Agent": "finding-revalidator/1.0"}
         )  # noqa: S310
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
