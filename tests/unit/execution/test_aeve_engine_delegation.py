@@ -89,6 +89,9 @@ async def test_engine_delegation_translates_success_into_verified_tp():
         __import__("src.exploitation.engines", fromlist=["SafeExploiter"]).SafeExploiter,
         "execute",
         new=fake_execute,
+    ), patch.dict(
+        __import__("src.exploitation.engines", fromlist=["EXPLOIT_ENGINES_BY_KEY"]).EXPLOIT_ENGINES_BY_KEY,
+        {"ssrfexploitationengine": object},
     ):
         result = await aeve.verify_finding(finding, timeout_seconds=5.0)
 

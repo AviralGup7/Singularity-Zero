@@ -68,42 +68,34 @@ def compute_dom_hash(url: str) -> str:
 
 def is_blank_page(image_path: Path, threshold_pct: float = 0.5) -> bool:
     """Returns True if the non-white pixel count is below the given threshold percentage."""
-    try:
-        import numpy as np
+    import numpy as np
 
-        with Image.open(image_path) as img:
-            img_rgb = img.convert("RGB")
-            arr = np.array(img_rgb)
-            # White is 255, 255, 255
-            non_white_mask = (arr[:, :, 0] < 255) | (arr[:, :, 1] < 255) | (arr[:, :, 2] < 255)
-            non_white_count = np.sum(non_white_mask)
-            total_pixels = arr.shape[0] * arr.shape[1]
-            non_white_pct = (non_white_count / total_pixels) * 100
-            return bool(non_white_pct <= threshold_pct)
-    except Exception as exc:
-        emit_warning(f"Blank page detection failed for {image_path}: {exc}")
-        return False
+    with Image.open(image_path) as img:
+        img_rgb = img.convert("RGB")
+        arr = np.array(img_rgb)
+        # White is 255, 255, 255
+        non_white_mask = (arr[:, :, 0] < 255) | (arr[:, :, 1] < 255) | (arr[:, :, 2] < 255)
+        non_white_count = np.sum(non_white_mask)
+        total_pixels = arr.shape[0] * arr.shape[1]
+        non_white_pct = (non_white_count / total_pixels) * 100
+        return bool(non_white_pct <= threshold_pct)
 
 
 def compute_phash(image_path: Path) -> str:
     """Compute an 8x8 DCT-based perceptual hash of an image."""
-    try:
-        import numpy as np
-        from scipy.fft import dct
+    import numpy as np
+    from scipy.fft import dct
 
-        with Image.open(image_path) as img:
-            processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
-            pixels = np.array(processed, dtype=float)
-            # 2D Discrete Cosine Transform
-            dct_val = dct(dct(pixels, axis=0, norm="ortho"), axis=1, norm="ortho")
-            dct_low = dct_val[:8, :8]
-            dct_low_flat = dct_low.flatten()
-            median_val = np.median(dct_low_flat[1:])
-            bits = (dct_low_flat > median_val).astype(int)
-            return "".join(f"{val:02x}" for val in np.packbits(bits))
-    except Exception as exc:
-        emit_warning(f"Perceptual hash computation failed for {image_path}: {exc}")
-        return ""
+    with Image.open(image_path) as img:
+        processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
+        pixels = np.array(processed, dtype=float)
+        # 2D Discrete Cosine Transform
+        dct_val = dct(dct(pixels, axis=0, norm="ortho"), axis=1, norm="ortho")
+        dct_low = dct_val[:8, :8]
+        dct_low_flat = dct_low.flatten()
+        median_val = np.median(dct_low_flat[1:])
+        bits = (dct_low_flat > median_val).astype(int)
+        return "".join(f"{val:02x}" for val in np.packbits(bits))
 
 
 def hamming_distance(hash1: str, hash2: str) -> int:

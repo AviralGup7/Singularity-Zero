@@ -163,6 +163,7 @@ def _manifest(
 def build_default_active_manifest_registry() -> ActiveManifestRegistry:
     registry = ActiveManifestRegistry()
     url_item_checks = {
+        "redirect",
         "sqli",
         "csrf",
         "jwt",
@@ -194,6 +195,11 @@ def build_default_active_manifest_registry() -> ActiveManifestRegistry:
         "http_smuggling",
         "json",
         "response_diff",
+        "token_reuse",
+        "race_condition",
+        "race_condition_alias",
+        "cache_poison",
+        "cache_poisoning",
     }
     for check_id in url_item_checks:
         extra = {ActiveCapability.HTTP_CLIENT, ActiveCapability.RESPONSE_CACHE}

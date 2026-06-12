@@ -26,7 +26,7 @@ def _loop_time() -> float:
     Falls back to ``time.monotonic`` when no loop is active, so the
     helper is safe to call from sync code paths and avoids the
     deprecated ``asyncio.get_event_loop()`` (which has been scheduled
-    for removal in Python 3.14+ and warns at runtime in 3.12+).
+    for removal in Python 3.14+ and warns at runtime).
     """
     import time
 
