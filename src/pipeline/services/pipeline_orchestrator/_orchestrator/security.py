@@ -391,7 +391,9 @@ async def run_secured(
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
 
     if getattr(args, "dry_run", False):
-        logger.info("Dry-run mode: config and tools validated successfully; skipping stage execution.")
+        logger.info(
+            "Dry-run mode: config and tools validated successfully; skipping stage execution."
+        )
         emit_progress("startup", "Dry-run complete", 100, status="completed")
         return 0
 
