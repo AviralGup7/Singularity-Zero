@@ -21,11 +21,9 @@ from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
-from src.pipeline.stage_registry import (
-    StageNodeDefinition,
-    _global_stage_registry,
-    _make_stage_node,
-)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.pipeline.stage_registry import StageNodeDefinition
 
 from ._graph_dsl import (
     All,
@@ -213,6 +211,7 @@ def _apply_profile_to_definition(
     profile: dict[str, Any],
 ) -> StageNodeDefinition:
     """Apply profile settings to a stage definition."""
+    from src.pipeline.stage_registry import StageNodeDefinition
     stage_profile = profile.get(defn.name)
     if not isinstance(stage_profile, dict):
         return defn
@@ -269,7 +268,12 @@ def build_pipeline_graph(
     stage_methods: Mapping[str, Any] | None = None,
     tool_status: dict[str, bool] | None = None,
 ) -> Graph:
-    from src.pipeline.stage_registry import _register_builtin_stages
+    from src.pipeline.stage_registry import (
+        _register_builtin_stages,
+        _global_stage_registry,
+        _make_stage_node,
+        StageNodeDefinition,
+    )
 
     _register_builtin_stages()
     # Load registered stages if not provided explicitly

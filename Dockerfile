@@ -1,5 +1,5 @@
-FROM python:3.12-slim-bookworm AS frontend-builder
-# Pin base image: python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm AS frontend-builder
+# Pin base image: python:3.13-slim-bookworm
 
 WORKDIR /app/frontend
 
@@ -23,8 +23,8 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────
 # Runtime stage
 # ──────────────────────────────────────────────────────────
-FROM python:3.12-slim-bookworm AS runtime
-# Pin base image: python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm AS runtime
+# Pin base image: python:3.13-slim-bookworm
 
 WORKDIR /app
 
