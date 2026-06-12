@@ -128,14 +128,14 @@ class JobStore:
                         self._all_connections.remove(c)
 
             self._local.wrapper = _ConnWrapper(conn, _remove_conn)
+            self._local._conn = conn
             with self._lock:
                 self._all_connections.append(conn)
         return cast(sqlite3.Connection, self._local.wrapper.conn)
 
     @staticmethod
     def _is_locked_error(exc: BaseException) -> bool:
-        message = str(exc).lower()
-        return "database is locked" in message or "database table is locked" in message
+        return "database is locked" in str(exc).lower() or "database table is locked" in str(exc).lower()
 
     def _drop_thread_conn(self) -> None:
         wrapper = getattr(self._local, "wrapper", None)
@@ -153,6 +153,7 @@ class JobStore:
                 if conn in self._all_connections:
                     self._all_connections.remove(conn)
             self._local.wrapper = None
+            self._local._conn = None
 
     def _with_retry(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
         last_exc: sqlite3.OperationalError | None = None
@@ -201,6 +202,7 @@ class JobStore:
                     logger.warning("Failed to close SQLite connection cleanly: %s", exc)
             self._all_connections.clear()
             self._local.wrapper = None
+            self._local._conn = None
 
     def save(self, job: dict[str, Any]) -> None:
         """Upsert a job record."""
