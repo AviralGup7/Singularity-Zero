@@ -388,9 +388,10 @@ def score_signal_quality(
     else:
         probs = _get_ml_pipeline().predict_proba(np.array([features]))[0]
         # Use model.classes_ to determine correct class ordering
-        if _get_ml_pipeline().classes_ is not None and len(_get_ml_pipeline().classes_) >= 2:
+        classes = _get_ml_pipeline().classes_
+        if classes is not None and len(classes) >= 2:
             # classes_ may be [0, 1] or [1, 0] depending on fitting order
-            tp_idx = 1 if _get_ml_pipeline().classes_[-1] == 1 else 0
+            tp_idx = 1 if classes[-1] == 1 else 0
             fp_idx = 1 - tp_idx
         else:
             tp_idx = 1
