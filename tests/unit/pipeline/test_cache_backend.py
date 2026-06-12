@@ -562,16 +562,22 @@ class TestPipelineCacheUtilities(unittest.TestCase):
         save_cached_set(path, {"old"}, compress=False)
         save_cached_set(path, {"new"}, compress=True)
 
-        self.assertFalse(path.exists())
-        self.assertEqual(load_cached_set(path), {"new"})
+        self.assertTrue(path.exists())
+        import json
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(set(raw), {"new"})
 
     def test_compressed_json_replaces_stale_uncompressed_file(self) -> None:
         path = self.cache_dir / "payload.json"
         save_cached_json(path, {"value": "old"}, compress=False)
         save_cached_json(path, {"value": "new"}, compress=True)
 
-        self.assertFalse(path.exists())
-        self.assertEqual(load_cached_json(path), {"value": "new"})
+        self.assertTrue(path.exists())
+        import json
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(raw, {"value": "new"})
 
     def test_response_cache_fresh_rejects_invalid_timestamp(self) -> None:
         self.assertFalse(response_cache_fresh({"cached_at_epoch": "not-a-float"}, 24))

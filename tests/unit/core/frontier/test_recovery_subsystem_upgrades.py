@@ -173,6 +173,7 @@ async def test_proc_pool_execute_task_binary(monkeypatch):
     monkeypatch.setattr("os.killpg", lambda *args: None, raising=False)
     monkeypatch.setattr("os.getpgid", lambda *args: 1, raising=False)
 
+    monkeypatch.setattr("src.core.frontier.proc_pool._validate_tool_name", lambda _: None)
     await pool.warm_pool("dummy_bin", [])
 
     async def worker_echo():

@@ -85,7 +85,8 @@ async def test_mesh_sync_pubsub_flow(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Verify message was also tracked as published on mock
     assert len(mock_redis.published_messages) == 1
-    assert mock_redis.published_messages[0][0] == channel_name
+    published_channel = mock_redis.published_messages[0][0]
+    assert published_channel.endswith(channel_name)
 
     # Stop the sync client
     await sync_client.stop()

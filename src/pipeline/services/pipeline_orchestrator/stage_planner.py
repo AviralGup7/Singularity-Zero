@@ -11,6 +11,16 @@ from src.infrastructure.resource_guard import ResourceGuard
 logger = logging.getLogger(__name__)
 
 
+def _get_graph_nodes() -> list:
+    """Return the current pipeline graph nodes for dependency checking."""
+    try:
+        from src.pipeline.services.pipeline_orchestrator._constants import STAGE_GRAPH
+
+        return list(STAGE_GRAPH.nodes) if STAGE_GRAPH else []
+    except (ImportError, AttributeError):
+        return []
+
+
 class StagePlanner:
     def __init__(self, config: Any, ctx: Any, learning_integration: Any) -> None:
         self.config = config
@@ -60,9 +70,23 @@ class StagePlanner:
             resources["expand_report_details"] = True
 
         active_stages = [s for s in adjusted_stages if s not in ("ranker", "deserialize_scope")]
+        # Collect stages that are depended on by other stages in the current list
+        dependent_stages: set[str] = set()
+        from ._graph_dsl import StageNode
+
+        for s in active_stages:
+            for node in _get_graph_nodes():
+                if node.name == s:
+                    dependent_stages.update(node.needs)
         filtered_stages: list[str] = []
         for s in active_stages:
             skip, reason = self.resource_guard.should_skip_stage(s, target_count, url_count)
+            if skip and s in dependent_stages:
+                logger.info(
+                    "StagePlanner: Stage '%s' resource-guarded but has dependents; not skipping.", s
+                )
+                filtered_stages.append(s)
+                continue
             if skip:
                 logger.info(
                     "StagePlanner: Skipping stage '%s' due to resource guard: %s", s, reason
@@ -162,6 +186,22 @@ class StagePlanner:
 
         for s, val in ordered_stages:
             if val < threshold:
+                # Don't skip stages that have downstream dependents in the current plan
+                has_dependents = any(
+                    s in node.needs
+                    for node in _get_graph_nodes()
+                    if node.name in adjusted_stages
+                )
+                if has_dependents:
+                    logger.info(
+                        "StagePlanner: Stage '%s' marginal value %.2f < threshold %.2f "
+                        "but has dependents; not skipping.",
+                        s,
+                        val,
+                        threshold,
+                    )
+                    final_stages.append(s)
+                    continue
                 logger.info(
                     "StagePlanner: Skipping stage '%s' (predicted marginal value %.2f < threshold %.2f)",
                     s,
@@ -178,15 +218,27 @@ class StagePlanner:
                 continue
 
             allocated_time = int((val / max(0.1, total_value)) * remaining_time)
-            resources[f"{s}_stage_timeout_seconds"] = max(60, allocated_time)
+            resources[f"{s}_stage_timeout_seconds"] = max(60, min(allocated_time, 3600))
             final_stages.append(s)
 
         return final_stages, resources
 
     def _sample_waf_detection(self, sample_urls: list[str]) -> int:
-        headers_list = [
-            ({"host": url.split("/")[2]} if len(url.split("/")) > 2 else {}) for url in sample_urls
-        ]
+        headers_list = []
+        for url in sample_urls:
+            try:
+                from urllib.parse import urlparse
+
+                parsed = urlparse(url)
+                host = parsed.hostname or ""
+                port = parsed.port
+                if port and port not in (80, 443):
+                    host_header = f"{host}:{port}"
+                else:
+                    host_header = host
+                headers_list.append({"Host": host_header} if host_header else {})
+            except Exception:
+                headers_list.append({})
         detection_count = 0
         try:
             from src.detection.waf import fingerprint_response

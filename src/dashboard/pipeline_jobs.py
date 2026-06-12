@@ -188,10 +188,18 @@ def run_pipeline_job(
 
         returncode = process.wait()
         for consumer in consumers:
-            consumer.join()
+            consumer.join(timeout=30)
 
-    # Small delay to ensure file handles are fully flushed
-    time.sleep(0.5)
+    # Wait briefly for file handles to flush, but use retry to handle slow disks
+    for _flush_attempt in range(5):
+        try:
+            if stdout_path.exists() and stderr_path.exists():
+                # Verify files are readable
+                stdout_path.read_text(encoding="utf-8")
+                stderr_path.read_text(encoding="utf-8")
+                break
+        except (OSError, PermissionError):
+            time.sleep(0.2)
 
     # Capture process output for status/error reporting
     stdout_content = ""

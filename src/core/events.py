@@ -156,29 +156,34 @@ class EventBus:
                     try:
                         loop = asyncio.get_running_loop()
                     except RuntimeError:
-                        res_fut = None
-                        exc_fut = None
+                        # No running loop - run async handler in a shared
+                        # event loop to avoid spawning a new thread per handler
+                        try:
+                            shared_loop = asyncio.new_event_loop()
+                            result = shared_loop.run_until_complete(handler(event))
+                            shared_loop.close()
+                            results.append(result)
+                        except Exception:
+                            # Last resort: thread with its own loop
+                            res_fut = None
+                            exc_fut = None
 
-                        def _run_in_thread() -> None:
-                            nonlocal res_fut, exc_fut
-                            try:
-                                res_fut = asyncio.run(handler(event))
-                            except Exception as e:
-                                exc_fut = e
+                            def _run_in_thread() -> None:
+                                nonlocal res_fut, exc_fut
+                                try:
+                                    res_fut = asyncio.run(handler(event))
+                                except Exception as e:
+                                    exc_fut = e
 
-                        t = threading.Thread(target=_run_in_thread)
-                        t.start()
-                        t.join()
-                        if exc_fut is not None:
-                            raise exc_fut
-                        results.append(res_fut)
+                            t = threading.Thread(target=_run_in_thread)
+                            t.start()
+                            t.join()
+                            if exc_fut is not None:
+                                raise exc_fut
+                            results.append(res_fut)
                     else:
                         task = loop.create_task(handler(event))
                         self._track_task(task)
-                        # Return the Task itself so callers can await or
-                        # inspect it. Previously we returned ``None`` which
-                        # contradicted the "deterministic result list"
-                        # contract and obliterated handler results.
                         results.append(task)
                 else:
                     result = handler(event)

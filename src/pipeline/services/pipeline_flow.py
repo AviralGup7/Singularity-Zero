@@ -10,7 +10,7 @@ __all__ = ["PIPELINE_STAGES", "run_pipeline"]
 
 def run_pipeline(
     config: dict[str, Any], scope_entries: list[str], output_dir: str, args: Any
-) -> None:
+) -> int:
     """Execute the security pipeline with the given configuration.
 
     Args:
@@ -18,6 +18,9 @@ def run_pipeline(
         scope_entries: List of scope entries to analyze.
         output_dir: Directory for output artifacts.
         args: Parsed command-line arguments.
+
+    Returns:
+        Exit code from the pipeline execution.
     """
     from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 
@@ -48,3 +51,5 @@ def run_pipeline(
         logger.warning("Pipeline completed with exit code %d", result)
     else:
         logger.info("Pipeline complete. Output directory: %s", output_dir)
+
+    return result

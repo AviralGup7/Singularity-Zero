@@ -66,6 +66,8 @@ def _setup_pykka_compat():
     try:
         import pykka  # noqa: F401
     except (ImportError, AttributeError):
+        import threading
+        import time as _time
 
         class ActorDeadError(Exception):
             pass
@@ -73,16 +75,112 @@ def _setup_pykka_compat():
         class ActorTimeout(Exception):
             pass
 
-        _ActorDeadError = ActorDeadError
-        _ActorTimeout = ActorTimeout
+        class _Future:
+            def __init__(self, value=None, error=None):
+                self._value = value
+                self._error = error
+                self._event = threading.Event()
 
-        class PykkaCompatibility(types.ModuleType):
-            ActorDeadError = _ActorDeadError
-            Timeout = _ActorTimeout
-            ActorDeadError.__module__ = "pykka"
-            ActorTimeout.__module__ = "pykka"
+            def set(self, value=None, error=None):
+                self._value = value
+                self._error = error
+                self._event.set()
 
-        sys.modules["pykka"] = PykkaCompatibility("pykka")
+            def get(self, timeout=None):
+                self._event.wait(timeout=timeout)
+                if self._error is not None:
+                    raise self._error
+                return self._value
+
+        class ActorRef:
+            def __init__(self, actor_instance):
+                self._actor = actor_instance
+                self._alive = True
+
+            def ask(self, message, block=False, timeout=None):
+                try:
+                    result = self._actor.on_receive(message)
+                    if block:
+                        return result
+                    return result
+                except Exception as exc:
+                    if isinstance(exc, (ActorDeadError, ActorTimeout)):
+                        raise
+                    raise
+
+            def stop(self, block=True):
+                self._alive = False
+                if hasattr(self._actor, "_thread") and self._actor._thread.is_alive():
+                    self._actor._stop_event.set()
+                    if block:
+                        self._actor._thread.join(timeout=5)
+
+            def is_alive(self):
+                return self._alive and self._actor._stop_event is not None and not self._actor._stop_event.is_set()
+
+            def proxy(self):
+                return _ActorProxy(self)
+
+        class _ActorProxy:
+            def __init__(self, ref):
+                self._ref = ref
+
+            def __getattr__(self, name):
+                if name.startswith("_"):
+                    raise AttributeError(name)
+                return _ProxyAttr(self._ref, name)
+
+        class _ProxyAttr:
+            def __init__(self, ref, name):
+                self._ref = ref
+                self._name = name
+
+            def get(self, timeout=None):
+                return self._ref.ask({"command": "__getattribute__", "name": self._name}, block=True, timeout=timeout)
+
+            def __call__(self, *args, **kwargs):
+                return self._ref.ask({"command": "__call__", "name": self._name, "args": args, "kwargs": kwargs}, block=True)
+
+            def __setattr__(self, name, value):
+                if name.startswith("_"):
+                    object.__setattr__(self, name, value)
+                else:
+                    self._ref.ask({"command": "__setattr__", "name": name, "value": value}, block=True)
+
+        class Actor:
+            def __init__(self):
+                self._stop_event = threading.Event()
+                self._thread = None
+
+            def start(cls, *args, **kwargs):
+                actor_instance = cls(*args, **kwargs)
+                ref = ActorRef(actor_instance)
+                t = threading.Thread(target=actor_instance._run, daemon=True)
+                actor_instance._thread = t
+                actor_instance._ref = ref
+                t.start()
+                return ref
+            start = classmethod(start)
+
+            def _run(self):
+                while not self._stop_event.is_set():
+                    _time.sleep(0.01)
+
+            def stop(self):
+                self._stop_event.set()
+
+            def on_receive(self, message):
+                raise NotImplementedError("Subclasses must implement on_receive")
+
+        pykka_mod = types.ModuleType("pykka")
+        pykka_mod.Actor = Actor
+        pykka_mod.ThreadingActor = Actor
+        pykka_mod.ActorRef = ActorRef
+        pykka_mod.ActorDeadError = ActorDeadError
+        pykka_mod.Timeout = ActorTimeout
+        ActorDeadError.__module__ = "pykka"
+        ActorTimeout.__module__ = "pykka"
+        sys.modules["pykka"] = pykka_mod
 
 
 _setup_pykka_compat()

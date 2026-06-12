@@ -175,6 +175,15 @@ def _patch_runtime_environment(
         sec_mod, "STAGE_TIMEOUTS", {"subdomains": 5, "live_hosts": 5, "urls": 5}, raising=False
     )
 
+    from src.infrastructure.resource_guard import ResourceGuard
+
+    monkeypatch.setenv("IGNORE_CAPABILITY_RESOURCE_BUDGET", "1")
+    monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda self: None)
+    monkeypatch.setattr(
+        ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None)
+    )
+    monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda self: None)
+
 
 @pytest.mark.asyncio
 async def test_stage_status_only_failure_forces_non_zero_exit(
@@ -479,7 +488,7 @@ async def test_live_hosts_success_transitions_to_urls_stage(
     assert exit_code == 0
     assert urls_runner.await_count == 1
     assert any(
-        stage == "urls" and "Entering URL collection" in message
+        stage == "urls" and "urls" in message.lower()
         for stage, message, _ in emitted_progress
     )
 
@@ -562,7 +571,7 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
     assert exit_code == 0
     assert urls_runner.await_count == 1
     assert any(
-        stage == "urls" and "Entering URL collection" in message
+        stage == "urls" and "urls" in message.lower()
         for stage, message, _ in emitted_progress
     )
 

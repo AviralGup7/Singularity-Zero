@@ -131,6 +131,15 @@ def _patch_runtime_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         "src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None)
     )
 
+    from src.infrastructure.resource_guard import ResourceGuard
+
+    monkeypatch.setenv("IGNORE_CAPABILITY_RESOURCE_BUDGET", "1")
+    monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda self: None)
+    monkeypatch.setattr(
+        ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None)
+    )
+    monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda self: None)
+
 
 @pytest.mark.asyncio
 async def test_orchestrator_emits_domain_events(

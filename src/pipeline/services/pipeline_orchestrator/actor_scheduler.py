@@ -78,18 +78,19 @@ def _is_large_output(stage_name: str, config: Any, ctx: Any) -> bool:
 
 
 def _downstream_for_rebalance(node: StageNode, graph: Graph) -> frozenset[str]:
+    """Find nodes that depend on ``node`` (downstream), not nodes it depends on."""
     result: set[str] = set()
-    queue: list[str] = list(node.needs)
+    queue: list[str] = [node.name]
     visited: set[str] = set()
     while queue:
-        current = queue.pop()
-        if current in visited:
+        current_name = queue.pop()
+        if current_name in visited:
             continue
-        visited.add(current)
-        candidate = graph.get(current)
-        if candidate is not None:
-            result.update(candidate.needs)
-            queue.extend(candidate.needs)
+        visited.add(current_name)
+        for other in graph.nodes:
+            if current_name in other.needs and other.name not in visited:
+                result.add(other.name)
+                queue.append(other.name)
     return frozenset(result)
 
 
@@ -290,13 +291,21 @@ class ActorScheduler:
 
         ready.sort(key=lambda triple: (triple[0], triple[1]))
         if ready:
-            self._outcome.speculative_dispatches.append(
-                {
-                    "reason": REASON_SPECULATIVE_DISPATCH,
-                    "ready": [node.name for _w, _i, node in ready],
-                    "timestamp": _utcnow_iso(),
-                }
+            ready_names = [node.name for _w, _i, node in ready]
+            # Deduplicate: don't append if the last entry already has the same ready set
+            last_entry = (
+                self._outcome.speculative_dispatches[-1]
+                if self._outcome.speculative_dispatches
+                else None
             )
+            if last_entry is None or last_entry.get("ready") != ready_names:
+                self._outcome.speculative_dispatches.append(
+                    {
+                        "reason": REASON_SPECULATIVE_DISPATCH,
+                        "ready": ready_names,
+                        "timestamp": _utcnow_iso(),
+                    }
+                )
             logger.debug(
                 "ActorScheduler: speculative dispatch ready=%s",
                 [node.name for _w, _i, node in ready],
@@ -601,11 +610,9 @@ class ActorScheduler:
 
     def _shutdown_requested(self) -> bool:
         try:
-            from src.pipeline.runtime import shutdown_flag
+            from src.pipeline.runtime import _is_shutdown_requested
 
-            if hasattr(shutdown_flag, "is_set"):
-                return bool(shutdown_flag.is_set())
-            return bool(shutdown_flag)
+            return _is_shutdown_requested()
         except ImportError:
             return False
 

@@ -544,6 +544,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         except asyncio.CancelledError as exc:
             logger.warning("Operation failed in lifespan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
+    # Terminate running job processes BEFORE shutting down websocket
+    # so clients can receive final status updates
     if hasattr(app.state, "services") and hasattr(app.state.services, "jobs"):
         for job_id, job in app.state.services.jobs.items():
             if job.get("status") == "running":
@@ -551,6 +553,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 if process:
                     logger.info("Terminating process for job %s", job_id)
                     process.terminate()
+
+    # Give processes time to terminate and flush output
+    await asyncio.sleep(0.5)
 
     if ws_services:
         await ws_services.shutdown()

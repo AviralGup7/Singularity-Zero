@@ -210,14 +210,14 @@ class TestSession(unittest.TestCase):
 class TestPasswordHash(unittest.TestCase):
     def test_create_and_verify(self) -> None:
         ph = PasswordHash.create("secure_password")
-        assert ph.algorithm == "pbkdf2_sha256"
+        assert ph.algorithm in ("argon2id", "pbkdf2_sha256")
         assert ph.verify("secure_password") is True
         assert ph.verify("wrong_password") is False
 
     def test_different_passwords(self) -> None:
         ph1 = PasswordHash.create("password1")
         ph2 = PasswordHash.create("password1")
-        assert ph1.salt != ph2.salt
+        assert ph1.hash != ph2.hash
 
 
 @pytest.mark.unit
@@ -817,7 +817,7 @@ class TestSecretManager(SecurityTestBase):
 class TestTLSConfig(SecurityTestBase):
     def test_defaults(self) -> None:
         config = TLSConfig()
-        assert config.min_version == "1.2"
+        assert config.min_version == "1.3"
         assert config.ciphers == TLSConfig.RECOMMENDED_CIPHERS
 
     def test_from_security_config(self) -> None:

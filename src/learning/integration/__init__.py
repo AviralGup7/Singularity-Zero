@@ -70,6 +70,7 @@ class LearningIntegration:
                 convergence_threshold=self.config.threshold_tuning.convergence_threshold,
             ),
         )
+        self._mesh_sync_task: asyncio.Task | None = None
 
         # Wire active learning retraining loops
         self._active_learning: ActiveLearningController | None = None
@@ -141,7 +142,9 @@ class LearningIntegration:
             if _integration_instance._mesh_sync:
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(_integration_instance._start_mesh_sync())
+                    _integration_instance._mesh_sync_task = loop.create_task(
+                        _integration_instance._start_mesh_sync()
+                    )
                 except RuntimeError as exc:
                     # No running event loop
                     logger.debug(
@@ -194,15 +197,22 @@ class LearningIntegration:
             if loop is not None and loop.is_running():
                 import threading
 
+                # Check if we're on the loop's thread - if so, we can't block
+                current_thread = threading.current_thread()
                 loop_thread = getattr(loop, "_thread", None)
-                if loop_thread is not None and threading.current_thread() is not loop_thread:
+                if loop_thread is not None and current_thread is not loop_thread:
                     future = asyncio.run_coroutine_threadsafe(coro, loop)
                     try:
                         future.result(timeout=5.0)
                     except Exception:  # noqa: S110
                         pass
                 else:
-                    loop.create_task(coro)
+                    # We're on the event loop thread or _thread is None;
+                    # schedule as a task to avoid deadlock
+                    try:
+                        loop.create_task(coro)
+                    except RuntimeError:
+                        pass
             else:
                 try:
                     new_loop = asyncio.new_event_loop()
@@ -317,7 +327,7 @@ class LearningIntegration:
 
         Returns a float between 0.0 and 1.0.
         """
-        if stage in ("subdomains", "live_hosts", "urls", "reporting"):
+        if stage in ("reporting",):
             return 1.0
 
         # Access ctx result
@@ -330,6 +340,18 @@ class LearningIntegration:
 
         findings = getattr(result, "reportable_findings", []) or []
         findings_count = len(findings)
+
+        if stage in ("subdomains",):
+            scope_entries = getattr(result, "scope_entries", []) or []
+            return 0.9 if len(scope_entries) > 0 else 0.1
+
+        if stage == "live_hosts":
+            subdomains = getattr(result, "subdomains", []) or []
+            return 0.9 if len(subdomains) > 0 else 0.1
+
+        if stage == "urls":
+            live_hosts = getattr(result, "live_hosts", []) or []
+            return 0.9 if len(live_hosts) > 0 else 0.2
 
         if stage == "active_scan":
             live_hosts = getattr(result, "live_hosts", []) or []
