@@ -76,6 +76,18 @@ def _prepare_job_for_storage(job: dict[str, Any]) -> dict[str, Any]:
     return cast(dict[str, Any], _json_compatible(payload))
 
 
+class _ConnWrapper:
+    def __init__(self, conn: sqlite3.Connection, on_close: Callable[[sqlite3.Connection], None]) -> None:
+        self.conn = conn
+        self.on_close = on_close
+
+    def __del__(self) -> None:
+        try:
+            self.on_close(self.conn)
+        except Exception:
+            pass
+
+
 class JobStore:
     """SQLite-backed persistent store for job records."""
 
@@ -90,7 +102,8 @@ class JobStore:
         atexit.register(self.close)
 
     def _get_conn(self) -> sqlite3.Connection:
-        if not hasattr(self._local, "_conn") or self._local._conn is None:
+        wrapper = getattr(self._local, "wrapper", None)
+        if wrapper is None or wrapper.conn is None:
             conn = sqlite3.connect(str(self.db_path), timeout=_CONNECT_TIMEOUT_SECONDS)
             conn.row_factory = sqlite3.Row
             try:
@@ -104,10 +117,20 @@ class JobStore:
                 except sqlite3.ProgrammingError as exc:
                     logger.warning("Operation failed in job_store.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise
-            self._local._conn = conn
+            
+            def _remove_conn(c: sqlite3.Connection) -> None:
+                try:
+                    c.close()
+                except Exception:
+                    pass
+                with self._lock:
+                    if c in self._all_connections:
+                        self._all_connections.remove(c)
+
+            self._local.wrapper = _ConnWrapper(conn, _remove_conn)
             with self._lock:
                 self._all_connections.append(conn)
-        return cast(sqlite3.Connection, self._local._conn)
+        return cast(sqlite3.Connection, self._local.wrapper.conn)
 
     @staticmethod
     def _is_locked_error(exc: BaseException) -> bool:
@@ -115,7 +138,10 @@ class JobStore:
         return "database is locked" in message or "database table is locked" in message
 
     def _drop_thread_conn(self) -> None:
-        conn = getattr(self._local, "_conn", None)
+        wrapper = getattr(self._local, "wrapper", None)
+        if wrapper is None:
+            return
+        conn = wrapper.conn
         if conn is None:
             return
         try:
@@ -126,7 +152,7 @@ class JobStore:
             with self._lock:
                 if conn in self._all_connections:
                     self._all_connections.remove(conn)
-            self._local._conn = None
+            self._local.wrapper = None
 
     def _with_retry(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
         last_exc: sqlite3.OperationalError | None = None
@@ -174,7 +200,7 @@ class JobStore:
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Failed to close SQLite connection cleanly: %s", exc)
             self._all_connections.clear()
-            self._local._conn = None
+            self._local.wrapper = None
 
     def save(self, job: dict[str, Any]) -> None:
         """Upsert a job record."""
@@ -262,6 +288,8 @@ class JobStore:
                         job["status"] = "failed"
                         job["error"] = "Dashboard restarted while job was running"
                         job["status_message"] = "Job was interrupted by dashboard restart"
+                        if "process_pid" in job:
+                            del job["process_pid"]
                         job["finished_at"] = time.time()
                         job["updated_at"] = job["finished_at"]
                         conn.execute(

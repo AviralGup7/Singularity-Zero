@@ -107,7 +107,7 @@ class FeedbackLoopEngine:
         adaptations = ScanAdaptation()
 
         # 1. Compute target boosts/suppressions from endpoint feedback
-        self._compute_target_adaptations(adaptations, all_feedback_events)
+        self._compute_target_adaptations(adaptations, all_feedback_events, run_ids)
 
         # 2. Compute plugin overrides from plugin performance
         self._compute_plugin_adaptations(adaptations, all_plugin_stats)
@@ -166,9 +166,12 @@ class FeedbackLoopEngine:
         return adaptations
 
     def _compute_target_adaptations(
-        self, adaptations: ScanAdaptation, events: list[dict[str, Any]]
+        self, adaptations: ScanAdaptation, events: list[dict[str, Any]], run_ids: list[str]
     ) -> None:
         """Compute target endpoint boosts and suppressions."""
+        # Create a mapping of run_id to decay factor based on position (newest to oldest)
+        run_decay = {run_id: (0.9 ** idx) for idx, run_id in enumerate(run_ids)}
+
         # Aggregate feedback by endpoint
         endpoint_stats: dict[str, dict[str, Any]] = {}
 
@@ -189,7 +192,10 @@ class FeedbackLoopEngine:
                 stats["validated"] += 1
             if event.get("was_false_positive"):
                 stats["fp"] += 1
-            stats["total_weight"] += event.get("feedback_weight", 1.0)
+            
+            event_run_id = event.get("run_id")
+            decay = run_decay.get(event_run_id, 1.0) if event_run_id else 1.0
+            stats["total_weight"] += event.get("feedback_weight", 1.0) * decay
 
         for ep, stats in endpoint_stats.items():
             total = stats["findings"]
@@ -370,11 +376,12 @@ class FeedbackLoopEngine:
                     )
                 )
 
-        # Deduplicate by endpoint
+        # Deduplicate by (endpoint, category)
         seen = set()
         deduped = []
         for target in adaptations.active_exploit_queue:
-            if target.endpoint not in seen:
-                seen.add(target.endpoint)
+            key = (target.endpoint, target.category)
+            if key not in seen:
+                seen.add(key)
                 deduped.append(target)
         adaptations.active_exploit_queue = deduped[:20]  # Limit to 20

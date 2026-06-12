@@ -299,15 +299,26 @@ def build_pipeline_graph(
     # Prune unavailable tools
     if tool_status:
         available_set = {name for name, avail in tool_status.items() if avail}
+        pruned_stages = set()
         for node in list(nodes):
             required_tool = {"nuclei": "nuclei", "semgrep": "semgrep"}.get(node.name)
             if required_tool and required_tool not in available_set:
                 nodes = [n for n in nodes if n.name != node.name]
+                pruned_stages.add(node.name)
                 logger.info(
                     "graph_builder: pruning stage '%s' — required tool '%s' not available",
                     node.name,
                     required_tool,
                 )
+        if pruned_stages:
+            import dataclasses
+            new_nodes = []
+            for n in nodes:
+                if any(p in n.needs for p in pruned_stages):
+                    new_needs = tuple(dep for dep in n.needs if dep not in pruned_stages)
+                    n = dataclasses.replace(n, needs=new_needs)
+                new_nodes.append(n)
+            nodes = new_nodes
 
     return Graph(nodes=tuple(nodes))
 

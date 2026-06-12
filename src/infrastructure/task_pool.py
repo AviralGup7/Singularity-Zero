@@ -130,7 +130,7 @@ class RunLock:
             self._redis_client = None
             return None
 
-    def acquire(self, scan_id: str, ttl_seconds: int = 3600) -> bool:
+    def acquire(self, scan_id: str, ttl_seconds: int = 3600, owner_id: str | None = None) -> bool:
         """Attempt to acquire an exclusive lock for *scan_id*.
 
         Tries Redis SET NX PX first (cross-node safe); falls back to
@@ -139,10 +139,12 @@ class RunLock:
         Args:
             scan_id: Unique identifier for the scan/run.
             ttl_seconds: Lock expiry in seconds (default 1 hour).
+            owner_id: Optional owner identifier (the run ID) to support re-entrancy.
 
         Returns:
             True on success, False if the lock is already held.
         """
+        import uuid
         with self._thread_lock:
             if self._acquired:
                 raise RuntimeError("RunLock is already acquired. Call release() first.")
@@ -150,11 +152,14 @@ class RunLock:
             # Try Redis distributed lock first
             redis = self._get_redis()
             if redis is not None:
-                import uuid
-
                 self._lock_key = f"{self.REDIS_LOCK_PREFIX}{scan_id}"
-                self._lock_value = str(uuid.uuid4())
+                self._lock_value = owner_id or str(uuid.uuid4())
                 try:
+                    existing = redis.get(self._lock_key)
+                    if existing == self._lock_value:
+                        self._acquired = True
+                        return True
+
                     acquired = redis.set(
                         self._lock_key,
                         self._lock_value,
@@ -171,11 +176,24 @@ class RunLock:
             # Fallback: filesystem lock
             self._cache_dir.mkdir(parents=True, exist_ok=True)
             self._lock_file = self._cache_dir / f"{scan_id}.lock"
+            if self._lock_file.exists():
+                try:
+                    with open(self._lock_file, "r") as f:
+                        val = f.read().strip()
+                    if owner_id and val == owner_id:
+                        self._acquired = True
+                        return True
+                except Exception:
+                    pass
+                self._lock_file = None
+                return False
+
             try:
                 self._file_handle = os.open(
                     str(self._lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY
                 )
-                os.write(self._file_handle, scan_id.encode())
+                self._lock_value = owner_id or str(uuid.uuid4())
+                os.write(self._file_handle, self._lock_value.encode())
                 self._acquired = True
                 return True
             except FileExistsError:

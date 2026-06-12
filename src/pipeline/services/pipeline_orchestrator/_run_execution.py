@@ -201,9 +201,10 @@ async def execute_remaining_stages(
         # try to recover it from the checkpoint state
         try:
             state = checkpoint_mgr.load() if hasattr(checkpoint_mgr, "load") else None
-            if state is not None and hasattr(state, "stage_outputs"):
-                for stage_name in state.stage_outputs:
-                    completed_stages.add(stage_name)
+            if state is not None and hasattr(state, "stage_status") and state.stage_status:
+                for stage_name, status in state.stage_status.items():
+                    if status == "completed":
+                        completed_stages.add(stage_name)
         except Exception:  # noqa: BLE001, S110
             pass
 
@@ -413,21 +414,22 @@ def resolve_pipeline_exit_code(
                 )
                 return evaluation.exit_code
 
-    # Degraded-mode salvage for non-incremental runs:
-    # Apply even when not in incremental mode so a dead URL scope
-    # can be salvaged by subdomains in any run.
-    metrics_rv = ctx.result.module_metrics.get("recon_validation", {})
-    if metrics_rv.get("fatal", True) and metrics_rv:
-        salvaged_subdomains = ctx.result.stage_status.get(
-            "subdomains"
-        ) == StageStatus.COMPLETED.value and bool(ctx.result.subdomains)
-        if salvaged_subdomains and isinstance(metrics_rv, dict):
-            metrics_rv["degraded"] = True
-            metrics_rv["degraded_salvaged_by"] = "subdomains"
-            metrics_rv["fatal"] = False
-            logger.warning(
-                "RECON_DEGRADED: recon_validation failed but subdomains salvaged the run."
-            )
+    else:
+        # Degraded-mode salvage for non-incremental runs:
+        # Apply even when not in incremental mode so a dead URL scope
+        # can be salvaged by subdomains in any run.
+        metrics_rv = ctx.result.module_metrics.get("recon_validation", {})
+        if metrics_rv.get("fatal", True) and metrics_rv:
+            salvaged_subdomains = ctx.result.stage_status.get(
+                "subdomains"
+            ) == StageStatus.COMPLETED.value and bool(ctx.result.subdomains)
+            if salvaged_subdomains and isinstance(metrics_rv, dict):
+                metrics_rv["degraded"] = True
+                metrics_rv["degraded_salvaged_by"] = "subdomains"
+                metrics_rv["fatal"] = False
+                logger.warning(
+                    "RECON_DEGRADED: recon_validation failed but subdomains salvaged the run."
+                )
 
     # Apply degraded-mode detection before the hard infra-failure gate
     # so a salvaged degraded-stage failure doesn't trigger

@@ -117,11 +117,14 @@ class FPTracker:
         mesh_sync: Any | None = None,
         redis_repo: RedisFPRepository | None = None,
     ):
+        import threading
         self.store = store
         self._cache: dict[str, FPPattern] = {}
         self._loaded = False
         self._mesh_sync = mesh_sync
         self._redis_repo = redis_repo
+        self._lock = threading.Lock()
+        self._async_lock = asyncio.Lock()
 
         if self._mesh_sync:
             # Note: The caller is responsible for calling start_listening
@@ -151,58 +154,65 @@ class FPTracker:
         """Load FP patterns from the store into cache (synchronous)."""
         if self._loaded:
             return
-        rows = self.store.get_fp_patterns()
-        for row in rows:
-            pattern = FPPattern.from_db_row(row)
-            self._cache[pattern.pattern_id] = pattern
-
-        # If no patterns exist, seed with defaults + the curated seed file
-        if not self._cache:
-            for category, config in _DEFAULT_FP_PATTERNS.items():
-                pattern = FPPattern.create(
-                    category=category,
-                    status_codes=config["status_codes"],
-                    body_indicators=config["body_indicators"],
-                )
+        with self._lock:
+            if self._loaded:
+                return
+            rows = self.store.get_fp_patterns()
+            for row in rows:
+                pattern = FPPattern.from_db_row(row)
                 self._cache[pattern.pattern_id] = pattern
-                self.store.upsert_fp_pattern(pattern.to_db_row())
 
-            for seed in _load_seed_patterns_file():
-                pattern = FPPattern.create(
-                    category=str(seed.get("category", "seed")),
-                    status_codes=set(seed.get("status_codes") or []),
-                    body_indicators=list(seed.get("body_indicators") or []),
-                    header_indicators=dict(seed.get("header_indicators") or {}),
-                )
-                # Seeded patterns are pre-suppressed by default so the
-                # cold-start FP filter is meaningful for new users.
-                pattern.fp_probability = float(seed.get("fp_probability", 0.85))
-                pattern.confidence = float(seed.get("confidence", 0.5))
-                pattern.occurrence_count = int(seed.get("occurrence_count", 5))
-                pattern.confirmed_fp_count = max(1, pattern.occurrence_count)
-                pattern.suppression_action = str(seed.get("suppression_action", "downgrade"))
-                self._cache[pattern.pattern_id] = pattern
-                self.store.upsert_fp_pattern(pattern.to_db_row())
+            # If no patterns exist, seed with defaults + the curated seed file
+            if not self._cache:
+                for category, config in _DEFAULT_FP_PATTERNS.items():
+                    pattern = FPPattern.create(
+                        category=category,
+                        status_codes=config["status_codes"],
+                        body_indicators=config["body_indicators"],
+                    )
+                    self._cache[pattern.pattern_id] = pattern
+                    self.store.upsert_fp_pattern(pattern.to_db_row())
 
-        self._loaded = True
+                for seed in _load_seed_patterns_file():
+                    pattern = FPPattern.create(
+                        category=str(seed.get("category", "seed")),
+                        status_codes=set(seed.get("status_codes") or []),
+                        body_indicators=list(seed.get("body_indicators") or []),
+                        header_indicators=dict(seed.get("header_indicators") or {}),
+                    )
+                    # Seeded patterns are pre-suppressed by default so the
+                    # cold-start FP filter is meaningful for new users.
+                    pattern.fp_probability = float(seed.get("fp_probability", 0.85))
+                    pattern.confidence = float(seed.get("confidence", 0.5))
+                    pattern.occurrence_count = int(seed.get("occurrence_count", 5))
+                    pattern.confirmed_fp_count = max(1, pattern.occurrence_count)
+                    pattern.suppression_action = str(seed.get("suppression_action", "downgrade"))
+                    self._cache[pattern.pattern_id] = pattern
+                    self.store.upsert_fp_pattern(pattern.to_db_row())
+
+            self._loaded = True
 
     async def _ensure_loaded_async(self) -> None:
         """Load FP patterns from Redis and store into cache (asynchronous)."""
         if self._loaded:
             return
 
-        # Try Redis first if available
-        if self._redis_repo:
-            patterns = await self._redis_repo.list_patterns(active_only=False)
-            if patterns:
-                for pattern in patterns:
-                    self._cache[pattern.pattern_id] = pattern
-                    # Sync to local store
-                    self.store.upsert_fp_pattern(pattern.to_db_row())
-                self._loaded = True
+        async with self._async_lock:
+            if self._loaded:
                 return
 
-        self._ensure_loaded()
+            # Try Redis first if available
+            if self._redis_repo:
+                patterns = await self._redis_repo.list_patterns(active_only=False)
+                if patterns:
+                    for pattern in patterns:
+                        self._cache[pattern.pattern_id] = pattern
+                        # Sync to local store
+                        self.store.upsert_fp_pattern(pattern.to_db_row())
+                    self._loaded = True
+                    return
+
+            self._ensure_loaded()
 
     async def update_from_run(
         self,

@@ -31,6 +31,7 @@ class EventType(StrEnum):
     STAGE_FAILED = "stage_failed"
     PIPELINE_COMPLETE = "pipeline_complete"
     PIPELINE_ERROR = "pipeline_error"
+    PIPELINE_CANCELLED = "pipeline_cancelled"
     GHOST_ACTOR_MIGRATED = "ghost_actor_migrated"
     GHOST_ACTOR_EVACUATED = "ghost_actor_evacuated"
     INGRESS_POLICY_RESULT = "ingress_policy_result"

@@ -91,6 +91,7 @@ def test_stage_planner_heavy_concurrency_calibration():
     learning.predict_stage_value.return_value = 0.8
 
     planner = StagePlanner(config, ctx, learning)
+    planner.resource_guard.get_concurrency_cap = lambda stage, default: default
     remaining = ["active_scan"]
 
     final_stages, resources = planner.plan_stages(remaining)

@@ -175,7 +175,7 @@ class TestScoring:
         ]
         run_summary = {"run_id": "test-run"}
 
-        with patch("src.recon.scoring.enrich_findings_with_model_severity") as mock_enrich:
+        with patch("src.intelligence.severity_model.enrich_findings_with_model_severity") as mock_enrich:
             mock_enrich.return_value = findings
             report = compute_aggregate_risk_score(findings, run_summary)
 

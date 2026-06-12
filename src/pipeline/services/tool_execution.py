@@ -10,6 +10,7 @@ Also provides the canonical `run_external_tool()` function and the
 from __future__ import annotations
 
 import asyncio
+import atexit
 import dataclasses
 import functools
 import os
@@ -125,26 +126,10 @@ class CompletedToolRun:
         return not self.timed_out and self.exit_code == 0
 
 
-def _get_context_key() -> str:
-    import threading
-
-    thread_id = threading.get_ident()
-    try:
-        task = asyncio.current_task()
-        if task is not None:
-            task_id = str(id(task))
-        else:
-            task_id = "none"
-    except RuntimeError:
-        task_id = "none"
-    return f"{thread_id}:{task_id}"
-
-
 def get_circuit_breaker(tool_name: str) -> CircuitBreaker:
     global _CIRCUIT_BREAKER_LAST_PRUNED
     now = time.monotonic()
-    context_key = _get_context_key()
-    key = f"{context_key}:{tool_name}"
+    key = tool_name
     with _CIRCUIT_BREAKERS_LOCK:
         breaker = _CIRCUIT_BREAKERS.get(key)
         if breaker is None:
@@ -189,6 +174,28 @@ class ToolExecutionError(RuntimeError):
 # --------------------------------------------------------------------------- #
 
 
+_TOOL_EXECUTOR: concurrent.futures.ThreadPoolExecutor | None = None
+_TOOL_EXECUTOR_LOCK = threading.Lock()
+
+def _get_tool_executor() -> concurrent.futures.ThreadPoolExecutor:
+    global _TOOL_EXECUTOR
+    if _TOOL_EXECUTOR is None:
+        with _TOOL_EXECUTOR_LOCK:
+            if _TOOL_EXECUTOR is None:
+                _TOOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=200,
+                    thread_name_prefix="tool_exec"
+                )
+    return _TOOL_EXECUTOR
+
+def _shutdown_tool_executor() -> None:
+    global _TOOL_EXECUTOR
+    if _TOOL_EXECUTOR is not None:
+        _TOOL_EXECUTOR.shutdown(wait=False)
+
+atexit.register(_shutdown_tool_executor)
+
+
 async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
     """Run an external binary and return a structured CompletedToolRun.
 
@@ -227,7 +234,7 @@ async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
     try:
         loop = asyncio.get_running_loop()
         process = await loop.run_in_executor(
-            None,
+            _get_tool_executor(),
             functools.partial(
                 subprocess.run,
                 command,

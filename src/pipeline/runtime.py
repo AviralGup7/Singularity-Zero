@@ -29,33 +29,55 @@ from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 # implementation used a plain boolean which is racy when the SIGINT
 # handler runs concurrently with the async pipeline (the handler set the
 # flag, but the running coroutine never saw it).
+_shutdown_events: dict[asyncio.AbstractEventLoop, asyncio.Event] = {}
 _shutdown_event: asyncio.Event | None = None
 
 
 def _shutdown_event_singleton() -> asyncio.Event:
-    global _shutdown_event
-    if _shutdown_event is None:
-        _shutdown_event = asyncio.Event()
-    return _shutdown_event
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = None
+
+    if loop is None:
+        global _shutdown_event
+        if _shutdown_event is None:
+            _shutdown_event = asyncio.Event()
+        return _shutdown_event
+
+    if loop not in _shutdown_events:
+        _shutdown_events[loop] = asyncio.Event()
+    return _shutdown_events[loop]
 
 
 def _is_shutdown_requested() -> bool:
-    if _shutdown_event is None:
-        return False
-    return _shutdown_event.is_set()
+    return _shutdown_event_singleton().is_set()
 
 
 def request_shutdown() -> None:
     """Public hook for in-process callers to trigger a graceful shutdown."""
+    event = _shutdown_event_singleton()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is not None and loop.is_running():
+        loop.call_soon_threadsafe(event.set)
+    else:
+        event.set()
+
+    # Also set global process fallback and all registered loop events to be safe
+    global _shutdown_event
     if _shutdown_event is not None:
+        _shutdown_event.set()
+    for evt in _shutdown_events.values():
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None and loop.is_running():
-            loop.call_soon_threadsafe(_shutdown_event.set)
-        else:
-            _shutdown_event.set()
+            evt.set()
+        except Exception:
+            pass
 
 
 # Backwards-compatible alias used by tests / external callers that
@@ -300,6 +322,14 @@ async def _run_replay(args: argparse.Namespace) -> int:
         tmp_path = Path(tmp_output)
         launcher_dirs = list(tmp_path.glob("_launcher/*"))
         if not launcher_dirs:
+            is_reporting_skipped = (
+                config.get("dry_run", False) or
+                (isinstance(config.get("stages"), list) and "reporting" not in config["stages"]) or
+                (isinstance(config.get("skip_stages"), list) and "reporting" in config["skip_stages"])
+            )
+            if is_reporting_skipped:
+                emit_info("No launcher artifacts expected (dry-run or reporting skipped). Replay successful.")
+                return 0
             emit_warning("No launcher artifacts produced during replay")
             return 1
 
@@ -364,9 +394,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
 
         loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            global _shutdown_event
-            _shutdown_event = asyncio.Event()
+            _ = _shutdown_event_singleton()
             global shutdown_flag
             shutdown_flag = _ShutdownFlagProxy()
 

@@ -195,6 +195,10 @@ class ActorScheduler:
             self._config, self._ctx, self._orchestrator.observability_bus.learning_integration
         )
 
+        # Capture initial config keys before starting the readiness loop
+        initial_config_keys = {k for k in dir(self._config) if not k.startswith('_')}
+        overridden_keys: set[str] = set()
+
         while True:
             if self._failed_critical is not None:
                 if self._outcome.exit_code is None:
@@ -213,10 +217,16 @@ class ActorScheduler:
                 for k, v in resources.items():
                     if k.endswith("_stage_timeout_seconds"):
                         stage_name = k.replace("_stage_timeout_seconds", "")
-                        # Save/override timeout settings in config or runtime state
-                        setattr(self._config, f"{stage_name}_stage_timeout_seconds", v)
+                        config_key = f"{stage_name}_stage_timeout_seconds"
                     else:
-                        setattr(self._config, k, v)
+                        config_key = k
+
+                    if config_key in initial_config_keys and config_key not in overridden_keys:
+                        # User-configured originally, do not overwrite!
+                        continue
+                    if config_key not in overridden_keys:
+                        setattr(self._config, config_key, v)
+                        overridden_keys.add(config_key)
 
             ready = self._collect_ready_nodes()
             if ready:
