@@ -42,9 +42,16 @@ class DashboardProgressTests(unittest.TestCase):
     def test_apply_progress_is_monotonic(self) -> None:
         job = self._job()
         apply_progress(job, {"stage": "subdomains", "message": "Found subdomains", "percent": 30})
-        apply_progress(job, {"stage": "subdomains", "message": "Retrying", "percent": 18})
+        apply_progress(job, {"stage": "subdomains", "message": "Still running", "percent": 18})
 
         self.assertEqual(job["progress_percent"], 30)
+
+    def test_apply_progress_decreases_on_retry(self) -> None:
+        job = self._job()
+        apply_progress(job, {"stage": "subdomains", "message": "Found subdomains", "percent": 30})
+        apply_progress(job, {"stage": "subdomains", "message": "Retrying", "percent": 18})
+
+        self.assertEqual(job["progress_percent"], 18)
 
     def test_apply_progress_supports_processed_total(self) -> None:
         job = self._job()
@@ -125,7 +132,7 @@ class DashboardProgressTests(unittest.TestCase):
         )
         self.assertEqual(job["failure_reason_code"], "no_subdomains_discovered")
 
-    def test_stage_transition_marks_previous_stage_completed(self) -> None:
+    def test_stage_transition_does_not_automatically_finalize_previous_stage(self) -> None:
         job = self._job()
         apply_progress(
             job, {"stage": "subdomains", "message": "Enumerating subdomains", "percent": 15}
@@ -133,8 +140,8 @@ class DashboardProgressTests(unittest.TestCase):
         apply_progress(job, {"stage": "live_hosts", "message": "Probing live hosts", "percent": 36})
 
         stage_progress = job.get("stage_progress", {})
-        self.assertEqual(stage_progress["subdomains"]["status"], "completed")
-        self.assertEqual(stage_progress["subdomains"]["percent"], 100)
+        self.assertEqual(stage_progress["subdomains"]["status"], "running")
+        self.assertEqual(stage_progress["subdomains"]["percent"], 16)
         self.assertEqual(stage_progress["live_hosts"]["status"], "running")
 
     def test_running_stage_updates_status_message_for_same_stage_progress(self) -> None:

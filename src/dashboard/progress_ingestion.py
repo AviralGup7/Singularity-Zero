@@ -607,7 +607,20 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
         )
 
     inferred = _infer_percent(job, stage, payload)
-    job["progress_percent"] = inferred
+    
+    is_retry = False
+    retry_count = _coerce_int(payload.get("retry_count")) or _coerce_int(payload.get("retry_attempt"))
+    if retry_count and retry_count > 0:
+        is_retry = True
+    elif incoming_message and "retry" in incoming_message.lower():
+        is_retry = True
+    elif reason_text and "retry" in reason_text.lower():
+        is_retry = True
+
+    if is_retry:
+        job["progress_percent"] = inferred
+    else:
+        job["progress_percent"] = max(int(job.get("progress_percent", 0) or 0), inferred)
     job["updated_at"] = now
     _append_progress_history(job, now)
 

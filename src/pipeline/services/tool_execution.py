@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import concurrent.futures
 import dataclasses
 import functools
 import os
