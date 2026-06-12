@@ -107,6 +107,7 @@ markers = [
     "regression: marks tests as regression tests",
     "security: marks tests as security tests",
     "chaos: marks chaos tests requiring infrastructure (docker, redis, etc.)",
+    "mock_heavy: marks tests that use heavy mocking or extensive fixtures",
 ]
 filterwarnings = []
 
