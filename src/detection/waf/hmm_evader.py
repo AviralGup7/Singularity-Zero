@@ -269,8 +269,8 @@ class HMMWafEvader:
                     ]
                 else:
                     mutated = [
-                        c.upper() if c.isalpha() and random.random() < 0.5 else c
-                        for c in mutated  # noqa: S311
+                        c.upper() if c.isalpha() and random.random() < 0.5 else c  # noqa: S311
+                        for c in mutated
                     ]
 
             elif strategy == "split" and len(mutated) > 3:
