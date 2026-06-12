@@ -115,7 +115,7 @@ def _append_telemetry_event(job: dict[str, Any], event: dict[str, Any]) -> None:
     normalized = normalize_telemetry_event(event, fallback_stage=str(job.get("stage", "")))
     event_id = str(normalized.get("event_id", ""))
     if event_id and any(
-        isinstance(item, dict) and item.get("event_id") == event_id for item in ledger[-50:]
+        isinstance(item, dict) and item.get("event_id") == event_id for item in ledger
     ):
         return
     ledger.append(normalized)
@@ -498,12 +498,7 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
     previous_status = _normalize_stage_status(sp.get("status"))
     stage_status = _normalize_stage_status(payload.get("status") or payload.get("stage_status"))
 
-    if previous_stage and previous_stage != stage:
-        previous_progress = stage_progress.get(previous_stage)
-        if isinstance(previous_progress, dict) and previous_progress.get("status") == "running":
-            _finalize_stage(job, previous_stage)
-            if previous_progress.get("total") is None:
-                previous_progress["percent"] = 100
+
 
     if processed is not None:
         sp["processed"] = max(0, processed)
@@ -612,7 +607,7 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
         )
 
     inferred = _infer_percent(job, stage, payload)
-    job["progress_percent"] = max(int(job.get("progress_percent", 0) or 0), inferred)
+    job["progress_percent"] = inferred
     job["updated_at"] = now
     _append_progress_history(job, now)
 

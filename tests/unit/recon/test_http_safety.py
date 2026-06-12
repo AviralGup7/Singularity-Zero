@@ -56,10 +56,11 @@ class TestIsSafeUrl:
         with pytest.raises(ValueError):
             is_safe_url("ftp://example.com/")
 
-    def test_check_once_caches_result(self) -> None:
+    def test_check_once_caches_result(self, monkeypatch) -> None:
         # First call populates the cache, subsequent calls return the cached result.
-        is_safe_url("https://cached.example.com/", check_once=True)
-        is_safe_url("https://cached.example.com/", check_once=True)
+        # Use example.com which is a real resolvable domain.
+        is_safe_url("https://example.com/", check_once=True)
+        is_safe_url("https://example.com/", check_once=True)
         # If we reach here without exception, the cache worked.
 
 

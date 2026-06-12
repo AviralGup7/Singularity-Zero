@@ -98,7 +98,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
-addopts = "-v --tb=short --strict-markers --import-mode=prepend -p no:locust"
+addopts = "-v --tb=short --strict-markers --import-mode=importlib -p no:locust"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",

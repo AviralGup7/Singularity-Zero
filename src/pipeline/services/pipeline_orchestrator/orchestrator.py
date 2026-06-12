@@ -479,16 +479,10 @@ class PipelineOrchestrator:
             loop = None
 
         if loop and loop.is_running():
-            import threading
-
-            if threading.current_thread() is threading.main_thread() or (
-                hasattr(loop, "_thread")
-                and threading.current_thread() is getattr(loop, "_thread", None)
-            ):
-                raise RuntimeError(
-                    "Cannot call run_sync() from the event loop thread while the loop is running; "
-                    "this would deadlock. Use asyncio.run() or call from a separate thread."
-                )
+            raise RuntimeError(
+                "Cannot call run_sync() from the event loop thread while the loop is running; "
+                "this would deadlock. Use asyncio.run() or call from a separate thread."
+            )
             coro = self.run(args)
             future = asyncio.run_coroutine_threadsafe(coro, loop)
             try:
@@ -520,8 +514,9 @@ class PipelineOrchestrator:
                 if "compliance" in summary:
                     event_data["compliance"] = summary["compliance"]
 
+        event_type = EventType.PIPELINE_CANCELLED if exit_code == 130 else EventType.PIPELINE_COMPLETE
         self._emit_event(
-            EventType.PIPELINE_COMPLETE,
+            event_type,
             source="orchestrator",
             data=event_data,
         )
@@ -580,12 +575,12 @@ class PipelineOrchestrator:
             args=args,
         )
 
-    def _acquire_distributed_lock(self, target_name: str) -> str | None:
+    def _acquire_distributed_lock(self, target_name: str, owner_id: str | None = None) -> str | None:
         from src.infrastructure.task_pool import RunLock
 
         scan_id = target_name
         run_lock = RunLock()
-        acquired = run_lock.acquire(scan_id)
+        acquired = run_lock.acquire(scan_id, owner_id=owner_id)
         if acquired:
             logger.info("Acquired run lock for target: %s", target_name)
             self._run_lock = run_lock
@@ -615,6 +610,7 @@ class PipelineOrchestrator:
         from ._orchestrator.bootstrap import bootstrap_pipeline
 
         config, scope_entries, tool_status, flow_manifest = bootstrap_pipeline(args)
+        self._loaded_config = config
         setattr(args, "_loaded_config", config)
         setattr(args, "_loaded_scope_entries", scope_entries)
 
@@ -636,17 +632,33 @@ class PipelineOrchestrator:
 
         target_name = str(getattr(config, "target_name", "unknown") or "unknown")
 
-        scan_id = self._acquire_distributed_lock(target_name)
+        from src.core.checkpoint import attempt_recovery
+        from pathlib import Path
+        force_fresh = getattr(args, "force_fresh_run", False)
+        can_recover, recovered_state = attempt_recovery(
+            Path(config.output_dir),
+            config.target_name,
+            force_fresh=force_fresh,
+            storage_config=getattr(config, "storage", None),
+        )
+        owner_id = recovered_state.pipeline_run_id if recovered_state else None
+
+        scan_id = self._acquire_distributed_lock(target_name, owner_id=owner_id)
         if not scan_id:
             cache_mgr.close()
             return 1
 
+        exit_code = 3
         try:
-            return await self._run_secured(
+            exit_code = await self._run_secured(
                 args, config, flow_manifest, cache_mgr, scope_entries, tool_status
             )
+            return exit_code
         finally:
-            await self._release_distributed_lock()
+            if exit_code != 3:
+                await self._release_distributed_lock()
+            else:
+                logger.warning("Abnormal exit (exit_code=%d). Lock NOT released.", exit_code)
             cache_mgr.close()
 
     async def _run_secured(
@@ -725,10 +737,22 @@ class PipelineOrchestrator:
             logger.error("No trace found for run=%s stage=%s", run_id, stage_name)
             return None
 
+        config = getattr(self, "_loaded_config", None) or getattr(self.ctx, "config", None)
+        if config is None:
+            logger.error("No config available for replay of run=%s stage=%s", run_id, stage_name)
+            return None
+
         checkpoint_mgr = getattr(self, "_checkpoint_mgr", None)
         if checkpoint_mgr is None:
-            logger.error("No checkpoint manager available for replay of run=%s", run_id)
-            return None
+            from pathlib import Path
+            from src.core.checkpoint import create_checkpoint_manager
+            checkpoint_mgr = create_checkpoint_manager(
+                Path(config.output_dir),
+                config.target_name,
+                run_id=run_id,
+                storage_config=getattr(config, "storage", None),
+            )
+            self.ctx.checkpoint_mgr = checkpoint_mgr
 
         ctx_snapshot = checkpoint_mgr._load_context_snapshot_for_stage(stage_name)
         if not ctx_snapshot:
@@ -743,10 +767,6 @@ class PipelineOrchestrator:
             output_store=getattr(self.ctx, "output_store", None),
             run_id=run_id,
         )
-        config = getattr(self, "_loaded_config", None) or getattr(self.ctx, "config", None)
-        if config is None:
-            logger.error("No config available for replay of run=%s stage=%s", run_id, stage_name)
-            return None
 
         stage_methods = self._build_stage_methods()
         method = stage_methods.get(stage_name)

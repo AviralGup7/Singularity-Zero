@@ -96,21 +96,17 @@ class LearningIntegration:
         global _integration_instance
 
         if _integration_instance is not None:
-            if ctx and getattr(_integration_instance, "_current_target", None) != ctx.get(
-                "target_name"
-            ):
-                cls.reset()
-            else:
-                return _integration_instance
+            target = ctx.get("target_name") if isinstance(ctx, dict) else getattr(ctx, "target_name", None)
+            if ctx and getattr(_integration_instance, "_current_target", None) != target:
+                _integration_instance._current_target = target
+            return _integration_instance
 
         with _integration_lock:
             if _integration_instance is not None:
-                if ctx and getattr(_integration_instance, "_current_target", None) != ctx.get(
-                    "target_name"
-                ):
-                    cls.reset()
-                else:
-                    return _integration_instance
+                target = ctx.get("target_name") if isinstance(ctx, dict) else getattr(ctx, "target_name", None)
+                if ctx and getattr(_integration_instance, "_current_target", None) != target:
+                    _integration_instance._current_target = target
+                return _integration_instance
 
             # Load config from pipeline context if available
             if ctx and not config:
@@ -187,14 +183,13 @@ class LearningIntegration:
 
     def close(self) -> None:
         """Close the telemetry store and mesh sync."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
 
-        def run_coro(coro: Any) -> None:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop is not None and loop.is_running():
+        if loop is not None and loop.is_running():
+            def run_coro(coro: Any) -> None:
                 import threading
 
                 # Check if we're on the loop's thread - if so, we can't block
@@ -213,30 +208,38 @@ class LearningIntegration:
                         loop.create_task(coro)
                     except RuntimeError:
                         pass
-            else:
+
+            if self._mesh_sync:
                 try:
-                    new_loop = asyncio.new_event_loop()
-                    new_loop.run_until_complete(coro)
-                    new_loop.close()
-                except Exception:
+                    run_coro(self._mesh_sync.stop())
+                except Exception as e:
+                    logger.debug("MeshSync shutdown during close failed: %s", e)
+
+            if self._redis_repo:
+                try:
+                    run_coro(self._redis_repo.close())
+                except Exception as e:
+                    logger.debug("Redis repository shutdown during close failed: %s", e)
+        else:
+            # Synchronous cleanup: directly disconnect the connection pools to avoid connection leaks
+            if self._mesh_sync:
+                if hasattr(self._mesh_sync, "_client") and self._mesh_sync._client is not None:
                     try:
-                        old_loop = asyncio.get_event_loop_policy().get_event_loop()
-                        if not old_loop.is_closed():
-                            old_loop.run_until_complete(coro)
-                    except Exception:  # noqa: S110
+                        self._mesh_sync._client.connection_pool.disconnect()
+                    except Exception:
+                        pass
+                if hasattr(self._mesh_sync, "_pubsub") and self._mesh_sync._pubsub is not None:
+                    try:
+                        self._mesh_sync._pubsub.connection_pool.disconnect()
+                    except Exception:
                         pass
 
-        if self._mesh_sync:
-            try:
-                run_coro(self._mesh_sync.stop())
-            except Exception as e:
-                logger.debug("MeshSync shutdown during close failed: %s", e)
-
-        if self._redis_repo:
-            try:
-                run_coro(self._redis_repo.close())
-            except Exception as e:
-                logger.debug("Redis repository shutdown during close failed: %s", e)
+            if self._redis_repo:
+                if hasattr(self._redis_repo, "_client") and self._redis_repo._client is not None:
+                    try:
+                        self._redis_repo._client.connection_pool.disconnect()
+                    except Exception:
+                        pass
 
         self.store.close()
 

@@ -53,8 +53,10 @@ class StagePlanner:
         target_count = len(scope_entries)
         url_count = len(urls)
         findings_count = len(getattr(result, "reportable_findings", []) or [])
+        graph_nodes = {node.name for node in _get_graph_nodes()}
         if (
             findings_count >= 50
+            and "threat_modeling" in graph_nodes
             and "threat_modeling" not in adjusted_stages
             and "threat_modeling" not in getattr(result, "stage_status", {})
         ):
@@ -160,7 +162,7 @@ class StagePlanner:
                     "StagePlanner: WAF sample-check of %d hosts showed 0 detections. Skipping remaining waf checks.",
                     sample_size,
                 )
-                adjusted_stages.remove("waf")
+                adjusted_stages = [s for s in adjusted_stages if s != "waf"]
                 if hasattr(result, "stage_status"):
                     result.stage_status["waf"] = StageStatus.SKIPPED.value
                     result.module_metrics["waf"] = {
@@ -224,17 +226,29 @@ class StagePlanner:
         headers_list = []
         for url in sample_urls:
             try:
-                from urllib.parse import urlparse
-
-                parsed = urlparse(url)
-                host = parsed.hostname or ""
-                port = parsed.port
-                if port and port not in (80, 443):
-                    host_header = f"{host}:{port}"
-                else:
-                    host_header = host
-                headers_list.append({"Host": host_header} if host_header else {})
-            except Exception:
+                import urllib.request
+                req_url = url
+                if not req_url.startswith(("http://", "https://")):
+                    req_url = f"http://{req_url}"
+                # Set a user-agent to look like a browser
+                req = urllib.request.Request(
+                    req_url,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"},
+                    method="HEAD"
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                        headers_list.append(dict(resp.info()))
+                except Exception:
+                    req = urllib.request.Request(
+                        req_url,
+                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"},
+                        method="GET"
+                    )
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                        headers_list.append(dict(resp.info()))
+            except Exception as e:
+                logger.debug("WAF sample request to %s failed: %s", url, e)
                 headers_list.append({})
         detection_count = 0
         try:

@@ -43,30 +43,24 @@ class TestCliLaunch(unittest.TestCase):
         assert args.queue == "custom-queue"
 
     @patch("src.cli.ui.console")
-    @patch("src.cli.commands.start.Path")
+    @patch("src.cli.commands.start._ensure_frontend_built", return_value=True)
     @patch("threading.Thread")
     @patch("src.dashboard.fastapi.main.main")
     def test_handle_launch_execution_flow(
         self,
         mock_run_server: MagicMock,
         mock_thread: MagicMock,
-        mock_path: MagicMock,
+        mock_frontend: MagicMock,
         mock_console: MagicMock,
     ) -> None:
         """Verify the full orchestration flow of handle_launch."""
-        mock_path_instance = MagicMock()
-        mock_path.return_value = mock_path_instance
-        mock_path_instance.__truediv__.return_value.exists.return_value = True
-
         args = argparse.Namespace(
             host="127.0.0.1", port=8000, concurrency=2, queue="security-pipeline"
         )
 
         handle_launch(args)
 
-        import src.cli.commands.start as start_mod
-
-        mock_path.assert_any_call(start_mod.__file__)
+        mock_frontend.assert_called_once()
 
         mock_thread.assert_called_once()
         mock_thread.return_value.start.assert_called_once()

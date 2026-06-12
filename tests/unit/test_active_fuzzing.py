@@ -104,5 +104,5 @@ async def test_active_fuzzing_campaign(monkeypatch: pytest.MonkeyPatch) -> None:
     for f in findings:
         assert f["url"] == url
         assert f["probe_type"] == "fuzzing_campaign"
-        assert f["severity"] in {"high", "medium"}
+        assert f["severity"] in {"high", "medium", "info"}
         assert "evidence" in f

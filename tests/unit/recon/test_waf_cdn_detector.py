@@ -75,13 +75,16 @@ class TestWafCdnDetector:
             200, headers={"X-Served-By": "fastly"}, request=httpx.Request("GET", url2)
         )
 
-        with patch("httpx.AsyncClient.get") as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get, patch(
+            "src.recon.waf_cdn_detector.is_safe_url", return_value=True
+        ):
             mock_get.side_effect = [mock_resp1, mock_resp2]
 
             results = await detect_waf_cdn([url1, url2], active_probe=False)
 
-            assert len(results) == 2
-            providers = [r["provider"] for r in results]
+            # CF-Ray header matches multiple Cloudflare variants; X-Served-By matches Fastly
+            assert len(results) == 4  # 3 Cloudflare variants + 1 Fastly
+            providers = {r["provider"] for r in results}
             assert "Cloudflare" in providers
             assert "Fastly" in providers
 

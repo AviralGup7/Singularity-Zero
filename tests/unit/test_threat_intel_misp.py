@@ -69,8 +69,9 @@ async def test_misp_client_ioc(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.anyio
-async def test_threat_intel_correlator_async() -> None:
+async def test_threat_intel_correlator_async(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test ThreatIntelCorrelator async matching and findings enrichment."""
+    monkeypatch.setenv("PIPELINE_THREAT_INTEL_TEST_MODE", "1")
     correlator = ThreatIntelCorrelator(enable_threat_intel=True)
 
     # Test match_ioc_async on simulated malicious keyword

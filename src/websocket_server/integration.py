@@ -572,6 +572,16 @@ def setup_websocket_routes(
             content={"status": "healthy" if redis_ok else "degraded", "connections": connections},
         )
 
+    @app.get("/metrics")
+    async def ws_metrics() -> Any:
+        from fastapi.responses import PlainTextResponse
+
+        connections = await manager.get_active_count()
+        lines = [
+            f"ws_active_connections {connections}",
+        ]
+        return PlainTextResponse(content="\n".join(lines), media_type="text/plain")
+
     # ------------------------------------------------------------------
     # Admin route protection & audit logging
     # ------------------------------------------------------------------

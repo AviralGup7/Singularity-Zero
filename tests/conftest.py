@@ -65,7 +65,7 @@ def _setup_pykka_compat():
     """Set up a minimal pykka compatibility shim if pykka is not installed."""
     try:
         import pykka  # noqa: F401
-    except (ImportError, AttributeError):
+    except ImportError:
         import threading
         import time as _time
 

@@ -76,6 +76,9 @@ def test_metrics_endpoint(tmp_path: Path) -> None:
         cache_dir=str(tmp_path / "cache_layer"),
     )
     app = create_app(config)
+    from src.dashboard.fastapi.dependencies import require_admin
+
+    app.dependency_overrides[require_admin] = lambda: {"user": "admin", "role": "admin"}
 
     with TestClient(app) as client:
         resp = client.get("/metrics")
