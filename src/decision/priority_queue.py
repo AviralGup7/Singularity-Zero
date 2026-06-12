@@ -38,7 +38,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_target
-from src.learning.signal_quality import extract_features, ml_pipeline
+from src.learning.signal_quality import _get_ml_pipeline, extract_features
 
 logger = logging.getLogger(__name__)
 
@@ -694,7 +694,7 @@ class CorrelationPriorityQueue:
                         y.append(1 if target.findings_count > 0 else 0)
 
             if len(X) >= 5 and len(np.unique(y)) > 1:
-                ml_pipeline.fit(np.array(X), np.array(y))
+                _get_ml_pipeline().fit(np.array(X), np.array(y))
                 logger.info(
                     "ML Quality Model incrementally retrained on %d samples from priority queue",
                     len(X),

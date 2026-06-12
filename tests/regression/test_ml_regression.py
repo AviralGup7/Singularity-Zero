@@ -56,7 +56,9 @@ def test_ml_fallback_vs_pipeline_regression() -> None:
 def test_pure_numpy_fallback_mathematical_identity() -> None:
     """Verify that the NumPy fallback is mathematically identical to scikit-learn LogisticRegression with the same weights."""
     from src.learning.signal_quality import HAS_ML_LIBS as SK_HAS_ML
-    from src.learning.signal_quality import ml_pipeline
+    from src.learning.signal_quality import _get_ml_pipeline
+
+    ml_pipeline = _get_ml_pipeline()
 
     if not SK_HAS_ML:
         pytest.skip("scikit-learn is not available to verify mathematical identity")

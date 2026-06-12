@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
-
-import numpy as np
+from typing import TYPE_CHECKING, Any
 
 from src.intelligence.ml.feature_vector import FeatureVector
 from src.intelligence.ml.xgboost_pipeline import XGBoostSeverityPipeline
+
+if TYPE_CHECKING:
+    import numpy as np  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ class SHAPExplainer:
         """
         vec = FeatureVector.from_finding(finding)
         feats = vec.to_features_dict()
+
+        import numpy as np
 
         # Retrieve weights and bias from model or fallback
         weights = {}
