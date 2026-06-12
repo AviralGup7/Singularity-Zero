@@ -156,7 +156,9 @@ class TestPipelineConfigValidation:
 class TestFullPipelineExecution:
     """Integration tests that actually run pipeline stages (with mocked slow stages)."""
 
-    def test_dry_run_returns_zero_exit_code(self, pipeline_runner):
+    def test_dry_run_returns_zero_exit_code(
+        self, pipeline_runner, mock_slow_stages, mock_target_server
+    ):
         result = pipeline_runner(dry_run=True)
         assert result == 0
 
