@@ -248,7 +248,7 @@ class TestNucleiFindingParser:
         assert len(pipeline_findings) == 1
         pf = pipeline_findings[0]
         assert pf["module"] == "nuclei"
-        assert pf["category"] == "cves/2023/CVE-2023-1234.yaml"
+        assert pf["indicator"] == "cves/2023/CVE-2023-1234.yaml"
         assert pf["severity"] == "high"
         assert pf["score"] == 75
         assert pf["confidence"] == 0.85

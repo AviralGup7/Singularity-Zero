@@ -23,7 +23,7 @@
     "**/__pycache__",
     "**/.venv",
     "**/.venv*",
-    ".venv312",
+    ".venv313",
     ".venv314",
     "**/node_modules",
     "**/.*",

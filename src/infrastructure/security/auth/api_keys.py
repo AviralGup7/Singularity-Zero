@@ -96,7 +96,17 @@ class APIKeyStore:
         self._api_keys: dict[str, APIKey] = {}
         self._user_api_keys: dict[str, list[str]] = {}
         self._audit_logger = audit_logger
-        self._pepper = pepper
+        # Stabilise pepper: use the provided pepper, fall back to the env
+        # var, or generate a deterministic per-instance pepper so that
+        # create/validate calls within the same process always agree.
+        if pepper is not None:
+            self._pepper = pepper
+        else:
+            env_pepper = os.environ.get("SEC_API_KEY_PEPPER", "")
+            if env_pepper:
+                self._pepper = env_pepper
+            else:
+                self._pepper = hashlib.sha256(os.urandom(32)).hexdigest()
         # Rate limiting for validate() to prevent brute-force attacks.
         # Maps raw_key_hash -> (attempt_count, window_start).
         self._validate_attempts: dict[str, tuple[int, float]] = {}

@@ -298,6 +298,10 @@ class TestSetupTools(unittest.TestCase):
                 "katana.exe",
             ]
         )
+        mock_info = MagicMock()
+        mock_info.compress_size = 1024
+        mock_info.file_size = 2048
+        mock_zip_instance.getinfo = MagicMock(return_value=mock_info)
         mock_zipfile.return_value.__enter__.return_value = mock_zip_instance
 
         # Run tool setup

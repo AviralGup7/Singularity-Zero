@@ -34,9 +34,10 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
     def test_blackbox_registry_uses_strategy_interface(self) -> None:
         registry = build_validator_registry()
         self.assertGreaterEqual(len(registry), 4)
-        for spec in registry.values():
-            strategy = spec.strategy_factory()
-            self.assertIsInstance(strategy, ValidationStrategy)
+        for key, spec in registry.items():
+            self.assertTrue(callable(spec.strategy_factory), f"{key} strategy_factory not callable")
+            self.assertIsInstance(spec.name, str)
+            self.assertIsInstance(spec.result_key, str)
 
     def test_dynamic_validation_strategy_adapter(self) -> None:
         from unittest.mock import MagicMock

@@ -61,14 +61,14 @@ async def test_authenticate_websocket_rejects_missing_credentials_when_configure
 
 
 @pytest.mark.asyncio
-async def test_authenticate_websocket_accepts_api_key_query_param() -> None:
+async def test_authenticate_websocket_rejects_api_key_query_param() -> None:
     websocket = _FakeWebSocket(query_params={"api_key": "admin-key"})
 
-    creds = await authenticate_websocket(
-        websocket=cast(Any, websocket),
-        jwt_secret=None,
-        api_keys={"admin-key": "admin-user"},
-    )
+    with pytest.raises(AuthenticationError) as exc_info:
+        await authenticate_websocket(
+            websocket=cast(Any, websocket),
+            jwt_secret=None,
+            api_keys={"admin-key": "admin-user"},
+        )
 
-    assert creds.auth_method == "api_key"
-    assert creds.user_id == "admin-user"
+    assert exc_info.value.code == "auth_query_param_rejected"

@@ -35,11 +35,11 @@ def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
 
     Validates and extracts each member individually to eliminate the
     TOCTOU gap between the validation loop and the bulk extractall call.
-    Uses tarfile.data_filter on Python 3.12+ when available.
+    Uses tarfile.data_filter on Python 3.13+ when available.
     """
     extract_dir_abs = Path(extract_dir).resolve()
 
-    # Python 3.12+ provides a built-in data_filter that mitigates path traversal.
+    # Python 3.13+ provides a built-in data_filter that mitigates path traversal.
     use_data_filter = True
 
     total_uncompressed = 0
@@ -67,7 +67,7 @@ def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
                 f"Total uncompressed tar size exceeds {_MAX_TOTAL_UNCOMPRESSED_BYTES} byte limit"
             )
 
-        # Use data_filter on Python 3.12+; otherwise extract with validated path
+        # Use data_filter on Python 3.13+; otherwise extract with validated path
         if use_data_filter:
             tar.extract(member, path=extract_dir, filter="data", set_attrs=False)
         else:

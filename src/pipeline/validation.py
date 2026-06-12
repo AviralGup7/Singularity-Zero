@@ -428,6 +428,16 @@ def validate_config(
             logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         ConfigModel.model_validate(config_dict)
+        # Post-validation: enforce constraints that Pydantic may not raise on
+        tools_cfg = config_dict.get("tools") or {}
+        jitter = tools_cfg.get("retry_jitter")
+        if jitter is not None:
+            try:
+                jitter_f = float(jitter)
+                if not (0.0 <= jitter_f <= 1.0):
+                    raise ValueError(f"retry_jitter must be between 0.0 and 1.0, got {jitter_f}")
+            except (TypeError, ValueError) as ve:
+                raise ValueError(f"Invalid retry_jitter value: {jitter}") from ve
         report["checks"].append(
             {
                 "name": "structural_validation",

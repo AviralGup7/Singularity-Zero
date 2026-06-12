@@ -65,7 +65,7 @@ def test_parse_output_dedupe_and_mitre():
     assert len(results) == 2
 
     # find the t2 result and ensure mitre attack extraction produced something sensible
-    t2 = next((r for r in results if r["category"] == "t2"), None)
+    t2 = next((r for r in results if r["indicator"] == "t2"), None)
     assert t2 is not None
     assert isinstance(t2.get("mitre_attack", []), list)
     # Expect at least one MITRE ID mapped from tags or explicit T-prefixed tag

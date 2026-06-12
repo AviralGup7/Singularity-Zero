@@ -26,7 +26,7 @@ def test_target_owned_by_tenant_helper():
 
     # Default tenant checks
     assert is_target_owned_by_tenant("my_target_without_prefix", "default") is True
-    assert is_target_owned_by_tenant("my_target_without_prefix", None) is True
+    assert is_target_owned_by_tenant("my_target_without_prefix", None) is False
     assert is_target_owned_by_tenant("tenant1_my_target", "default") is False
     assert is_target_owned_by_tenant("default_my_target", "default") is True
 

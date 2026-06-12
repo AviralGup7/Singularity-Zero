@@ -38,6 +38,12 @@ class ContinuousScanMode:
         self._asset_diff_only = False
         self._notification_manager: NotificationManager | None = None
 
+    async def run_cycle(self, output_dir: Path = Path("output")) -> ScanCycleResult:
+        """Execute a single scan cycle. Public entry point for tests and callers."""
+        return await self._run_pipeline_for_scope(
+            scope_entries=[], output_dir=output_dir, target_name="cycle"
+        )
+
     async def _ensure_notification_manager(self) -> NotificationManager | None:
         if self._notification_manager is None:
             try:
