@@ -66,7 +66,7 @@ def retrying_connect(
     connect_timeout_seconds: float = SQLITE_CONNECT_TIMEOUT_SECONDS,
     wal: bool = True,
     foreign_keys: bool = True,
-) -> Generator[sqlite3.Connection, None, None]:
+) -> Generator[sqlite3.Connection]:
     """Open a SQLite connection with busy-timeout retry semantics.
 
     Yields a configured :class:`sqlite3.Connection` and rolls back any
@@ -109,7 +109,7 @@ def retrying_connect(
 
 
 @contextmanager
-def _connection_scope(conn: sqlite3.Connection) -> Generator[sqlite3.Connection, None, None]:
+def _connection_scope(conn: sqlite3.Connection) -> Generator[sqlite3.Connection]:
     """Wrap a SQLite connection in a try/except that rolls back on exception."""
     try:
         yield conn
