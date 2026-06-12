@@ -129,7 +129,7 @@ async def clear_access_logs(
     summary="Export access logs as JSON",
 )
 async def export_access_logs(
-    format: str = Query("json", regex="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv)$"),
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Export all access-log entries."""
