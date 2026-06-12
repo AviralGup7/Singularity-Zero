@@ -187,9 +187,7 @@ class StagePlanner:
             if val < threshold:
                 # Don't skip stages that have downstream dependents in the current plan
                 has_dependents = any(
-                    s in node.needs
-                    for node in _get_graph_nodes()
-                    if node.name in adjusted_stages
+                    s in node.needs for node in _get_graph_nodes() if node.name in adjusted_stages
                 )
                 if has_dependents:
                     logger.info(

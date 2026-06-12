@@ -116,7 +116,11 @@ def _setup_pykka_compat():
                         self._actor._thread.join(timeout=5)
 
             def is_alive(self):
-                return self._alive and self._actor._stop_event is not None and not self._actor._stop_event.is_set()
+                return (
+                    self._alive
+                    and self._actor._stop_event is not None
+                    and not self._actor._stop_event.is_set()
+                )
 
             def proxy(self):
                 return _ActorProxy(self)
@@ -136,16 +140,23 @@ def _setup_pykka_compat():
                 self._name = name
 
             def get(self, timeout=None):
-                return self._ref.ask({"command": "__getattribute__", "name": self._name}, block=True, timeout=timeout)
+                return self._ref.ask(
+                    {"command": "__getattribute__", "name": self._name}, block=True, timeout=timeout
+                )
 
             def __call__(self, *args, **kwargs):
-                return self._ref.ask({"command": "__call__", "name": self._name, "args": args, "kwargs": kwargs}, block=True)
+                return self._ref.ask(
+                    {"command": "__call__", "name": self._name, "args": args, "kwargs": kwargs},
+                    block=True,
+                )
 
             def __setattr__(self, name, value):
                 if name.startswith("_"):
                     object.__setattr__(self, name, value)
                 else:
-                    self._ref.ask({"command": "__setattr__", "name": name, "value": value}, block=True)
+                    self._ref.ask(
+                        {"command": "__setattr__", "name": name, "value": value}, block=True
+                    )
 
         class Actor:
             def __init__(self):
