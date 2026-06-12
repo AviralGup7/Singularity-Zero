@@ -11,38 +11,30 @@ instrumentation) clears ``sys.modules`` entries, the C-extension state
 persists in the process but numpy is no longer findable -- causing a
 fatal double-load on the next ``import numpy``.
 
-This conftest installs a ``sys.modules`` guard that prevents numpy
-modules from being deleted once they are loaded.  The guard is installed
+This conftest replaces ``sys.modules`` with a thin dict subclass that
+refuses to delete or pop numpy-prefixed keys.  The replacement happens
 at module level (before any hook) so it takes effect before plugins run.
 """
 
 from __future__ import annotations
 
 import sys
-
-# ---------------------------------------------------------------------------
-# Guard sys.modules: once a numpy module is loaded, prevent its removal.
-# This stops the C-extension double-load error on Python 3.13+.
-# ---------------------------------------------------------------------------
-_real_delitem = sys.modules.__delitem__
-_real_pop = sys.modules.pop
+import types
+from typing import Any
 
 
-def _guarded_delitem(key: object) -> None:
-    if isinstance(key, str) and key.startswith("numpy"):
-        return  # refuse to delete
-    _real_delitem(key)
+class _NumpyGuardedModules(dict[str, types.ModuleType]):  # type: ignore[type-arg]
+    """sys.modules subclass that prevents deletion of numpy modules."""
+
+    def __delitem__(self, key: str) -> None:
+        if key.startswith("numpy"):
+            return
+        super().__delitem__(key)
+
+    def pop(self, key: str, *args: Any) -> types.ModuleType:  # type: ignore[override]
+        if key.startswith("numpy") and key in self:
+            return super().__getitem__(key)
+        return super().pop(key, *args)  # type: ignore[return-value]
 
 
-def _guarded_pop(key: object, *args: object) -> object:  # type: ignore[override]
-    if isinstance(key, str) and key.startswith("numpy"):
-        if key in sys.modules:
-            return sys.modules[key]
-        if args:
-            return args[0]
-        raise KeyError(key)
-    return _real_pop(key, *args)
-
-
-sys.modules.__delitem__ = _guarded_delitem  # type: ignore[assignment]
-sys.modules.pop = _guarded_pop  # type: ignore[assignment]
+sys.modules = _NumpyGuardedModules(sys.modules)  # type: ignore[assignment]
