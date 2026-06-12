@@ -27,13 +27,14 @@ const BUFFER_FLUSH_MS = 100;
 export function useJobMonitor(jobId: string | undefined, options: { onRestarted?: (id: string) => void } = {}) {
   const { onRestarted } = options;
 
-  const store = useJobMonitorStore();
-  const state = jobId ? store.getState(jobId) : undefined;
+  const state = useJobMonitorStore(
+    useCallback((s) => (jobId ? s.jobs.get(jobId) : undefined), [jobId])
+  );
   const dispatch = useCallback(
     (action: JobMonitorAction) => {
-      if (jobId) store.dispatch(jobId, action);
+      if (jobId) useJobMonitorStore.getState().dispatch(jobId, action);
     },
-    [jobId, store]
+    [jobId]
   );
 
   const toast = useToast();

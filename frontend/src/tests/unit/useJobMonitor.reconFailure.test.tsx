@@ -88,7 +88,7 @@ describe('useJobMonitor recon failure terminal handling', () => {
   });
 
   it('keeps sseError after completed event with failed status', async () => {
-    const { result } = renderHook(() => useJobMonitor('job-1'));
+    const { result, unmount } = renderHook(() => useJobMonitor('job-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(sseEventHandler).toBeTypeOf('function');
@@ -116,10 +116,11 @@ describe('useJobMonitor recon failure terminal handling', () => {
     });
 
     await waitFor(() => expect(result.current.sseError).toBe('Recon failed at URLs'));
+    unmount();
   });
 
   it('does not clear sseError after completed event with stopped status', async () => {
-    const { result } = renderHook(() => useJobMonitor('job-1'));
+    const { result, unmount } = renderHook(() => useJobMonitor('job-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(sseEventHandler).toBeTypeOf('function');
@@ -147,5 +148,6 @@ describe('useJobMonitor recon failure terminal handling', () => {
     });
 
     await waitFor(() => expect(result.current.sseError).toBe('Recon failure remains visible'));
+    unmount();
   });
 });
