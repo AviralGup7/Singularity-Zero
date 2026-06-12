@@ -287,7 +287,7 @@ disallow_untyped_defs = false
 ignore_errors = true
 
 [build-system]
-requires = ["setuptools>=68.0", "wheel", "Cython>=3.0.0,<3.1"]
+requires = ["setuptools>=68.0", "wheel", "Cython>=3.0.0,<3.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
