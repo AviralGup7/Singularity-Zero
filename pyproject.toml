@@ -98,7 +98,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
-addopts = "-v --tb=short --strict-markers --import-mode=prepend --cov=src.analysis --cov=src.core --cov=src.pipeline --cov=src.dashboard --cov=src.recon --cov=src.execution --cov=src.reporting --cov=src.intelligence --cov=src.detection --cov=src.decision --cov=src.fuzzing --cov=src.infrastructure.queue --cov=src.infrastructure.execution_engine --cov=src.infrastructure.cache --cov=src.infrastructure.observability --cov=src.infrastructure.security --cov=src.infrastructure.notifications --cov=src.dashboard.fastapi --cov=src.websocket_server --cov=src.learning --cov=src.exploitation"
+addopts = "-v --tb=short --strict-markers --import-mode=importlib"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
