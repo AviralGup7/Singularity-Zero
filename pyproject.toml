@@ -44,7 +44,7 @@ dependencies = [
     "argon2-cffi==23.1.0",
     "msgspec==0.21.1",
     "msgpack==1.0.0",
-    "cloudpickle==3.0.0",
+    "cloudpickle==3.1.2",
     "watchfiles==1.0.4",
     "scipy>=1.14.0",
     "pykka==4.0.0",
