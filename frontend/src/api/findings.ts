@@ -83,7 +83,7 @@ export async function getFindingsTimeline(
 ): Promise<{ events: FindingTimelineEvent[]; total: number }> {
   return cachedGet<{ events: FindingTimelineEvent[]; total: number }>(
     '/api/findings/timeline',
-    { signal, params, bypassCache: true },
+    { signal, params: params as Record<string, unknown>, bypassCache: true },
   );
 }
 

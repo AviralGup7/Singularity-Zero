@@ -459,7 +459,7 @@ export function BugBountyDashboardPage() {
                   Platform / Source
                   <select
                     value={editSource}
-                    onChange={e => setEditSource(e.target.value as any)}
+                    onChange={e => setEditSource(e.target.value as 'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate' | 'synack')}
                     className="w-full mt-1 bg-[#151515] border border-white/10 rounded-lg py-2 px-3 text-xs font-mono text-text focus:border-accent/50 outline-none"
                   >
                     <option value="estimate">Estimate</option>
