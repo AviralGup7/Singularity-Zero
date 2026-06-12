@@ -105,6 +105,15 @@ def consume_stream(
                             logger.debug("Stream consumer process kill failed: %s", kill_exc)
                     _persist_if_needed(force=True)
                 break
+    except Exception as exc:
+        with lock:
+            append_log(job, f"Stream consumer outer error ({source}): {exc}")
+            job["status"] = "failed"
+            job["error"] = f"Stream consumer failed: {exc}"
+            job["failed_stage"] = job.get("stage") or "running"
+            job["failure_reason_code"] = "stream_consumer_crash"
+            job["failure_reason"] = f"Stream consumer failed ({source}): {exc}"
+            _persist_if_needed(force=True)
     finally:
         stream.close()
         try:

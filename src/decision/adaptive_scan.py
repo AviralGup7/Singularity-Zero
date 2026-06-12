@@ -138,6 +138,7 @@ class AdaptiveScanCoordinator:
             logger.info(
                 "Adaptive scan batch %d: scanning %d targets (remaining: %d, findings so far: %d)",
                 batch_num,
+                len(urls),
                 self._queue.remaining,
                 len(self._total_findings),
             )

@@ -9,7 +9,7 @@ def _app(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("APP_SECRET_KEY", "test-secret")
     monkeypatch.setenv(
         "API_KEYS_JSON",
-        '{"keys":[{"key":"admin-key","role":"admin"},{"key":"worker-key","role":"worker"},{"key":"read-key","role":"read_only"}]}',
+        '{"keys":[{"key":"admin-key","role":"admin"},{"key":"worker-key","role":"operator"},{"key":"read-key","role":"viewer"}]}',
     )
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.config import DashboardConfig
@@ -44,7 +44,7 @@ def test_security_api_key_management_requires_admin(tmp_path, monkeypatch):
 
     created = client.post(
         "/api/security/api-keys",
-        json={"role": "worker"},
+        json={"role": "operator"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert created.status_code == 200

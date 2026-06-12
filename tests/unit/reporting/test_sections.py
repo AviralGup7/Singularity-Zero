@@ -98,7 +98,7 @@ class TestFindingsSections:
         }
         result = high_confidence_shortlist_section(summary)
         assert "Potential XSS" in result
-        assert "85%" in result
+        assert "85.0%" in result
 
     def test_manual_verification_queue_empty(self) -> None:
         result = manual_verification_section({"manual_verification_queue": []})

@@ -114,6 +114,7 @@ class TestCrlfProbePayloads(unittest.TestCase):
         no_token = {
             "status_code_inject",
             "location_redirect",
+            "location_redirect_raw",
             "location_with_tab",
             "double_location",
             "content_type_override",

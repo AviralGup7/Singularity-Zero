@@ -62,7 +62,31 @@ def request_shutdown() -> None:
 # reference ``runtime.shutdown_flag``. ``shutdown_flag`` was a plain
 # ``bool``; the new value is an ``asyncio.Event`` which is falsy when
 # not set, so ``if not runtime.shutdown_flag:`` still reads naturally.
-shutdown_flag = _shutdown_event_singleton()
+# NOTE: This is a lazy property to avoid creating an asyncio.Event at
+# import time (which can fail in environments where no event loop
+# exists at import time — Python 3.10+ changed default policy).
+
+
+class _ShutdownFlagProxy:
+    """Lazy proxy that creates the Event only when first accessed."""
+
+    def __bool__(self) -> bool:
+        return _shutdown_event_singleton().is_set()
+
+    def is_set(self) -> bool:
+        return _shutdown_event_singleton().is_set()
+
+    def set(self) -> None:
+        _shutdown_event_singleton().set()
+
+    def clear(self) -> None:
+        _shutdown_event_singleton().clear()
+
+    def __await__(self):
+        return _shutdown_event_singleton().__await__()
+
+
+shutdown_flag = _ShutdownFlagProxy()
 
 
 def handle_signal(sig: int, frame: object = None) -> None:
@@ -344,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
             global _shutdown_event
             _shutdown_event = asyncio.Event()
             global shutdown_flag
-            shutdown_flag = _shutdown_event
+            shutdown_flag = _ShutdownFlagProxy()
 
             for sig in (signal.SIGINT, signal.SIGTERM):
                 try:

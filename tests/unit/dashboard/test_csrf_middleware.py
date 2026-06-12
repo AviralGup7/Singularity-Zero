@@ -5,6 +5,7 @@ import secrets
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from src.dashboard.fastapi.middleware import CSRFProtectionMiddleware
@@ -12,24 +13,26 @@ from src.dashboard.fastapi.middleware import CSRFProtectionMiddleware
 
 def _create_app(auth_disabled: bool = False, app_env: str = "development"):
     """Create a test Starlette app with CSRF middleware."""
-    app = Starlette()
 
-    @app.route("/api/test", methods=["GET", "POST", "PUT", "DELETE"])
     async def test_endpoint(request: Request):
         return JSONResponse({"status": "ok"})
 
-    @app.route("/api/csrf-token", methods=["GET"])
     async def csrf_token_endpoint(request: Request):
         token = secrets.token_urlsafe(32)
         return JSONResponse({"csrf_token": token})
 
-    @app.route("/ws/test", methods=["GET"])
     async def ws_endpoint(request: Request):
         return JSONResponse({"status": "ws"})
 
-    @app.route("/api/auth/token", methods=["POST"])
     async def auth_token_endpoint(request: Request):
         return JSONResponse({"status": "auth"})
+
+    app = Starlette(routes=[
+        Route("/api/test", endpoint=test_endpoint, methods=["GET", "POST", "PUT", "DELETE"]),
+        Route("/api/csrf-token", endpoint=csrf_token_endpoint, methods=["GET"]),
+        Route("/ws/test", endpoint=ws_endpoint, methods=["GET", "POST"]),
+        Route("/api/auth/token", endpoint=auth_token_endpoint, methods=["POST"]),
+    ])
 
     if auth_disabled:
         import os

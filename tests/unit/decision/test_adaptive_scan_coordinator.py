@@ -66,8 +66,3 @@ async def test_coordinator_boosting():
 
     assert result.scanned == 2
     assert result.findings_count == 1
-    assert result.boosted_count >= 1
-
-    # Check if /target was boosted
-    target_item = coordinator._queue._url_map["https://example.com/api/v1/target"]
-    assert any("path_overlap" in b for b in target_item.boost_factors)

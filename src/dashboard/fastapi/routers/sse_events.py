@@ -49,7 +49,8 @@ class _SequenceTracker:
                 self._active_connections[job_id] -= 1
                 if self._active_connections[job_id] <= 0:
                     self._active_connections.pop(job_id)
-                    self._counters.pop(job_id, None)
+                    # Don't reset the counter here - keep it for potential reconnections
+                    # The counter is only reset when a new job starts
 
     def next(self, job_id: str) -> int:
         with self._lock:

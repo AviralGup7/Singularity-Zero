@@ -151,6 +151,15 @@ def _patch_runtime_environment(
         SimpleNamespace(get_or_create=lambda *_args, **_kwargs: _DummyLearning()),
     )
 
+    from src.infrastructure.resource_guard import ResourceGuard
+
+    monkeypatch.setenv("IGNORE_CAPABILITY_RESOURCE_BUDGET", "1")
+    monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda self: None)
+    monkeypatch.setattr(
+        ResourceGuard, "should_skip_stage", lambda self, *a, **kw: (False, None)
+    )
+    monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda self: None)
+
 
 def test_stage_checkpoint_guard_preserves_explicit_failure_state(tmp_path: Path) -> None:
     manager = CheckpointManager(tmp_path / "checkpoints", "run-a")

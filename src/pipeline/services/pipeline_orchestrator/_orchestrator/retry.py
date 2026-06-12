@@ -241,7 +241,7 @@ async def run_stage_with_retry(
         orchestrator._shutdown_event if hasattr(orchestrator, "_shutdown_event") else None
     )
 
-    async def _execute_stage() -> StageOutput | None:
+    async def _execute_stage() -> tuple[StageOutput | None, Any]:
         isolated_ctx = PipelineContext.restore(ctx.to_dict())
         isolated_ctx.output_store = ctx.output_store
         if hasattr(orchestrator, "_checkpoint_mgr"):
@@ -334,20 +334,27 @@ async def run_stage_with_retry(
                 },
                 trace_id=stage_trace_id,
             )
-            return result
+            return result, stage_input
 
         stage_metrics = isolated_ctx.result.module_metrics.get(stage_name, {})
         stage_state = str(
             isolated_ctx.result.stage_status.get(stage_name, StageStatus.COMPLETED.value)
         )
+        # Ensure metrics is a plain dict, not a frozen MappingProxyType
+        if isinstance(stage_metrics, dict):
+            plain_metrics = dict(stage_metrics)
+        elif hasattr(stage_metrics, "keys"):
+            plain_metrics = {k: stage_metrics[k] for k in stage_metrics}
+        else:
+            plain_metrics = {}
         output = StageOutput.from_stage_state(
             stage_name=stage_name,
             state=stage_state,
             duration_seconds=float(
-                (stage_metrics.get("duration_seconds") if isinstance(stage_metrics, dict) else 0.0)
+                (plain_metrics.get("duration_seconds") if isinstance(plain_metrics, dict) else 0.0)
                 or elapsed
             ),
-            metrics=stage_metrics if isinstance(stage_metrics, dict) else {},
+            metrics=plain_metrics,
             state_delta=state_delta,
         )
         tracer.record_stage_result(span, output)
@@ -368,7 +375,22 @@ async def run_stage_with_retry(
             },
             trace_id=stage_trace_id,
         )
-        return output
+
+        # Merge isolated context mutations back into the real context
+        if hasattr(ctx.result, "stage_status"):
+            ctx.result.stage_status = dict(ctx.result.stage_status)
+        ctx.result.stage_status[stage_name] = isolated_ctx.result.stage_status.get(
+            stage_name, StageStatus.COMPLETED.value
+        )
+        if hasattr(ctx.result, "module_metrics"):
+            ctx.result.module_metrics = dict(ctx.result.module_metrics)
+        iso_metrics = isolated_ctx.result.module_metrics.get(stage_name, {})
+        if iso_metrics:
+            existing = ctx.result.module_metrics.get(stage_name, {})
+            merged = {**(existing if isinstance(existing, dict) else {}), **iso_metrics}
+            ctx.result.module_metrics[stage_name] = merged
+
+        return output, stage_input
 
     last_exc: BaseException | None = None
     is_timeout = False
@@ -388,7 +410,7 @@ async def run_stage_with_retry(
     for attempt in range(1, policy.max_attempts + 1):
         metrics.record_attempt()
         try:
-            stage_output = await _execute_stage()
+            stage_output, stage_input = await _execute_stage()
             metrics.record_success()
             policy.observe_outcome(True)
             if circuit_breaker is not None:

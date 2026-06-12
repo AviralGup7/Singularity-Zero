@@ -4,6 +4,7 @@ Provides durable storage of job records so they survive dashboard restarts.
 Jobs are written to SQLite on state transitions and loaded back on startup.
 """
 
+import atexit
 import json
 import logging
 import sqlite3
@@ -85,6 +86,8 @@ class JobStore:
         self._local = threading.local()
         self._all_connections: list[sqlite3.Connection] = []  # Track all created connections
         self._init_db()
+        # Register cleanup for thread-local connections when threads exit
+        atexit.register(self.close)
 
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "_conn") or self._local._conn is None:

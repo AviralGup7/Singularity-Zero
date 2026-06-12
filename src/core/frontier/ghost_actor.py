@@ -41,7 +41,7 @@ def _copy_mailbox_value(value: Any) -> Any:
     return deepcopy(value)
 
 
-class ScanActor(pykka.Actor):
+class ScanActor(pykka.ThreadingActor):
     """Frontier Task Actor.
 
     Encapsulates logic and state, capable of migrating across the mesh.

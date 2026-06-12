@@ -59,7 +59,7 @@ class TestSarifExport:
         result = export_findings_to_sarif([_finding(url="https://api.example.com/v1/users")])
         loc = result.document["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
         assert loc["artifactLocation"]["uri"] == "https://api.example.com/v1/users"
-        assert loc["artifactLocation"]["uriBaseId"] == "api.example.com"
+        assert loc["artifactLocation"]["uriBaseId"] == "api.example.com/v1"
 
     def test_fingerprint_is_deterministic(self) -> None:
         a = export_findings_to_sarif([_finding()]).document["runs"][0]["results"][0][

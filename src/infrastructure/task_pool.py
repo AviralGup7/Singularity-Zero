@@ -85,6 +85,7 @@ class SimpleTaskPool:
                 self._active_tasks.add(task)
             task.add_done_callback(lambda _: self._active_tasks.discard(task))
             task.add_done_callback(lambda _: self._queue.task_done())
+            await asyncio.sleep(0)
 
 
 class RunLock:

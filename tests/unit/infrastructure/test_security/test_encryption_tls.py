@@ -12,7 +12,7 @@ from _security_base import SecurityTestBase
 class TestTLSConfig(SecurityTestBase):
     def test_defaults(self) -> None:
         config = TLSConfig()
-        assert config.min_version == "1.2"
+        assert config.min_version == "1.3"
         assert config.ciphers == TLSConfig.RECOMMENDED_CIPHERS
 
     def test_from_security_config(self) -> None:

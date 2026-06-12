@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import shutil
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
@@ -117,18 +116,16 @@ class ResourceGuard:
 
             return int(psutil.virtual_memory().available / (1024 * 1024))
         except ImportError as exc:
-            logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
+            logger.warning("psutil not available for RAM check: %s", exc)
         except Exception as exc:
             logger.debug(
-                "ResourceGuard: psutil check failed (%s); falling back to disk usage.", exc
+                "ResourceGuard: psutil check failed (%s).", exc
             )
 
-        try:
-            usage = shutil.disk_usage("/")
-            return int(usage.free / (1024 * 1024))
-        except Exception as exc:
-            logger.debug("ResourceGuard: shutil.disk_usage fallback failed (%s).", exc)
-            return 0
+        # When psutil is unavailable, return 0 to signal "unknown RAM"
+        # rather than incorrectly using disk space. Returning 0 causes
+        # stages to be skipped conservatively, which is safer than OOM.
+        return 0
 
     def check_available_ram(self, estimated_ram_mb: int) -> bool:
         available = self._get_available_ram_mb()

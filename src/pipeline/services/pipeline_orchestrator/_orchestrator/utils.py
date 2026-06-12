@@ -57,28 +57,33 @@ except ModuleNotFoundError:
             )
 
 
-_JSONSCHEMA_MISSING_LOGGED = False
+    _JSONSCHEMA_MISSING_LOGGED = False
+
+    def install_jsonschema_warning() -> None:
+        """Log (once) a warning that schema validation is bypassed.
+
+        Called from the schema-builder entry points so operators notice the
+        degraded state on startup instead of after a malformed payload silently
+        propagates through the pipeline.
+        """
+        global _JSONSCHEMA_MISSING_LOGGED
+        if _JSONSCHEMA_MISSING_LOGGED:
+            return
+        _JSONSCHEMA_MISSING_LOGGED = True
+        import logging as _logging
+
+        if _os.environ.get("PIPELINE_ALLOW_NO_SCHEMA", "").lower() in {"1", "true", "yes"}:
+            _logging.getLogger(__name__).warning(
+                "jsonschema is not installed and PIPELINE_ALLOW_NO_SCHEMA=1; "
+                "StageOutput/finding contract validation is DISABLED. "
+                "Install the 'jsonschema' package to restore schema enforcement."
+            )
 
 
-def install_jsonschema_warning() -> None:
-    """Log (once) a warning that schema validation is bypassed.
-
-    Called from the schema-builder entry points so operators notice the
-    degraded state on startup instead of after a malformed payload silently
-    propagates through the pipeline.
-    """
-    global _JSONSCHEMA_MISSING_LOGGED
-    if _JSONSCHEMA_MISSING_LOGGED:
-        return
-    _JSONSCHEMA_MISSING_LOGGED = True
-    import logging as _logging
-
-    if _os.environ.get("PIPELINE_ALLOW_NO_SCHEMA", "").lower() in {"1", "true", "yes"}:
-        _logging.getLogger(__name__).warning(
-            "jsonschema is not installed and PIPELINE_ALLOW_NO_SCHEMA=1; "
-            "StageOutput/finding contract validation is DISABLED. "
-            "Install the 'jsonschema' package to restore schema enforcement."
-        )
+    # Log warning at import time if jsonschema is not available
+    import os as _os_warn
+    if _os_warn.environ.get("PIPELINE_ALLOW_NO_SCHEMA", "").lower() in {"1", "true", "yes"}:
+        install_jsonschema_warning()
 
 
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput

@@ -118,7 +118,16 @@ class ObservabilityBus:
         register_notification_subscriber(self._event_bus, self.notification_manager)
 
         self.learning_integration = LearningIntegration.get_or_create()
-        register_learning_subscriber(self._event_bus, self.learning_integration)
+        try:
+            register_learning_subscriber(self._event_bus, self.learning_integration)
+        except Exception as exc:
+            logger.warning("Failed to register learning subscriber: %s", exc)
+            # Clean up the LearningIntegration if registration fails
+            try:
+                self.learning_integration.close()
+            except Exception:
+                pass
+            self.learning_integration = LearningIntegration.get_or_create()
 
     def emit_event(
         self,
@@ -950,7 +959,14 @@ class PipelineOrchestrator:
             except Exception as exc:
                 logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
                 if "WAL durability layer failed" in str(exc):
-                    return "WAL_FAILURE"
+                    ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
+                    ctx.result.module_metrics[stage_name] = {
+                        "status": "error",
+                        "error": str(exc),
+                        "failure_reason": "WAL durability layer failed",
+                        "fatal": critical,
+                    }
+                    return 1
                 ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
                 ctx.result.module_metrics[stage_name] = {
                     "status": "error",
