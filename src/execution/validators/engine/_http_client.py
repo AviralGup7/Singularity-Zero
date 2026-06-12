@@ -278,7 +278,7 @@ def _resolve_fetch_response() -> Any:
     """
     fn = globals().get("fetch_response")
     if fn is None:
-        from src.analysis.passive.runtime import fetch_response as _fn
+        from src.analysis.passive.runtime import _fetch_response_once as _fn
 
         globals()["fetch_response"] = _fn
         return _fn

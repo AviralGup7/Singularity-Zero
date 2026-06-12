@@ -410,9 +410,9 @@ class CorrelationPriorityQueue:
             if target.current_priority != old_priority and target.heap_idx >= 0:
                 idx = target.heap_idx
                 if target.current_priority > old_priority:
-                            heapq._siftdown(self._targets, 0, idx)  # type: ignore[attr-defined]
-                        else:
-                            heapq._siftup(self._targets, idx)  # type: ignore[attr-defined]
+                    heapq._siftdown(self._targets, 0, idx)  # type: ignore[attr-defined]
+                else:
+                    heapq._siftup(self._targets, idx)  # type: ignore[attr-defined]
             return True
 
     def boost_from_findings(

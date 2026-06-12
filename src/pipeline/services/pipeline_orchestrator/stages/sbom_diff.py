@@ -15,7 +15,8 @@ logger = get_pipeline_logger(__name__)
 
 
 def _component_key(component: dict[str, Any]) -> str:
-    return component.get("purl") or component.get("name", "")
+    return str(component.get("purl") or component.get("name", ""))
+
 
 
 async def run_sbom_diff_stage(

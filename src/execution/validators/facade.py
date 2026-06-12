@@ -4,7 +4,8 @@ Offers validate_target() and validate_many() functions for running individual
 or batch validations against targets using named validators.
 """
 
-from typing import Any
+from typing import Any, cast
+
 
 from src.core.models import ValidationResult
 from src.execution.validators.validators.registry_builder import VALIDATOR_REGISTRY
@@ -29,7 +30,7 @@ def validate_target(
     validator = VALIDATOR_REGISTRY.get(validator_name)
     if validator is None:
         raise ValueError(f"Unknown validator: {validator_name}")
-    return validator(target, context)
+    return cast(ValidationResult, validator(target, context))
 
 
 def validate_many(

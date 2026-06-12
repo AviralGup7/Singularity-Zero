@@ -32,6 +32,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from websockets.typing import Origin
 import websockets
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ async def probe_cswsh(
         try:
             async with websockets.connect(
                 url,
-                origin=origin,
+                origin=Origin(origin),
                 open_timeout=timeout,
                 close_timeout=timeout,
             ) as ws:

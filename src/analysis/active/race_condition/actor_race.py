@@ -8,8 +8,10 @@ Part B implementation:
 """
 
 import asyncio
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
+
 
 try:
     import httpx
@@ -17,7 +19,7 @@ except Exception:  # pragma: no cover - optional dependency guard
     httpx = None  # type: ignore[assignment]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Finding:
     finding_type: str
     actor: str
@@ -26,7 +28,8 @@ class Finding:
     value_before: Any = None
     value_after: Any = None
     delta: Any = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
+
 
 
 class ActorRaceTester:
