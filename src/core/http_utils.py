@@ -38,11 +38,14 @@ class ChameleonHook:
     ) -> str | None:
         return detected_waf
 
+
 _chameleon_hook = ChameleonHook()
+
 
 def register_chameleon_hook(hook: ChameleonHook) -> None:
     global _chameleon_hook
     _chameleon_hook = hook
+
 
 logger = get_pipeline_logger(__name__)
 
