@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures
 import inspect
 import logging
+import time
 from collections.abc import Callable, Iterable
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -19,6 +20,22 @@ from src.core.utils import normalize_url
 from ._bindings import ANALYZER_BINDINGS
 
 logger = logging.getLogger(__name__)
+
+
+def _get_analyzer_metrics():
+    """Lazily resolve analyzer metrics to avoid circular imports."""
+    try:
+        from src.infrastructure.observability.metrics import get_metrics
+
+        m = get_metrics()
+        return {
+            "execution_count": m.counter("analyzer_execution_count", "Total analyzer invocations"),
+            "failure_count": m.counter("analyzer_failure_count", "Total analyzer failures"),
+            "duration": m.histogram("analyzer_duration_seconds", "Per-analyzer execution duration"),
+            "active": m.gauge("analyzer_active_count", "Analyzers currently executing"),
+        }
+    except Exception:
+        return None
 
 _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "responses_only": ("responses",),
@@ -400,6 +417,13 @@ def run_registered_analyzer(
     runner_fn: Callable[..., list[dict[str, Any]]] = cast(
         Callable[..., list[dict[str, Any]]], runner
     )
+
+    metrics = _get_analyzer_metrics()
+    if metrics:
+        metrics["execution_count"].inc()
+        metrics["active"].inc()
+
+    start = time.perf_counter()
     try:
         result = runner_fn(**kwargs)
         resolved_result = _resolve_runner_result(
@@ -408,12 +432,21 @@ def run_registered_analyzer(
         )
         return _normalize_analyzer_result(analyzer_key, resolved_result)
     except Exception as exc:
+        if metrics:
+            metrics["failure_count"].inc()
         runner_name = getattr(runner, "__name__", repr(runner))
         if "timeout" in str(exc).lower():
             logger.warning("Analyzer %s timed out after %ds", runner_name, timeout_seconds)
         else:
             logger.warning("Analyzer %s failed: %s", runner_name, exc)
         return []
+    finally:
+        elapsed = time.perf_counter() - start
+        if metrics:
+            metrics["active"].dec()
+            metrics["duration"].observe(elapsed)
+        if elapsed > 1.0:
+            logger.info("Slow analyzer %s: %.2fs", analyzer_key, elapsed)
 
 
 def run_analysis_plugins(

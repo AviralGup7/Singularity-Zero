@@ -42,6 +42,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Metrics tracking
+_assignment_metrics = {
+    "assign_count": 0,
+    "lock_count": 0,
+    "unlock_count": 0,
+    "conflict_count": 0,
+}
+
 
 class Role(StrEnum):
     """Built-in roles.
@@ -287,6 +295,7 @@ class AssignmentStore:
             )
             self._cache[finding_id] = fa
             self._persist(fa)
+            _assignment_metrics["assign_count"] += 1
             return fa
 
     def lock(
@@ -325,6 +334,7 @@ class AssignmentStore:
             existing.status = "in_progress"
             self._cache[finding_id] = existing
             self._persist(existing)
+            _assignment_metrics["lock_count"] += 1
             return existing
 
     def unlock(
@@ -340,6 +350,7 @@ class AssignmentStore:
             existing.locked_by = None
             existing.locked_at = None
             self._persist(existing)
+            _assignment_metrics["unlock_count"] += 1
             return True
 
     def get(self, finding_id: str) -> FindingAssignment | None:
@@ -444,6 +455,11 @@ def get_default_store(db_path: str | None = None) -> AssignmentStore:
     return _STORE_SINGLETON
 
 
+def get_assignment_metrics() -> dict[str, int]:
+    """Get assignment metrics for observability."""
+    return dict(_assignment_metrics)
+
+
 __all__ = [
     "AssignmentConflict",
     "AssignmentStore",
@@ -452,6 +468,7 @@ __all__ = [
     "Role",
     "Team",
     "User",
+    "get_assignment_metrics",
     "get_default_store",
     "register_role",
 ]

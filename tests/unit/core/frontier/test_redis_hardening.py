@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 from src.learning.models.fp_pattern import FPPattern
 from src.learning.repositories.redis_fp_repo import RedisFPRepository
 

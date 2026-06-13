@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.frontier.wasm import WASMPluginHost
+from src.execution.frontier.wasm import WASMPluginHost
 
 
 def test_wasm_mock_execution(monkeypatch):

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.monitoring.asset_inventory import AssetInventoryManager
-from src.infrastructure.notifications.manager import NotificationManager
 
 logger = get_pipeline_logger(__name__)
+
+# Type alias for alert callback: (title, description, severity, target, endpoint) -> alert_count
+AlertCallback = Callable[[str, str, str, str | None, str | None], Awaitable[int]]
 
 
 @dataclass
@@ -29,33 +32,19 @@ class ContinuousScanMode:
         orchestrator: Any,
         inventory_mgr: AssetInventoryManager,
         checkpoint_mgr: Any,
-        alert_callback: Any | None = None,
+        alert_callback: AlertCallback | None = None,
     ) -> None:
         self._orchestrator = orchestrator
         self._inventory_mgr = inventory_mgr
         self._checkpoint_mgr = checkpoint_mgr
         self._alert_callback = alert_callback
         self._asset_diff_only = False
-        self._notification_manager: NotificationManager | None = None
 
     async def run_cycle(self, output_dir: Path = Path("output")) -> ScanCycleResult:
         """Execute a single scan cycle. Public entry point for tests and callers."""
         return await self._run_pipeline_for_scope(
             scope_entries=[], output_dir=output_dir, target_name="cycle"
         )
-
-    async def _ensure_notification_manager(self) -> NotificationManager | None:
-        if self._notification_manager is None:
-            try:
-                from src.infrastructure.notifications.manager import ManagerConfig
-
-                mgr = NotificationManager(ManagerConfig())
-                await mgr.initialize()
-                self._notification_manager = mgr
-            except Exception as exc:
-                logger.warning("Notification manager initialization failed: %s", exc)
-                return None
-        return self._notification_manager
 
     async def _persist_assets(self, assets: set[str]) -> None:
         try:
@@ -78,8 +67,7 @@ class ContinuousScanMode:
             return []
 
     async def _alert_new_high_severity(self, new_findings: list[dict[str, Any]]) -> int:
-        notification_mgr = await self._ensure_notification_manager()
-        if notification_mgr is None:
+        if self._alert_callback is None:
             return 0
         alerts_sent = 0
         for finding in new_findings:
@@ -87,16 +75,14 @@ class ContinuousScanMode:
             if severity not in ("high", "critical"):
                 continue
             try:
-                results = await notification_mgr.send_finding(
-                    finding_title=finding.get("title", "High/Critical Finding"),
-                    finding_description=f"Asset: {finding.get('url', 'unknown')}",
-                    severity=severity,
-                    target=finding.get("target"),
-                    endpoint=finding.get("url"),
-                    correlation_id=None,
+                count = await self._alert_callback(
+                    finding.get("title", "High/Critical Finding"),
+                    f"Asset: {finding.get('url', 'unknown')}",
+                    severity,
+                    finding.get("target"),
+                    finding.get("url"),
                 )
-                if results:
-                    alerts_sent += 1
+                alerts_sent += count
             except Exception as exc:
                 logger.warning("Failed to send alert for finding: %s", exc)
         return alerts_sent

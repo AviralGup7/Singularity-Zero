@@ -263,7 +263,16 @@ def _collect_js_discovery_urls(
                         )
                         wasm_attack_surface.extend(sorted(w_disc))
             for m in re.finditer(r"""\.wasm\b""", js_body):
-                pass
+                # Extract the URL prefix before .wasm extension
+                start = max(0, m.start() - 100)
+                context = js_body[start:m.end()]
+                # Look for quoted path ending in .wasm
+                url_match = re.search(r"""['"]([^'"]*\.wasm)['"]""", context)
+                if url_match:
+                    wasm_path = url_match.group(1)
+                    full_url = urljoin(js_url, wasm_path) if not wasm_path.startswith(('http://', 'https://')) else wasm_path
+                    if _in_scope(full_url, scope_roots):
+                        w_disc.add(full_url)
             source_map_candidates: list[str] = [js_url + ".map"]
             declared_map = extract_source_map_url(js_body)
             if declared_map:

@@ -665,9 +665,13 @@ class CloudBucketScanner:
         which is the most common default region, and a 200/403 split
         follows the same public/secure pattern as AWS S3.
         """
-        if not bucket or "-" not in bucket and "_" not in bucket:
+        if not bucket or len(bucket) < 3 or len(bucket) > 63:
             # Alibaba OSS naming rules: 3-63 chars, lowercase, digits, dash.
-            pass
+            return None
+        if not all(c.isalnum() or c in ('-', '_') for c in bucket):
+            return None
+        if bucket.startswith(('-', '_')) or bucket.endswith(('-', '_')):
+            return None
         url = f"https://{bucket}.oss-cn-hangzhou.aliyuncs.com"
         return await self._generic_object_storage_check(
             session,

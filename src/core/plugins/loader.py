@@ -6,6 +6,12 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from src.core.plugins.registration_hooks import (
+    get_analysis_registrar,
+    get_detection_invalidator,
+    has_analysis_registrar,
+    has_detection_invalidator,
+)
 from src.core.plugins.registry import register_plugin, unregister_plugin
 from src.core.plugins.sandbox import ProcessSandboxCallable
 from src.core.plugins.sdk import (
@@ -180,10 +186,10 @@ class DynamicPluginCatalog:
         self._registered[manifest.id] = ((registry_kind, manifest.key),)
 
     def _register_analysis(self, record: DynamicPluginRecord) -> None:
-        from src.analysis.plugin_runtime import ANALYZER_BINDING
-        from src.analysis.plugin_runtime_models import AnalyzerBinding
-        from src.analysis.plugins._main import DETECTOR_SPEC
-        from src.analysis.plugins.base import spec
+        registrar = get_analysis_registrar()
+        if registrar is None:
+            logger.warning("Analysis plugin registrar not available, skipping analysis plugin registration for %s", record.manifest.key)
+            return
 
         manifest = record.manifest
         provider = ProcessSandboxCallable(manifest, record.path)
@@ -191,61 +197,26 @@ class DynamicPluginCatalog:
         def runner(payload: Any, _provider: ProcessSandboxCallable = provider) -> Any:
             return _provider(payload)
 
-        plugin_spec = spec(
-            manifest.key,
-            manifest.name,
-            manifest.description,
-            manifest.group,
-            slug=manifest.slug,
-            enabled_by_default=manifest.enabled_by_default,
-            source="dynamic",
-        )
-        register_plugin(DETECTOR_SPEC, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
-            plugin_spec
-        )
-        binding = AnalyzerBinding(
-            input_kind="dynamic_analysis_context",
+        registrar.register_analysis_plugin(
+            key=manifest.key,
+            manifest=manifest.to_dict(),
             runner=runner,
+            input_kind="dynamic_analysis_context",
             phase="discover",
             consumes=manifest.consumes,
             produces=manifest.produces,
         )
-        register_plugin(ANALYZER_BINDING, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
-            binding
-        )
-        self._upsert_analyzer_binding(manifest.key, binding)
-        self._invalidate_detection_cache()
-        self._registered[manifest.id] = (
-            (DETECTOR_SPEC, manifest.key),
-            (ANALYZER_BINDING, manifest.key),
-        )
-
-    @staticmethod
-    def _upsert_analyzer_binding(key: str, binding: Any) -> None:
-        try:
-            from src.analysis.plugin_runtime import _bindings
-
-            _bindings.ANALYZER_BINDINGS[key] = binding
-        except Exception as exc:
-            logger.debug("Unable to update analyzer binding cache for %s: %s", key, exc)
-
-    @staticmethod
-    def _remove_analyzer_binding(key: str) -> None:
-        try:
-            from src.analysis.plugin_runtime import _bindings
-
-            _bindings.ANALYZER_BINDINGS.pop(key, None)
-        except Exception as exc:
-            logger.debug("Unable to remove analyzer binding cache for %s: %s", key, exc)
 
     @staticmethod
     def _invalidate_detection_cache() -> None:
-        try:
-            from src.detection import registry
-
-            registry._DETECTION_PLUGIN_OPTIONS = None
-        except Exception as exc:
-            logger.debug("Unable to invalidate detection plugin cache: %s", exc)
+        invalidator = get_detection_invalidator()
+        if invalidator is not None:
+            try:
+                invalidator.invalidate_detection_cache()
+            except Exception as exc:
+                logger.debug("Unable to invalidate detection plugin cache: %s", exc)
+        else:
+            logger.debug("Detection cache invalidator not available")
 
     @staticmethod
     def _signature(path: Path) -> tuple[int, int]:
@@ -290,9 +261,11 @@ def dynamic_plugin_payload() -> dict[str, Any]:
 
 
 def _invalidate_analysis_cache() -> None:
-    try:
-        from src.analysis.plugins._main import invalidate_analysis_plugin_cache
-
-        invalidate_analysis_plugin_cache()
-    except Exception as exc:
-        logger.debug("Unable to invalidate analysis plugin cache: %s", exc)
+    registrar = get_analysis_registrar()
+    if registrar is not None:
+        try:
+            registrar.invalidate_analysis_cache()
+        except Exception as exc:
+            logger.debug("Unable to invalidate analysis plugin cache: %s", exc)
+    else:
+        logger.debug("Analysis plugin registrar not available")

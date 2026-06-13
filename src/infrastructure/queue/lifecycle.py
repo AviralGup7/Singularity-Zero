@@ -16,7 +16,7 @@ from typing import Any
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.checkpoint import DistributedCheckpointStore
 from src.infrastructure.queue.models import WorkerInfo
-from src.pipeline.self_healing import (
+from src.core.contracts.health import (
     CorrectionEvent,
     CorrectiveAction,
     HealthComponent,

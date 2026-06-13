@@ -17,7 +17,7 @@ from typing import Any
 import httpx
 import requests
 
-from src.core.frontier.chameleon import wrap_polymorphic_request
+from src.execution.frontier.chameleon import wrap_polymorphic_request
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.pid_limiter import PIDRateLimiter
 from src.core.utils.url_validation import is_safe_url
@@ -184,7 +184,7 @@ def safe_request(
         # Real-time evasion telemetry update
         detected_waf = None
         try:
-            from src.core.frontier.chameleon import _chameleon
+            from src.execution.frontier.chameleon import _chameleon
 
             cookies = None
             if hasattr(resp, "cookies") and resp.cookies is not None:
@@ -236,7 +236,7 @@ def safe_request(
         limiter.update(0.0, is_blocked=is_blocked)
 
         try:
-            from src.core.frontier.chameleon import _chameleon
+            from src.execution.frontier.chameleon import _chameleon
 
             # Check if there is an error response we can extract
             err_body = ""
@@ -344,7 +344,7 @@ async def async_safe_request(
         # Real-time evasion telemetry update
         detected_waf = None
         try:
-            from src.core.frontier.chameleon import _chameleon
+            from src.execution.frontier.chameleon import _chameleon
 
             cookies = None
             if hasattr(resp, "cookies") and resp.cookies is not None:
@@ -399,7 +399,7 @@ async def async_safe_request(
         limiter.update(0.0, is_blocked=is_blocked)
 
         try:
-            from src.core.frontier.chameleon import _chameleon
+            from src.execution.frontier.chameleon import _chameleon
 
             err_body = ""
             if hasattr(e, "response") and e.response is not None:

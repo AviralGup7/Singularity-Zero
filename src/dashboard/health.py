@@ -5,12 +5,12 @@ import logging
 import time
 from collections.abc import Awaitable
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
+from src.core.contracts.health import HealthStatus
 from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
 
 logger = logging.getLogger(__name__)
@@ -18,12 +18,6 @@ logger = logging.getLogger(__name__)
 _START_TIME: float = time.time()
 _SQLITE_HEALTH_TIMEOUT_SECONDS = 2.0
 _SQLITE_BUSY_TIMEOUT_MS = 1000
-
-
-class HealthStatus(StrEnum):
-    OK = "ok"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
 
 
 class DependencyStatus(StrEnum):
@@ -236,7 +230,7 @@ async def run_health_checks(
     elif any_healthy:
         overall_status = HealthStatus.DEGRADED
     else:
-        overall_status = HealthStatus.UNHEALTHY
+        overall_status = HealthStatus.CRITICAL
 
     service = ServiceHealth(
         name="Cyber Security Test Pipeline Dashboard",

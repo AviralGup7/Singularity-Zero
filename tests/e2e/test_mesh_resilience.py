@@ -12,7 +12,7 @@ from src.core.frontier.ghost_actor import (
     GhostMeshCoordinator,
     ScanActor,
 )
-from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 
 

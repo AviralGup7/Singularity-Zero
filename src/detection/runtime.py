@@ -7,10 +7,10 @@ import logging
 from typing import Any
 
 from src.analysis.plugin_runtime import (
-    AnalysisExecutionContext,
     prime_analysis_primitives,
     run_analysis_plugins,
 )
+from src.core.contracts.plugin_types import AnalysisExecutionContext
 
 logger = logging.getLogger(__name__)
 

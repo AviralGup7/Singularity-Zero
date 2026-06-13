@@ -14,7 +14,7 @@ from src.infrastructure.notifications.base import (
     NotificationPriority,
     NotificationResult,
 )
-from src.pipeline.self_healing import CorrectionEvent, HealthFinding, HealthStatus
+from src.core.contracts.health import CorrectionEvent, HealthFinding, HealthStatus
 
 logger = logging.getLogger(__name__)
 

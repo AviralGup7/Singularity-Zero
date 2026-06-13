@@ -8,7 +8,7 @@ import time
 import pytest
 
 from src.core.frontier.ghost_actor import ScanActor
-from src.core.frontier.wal import FrontierWAL
+from src.infrastructure.frontier.wal import FrontierWAL
 
 
 class MockRedis:

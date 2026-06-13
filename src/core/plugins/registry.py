@@ -37,9 +37,12 @@ class PluginRegistry:
             if not isinstance(provider, contract) and not (
                 callable(provider) and hasattr(contract, "__call__")
             ):
-                # Note: Protocol check for callables can be tricky; we do a basic check here.
-                # In strict environments, we might want deeper inspection.
-                pass
+                # Log a warning for protocol violations in non-strict mode
+                import warnings
+                warnings.warn(
+                    f"Plugin '{normalized_key}' does not implement contract {contract.__name__}",
+                    stacklevel=2,
+                )
 
         with self._lock:
             self._providers[normalized_kind][normalized_key] = PluginRegistration(

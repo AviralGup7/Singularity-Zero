@@ -295,7 +295,7 @@ async def run_secured(
             )
 
     # Distributed Write-Ahead Log (WAL)
-    from src.core.frontier.wal import FrontierWAL
+    from src.infrastructure.frontier.wal import FrontierWAL
 
     wal_aof_dir = Path(config.output_dir) / ".wal"
     orchestrator._wal = FrontierWAL(
@@ -308,7 +308,7 @@ async def run_secured(
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
         from src.core.frontier.ghost_actor import GhostMeshCoordinator
-        from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+        from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 
         from ..migration_handler import ProactiveMigrationHandler
 

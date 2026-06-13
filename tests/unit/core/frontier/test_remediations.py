@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.frontier.chameleon_evasion import ChameleonEvasionEngine, HMMEvasionModel
+from src.execution.frontier.chameleon_evasion import ChameleonEvasionEngine, HMMEvasionModel
 from src.core.frontier.ghost_actor import ScanActor
 from src.core.frontier.ghost_vfs import GhostVFS
 

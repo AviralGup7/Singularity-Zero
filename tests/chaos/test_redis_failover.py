@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 import redis
 
-from src.core.frontier.wal import FrontierWAL
+from src.infrastructure.frontier.wal import FrontierWAL
 
 
 @pytest.mark.chaos

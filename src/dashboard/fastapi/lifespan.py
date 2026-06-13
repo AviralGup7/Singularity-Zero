@@ -13,7 +13,7 @@ from fastapi import FastAPI
 
 from src.core.contracts.health import HealthMetric, HealthStatus
 from src.core.events import get_event_bus
-from src.core.frontier.bloom_mesh import ReconcileBloom
+from src.infrastructure.frontier.bloom_mesh import ReconcileBloom
 from src.core.security.secret_validator import validate_or_raise
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig
@@ -59,6 +59,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     global _START_TIME
     _START_TIME = time.time()
 
+    # Register plugin hooks from analysis and detection layers
+    try:
+        import src.analysis.plugin_registration  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import src.detection.cache_registration  # noqa: F401
+    except ImportError:
+        pass
+
     from src.core.logging.trace_logging import install_trace_log_filter
     from src.core.plugins.loader import refresh_dynamic_plugins, start_dynamic_plugin_watcher
     from src.dashboard.fastapi.process_lock import ProcessLifespanLock
@@ -68,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     from src.infrastructure.cache import CacheManager
     from src.infrastructure.cache.config import CacheConfig
     from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
+    from src.infrastructure.observability.system_sampler import start_system_sampler
     from src.infrastructure.observability.structured_logging import setup_logging
     from src.infrastructure.security.audit import AuditLogger
     from src.infrastructure.security.config import SecurityConfig
@@ -76,6 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     setup_logging()
     install_trace_log_filter()
     register_pipeline_metrics(get_metrics())
+    start_system_sampler()
 
     config: DashboardConfig = app.state.config
     logger.info("Dashboard server starting on %s:%d", config.host, config.port)
@@ -126,6 +138,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     db_path = config.output_root / "jobs.db"
     app.state.services.init_persistence(db_path, is_primary=is_primary)
     app.state.triage_collaboration = TriageCollaborationService(config.output_root)
+
+    from src.learning.collaboration import get_default_store
+
+    assignment_db_path = config.output_root / "assignments.db"
+    app.state.assignment_store = get_default_store(db_path=str(assignment_db_path))
+    logger.info("Assignment store initialized at %s", assignment_db_path)
 
     # Initialize notification storage and SSE broadcaster
     from src.infrastructure.notifications.broadcaster import get_notification_broadcaster
@@ -526,7 +544,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
         from src.dashboard.fastapi.feature_flags_setup import maybe_start_bayesian_eta
 
-        maybe_start_bayesian_eta()
+        maybe_start_bayesian_eta(app)
 
     logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
     logger.info("Dashboard lifecycle transition: READY")
@@ -596,6 +614,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await app.state.bloom_mesh.stop()
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
+        if hasattr(app.state, "eta_task"):
+            app.state.eta_task.cancel()
+            try:
+                await app.state.eta_task
+            except asyncio.CancelledError:
+                pass
         from src.dashboard.eta_engine import get_eta_engine
 
         await get_eta_engine().stop()

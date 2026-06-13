@@ -225,6 +225,36 @@ DEFAULT_SCORING_CONFIG: dict[str, ScoringConfig] = {
             "deeply_nested_accepted",
         ),
     ),
+    # Auth validators added for SAML/OAuth support.
+    "saml": ScoringConfig(
+        base=0.45,
+        cap=0.93,
+        max_total_bonus=0.35,
+        required_signals=(
+            "saml_empty_response_accepted",
+            "saml_signature_wrapping",
+        ),
+    ),
+    "oauth": ScoringConfig(
+        base=0.45,
+        cap=0.93,
+        max_total_bonus=0.35,
+        required_signals=(
+            "redirect_uri_bypass",
+            "state_missing",
+            "scope_elevation",
+        ),
+    ),
+    "oauth_saml": ScoringConfig(
+        base=0.45,
+        cap=0.93,
+        max_total_bonus=0.35,
+        required_signals=(
+            "redirect_uri_reflected",
+            "saml_signature_bypass",
+            "oauth_state_empty_accepted",
+        ),
+    ),
 }
 
 

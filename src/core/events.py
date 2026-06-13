@@ -26,6 +26,7 @@ class EventType(StrEnum):
     STAGE_RETRY = "stage_retry"
     STAGE_COMPLETED = "stage_completed"
     STAGE_SKIPPED = "stage_skipped"
+    STAGE_TELEMETRY = "stage_telemetry"
     FINDING_CREATED = "finding_created"
     FINDING_DISCOVERED = "finding_discovered"
     STAGE_FAILED = "stage_failed"

@@ -2,7 +2,7 @@ import os
 import shutil
 import tempfile
 
-from src.core.frontier.ghost_vfs import GhostVFS
+from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.infrastructure.security.encryption import Argon2idAESGCM
 
 

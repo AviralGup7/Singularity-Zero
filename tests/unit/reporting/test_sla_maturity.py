@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from src.core.frontier.chameleon_evasion import PPOEvasionModel
+from src.execution.frontier.chameleon_evasion import PPOEvasionModel
 from src.infrastructure.notifications.base import NotificationPriority
 from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
 from src.reporting.compliance_maturity import ControlMaturity, calculate_overall_grc_score

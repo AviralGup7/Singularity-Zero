@@ -300,6 +300,20 @@ async def get_learning_integration() -> Any:
     return LearningIntegration.get_or_create()
 
 
+def get_tool_execution_service(request: Request) -> Any:
+    """Provide the ToolExecutionService from app state or create a fallback.
+
+    This centralizes the pipeline dependency so individual routers don't
+    need to import from ``src.pipeline.services.tool_execution`` directly.
+    """
+    service = getattr(request.app.state, "tool_execution_service", None)
+    if service is not None:
+        return service
+    from src.pipeline.services.tool_execution import ToolExecutionService
+
+    return ToolExecutionService()
+
+
 class RateLimiter:
     """In-memory sliding window rate limiter."""
 

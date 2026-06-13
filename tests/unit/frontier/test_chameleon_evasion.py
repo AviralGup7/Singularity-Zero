@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.core.frontier.chameleon_evasion import (
+from src.execution.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
     JA3FingerprintModel,
     PPOEvasionModel,

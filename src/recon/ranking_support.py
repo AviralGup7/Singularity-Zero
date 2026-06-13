@@ -12,17 +12,17 @@ from statistics import mean, pstdev
 from typing import Any, TypedDict
 from urllib.parse import urlparse
 
-from src.analysis.helpers import (
-    REDIRECT_PARAM_NAMES,
+from src.core.utils.param_types import REDIRECT_PARAM_NAMES
+from src.core.utils.endpoint_classification import (
     endpoint_base_key,
     endpoint_signature,
     extract_host_candidate,
     is_auth_flow_endpoint,
     is_suspicious_path_redirect,
     meaningful_query_pairs,
-    parameter_weight,
     same_host_family,
 )
+from src.core.utils.scoring import parameter_weight
 
 logger = logging.getLogger(__name__)
 

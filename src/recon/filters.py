@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlparse
 
-from src.analysis.helpers import (
+from src.core.utils.endpoint_classification import (
     endpoint_signature,
     has_meaningful_parameters,
     meaningful_query_pairs,

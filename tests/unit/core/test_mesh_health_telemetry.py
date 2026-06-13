@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from src.core.frontier.bloom import NeuralBloomFilter
-from src.core.frontier.bloom_mesh import NeuralBloomMesh
+from src.infrastructure.frontier.bloom_mesh import NeuralBloomMesh
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sync import MeshSync
 from src.infrastructure.observability.metrics import get_metrics, reset_metrics_instance

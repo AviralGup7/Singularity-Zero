@@ -1,18 +1,12 @@
-"""Frontier module - distributed state and evasion components."""
+"""Frontier module - distributed state and evasion components.
 
-from src.core.frontier.chameleon import RequestChameleon, wrap_polymorphic_request
-from src.core.frontier.chameleon_evasion import (
-    ChameleonEvasionEngine,
-    JA3FingerprintModel,
-    PPOEvasionModel,
-    TimingPermutator,
-)
+This module has been decomposed:
+- src.core.frontier.* - pure core algorithms (bloom, state, drl_evasion, etc.)
+- src.infrastructure.frontier.* - distributed state components (bloom_mesh, ghost_actor, wal, etc.)
+- src.execution.frontier.* - domain-specific evasion (chameleon, wasm)
+"""
 
-__all__ = [
-    "ChameleonEvasionEngine",
-    "PPOEvasionModel",
-    "JA3FingerprintModel",
-    "RequestChameleon",
-    "TimingPermutator",
-    "wrap_polymorphic_request",
-]
+# No re-exports here to avoid circular dependencies.
+# Import directly from the appropriate package:
+#   from src.execution.frontier.chameleon import RequestChameleon
+#   from src.execution.frontier.chameleon_evasion import ChameleonEvasionEngine

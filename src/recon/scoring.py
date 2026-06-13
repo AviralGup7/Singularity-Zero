@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from src.analysis.helpers import (
+from src.core.utils.endpoint_classification import (
     classify_endpoint,
     endpoint_signature,
     has_meaningful_parameters,
@@ -18,8 +18,8 @@ from src.analysis.helpers import (
     is_low_value_endpoint,
     is_noise_url,
     meaningful_query_pairs,
-    parameter_weight,
 )
+from src.core.utils.scoring import parameter_weight
 from src.recon.cvps import compute_cvps_score
 from src.recon.ranking_support import (
     HistoryFeedback,

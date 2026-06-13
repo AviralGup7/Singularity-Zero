@@ -31,7 +31,7 @@ from src.infrastructure.cache.warming import (
 
 if TYPE_CHECKING:
     from src.core.frontier.bloom import NeuralBloomFilter
-    from src.core.frontier.bloom_mesh import BloomMeshSynchronizer, NeuralBloomMesh
+    from src.infrastructure.frontier.bloom_mesh import BloomMeshSynchronizer, NeuralBloomMesh
 
 logger = logging.getLogger(__name__)
 

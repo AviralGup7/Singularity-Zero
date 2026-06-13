@@ -8,6 +8,7 @@ from fastapi import APIRouter
 logger = logging.getLogger(__name__)
 
 from .access_logs import router as access_logs_router
+from .assignments import router as assignments_router
 from .audit import router as audit_router
 from .bloom import router as bloom_router
 from .cache import router as cache_router
@@ -81,6 +82,7 @@ api_router.include_router(security_router, tags=["Security"])
 api_router.include_router(launcher_router, tags=["Launcher"])
 api_router.include_router(tracing_router, tags=["Tracing"])
 api_router.include_router(triage_router, tags=["Triage Collaboration"])
+api_router.include_router(assignments_router, tags=["Assignments"])
 api_router.include_router(evasion_router, tags=["Evasion Telemetry"])
 api_router.include_router(compliance_router, tags=["Compliance"])
 api_router.include_router(forensics_trace_router, tags=["Forensics Trace"])

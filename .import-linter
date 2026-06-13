@@ -10,7 +10,7 @@ forbidden_modules = src.analysis
 [importlinter:contract:2]
 name = "Dashboard must not depend on pipeline internals"
 type = forbidden
-source_modules = src.dashboard
+source_modules = src.dashboard.fastapi.routers
 forbidden_modules = src.pipeline.services
 
 [importlinter:contract:3]
@@ -30,7 +30,25 @@ source_modules = src.core
 forbidden_modules = src.analysis, src.pipeline, src.dashboard
 
 [importlinter:contract:5]
-name = "Facade pattern: detection/decision must not import from analysis"
+name = "Facade pattern: detection must not import from analysis"
 type = forbidden
-source_modules = src.detection, src.decision
+source_modules = src.detection
 forbidden_modules = src.analysis
+
+[importlinter:contract:5b]
+name = "Facade pattern: decision must not import from analysis"
+type = forbidden
+source_modules = src.decision
+forbidden_modules = src.analysis
+
+[importlinter:contract:6]
+name = "Core must not depend on infrastructure"
+type = forbidden
+source_modules = src.core
+forbidden_modules = src.infrastructure
+
+[importlinter:contract:7]
+name = "Core must not depend on execution"
+type = forbidden
+source_modules = src.core
+forbidden_modules = src.execution

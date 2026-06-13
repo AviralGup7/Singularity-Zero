@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from src.core.frontier.ghost_vfs import GhostVFS
+from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.storage import ArtifactStore
 from src.core.storage.factory import create_artifact_store

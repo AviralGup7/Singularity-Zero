@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.core.frontier.ghost_actor import GhostMeshCoordinator
-from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 from src.infrastructure.mesh.gossip import MeshNode
 
 
