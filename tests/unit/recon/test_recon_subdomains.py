@@ -8,6 +8,23 @@ from src.recon.subdomains import enumerate_subdomains, fetch_crtsh_subdomains
 
 
 class ReconSubdomainTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from src.core.plugins import list_plugins as real_list_plugins
+        self.patcher = patch(
+            "src.recon.subdomains.list_plugins",
+            side_effect=lambda kind: tuple(p for p in real_list_plugins(kind) if p.key == "crtsh")
+        )
+        self.patcher.start()
+        self.meta_patcher = patch(
+            "src.recon.sources._meta_wrappers.all_meta_wrappers",
+            return_value={}
+        )
+        self.meta_patcher.start()
+
+    def tearDown(self) -> None:
+        self.patcher.stop()
+        self.meta_patcher.stop()
+
     def test_enumerate_subdomains_seeds_roots_from_wildcard_scope_entries(self) -> None:
         config = {
             "tools": {
@@ -16,6 +33,10 @@ class ReconSubdomainTests(unittest.TestCase):
                 "amass": False,
                 "rapiddns": False,
                 "virustotal": False,
+                "subdomain_center": False,
+                "github_search": False,
+                "gitlab_search": False,
+                "binaryedge": False,
                 "timeout_seconds": 1,
             },
             "http_timeout_seconds": 1,
@@ -37,6 +58,10 @@ class ReconSubdomainTests(unittest.TestCase):
                 "amass": False,
                 "rapiddns": False,
                 "virustotal": False,
+                "subdomain_center": False,
+                "github_search": False,
+                "gitlab_search": False,
+                "binaryedge": False,
                 "timeout_seconds": 1,
             },
             "http_timeout_seconds": 1,

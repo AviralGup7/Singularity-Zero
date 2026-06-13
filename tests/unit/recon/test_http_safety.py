@@ -140,6 +140,7 @@ class TestSafeGetNarrowSignature:
             return resp
 
         monkeypatch.setattr("src.recon.collectors.http_safety.requests.get", _fake_get)
+        monkeypatch.setattr("src.recon.collectors.http_safety.is_safe_url", lambda *a, **kw: None)
 
         result = safe_get(
             "https://narrow-sig.example.com/",

@@ -31,11 +31,20 @@ async def _test_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.cache_manager = CacheManager(config=cache_config)
 
     services = MagicMock(spec=DashboardServices)
+    services.query = MagicMock()
+    services.query.output_root = config.output_root
+    services.launch = MagicMock()
+
     services.list_jobs.return_value = []
     services.list_targets.return_value = []
-    services.findings_summary.return_value = {"total_findings": 0, "severity_breakdown": {}}
-    services.detection_gap_summary.return_value = {"empty_modules": []}
-    services.api_defaults.return_value = {
+    services.get_job.return_value = None
+
+    services.query.list_jobs.return_value = []
+    services.query.list_targets.return_value = []
+    services.query.findings_summary.return_value = {"total_findings": 0, "severity_breakdown": {}}
+    services.query.detection_gap_summary.return_value = {"empty_modules": []}
+
+    services.launch.api_defaults.return_value = {
         "form_defaults": {},
         "default_mode": "quick",
         "config_template": {},

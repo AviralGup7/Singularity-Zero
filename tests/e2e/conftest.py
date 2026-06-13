@@ -146,6 +146,7 @@ def dashboard_config(e2e_workspace: Path):
         workspace_root=e2e_workspace,
         frontend_dist=e2e_workspace / "frontend_dist",
         config_template=e2e_workspace / "config_template.json",
+        allowed_origins=["http://localhost:3000"],
     )
 
 
