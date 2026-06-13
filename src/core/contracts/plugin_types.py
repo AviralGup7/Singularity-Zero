@@ -69,7 +69,6 @@ class AnalyzerBinding:
     runner = LazyRunnerDescriptor()
 
 
-
 @dataclass(frozen=True)
 class DetectionGraphContext:
     """Context for detection graph operations."""

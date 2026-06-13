@@ -11,7 +11,10 @@ def register_prioritization_handlers(
     classify_handler: Callable[..., Any],
     filter_handler: Callable[..., Any],
 ) -> None:
-    global _annotate_finding_decisions_handler, _classify_finding_handler, _filter_reportable_findings_handler
+    global \
+        _annotate_finding_decisions_handler, \
+        _classify_finding_handler, \
+        _filter_reportable_findings_handler
     _annotate_finding_decisions_handler = annotate_handler
     _classify_finding_handler = classify_handler
     _filter_reportable_findings_handler = filter_handler
@@ -36,4 +39,3 @@ def filter_reportable_findings(*args: Any, **kwargs: Any) -> Any:
 
 
 __all__ = ["annotate_finding_decisions", "classify_finding", "filter_reportable_findings"]
-
