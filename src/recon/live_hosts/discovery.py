@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.core.models import Config
-from src.pipeline.cache_backend import PersistentCache
+from src.pipeline.unified_cache import UnifiedCache
 from src.pipeline.tools import build_retry_policy, execute_command, projectdiscovery_httpx_available
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import normalize_url
@@ -27,7 +27,7 @@ PROBE_CACHE_DEFAULT_TTL_SECONDS = 1200
 _PROBE_CACHE_MAX_SIZE = int(os.environ.get("RECON_PROBE_CACHE_MAX_SIZE", 10000))
 PROBE_CACHE_KEY_PREFIX = "probe:"
 
-_probe_cache = PersistentCache()
+_probe_cache = UnifiedCache()
 
 logger = logging.getLogger(__name__)
 

@@ -25,3 +25,8 @@ __all__ = [
     "is_ip",
     "indicator_type_for",
 ]
+
+# Submodules available for direct import:
+# - src.core.utils.endpoint_classification
+# - src.core.utils.scoring
+# - src.core.utils.param_types

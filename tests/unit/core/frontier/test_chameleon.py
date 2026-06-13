@@ -1,4 +1,4 @@
-from src.core.frontier.chameleon import RequestChameleon, wrap_polymorphic_request
+from src.execution.frontier.chameleon import RequestChameleon, wrap_polymorphic_request
 
 
 def test_chameleon_mutate_headers():

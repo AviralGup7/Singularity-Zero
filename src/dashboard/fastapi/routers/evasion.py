@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from src.core.frontier.chameleon import _chameleon
+from src.execution.frontier.chameleon import _chameleon
 from src.dashboard.fastapi.dependencies import require_auth
 
 logger = logging.getLogger(__name__)

@@ -23,9 +23,6 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.storage import CheckpointStore, VersionId
 from src.core.storage.factory import create_checkpoint_store
 
-if TYPE_CHECKING:
-    from src.infrastructure.checkpoint import DistributedCheckpointStore
-
 logger = get_pipeline_logger(__name__)
 
 
@@ -38,7 +35,7 @@ class CheckpointManager:
         run_id: str,
         checkpoint_store: CheckpointStore | None = None,
         storage_config: dict[str, Any] | None = None,
-        distributed_store: DistributedCheckpointStore | None = None,
+        distributed_store: Any | None = None,
     ) -> None:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.run_id = run_id
@@ -46,7 +43,7 @@ class CheckpointManager:
         self._store: CheckpointStore = checkpoint_store or create_checkpoint_store(
             storage_config, self.checkpoint_dir
         )
-        self._distributed: DistributedCheckpointStore | None = distributed_store
+        self._distributed: Any | None = distributed_store
         self._state: CheckpointState | None = None
         self._lock = threading.RLock()
 

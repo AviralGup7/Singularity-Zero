@@ -12,7 +12,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from src.core.frontier.wasm import execute_sandboxed_plugin
+from src.execution.frontier.wasm import execute_sandboxed_plugin
 
 
 @dataclass

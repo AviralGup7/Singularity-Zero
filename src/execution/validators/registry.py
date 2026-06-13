@@ -12,6 +12,9 @@ VALIDATOR_ORDER: tuple[str, ...] = (
     "jwt_weakness",
     "race_condition",
     "cache_poisoning",
+    "saml",
+    "oauth",
+    "oauth_saml",
 )
 
 VALIDATOR_RESULT_KEYS: dict[str, str] = {
@@ -28,4 +31,7 @@ VALIDATOR_RESULT_KEYS: dict[str, str] = {
     "jwt_weakness": "jwt_validation",
     "race_condition": "race_condition_validation",
     "cache_poisoning": "cache_poisoning_validation",
+    "saml": "saml_validation",
+    "oauth": "oauth_validation",
+    "oauth_saml": "oauth_saml_validation",
 }

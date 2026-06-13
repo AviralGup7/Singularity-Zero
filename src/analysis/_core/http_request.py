@@ -30,7 +30,7 @@ def _safe_request(
     """
     from urllib.parse import urlparse
 
-    from src.core.frontier.chameleon import _chameleon, wrap_polymorphic_request
+    from src.execution.frontier.chameleon import _chameleon, wrap_polymorphic_request
 
     req_headers = dict(headers or {})
     chameleon_config = wrap_polymorphic_request(req_headers)

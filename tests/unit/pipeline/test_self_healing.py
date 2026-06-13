@@ -4,7 +4,7 @@ import pytest
 
 from src.core.events import EventBus, EventType
 from src.core.frontier.bloom import NeuralBloomFilter
-from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
+from src.infrastructure.frontier.bloom_mesh import BloomMeshSynchronizer
 from src.infrastructure.observability.health_subscriber import register_health_subscriber
 from src.intelligence.ml.registry import ModelVersion, ModelVersionRegistry
 from src.pipeline.self_healing import (

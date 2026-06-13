@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from src.core.events import EventBus, EventType
 
 if TYPE_CHECKING:
-    from src.pipeline.self_healing.controller import SelfHealingController
+    from src.pipeline.self_healing.controller import SelfHealingController  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

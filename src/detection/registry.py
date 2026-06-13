@@ -12,10 +12,10 @@ from typing import Any
 from src.analysis.plugin_runtime import (
     ANALYZER_BINDING,
     ANALYZER_BINDINGS,
-    AnalysisExecutionContext,
     run_registered_analyzer,
 )
 from src.analysis.plugins import DETECTOR_SPEC
+from src.core.contracts.plugin_types import AnalysisExecutionContext
 from src.core.plugins import list_plugins
 
 logger = logging.getLogger(__name__)

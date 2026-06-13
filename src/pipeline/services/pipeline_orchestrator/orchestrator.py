@@ -189,6 +189,13 @@ class StageDispatcher:
 
     def set_queue(self, queue: Any) -> None:
         self._queue = queue
+        if queue is not None:
+            try:
+                from src.infrastructure.observability.system_sampler import get_system_sampler
+
+                get_system_sampler()._queue = queue
+            except Exception:
+                pass
 
     async def enqueue_stage(
         self,
@@ -522,6 +529,7 @@ class PipelineOrchestrator:
             source="orchestrator",
             data=event_data,
         )
+
         return await finalize_run(event_bus=self._event_bus, exit_code=exit_code, logger_obj=logger)
 
     def _build_stage_methods(self) -> dict[str, Any]:

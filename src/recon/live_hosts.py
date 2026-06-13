@@ -17,7 +17,7 @@ import urllib3
 
 from src.core.models import DEFAULT_USER_AGENT, Config
 from src.core.utils.http_pool import get_pooled_connection
-from src.pipeline.cache_backend import PersistentCache
+from src.pipeline.unified_cache import UnifiedCache
 from src.pipeline.tools import (
     build_retry_policy,
     execute_command,
@@ -31,13 +31,11 @@ PROBE_CACHE_MAX_TTL_SECONDS = 1800
 PROBE_CACHE_DEFAULT_TTL_SECONDS = 1200
 _PROBE_CACHE_MAX_SIZE = int(os.environ.get("RECON_PROBE_CACHE_MAX_SIZE", 10000))
 # All probe cache keys are namespaced with this prefix so that the
-# PersistentCache (which is shared with other pipeline layers) is not
+# UnifiedCache (which is shared with other pipeline layers) is not
 # wiped when a caller invokes ``clear_probe_cache()``.
 PROBE_CACHE_KEY_PREFIX = "probe:"
 
-# NOTE: _PROBE_CACHE_MAX_SIZE is read from env but PersistentCache does not accept a max_size arg;
-# cleanup is handled via eviction/ttl internally rather than a hard cap.
-_probe_cache = PersistentCache()
+_probe_cache = UnifiedCache()
 
 logger = logging.getLogger(__name__)
 

@@ -12,6 +12,11 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
+# Metrics tracking
+_dedup_total_counter = 0
+_dedup_groups_counter = 0
+_dedup_duplicates_counter = 0
+
 
 @dataclass
 class FindingGroup:
@@ -65,6 +70,12 @@ class FindingDeduplicator:
 
         self._groups = [g for g in seen_hashes.values() if g.count > 1]
         self._unique_count = len(unique_findings)
+
+        # Track metrics
+        global _dedup_total_counter, _dedup_groups_counter, _dedup_duplicates_counter
+        _dedup_total_counter += len(findings)
+        _dedup_groups_counter += len(self._groups)
+        _dedup_duplicates_counter += sum(g.count - 1 for g in self._groups)
 
         # Add dedup metadata to unique findings
         for finding in unique_findings:
@@ -124,3 +135,12 @@ class FindingDeduplicator:
                 for g in self._groups[:20]  # Top 20 groups
             ],
         }
+
+
+def get_dedup_metrics() -> dict[str, int]:
+    """Get deduplication metrics for observability."""
+    return {
+        "total_findings_processed": _dedup_total_counter,
+        "total_duplicate_groups": _dedup_groups_counter,
+        "total_duplicates_removed": _dedup_duplicates_counter,
+    }

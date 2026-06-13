@@ -21,16 +21,11 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from src.core.contracts.health import HealthStatus
 from src.infrastructure.observability.config import get_config
 
-
-class HealthStatus(StrEnum):
-    """Aggregate health status levels."""
-
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-    UNKNOWN = "unknown"
+# Re-export for backward compatibility
+__all__ = ["HealthStatus", "ComponentStatus", "ComponentHealth", "HealthCheckResult", "HealthChecker"]
 
 
 class ComponentStatus(StrEnum):
@@ -196,7 +191,7 @@ class HealthChecker:
 
         if not self._checks:
             result = HealthCheckResult(
-                overall_status=HealthStatus.HEALTHY,
+                overall_status=HealthStatus.OK,
                 version=self._version,
             )
             self._last_result = result
@@ -230,17 +225,17 @@ class HealthChecker:
     def _aggregate_status(self) -> HealthStatus:
         """Aggregate component statuses into an overall health status."""
         if not self._components:
-            return HealthStatus.HEALTHY
+            return HealthStatus.OK
 
         statuses = [c.status for c in self._components.values()]
 
         if all(s == ComponentStatus.UP for s in statuses):
-            return HealthStatus.HEALTHY
+            return HealthStatus.OK
 
         if any(s == ComponentStatus.DOWN for s in statuses):
             down_count = sum(1 for s in statuses if s == ComponentStatus.DOWN)
             if down_count > len(statuses) // 2:
-                return HealthStatus.UNHEALTHY
+                return HealthStatus.CRITICAL
             return HealthStatus.DEGRADED
 
         if any(s == ComponentStatus.DEGRADED for s in statuses):
@@ -259,9 +254,9 @@ class HealthChecker:
             return {"trend": "unknown", "entries": 0}
         entries = list(self._history)
         recent = entries[-10:] if len(entries) >= 10 else entries
-        healthy_count = sum(1 for e in recent if e.status == HealthStatus.HEALTHY)
+        healthy_count = sum(1 for e in recent if e.status == HealthStatus.OK)
         degraded_count = sum(1 for e in recent if e.status == HealthStatus.DEGRADED)
-        unhealthy_count = sum(1 for e in recent if e.status == HealthStatus.UNHEALTHY)
+        unhealthy_count = sum(1 for e in recent if e.status == HealthStatus.CRITICAL)
         total = len(recent)
         health_ratio = healthy_count / total if total > 0 else 0
         if health_ratio >= 0.9:

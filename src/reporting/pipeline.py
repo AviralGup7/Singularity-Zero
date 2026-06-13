@@ -6,6 +6,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from src.analysis.behavior.artifacts import write_plugin_artifacts
+from src.learning.finding_deduplicator import FindingDeduplicator
 from src.analysis.helpers import resolve_endpoint_key
 from src.analysis.intelligence.endpoint_attack_graph import build_attack_graph
 from src.analysis.intelligence.endpoint_graphs import (
@@ -157,6 +158,16 @@ def build_summary(
 
     merged_findings = copy.deepcopy(merged_findings)
 
+    deduplicator = FindingDeduplicator()
+    merged_findings, duplicate_groups = deduplicator.deduplicate(merged_findings)
+    dedup_summary = deduplicator.get_dedup_summary()
+    if duplicate_groups:
+        logger.info(
+            "Deduplication removed %d duplicate findings across %d groups",
+            dedup_summary["total_duplicates_removed"],
+            dedup_summary["duplicate_groups"],
+        )
+
     counts = {
         "scope_entries": len(scope_entries),
         "subdomains": len(subdomains),
@@ -275,6 +286,7 @@ def build_summary(
         ),
         "pipeline_flow": pipeline_flow,
         "tool_availability": tools,
+        "deduplication": dedup_summary,
     }
 
 

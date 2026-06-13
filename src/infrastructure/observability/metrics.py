@@ -631,3 +631,36 @@ def register_pipeline_metrics(metrics: MetricsRegistry | None = None) -> None:
     metrics.summary("error_rate", "Ratio of failed to total operations")
     metrics.summary("success_rate", "Ratio of successful to total operations")
     metrics.summary("throughput_per_second", "Operations processed per second")
+
+    _register_runtime_observability(metrics)
+
+
+def _register_runtime_observability(metrics: MetricsRegistry) -> None:
+    """Register runtime observability metrics.
+
+    Categories:
+    1. Pipeline stage timing (per-stage histograms)
+    2. Analyzer execution timing
+    3. Memory/task/thread tracking
+    4. Queue depth monitoring
+    """
+    # --- Category 1: Pipeline stage timing ---
+    metrics.counter("stage_failure_count", "Total stage failures by stage name")
+    metrics.counter("pipeline_run_count", "Total pipeline runs started")
+    metrics.counter("pipeline_success_count", "Total pipeline runs completed successfully")
+
+    # --- Category 2: Analyzer execution timing ---
+    metrics.counter("analyzer_execution_count", "Total analyzer invocations")
+    metrics.counter("analyzer_failure_count", "Total analyzer failures")
+    metrics.histogram("analyzer_duration_seconds", "Per-analyzer execution duration in seconds")
+    metrics.gauge("analyzer_active_count", "Number of analyzers currently executing")
+
+    # --- Category 3: Memory/task/thread tracking ---
+    metrics.gauge("process_rss_mb", "Process resident set size in MB")
+    metrics.gauge("process_thread_count", "Number of OS threads in the process")
+    metrics.gauge("asyncio_task_count", "Number of active asyncio tasks")
+
+    # --- Category 4: Queue depth monitoring ---
+    metrics.gauge("queue_pending_count", "Jobs in PENDING state")
+    metrics.gauge("queue_running_count", "Jobs in RUNNING state")
+    metrics.gauge("queue_dead_letter_count", "Jobs in dead-letter queue")

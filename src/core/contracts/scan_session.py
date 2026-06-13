@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 from abc import ABC, abstractmethod
@@ -11,8 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet
-
-from src.infrastructure.security.encryption import decrypt_string, encrypt_string
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,13 +64,17 @@ class ScanSession:
     def encrypt_value(self, value: str) -> str:
         if not value:
             return ""
-        return encrypt_string(value, self._encryption_key)
+        fernet = Fernet(self._encryption_key.encode("utf-8"))
+        encrypted = fernet.encrypt(value.encode("utf-8"))
+        return base64.urlsafe_b64encode(encrypted).decode("utf-8")
 
     def decrypt_value(self, value: str) -> str:
         if not value:
             return ""
         try:
-            return decrypt_string(value, self._encryption_key)
+            fernet = Fernet(self._encryption_key.encode("utf-8"))
+            encrypted_bytes = base64.urlsafe_b64decode(value)
+            return fernet.decrypt(encrypted_bytes).decode("utf-8")
         except Exception:
             return value
 

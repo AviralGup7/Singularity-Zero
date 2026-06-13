@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from src.core.frontier.ghost_actor import ActorState, GhostMeshCoordinator, ScanActor
-from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 
 
 def mock_logic(task_input, state):

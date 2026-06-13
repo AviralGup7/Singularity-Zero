@@ -274,7 +274,9 @@ def collect_urls(
                     # NOTE: best-effort detection – we can't read the
                     # future's start time precisely, so we just trust the
                     # provider's own duration_seconds for health.
-                    pass
+                    if meta.duration_seconds and meta.duration_seconds > spec.timeout_seconds:
+                        meta.status = CollectorStatus.TIMEOUT
+                        meta.error = f"Provider exceeded timeout ({meta.duration_seconds:.1f}s > {spec.timeout_seconds}s)"
 
                 # Health accounting.
                 if meta.status in (CollectorStatus.OK, CollectorStatus.EMPTY):

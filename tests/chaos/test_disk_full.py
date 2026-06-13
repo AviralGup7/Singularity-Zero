@@ -3,7 +3,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from src.core.frontier.wal import FrontierWAL
+from src.infrastructure.frontier.wal import FrontierWAL
 
 
 @pytest.mark.chaos

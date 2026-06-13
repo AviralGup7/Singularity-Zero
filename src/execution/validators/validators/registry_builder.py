@@ -13,10 +13,15 @@ from src.execution.validators.validators.file_upload import (
 from src.execution.validators.validators.graphql import validate_graphql_endpoint
 from src.execution.validators.validators.idor import validate as validate_idor
 from src.execution.validators.validators.jwt import validate_jwt_token
+from src.execution.validators.validators.oauth import evaluate_oauth
+from src.execution.validators.validators.oauth_saml import (
+    validate as validate_oauth_saml,
+)
 from src.execution.validators.validators.race import validate_race_condition
 from src.execution.validators.validators.redirect import (
     validate as validate_redirect,
 )
+from src.execution.validators.validators.saml import evaluate_saml
 from src.execution.validators.validators.ssrf import validate as validate_ssrf
 from src.execution.validators.validators.ssti import validate as validate_ssti
 from src.execution.validators.validators.token_reuse import (
@@ -25,6 +30,69 @@ from src.execution.validators.validators.token_reuse import (
 from src.execution.validators.validators.xss import validate as validate_xss
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_saml(target: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Wrapper for evaluate_saml to match the validate(target, context) interface."""
+    from src.core.scoring import ScoringConfig
+
+    acs_endpoint = target.get("url") or target.get("acs_endpoint")
+    scoring = ScoringConfig()
+    http_request = context.get("http_request")
+    in_scope = context.get("in_scope", True)
+
+    result = evaluate_saml(
+        acs_endpoint=acs_endpoint,
+        scorings=scoring,
+        http_request=http_request,
+        in_scope=in_scope,
+    )
+    return {
+        "validator": "saml",
+        "category": "saml",
+        "url": acs_endpoint or "",
+        "status": result.get("status", "inconclusive"),
+        "confidence": result.get("confidence", 0.0),
+        "in_scope": in_scope,
+        "scope_reason": "saml_scope_evaluated",
+        "evidence": result.get("evidence", {}),
+    }
+
+
+def _validate_oauth(target: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Wrapper for evaluate_oauth to match the validate(target, context) interface."""
+    from src.core.scoring import ScoringConfig
+
+    authorize_endpoint = target.get("authorize_endpoint") or target.get("url")
+    token_endpoint = target.get("token_endpoint")
+    userinfo_endpoint = target.get("userinfo_endpoint")
+    scoring = ScoringConfig()
+    http_request = context.get("http_request")
+    client_id = context.get("client_id", "test-client")
+    redirect_uri = context.get("redirect_uri", "https://client.example.com/callback")
+    in_scope = context.get("in_scope", True)
+
+    result = evaluate_oauth(
+        authorize_endpoint=authorize_endpoint,
+        token_endpoint=token_endpoint,
+        userinfo_endpoint=userinfo_endpoint,
+        scoring=scoring,
+        http_request=http_request,
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        in_scope=in_scope,
+    )
+    return {
+        "validator": "oauth",
+        "category": "oauth",
+        "url": authorize_endpoint or "",
+        "status": result.get("status", "inconclusive"),
+        "confidence": result.get("confidence", 0.0),
+        "in_scope": in_scope,
+        "scope_reason": "oauth_scope_evaluated",
+        "evidence": result.get("evidence", {}),
+    }
+
 
 _BASE_RUNNERS: dict[str, Any] = {
     "redirect": validate_redirect,
@@ -40,6 +108,9 @@ _BASE_RUNNERS: dict[str, Any] = {
     "cache_poisoning": cast(Validator, validate_cache_poison),
     "graphql_abuse": cast(Validator, validate_graphql_endpoint),
     "race_condition": cast(Validator, validate_race_condition),
+    "saml": cast(Validator, _validate_saml),
+    "oauth": cast(Validator, _validate_oauth),
+    "oauth_saml": cast(Validator, validate_oauth_saml),
 }
 
 

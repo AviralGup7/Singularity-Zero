@@ -275,7 +275,7 @@ def test_storage_config_env_backfill_s3(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_wal_aof_path_honours_aof_dir(tmp_path: Path) -> None:
     """FrontierWAL AOF must live under the declared aof_dir, not CWD."""
-    from src.core.frontier.wal import FrontierWAL
+    from src.infrastructure.frontier.wal import FrontierWAL
 
     aof_dir = tmp_path / "run-output" / ".wal"
     wal = FrontierWAL(redis_url=None, run_id="run-aof", aof_dir=aof_dir)
@@ -299,7 +299,7 @@ def test_wal_aof_path_honours_aof_dir(tmp_path: Path) -> None:
 def test_wal_default_aof_path_unchanged(tmp_path: Path, monkeypatch) -> None:
     """Backward-compat: callers that do not pass ``aof_dir`` still get
     ``.pipeline/wal/`` so existing tests keep working."""
-    from src.core.frontier.wal import FrontierWAL
+    from src.infrastructure.frontier.wal import FrontierWAL
 
     monkeypatch.chdir(tmp_path)
     wal = FrontierWAL(redis_url=None, run_id="run-default")

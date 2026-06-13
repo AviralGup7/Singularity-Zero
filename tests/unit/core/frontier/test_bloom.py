@@ -4,7 +4,7 @@ import msgspec
 import pytest
 
 from src.core.frontier.bloom import NeuralBloomFilter
-from src.core.frontier.bloom_mesh import (
+from src.infrastructure.frontier.bloom_mesh import (
     DEFAULT_SYNC_INTERVAL_SECONDS,
     NeuralBloomMesh,
 )

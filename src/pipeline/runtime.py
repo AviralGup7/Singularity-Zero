@@ -370,6 +370,16 @@ def main(argv: list[str] | None = None) -> int:
         Exit code (0 for success, 130 for interrupt, 1 for error).
     """
     try:
+        # Register plugin hooks from analysis and detection layers
+        try:
+            import src.analysis.plugin_registration  # noqa: F401
+        except ImportError:
+            pass
+        try:
+            import src.detection.cache_registration  # noqa: F401
+        except ImportError:
+            pass
+
         # Security: refuse to start the pipeline with placeholder secrets
         # in any non-development environment. The validator logs warnings
         # in dev and raises in production / CI.

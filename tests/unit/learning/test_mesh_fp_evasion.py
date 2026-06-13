@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.core.frontier.chameleon import RequestChameleon
+from src.execution.frontier.chameleon import RequestChameleon
 from src.dashboard.fastapi.routers.findings import update_finding
 from src.learning.integration import LearningIntegration
 

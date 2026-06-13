@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from src.dashboard.fastapi.dependencies import require_auth
+from src.dashboard.fastapi.dependencies import get_tool_execution_service, require_auth
 
 router = APIRouter(prefix="/api/health/self-healing", tags=["Self-Healing"])
 
@@ -113,15 +113,10 @@ async def list_circuit_breakers(
 ) -> dict[str, Any]:
     """Return a serializable snapshot of every per-tool circuit breaker.
 
-    The response is sourced from the bound
-    :class:`~src.pipeline.services.tool_execution.ToolExecutionService` (or
+    The response is sourced from the bound tool execution service (or
     the module-level default if the controller has none wired).
     """
-    service = getattr(request.app.state, "tool_execution_service", None)
-    if service is None:
-        from src.pipeline.services.tool_execution import ToolExecutionService
-
-        service = ToolExecutionService()
+    service = get_tool_execution_service(request)
     snapshot = service.breaker_snapshot()
     return {
         "tools": {
@@ -149,11 +144,7 @@ async def force_open_tool_breaker(
     backend.  Operators can invoke this endpoint to manually cool down a
     tool that is hammering a rate-limited upstream.
     """
-    service = getattr(request.app.state, "tool_execution_service", None)
-    if service is None:
-        from src.pipeline.services.tool_execution import ToolExecutionService
-
-        service = ToolExecutionService()
+    service = get_tool_execution_service(request)
     breaker = service.force_open_breaker(
         tool_name,
         payload.reason,
@@ -212,11 +203,7 @@ async def check_tool_availability(
     Returns a map of tool name to availability status, including whether
     the tool is installed, its resolved path, and circuit breaker state.
     """
-    service = getattr(request.app.state, "tool_execution_service", None)
-    if service is None:
-        from src.pipeline.services.tool_execution import ToolExecutionService
-
-        service = ToolExecutionService()
+    service = get_tool_execution_service(request)
 
     results: dict[str, dict[str, Any]] = {}
     for tool_name in payload.tools:
