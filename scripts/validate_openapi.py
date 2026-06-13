@@ -165,7 +165,7 @@ def main() -> int:
 
         # 2. Enrich OpenAPI schema and validate docs/api-reference.md
         enriched_spec = enrich_openapi_metadata(dict(active_openapi))
-        yaml_str = yaml.dump(enriched_spec, sort_keys=False, default_flow_style=False)
+        yaml_str = yaml.dump(enriched_spec, sort_keys=True, default_flow_style=False)
 
         if not docs_path.exists():
             print(f"Documentation file missing at {docs_path}. Bootstrapping...")
