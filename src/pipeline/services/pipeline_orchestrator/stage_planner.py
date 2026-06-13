@@ -238,7 +238,7 @@ class StagePlanner:
                     method="HEAD",
                 )
                 try:
-                    with urllib.request.urlopen(req, timeout=2.0) as resp:  # noqa: S310
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:  # nosec B310 # noqa: S310
                         headers_list.append(dict(resp.info()))
                 except Exception:
                     req = urllib.request.Request(  # noqa: S310
@@ -248,7 +248,7 @@ class StagePlanner:
                         },
                         method="GET",
                     )
-                    with urllib.request.urlopen(req, timeout=2.0) as resp:  # noqa: S310
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:  # nosec B310 # noqa: S310
                         headers_list.append(dict(resp.info()))
             except Exception as e:
                 logger.debug("WAF sample request to %s failed: %s", url, e)
