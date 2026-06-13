@@ -128,6 +128,9 @@ def safe_close(conn: sqlite3.Connection | None) -> None:
     try:
         conn.close()
     except sqlite3.ProgrammingError as exc:
+        exc_str = str(exc).lower()
+        if "same thread" in exc_str or "closed database" in exc_str or "already closed" in exc_str:
+            return
         logging.warning("Operation failed in sqlite_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 

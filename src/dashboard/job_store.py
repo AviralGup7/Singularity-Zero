@@ -106,7 +106,11 @@ class JobStore:
     def _get_conn(self) -> sqlite3.Connection:
         wrapper = getattr(self._local, "wrapper", None)
         if wrapper is None or wrapper.conn is None:
-            conn = sqlite3.connect(str(self.db_path), timeout=_CONNECT_TIMEOUT_SECONDS)
+            conn = sqlite3.connect(
+                str(self.db_path),
+                timeout=_CONNECT_TIMEOUT_SECONDS,
+                check_same_thread=False,
+            )
             conn.row_factory = sqlite3.Row
             try:
                 conn.execute("PRAGMA journal_mode=WAL")

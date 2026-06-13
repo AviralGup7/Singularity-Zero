@@ -122,8 +122,9 @@ class TestSubdomainTakeover:
     @pytest.mark.asyncio
     @patch("src.recon.takeover._resolve_cname", new_callable=AsyncMock)
     @patch("src.recon.takeover._check_http_indicators", new_callable=AsyncMock)
+    @patch("src.recon.takeover._is_public_target", return_value=True)
     async def test_check_single_subdomain(
-        self, mock_check_http: AsyncMock, mock_resolve: AsyncMock
+        self, mock_is_public: MagicMock, mock_check_http: AsyncMock, mock_resolve: AsyncMock
     ) -> None:
         """Verify _check_single_subdomain aggregates CNAME checks and HTTP matching."""
         # 1. CNAME resolution fails
