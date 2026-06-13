@@ -20,7 +20,29 @@ import requests
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.pid_limiter import PIDRateLimiter
 from src.core.utils.url_validation import is_safe_url
-from src.execution.frontier.chameleon import wrap_polymorphic_request
+
+
+class ChameleonHook:
+    def wrap_polymorphic_request(self, headers: dict) -> dict:
+        return {"headers": headers, "verify": True, "timeout": 10.0}
+
+    def update_observation(
+        self,
+        response_status: int,
+        body: str,
+        headers: dict,
+        cookies: dict | None,
+        session_id: str,
+        target: str,
+        detected_waf: str | None = None,
+    ) -> str | None:
+        return detected_waf
+
+_chameleon_hook = ChameleonHook()
+
+def register_chameleon_hook(hook: ChameleonHook) -> None:
+    global _chameleon_hook
+    _chameleon_hook = hook
 
 logger = get_pipeline_logger(__name__)
 
@@ -132,7 +154,7 @@ def safe_request(
 
     # Fix Audit #10: Use Polymorphic Chameleon instead of hardcoded User-Agent
     request_headers = dict(headers or {})
-    chameleon_config = wrap_polymorphic_request(request_headers)
+    chameleon_config = _chameleon_hook.wrap_polymorphic_request(request_headers)
     req_headers = chameleon_config["headers"]
     req_headers.setdefault("Accept", "application/json, text/html, */*")
 
@@ -184,8 +206,6 @@ def safe_request(
         # Real-time evasion telemetry update
         detected_waf = None
         try:
-            from src.execution.frontier.chameleon import _chameleon
-
             cookies = None
             if hasattr(resp, "cookies") and resp.cookies is not None:
                 if hasattr(resp.cookies, "items"):
@@ -196,13 +216,13 @@ def safe_request(
                     except Exception as exc:
                         logger.debug("Failed to extract cookies: %s", exc)
                         cookies = {}
-            detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
-            _chameleon._evasion_engine.update_observation(
+            detected_waf = _chameleon_hook.update_observation(
                 response_status=resp.status_code,
                 body=resp_body,
+                headers=resp_headers,
+                cookies=cookies,
                 session_id=session_id,
                 target=target,
-                detected_waf=detected_waf,
             )
         except Exception as te:
             logger.debug("Telemetry/Evasion observation feed failed: %s", te)
@@ -236,16 +256,16 @@ def safe_request(
         limiter.update(0.0, is_blocked=is_blocked)
 
         try:
-            from src.execution.frontier.chameleon import _chameleon
-
             # Check if there is an error response we can extract
             err_body = ""
             if hasattr(e, "response") and e.response is not None:
                 err_body = getattr(e.response, "text", "")
 
-            _chameleon._evasion_engine.update_observation(
+            _chameleon_hook.update_observation(
                 response_status=err_status or 403,  # default to WAF block / generic failure
                 body=err_body,
+                headers=dict(getattr(e.response, "headers", {}) or {}),
+                cookies=None,
                 session_id=session_id,
                 target=target,
                 detected_waf=None,
@@ -289,7 +309,7 @@ async def async_safe_request(
 
     # Fix Audit #10: Use Polymorphic Chameleon
     request_headers = dict(headers or {})
-    chameleon_config = wrap_polymorphic_request(request_headers)
+    chameleon_config = _chameleon_hook.wrap_polymorphic_request(request_headers)
     req_headers = chameleon_config["headers"]
     req_headers.setdefault("Accept", "application/json, text/html, */*")
 
@@ -344,8 +364,6 @@ async def async_safe_request(
         # Real-time evasion telemetry update
         detected_waf = None
         try:
-            from src.execution.frontier.chameleon import _chameleon
-
             cookies = None
             if hasattr(resp, "cookies") and resp.cookies is not None:
                 if hasattr(resp.cookies, "items"):
@@ -356,13 +374,13 @@ async def async_safe_request(
                     except Exception as exc:
                         logger.debug("Failed to extract cookies: %s", exc)
                         cookies = {}
-            detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
-            _chameleon._evasion_engine.update_observation(
+            detected_waf = _chameleon_hook.update_observation(
                 response_status=resp.status_code,
                 body=resp_body,
+                headers=resp_headers,
+                cookies=cookies,
                 session_id=session_id,
                 target=target,
-                detected_waf=detected_waf,
             )
         except Exception as te:
             logger.debug("Telemetry/Evasion observation feed failed: %s", te)
@@ -399,15 +417,15 @@ async def async_safe_request(
         limiter.update(0.0, is_blocked=is_blocked)
 
         try:
-            from src.execution.frontier.chameleon import _chameleon
-
             err_body = ""
             if hasattr(e, "response") and e.response is not None:
                 err_body = getattr(e.response, "text", "")
 
-            _chameleon._evasion_engine.update_observation(
+            _chameleon_hook.update_observation(
                 response_status=err_status or 403,
                 body=err_body,
+                headers=dict(getattr(e.response, "headers", {}) or {}),
+                cookies=None,
                 session_id=session_id,
                 target=target,
                 detected_waf=None,

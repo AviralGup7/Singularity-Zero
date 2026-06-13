@@ -19,10 +19,11 @@ from src.analysis.helpers.scoring import (
 )
 
 # Re-export classification functions
+from src.core.utils.param_types import decode_candidate_value
+
 from ._classification import (
     build_endpoint_meta,
     classify_endpoint,
-    decode_candidate_value,
     endpoint_base_key,
     endpoint_signature,
     ensure_endpoint_key,
