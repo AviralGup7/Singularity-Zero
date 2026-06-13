@@ -277,3 +277,35 @@ def wrap_polymorphic_request(headers: dict[str, str]) -> dict[str, Any]:
         "headers": _chameleon.mutate_headers(dict(headers)),
         **_chameleon.get_stealth_options(),
     }
+
+
+from src.core.http_utils import ChameleonHook, register_chameleon_hook
+
+
+class ActualChameleonHook(ChameleonHook):
+    def wrap_polymorphic_request(self, headers: dict) -> dict:
+        return wrap_polymorphic_request(headers)
+
+    def update_observation(
+        self,
+        response_status: int,
+        body: str,
+        headers: dict,
+        cookies: dict | None,
+        session_id: str,
+        target: str,
+        detected_waf: str | None = None,
+    ) -> str | None:
+        if detected_waf is None:
+            detected_waf = _chameleon.detect_waf(headers, body, cookies)
+        _chameleon._evasion_engine.update_observation(
+            response_status=response_status,
+            body=body,
+            session_id=session_id,
+            target=target,
+            detected_waf=detected_waf,
+        )
+        return detected_waf
+
+
+register_chameleon_hook(ActualChameleonHook())

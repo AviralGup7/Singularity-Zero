@@ -3,7 +3,8 @@
 from typing import Any
 from urllib.parse import urlparse
 
-from ._classification import decode_candidate_value
+from src.core.utils.param_types import decode_candidate_value
+
 from ._constants import (
     API_KEY_RE,
     AWS_KEY_RE,

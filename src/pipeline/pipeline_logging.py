@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from src.core.events import EventBus
 from src.pipeline.services.instrumentation import (
-    EventBus,
     StageEvent,
     event_bus,
     get_memory_usage,
