@@ -127,6 +127,7 @@ def test_unknown_json_fields_include_path_in_422(tmp_path, monkeypatch):
     monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     monkeypatch.setenv("APP_ENV", "development")
     import src.dashboard.fastapi.dependencies
+
     monkeypatch.setattr(src.dashboard.fastapi.dependencies, "_SECURITY_ENABLED", False)
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.config import DashboardConfig

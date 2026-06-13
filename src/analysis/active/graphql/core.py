@@ -587,7 +587,7 @@ def graphql_active_probe(
         # can be triggered cross-origin from any attacker-controlled page.
         # We send two GETs: one without an Origin, one with an evil Origin,
         # and a third with a 'text/plain' content-type POST (bypassing CORS
-# preflight). A 2xx on either is a finding.
+        # preflight). A 2xx on either is a finding.
         get_csrf_result: dict[str, Any] | None = None
         get_url = _build_get_query_url(url, "{ __typename }")
         baseline_get = response_cache.request(
