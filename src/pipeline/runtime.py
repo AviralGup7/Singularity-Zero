@@ -76,7 +76,7 @@ def request_shutdown() -> None:
     for evt in _shutdown_events.values():
         try:
             evt.set()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
 

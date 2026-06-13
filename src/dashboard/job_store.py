@@ -86,7 +86,7 @@ class _ConnWrapper:
     def __del__(self) -> None:
         try:
             self.on_close(self.conn)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
 
@@ -127,7 +127,7 @@ class JobStore:
             def _remove_conn(c: sqlite3.Connection) -> None:
                 try:
                     c.close()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
                 with self._lock:
                     if c in self._all_connections:

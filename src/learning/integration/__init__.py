@@ -235,19 +235,19 @@ class LearningIntegration:
                 if hasattr(self._mesh_sync, "_client") and self._mesh_sync._client is not None:
                     try:
                         self._mesh_sync._client.connection_pool.disconnect()
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
                 if hasattr(self._mesh_sync, "_pubsub") and self._mesh_sync._pubsub is not None:
                     try:
                         self._mesh_sync._pubsub.connection_pool.disconnect()
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
 
             if self._redis_repo:
                 if hasattr(self._redis_repo, "_client") and self._redis_repo._client is not None:
                     try:
                         self._redis_repo._client.connection_pool.disconnect()
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
 
         self.store.close()

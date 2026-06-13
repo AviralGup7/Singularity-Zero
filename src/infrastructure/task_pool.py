@@ -184,7 +184,7 @@ class RunLock:
                     if owner_id and val == owner_id:
                         self._acquired = True
                         return True
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
                 self._lock_file = None
                 return False

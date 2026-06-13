@@ -232,23 +232,23 @@ class StagePlanner:
                 if not req_url.startswith(("http://", "https://")):
                     req_url = f"http://{req_url}"
                 # Set a user-agent to look like a browser
-                req = urllib.request.Request(
+                req = urllib.request.Request(  # noqa: S310
                     req_url,
                     headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"},
                     method="HEAD",
                 )
                 try:
-                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:  # noqa: S310
                         headers_list.append(dict(resp.info()))
                 except Exception:
-                    req = urllib.request.Request(
+                    req = urllib.request.Request(  # noqa: S310
                         req_url,
                         headers={
                             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CSTP/2.0"
                         },
                         method="GET",
                     )
-                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:  # noqa: S310
                         headers_list.append(dict(resp.info()))
             except Exception as e:
                 logger.debug("WAF sample request to %s failed: %s", url, e)
