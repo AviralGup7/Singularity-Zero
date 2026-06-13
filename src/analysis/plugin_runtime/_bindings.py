@@ -47,6 +47,7 @@ class LazyRunner:
 
     def __lazy_resolve__(self) -> Any:
         import importlib
+
         module = importlib.import_module(self.module_path)
         return getattr(module, self.attr_name)
 
@@ -57,7 +58,6 @@ class LazyRunner:
 def _lazy_import(module_path: str, attr_name: str) -> Callable[..., Any]:
     """Return a callable that lazily imports and returns the attribute."""
     return LazyRunner(module_path, attr_name)  # type: ignore[return-value]
-
 
 
 def _register_bindings() -> None:
@@ -426,11 +426,16 @@ def _register_bindings() -> None:
     # Register lazy bindings
     for key, (module_path, attr_name) in lazy_bindings.items():
         runner = _lazy_import(module_path, attr_name)
-        if key in (
-            "reflected_xss_probe",
-            "xxe_active_probe",
-            "xml_bomb_detector",
-        ) or key.endswith("_probe") or key.endswith("_analyzer"):
+        if (
+            key
+            in (
+                "reflected_xss_probe",
+                "xxe_active_probe",
+                "xml_bomb_detector",
+            )
+            or key.endswith("_probe")
+            or key.endswith("_analyzer")
+        ):
             # Active probes/analyzers require priority urls and cache
             input_kind = "priority_urls_and_cache"
             if key == "vulnerable_component_detector":

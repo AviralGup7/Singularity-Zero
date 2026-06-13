@@ -310,7 +310,10 @@ def get_tool_execution_service(request: Request) -> Any:
     if service is not None:
         return service
     import importlib
-    ToolExecutionService = importlib.import_module("src.pipeline.services.tool_execution").ToolExecutionService
+
+    ToolExecutionService = importlib.import_module(
+        "src.pipeline.services.tool_execution"
+    ).ToolExecutionService
     return ToolExecutionService()
 
 

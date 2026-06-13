@@ -25,6 +25,7 @@ def register_run_plugin_handler(
     global _run_plugin_handler
     _run_plugin_handler = handler
 
+
 logger = logging.getLogger(__name__)
 
 

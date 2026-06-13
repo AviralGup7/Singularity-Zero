@@ -12,7 +12,9 @@ from src.core.contracts.plugin_types import AnalysisExecutionContext
 logger = logging.getLogger(__name__)
 
 _prime_context_handler: Callable[..., AnalysisExecutionContext] | None = None
-_run_plugins_handler: Callable[[AnalysisExecutionContext], dict[str, list[dict[str, Any]]]] | None = None
+_run_plugins_handler: (
+    Callable[[AnalysisExecutionContext], dict[str, list[dict[str, Any]]]] | None
+) = None
 
 
 def register_detection_handlers(
@@ -53,4 +55,3 @@ def run_detection_plugins(context: AnalysisExecutionContext) -> dict[str, list[d
         logger.info("Executed detection plugins. Returned results for %d plugins.", len(results))
         return results
     raise RuntimeError("No run_plugins_handler registered in src.detection")
-
