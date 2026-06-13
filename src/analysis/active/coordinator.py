@@ -59,7 +59,6 @@ try:
         probe_confidence_from_map,
         probe_severity_from_map,
     )
-    from src.analysis.passive.runtime import ResponseCache
     from src.detection.ast import analyze_html_for_prototype_pollution
 except ImportError as exc:
     logger.warning("Some active probe modules failed to import: %s", exc)
@@ -108,7 +107,7 @@ __all__ = [
 
 
 def websocket_message_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 8
 ) -> list[dict[str, Any]]:
     """Probe WebSocket endpoints for message injection and auth weaknesses."""
     from urllib.parse import parse_qsl, urlparse
@@ -245,7 +244,7 @@ OAUTH_SEVERITY = {
 
 
 def oauth_flow_analyzer(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 10
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 10
 ) -> list[dict[str, Any]]:
     """Analyze OAuth/SAML flow endpoints for misconfigurations."""
     from urllib.parse import parse_qsl, urlparse
@@ -395,7 +394,7 @@ WS_SEVERITY = {
 
 def run_saml_attack_suite(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     credential_vault: CredentialVault,
     config: dict[str, Any] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:

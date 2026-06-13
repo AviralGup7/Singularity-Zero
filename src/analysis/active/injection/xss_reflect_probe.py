@@ -34,7 +34,6 @@ from src.analysis.active.injection._efficiency import (
 )
 from src.analysis.active.injection._payload_generator import PayloadGenerator
 from src.analysis.active.injection._waf_detector import WafDetector
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -116,7 +115,7 @@ REFLECT_SEVERITY = {
 
 def xss_reflect_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 15,
 ) -> list[dict[str, Any]]:
     """Probe URLs for reflected XSS using context-aware analysis."""
@@ -229,7 +228,7 @@ def _test_payloads(
     contexts: list[ReflectionContext],
     base_finding: dict[str, Any],
     waf_active: bool,
-    response_cache: ResponseCache,
+    response_cache: Any,
     url_entry: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Test generated payloads against the target URL."""

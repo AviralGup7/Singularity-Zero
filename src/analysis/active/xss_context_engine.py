@@ -44,7 +44,7 @@ import re
 from dataclasses import dataclass
 from typing import TypedDict
 
-from .xss_constants import (
+from src.analysis.helpers.xss_constants import (
     _EVENT_HANDLERS,
     _INJECTION_TAGS,
     _JS_FUNCTIONS,

@@ -4,7 +4,7 @@ from typing import Any
 from src.analysis.analyzer_results import build_analyzer_result
 from src.analysis.helpers import classify_endpoint, meaningful_query_pairs, normalize_headers
 from src.analysis.passive.patterns import SENSITIVE_PATTERNS, TECH_SIGNATURES
-from src.analysis.passive.runtime import ResponseCache, json_headers, redacted_snippet
+from src.analysis.passive.runtime import json_headers, redacted_snippet
 from src.core.contracts.pipeline import dedup_key
 from src.recon.common import normalize_url
 
@@ -38,7 +38,7 @@ def sensitive_data_scanner(responses: list[dict[str, Any]]) -> list[dict[str, An
 
 
 def header_checker(
-    targets: list[str], response_cache: ResponseCache, response_map: dict[str, dict[str, Any]]
+    targets: list[str], response_cache: Any, response_map: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for target in targets:

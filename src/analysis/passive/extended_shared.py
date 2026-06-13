@@ -9,17 +9,18 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-# XSS utilities extracted to xss_utils.py
-from src.analysis.active.xss_constants import (
+from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+
+# XSS utilities extracted to helpers/xss_utils.py
+from src.analysis.helpers.xss_constants import (
     XSS_DANGEROUS_VALUE_RE,
     XSS_FIELD_RE,
 )
-from src.analysis.active.xss_utils import (
+from src.analysis.helpers.xss_utils import (
     build_reflection_probe_mutation,
     reflection_context_signals,
     xss_signals,
 )
-from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 
 __all__ = [
     "AI_MODEL_RE",
@@ -59,7 +60,7 @@ EMAIL_RE = None  # Initialized on first use via _get_email_re()
 def _get_email_re() -> re.Pattern[str] | None:
     global EMAIL_RE
     if EMAIL_RE is None:
-        from src.analysis.json.support import EMAIL_VALUE_RE
+        from src.analysis.helpers import EMAIL_VALUE_RE
 
         EMAIL_RE = EMAIL_VALUE_RE
     return EMAIL_RE

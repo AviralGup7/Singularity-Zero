@@ -6,17 +6,24 @@ consumes/produces metadata from analyzer bindings.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.analysis.plugin_runtime import (
-    ANALYZER_BINDING,
-    ANALYZER_BINDINGS,
-    run_registered_analyzer,
-)
-from src.analysis.plugins import DETECTOR_SPEC
 from src.core.contracts.plugin_types import AnalysisExecutionContext
 from src.core.plugins import list_plugins
+
+DETECTOR_SPEC = "detector_spec"
+ANALYZER_BINDING = "analyzer_binding"
+
+_run_plugin_handler: Callable[[str, AnalysisExecutionContext], list[dict[str, Any]]] | None = None
+
+
+def register_run_plugin_handler(
+    handler: Callable[[str, AnalysisExecutionContext], list[dict[str, Any]]],
+) -> None:
+    global _run_plugin_handler
+    _run_plugin_handler = handler
 
 logger = logging.getLogger(__name__)
 
@@ -302,18 +309,9 @@ def get_detection_plugin(plugin_key: str) -> DetectionPlugin:
 def run_detection_plugin(
     plugin_key: str, context: AnalysisExecutionContext
 ) -> list[dict[str, Any]]:
-    plugin = get_detection_plugin(plugin_key)
-    binding = ANALYZER_BINDINGS.get(plugin.key)
-    if binding is None:
-        # Fallback to dynamic lookup in list_plugins
-        bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
-        binding = bindings.get(plugin.key)
-    if binding is None:
-        raise KeyError(f"No analyzer binding found for plugin key '{plugin.key}'")
-    logger.info("Running detection plugin: %s", plugin.key)
-    results = run_registered_analyzer(binding, context)
-    logger.info("Detection plugin %s returned %d results", plugin.key, len(results))
-    return results
+    if _run_plugin_handler is not None:
+        return _run_plugin_handler(plugin_key, context)
+    raise RuntimeError("No run_plugin_handler registered in src.detection")
 
 
 def detection_plugin_options() -> list[dict[str, object]]:

@@ -5,13 +5,13 @@ from typing import Any
 
 from src.analysis.helpers import endpoint_signature, is_noise_url
 from src.analysis.intelligence.mutation_runtime import build_all_contextual_diff_mutations
-from src.analysis.passive.runtime import ResponseCache, normalize_compare_text
+from src.analysis.text_utils import normalize_compare_text
 
 from ._diff_utils import _redirect_target, variant_diff_summary
 
 
 def response_diff_engine(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 16
+    priority_urls: list[str], response_cache: Any, limit: int = 16
 ) -> list[dict[str, Any]]:
     """Test endpoints with contextual mutations and compare responses."""
     diffs: list[dict[str, Any]] = []

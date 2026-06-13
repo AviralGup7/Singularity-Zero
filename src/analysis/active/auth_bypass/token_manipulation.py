@@ -9,7 +9,6 @@ from src.analysis.helpers import (
     endpoint_base_key,
     endpoint_signature,
 )
-from src.analysis.passive.runtime import ResponseCache
 
 from .auth_bypass_utils import (
     AUTH_HEADERS,
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def probe_token_manipulation(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Remove JWT tokens from Authorization headers and check if endpoints still respond.

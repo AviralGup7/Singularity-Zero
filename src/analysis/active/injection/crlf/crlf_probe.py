@@ -5,7 +5,6 @@ from typing import Any
 from urllib.parse import parse_qsl, quote, urlparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 from .._confidence import probe_confidence, probe_severity
 from ._crlf_constants import CRLF_PROBE_PAYLOADS
@@ -19,7 +18,7 @@ from ._waf_detector import _detect_waf
 
 def crlf_injection_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test parameters and paths with CRLF sequences for header injection.

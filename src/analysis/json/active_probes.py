@@ -32,16 +32,12 @@ from src.analysis.json.support import (
 from src.analysis.json.support import (
     mutate_state_url as _mutate_state_url,
 )
-from src.analysis.passive.runtime import (
-    ResponseCache,
-    extract_key_fields,
-    normalize_compare_text,
-)
+from src.analysis.text_utils import extract_key_fields, normalize_compare_text
 from src.recon.common import normalize_url
 
 
 def state_transition_analyzer(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 24
+    priority_urls: list[str], response_cache: Any, limit: int = 24
 ) -> list[dict[str, Any]]:
     """Analyze state parameter transitions for integrity issues."""
     findings: list[dict[str, Any]] = []
@@ -87,7 +83,7 @@ def state_transition_analyzer(
 
 
 def parameter_dependency_tracker(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 30
+    priority_urls: list[str], response_cache: Any, limit: int = 30
 ) -> list[dict[str, Any]]:
     """Track parameter dependencies across endpoints."""
     findings: list[dict[str, Any]] = []
@@ -175,7 +171,7 @@ def flow_integrity_checker(
 
 
 def pagination_walker(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 24
+    priority_urls: list[str], response_cache: Any, limit: int = 24
 ) -> list[dict[str, Any]]:
     """Walk pagination parameters to detect data exposure."""
     findings: list[dict[str, Any]] = []
@@ -226,7 +222,7 @@ def pagination_walker(
 
 
 def filter_parameter_fuzzer(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 24
+    priority_urls: list[str], response_cache: Any, limit: int = 24
 ) -> list[dict[str, Any]]:
     """Fuzz filter parameters to detect hidden states, roles, and global views."""
     findings: list[dict[str, Any]] = []

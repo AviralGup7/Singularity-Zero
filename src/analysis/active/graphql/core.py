@@ -21,7 +21,6 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
 
 # Safe GraphQL introspection query
 GRAPHQL_INTROSPECTION_QUERY = """
@@ -316,7 +315,7 @@ def _check_graphql_errors(body: str) -> list[str]:
 
 
 def graphql_active_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 8
 ) -> list[dict[str, Any]]:
     """Send safe GraphQL probes to detected /graphql endpoints.
 

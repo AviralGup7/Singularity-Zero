@@ -36,12 +36,28 @@ class AnalysisExecutionContext:
     idor_findings: list[dict[str, Any]]
 
 
+class LazyRunnerDescriptor:
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        if instance is None:
+            return self
+        val = instance.__dict__.get("runner")
+        if hasattr(val, "__lazy_resolve__"):
+            val = val.__lazy_resolve__()
+            instance.__dict__["runner"] = val
+        return val
+
+    def __set__(self, instance: Any, value: Any) -> None:
+        if isinstance(value, LazyRunnerDescriptor):
+            value = None
+        instance.__dict__["runner"] = value
+
+
 @dataclass
 class AnalyzerBinding:
     """Binding for an analyzer plugin."""
 
     input_kind: str
-    runner: object | None = None
+    runner: Any | None = None
     context_attr: str | None = None
     limit_key: str | None = None
     default_limit: int | None = None
@@ -49,6 +65,9 @@ class AnalyzerBinding:
     consumes: tuple[str, ...] = ()
     produces: tuple[str, ...] = ()
     extra_kwargs: dict[str, object] | None = None
+
+    runner = LazyRunnerDescriptor()
+
 
 
 @dataclass(frozen=True)

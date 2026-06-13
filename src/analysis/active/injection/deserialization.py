@@ -4,7 +4,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 from ._confidence import probe_confidence, probe_severity
@@ -13,7 +12,7 @@ from ._patterns import CLASS_NAME_RE, DESER_ERROR_RE, ERROR_STACK_TRACE_RE
 
 def deserialization_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 8,
 ) -> list[dict[str, Any]]:
     """Send crafted serialized objects to parameters that look like serialized data.

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from src.analysis.helpers import (
     JSON_CONTENT_TOKENS,
+    UUID_RE,
     classify_endpoint,
     json_type_name,
     meaningful_query_pairs,
@@ -25,7 +26,6 @@ from src.analysis.json.mutations import (
     mutate_role_url,
     mutate_state_url,
 )
-from src.analysis.passive.patterns import UUID_RE
 from src.analysis.text_utils import extract_key_fields
 
 from ._constants import (
@@ -101,7 +101,7 @@ SENSITIVE_FIELD_TOKENS = (
     "salt",
     "encryption_key",
 )
-EMAIL_VALUE_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+from src.analysis.helpers import EMAIL_VALUE_RE
 
 
 def parse_json_payload(response: dict[str, Any]) -> dict[str, Any] | list[Any] | None:

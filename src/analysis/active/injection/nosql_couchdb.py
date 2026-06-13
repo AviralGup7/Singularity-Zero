@@ -11,7 +11,6 @@ import re
 from typing import Any
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 from ._confidence import probe_confidence, probe_severity
 
@@ -149,7 +148,7 @@ _COUCHDB_UPDATE_HANDLERS: list[tuple[str, dict[str, Any]]] = [
 
 def nosql_couchdb_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 30,
 ) -> list[dict[str, Any]]:
     """CouchDB-specific NoSQL injection probes.

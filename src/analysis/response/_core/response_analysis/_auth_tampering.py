@@ -8,8 +8,8 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
 
+# Removed passive package import
 from ._diff_utils import variant_diff_summary
 
 
@@ -34,7 +34,7 @@ def _auth_header_variants() -> list[dict[str, Any]]:
 
 
 def auth_header_tampering_variations(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 16
+    priority_urls: list[str], response_cache: Any, limit: int = 16
 ) -> list[dict[str, Any]]:
     """Test endpoints with manipulated auth headers."""
     findings: list[dict[str, Any]] = []

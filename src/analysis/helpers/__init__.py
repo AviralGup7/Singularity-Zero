@@ -51,6 +51,7 @@ from ._constants import (
     AUTH_SKIP_PARAMS,
     AWS_KEY_RE,
     DNS_LIKE_RE,
+    EMAIL_VALUE_RE,
     GITHUB_TOKEN_RE,
     HEX_ONLY_RE,
     HIGH_RISK_LOCATION_ORDER,
@@ -106,6 +107,7 @@ from ._utils import (
     json_type_name,
     normalize_headers,
 )
+from .response_filters import classify_response_delta
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -137,6 +139,7 @@ __all__ = [
     "HEX_ONLY_RE",
     "IP_RE",
     "JWT_LIKE_RE",
+    "EMAIL_VALUE_RE",
     "LONG_ALNUM_RE",
     "SLACK_TOKEN_RE",
     "STRIPE_KEY_RE",
@@ -181,4 +184,5 @@ __all__ = [
     "probe_severity",
     "probe_confidence_from_map",
     "probe_severity_from_map",
+    "classify_response_delta",
 ]

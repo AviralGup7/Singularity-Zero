@@ -34,6 +34,7 @@ __all__ = [
     "HIGH_RISK_LOCATION_ORDER",
     "LOCATION_SEVERITY",
     "JWT_LIKE_RE",
+    "EMAIL_VALUE_RE",
     "DNS_LIKE_RE",
     "AWS_KEY_RE",
     "API_KEY_RE",
@@ -246,6 +247,7 @@ LOCATION_SEVERITY = {
 
 # Pre-compiled regex patterns
 JWT_LIKE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
+EMAIL_VALUE_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 DNS_LIKE_RE = re.compile(r"^(?:[a-z0-9-]+\.){2,}[a-z]{2,}(?::\d{1,5})?$", re.IGNORECASE)
 AWS_KEY_RE = re.compile(r"\bAKIA[0-9A-Z]{16}\b")
 API_KEY_RE = re.compile(r"\bsk-(?:proj-|live-|test-)?[A-Za-z0-9_-]{20,}\b")

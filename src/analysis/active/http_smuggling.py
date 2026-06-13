@@ -9,7 +9,6 @@ Extracted from active_probes.py for better separation of concerns.
 from typing import Any, cast
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, ensure_endpoint_key
-from src.analysis.passive.runtime import ResponseCache
 
 SMUGGLING_HEADERS = [
     {
@@ -108,7 +107,7 @@ def _probe_severity(issues: list[str]) -> str:
 
 
 def http_smuggling_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 10
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 10
 ) -> list[dict[str, Any]]:
     """Probe for HTTP request smuggling vulnerabilities via header conflicts."""
     findings: list[dict[str, Any]] = []
@@ -197,7 +196,7 @@ def http_smuggling_probe(
 
 
 def http2_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 8
 ) -> list[dict[str, Any]]:
     """Probe for HTTP/2 specific vulnerabilities and misconfigurations."""
     findings: list[dict[str, Any]] = []

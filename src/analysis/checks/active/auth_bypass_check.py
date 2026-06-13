@@ -15,7 +15,6 @@ from src.analysis.active.auth_bypass import (
 )
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers.scoring import severity_score
-from src.analysis.passive.runtime import ResponseCache
 from src.analysis.plugins import AnalysisPluginSpec
 
 logger = logging.getLogger(__name__)
@@ -134,7 +133,7 @@ def _merge_probe_findings(
 
 def auth_bypass_check(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 15,
 ) -> list[dict[str, Any]]:
     """Run auth bypass active probes and return standardized findings.

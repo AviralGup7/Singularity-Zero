@@ -12,7 +12,6 @@ import time
 from typing import Any
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 from ._confidence import probe_confidence, probe_severity
 
@@ -107,7 +106,7 @@ def _redis_command_body(payload_name: str, payload_body: dict[str, Any]) -> str:
 
 def nosql_redis_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 30,
     timing_threshold_ms: float = 3000.0,
 ) -> list[dict[str, Any]]:

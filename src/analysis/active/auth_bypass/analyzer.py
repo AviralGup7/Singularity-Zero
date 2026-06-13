@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-from src.analysis.passive.runtime import ResponseCache
-
 from .credential_stuffing import probe_credential_stuffing
 from .mfa_bypass import probe_mfa_bypass
 from .password_reset_abuse import probe_password_reset_abuse
@@ -24,7 +22,7 @@ def _safe_int(value: Any, fallback: int) -> int:
 
 def run_auth_bypass_probes(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     config: dict[str, Any] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Main entry point that runs all auth bypass probes.

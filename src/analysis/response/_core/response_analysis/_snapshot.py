@@ -3,13 +3,13 @@
 from typing import Any
 
 from src.analysis.helpers import (
+    JWT_LIKE_RE,
     classify_endpoint,
     endpoint_base_key,
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.patterns import JWT_RE
-from src.analysis.passive.runtime import extract_key_fields
+from src.analysis.text_utils import extract_key_fields
 
 
 def response_snapshot_system(responses: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -24,7 +24,7 @@ def response_snapshot_system(responses: list[dict[str, Any]]) -> list[dict[str, 
             str(key).lower(): str(value) for key, value in (response.get("headers") or {}).items()
         }
         key_patterns = []
-        if JWT_RE.search(body):
+        if JWT_LIKE_RE.search(body):
             key_patterns.append("jwt_like_token")
         if any(token in body.lower() for token in ("oauth", "signin", "login", "session")):
             key_patterns.append("auth_keyword")

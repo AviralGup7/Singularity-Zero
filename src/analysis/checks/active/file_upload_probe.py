@@ -8,7 +8,6 @@ import requests
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers.scoring import normalized_confidence
-from src.analysis.passive.runtime import ResponseCache
 from src.core.utils.url_validation import is_safe_url
 
 UPLOAD_PATH_HINTS = {
@@ -269,7 +268,7 @@ def _build_finding(
 
 def file_upload_active_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test endpoints for file upload vulnerabilities.

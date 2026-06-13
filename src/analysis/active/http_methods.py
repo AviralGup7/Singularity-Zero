@@ -8,7 +8,6 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, ensure_endpoint_key
-from src.analysis.passive.runtime import ResponseCache
 
 # Type alias for response headers
 HeadersDict = dict[str, str]
@@ -79,7 +78,7 @@ def _probe_severity(issues: list[str]) -> str:
 
 
 def options_method_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 10
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 10
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -126,7 +125,7 @@ def options_method_probe(
 
 
 def origin_reflection_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 8
 ) -> list[dict[str, Any]]:
     """Probe for Origin header reflection weaknesses. (Fix Audit #19)"""
     findings: list[dict[str, Any]] = []
@@ -195,7 +194,7 @@ def origin_reflection_probe(
 
 
 def head_method_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 8
 ) -> list[dict[str, Any]]:
     """Compare GET and HEAD responses for inconsistencies. (Fix Audit #34)"""
     findings: list[dict[str, Any]] = []
@@ -251,7 +250,7 @@ def head_method_probe(
 
 
 def cors_preflight_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 8
 ) -> list[dict[str, Any]]:
     """Probe for CORS misconfigurations via OPTIONS preflight. (Fix Audit #35)"""
     findings: list[dict[str, Any]] = []
@@ -331,7 +330,7 @@ def cors_preflight_probe(
 
 
 def trace_method_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 5
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 5
 ) -> list[dict[str, Any]]:
     """Probe for TRACE exposure. (Fix Audit #33)"""
     findings: list[dict[str, Any]] = []

@@ -5,9 +5,8 @@ import logging
 from difflib import SequenceMatcher
 from typing import Any
 
-from src.analysis.helpers import NOISE_FIELD_NAMES
-from src.analysis.passive.runtime import extract_key_fields, normalize_compare_text
-from src.analysis.response.filter_rules import classify_response_delta
+from src.analysis.helpers import NOISE_FIELD_NAMES, classify_response_delta
+from src.analysis.text_utils import extract_key_fields, normalize_compare_text
 
 from ._similarity import content_type_similarity_threshold
 

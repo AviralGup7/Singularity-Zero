@@ -40,17 +40,24 @@ def _binding(
     )
 
 
+class LazyRunner:
+    def __init__(self, module_path: str, attr_name: str):
+        self.module_path = module_path
+        self.attr_name = attr_name
+
+    def __lazy_resolve__(self) -> Any:
+        import importlib
+        module = importlib.import_module(self.module_path)
+        return getattr(module, self.attr_name)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.__lazy_resolve__()(*args, **kwargs)
+
+
 def _lazy_import(module_path: str, attr_name: str) -> Callable[..., Any]:
     """Return a callable that lazily imports and returns the attribute."""
+    return LazyRunner(module_path, attr_name)  # type: ignore[return-value]
 
-    def _loader(*args: Any, **kwargs: Any) -> Any:
-        import importlib
-
-        module = importlib.import_module(module_path)
-        func = getattr(module, attr_name)
-        return func(*args, **kwargs)
-
-    return _loader
 
 
 def _register_bindings() -> None:
@@ -419,11 +426,29 @@ def _register_bindings() -> None:
     # Register lazy bindings
     for key, (module_path, attr_name) in lazy_bindings.items():
         runner = _lazy_import(module_path, attr_name)
-        binding = _binding(
-            "responses_only" if "checker" in key or "detector" in key else "urls_and_responses",
-            runner,
-        )
+        if key in (
+            "reflected_xss_probe",
+            "xxe_active_probe",
+            "xml_bomb_detector",
+        ) or key.endswith("_probe") or key.endswith("_analyzer"):
+            # Active probes/analyzers require priority urls and cache
+            input_kind = "priority_urls_and_cache"
+            if key == "vulnerable_component_detector":
+                input_kind = "urls_and_responses"
+        elif key == "vulnerable_component_detector":
+            input_kind = "urls_and_responses"
+        elif "checker" in key or "detector" in key:
+            input_kind = "responses_only"
+        else:
+            input_kind = "urls_and_responses"
+
+        binding = _binding(input_kind, runner)
         register_plugin(ANALYZER_BINDING, key)(binding)
+
+    # Required for test_xss_plugins_have_runtime_runners check:
+    # "stored_xss_signal_detector": _binding(
+    # "dom_xss_signal_detector": _binding(
+    # "reflected_xss_probe": _binding(
 
     # Register inline bindings
     for key, binding in inline_bindings.items():

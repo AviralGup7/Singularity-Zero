@@ -12,16 +12,16 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.behavior.artifacts import load_plugin_artifact
 from src.analysis.helpers import (
+    JWT_LIKE_RE,
     REDIRECT_PARAM_NAMES,
+    classify_response_delta,
     ensure_endpoint_key,
     extract_host_candidate,
     is_auth_flow_endpoint,
     same_host_family,
 )
-from src.analysis.passive.patterns import JWT_RE
-from src.analysis.response.filter_rules import classify_response_delta
 from src.analysis.text_utils import extract_key_fields, normalize_compare_text
-from src.recon.common import normalize_url
+from src.core.utils import normalize_url
 
 FLOW_STAGE_LABELS = {
     0: "access",
@@ -306,7 +306,7 @@ def impact_level_for_score(score: int, trust_shift: bool, signal_count: int) -> 
 def key_patterns_for_response(response: dict[str, Any]) -> list[str]:
     patterns = []
     body = response.get("body_text") or ""
-    if JWT_RE.search(body):
+    if JWT_LIKE_RE.search(body):
         patterns.append("jwt_like_token")
     if any(token in body.lower() for token in ("oauth", "signin", "login", "session")):
         patterns.append("auth_keyword")

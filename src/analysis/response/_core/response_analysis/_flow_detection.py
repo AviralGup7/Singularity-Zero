@@ -3,7 +3,8 @@
 from typing import Any
 
 from src.analysis.helpers import endpoint_base_key, endpoint_signature, is_noise_url
-from src.analysis.passive.runtime import ResponseCache
+
+# Removed passive package import
 from src.recon.ranking_support import stage_for_url
 
 
@@ -21,7 +22,7 @@ def _flow_stage(url: str) -> int | None:
 
 
 def multi_step_flow_breaking_probe(
-    flow_items: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 12
+    flow_items: list[dict[str, Any]], response_cache: Any, limit: int = 12
 ) -> list[dict[str, Any]]:
     """Test whether later steps in a flow can be accessed directly."""
     findings: list[dict[str, Any]] = []

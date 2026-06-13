@@ -10,7 +10,6 @@ from src.analysis._core.http_request import _safe_request
 logger = logging.getLogger(__name__)
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers._probe_utils import probe_confidence, probe_severity
-from src.analysis.passive.runtime import ResponseCache
 
 COOKIE_OVERFLOW_VALUE = "A" * 10000
 
@@ -73,7 +72,7 @@ def _try_json_decode(value: str) -> Any | None:
 
 def cookie_manipulation_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test endpoints for cookie security vulnerabilities.

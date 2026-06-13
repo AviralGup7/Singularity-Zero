@@ -26,7 +26,6 @@ from src.analysis.passive.extended_shared import (
     reflection_context_signals,
     xss_signals,
 )
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 
@@ -132,7 +131,7 @@ def _scan_json_for_xss(
 
 def reflected_xss_probe(
     priority_urls: list[dict[str, Any]] | list[str],
-    response_cache: ResponseCache | None,
+    response_cache: Any | None,
     limit: int = 6,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []

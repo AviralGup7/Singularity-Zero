@@ -4,7 +4,7 @@ import unittest
 
 import pytest
 
-from src.analysis.active.xss_constants import (
+from src.analysis.helpers.xss_constants import (
     EVENT_HANDLERS,
     HANDLER_FILLINGS,
     INJECTION_TAGS,

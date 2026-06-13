@@ -13,7 +13,7 @@ from src.analysis.helpers import endpoint_base_key, endpoint_signature
 from src.analysis.json.support import (
     alternate_version_url as _alternate_version_url,
 )
-from src.analysis.passive.runtime import extract_key_fields, normalize_compare_text
+from src.analysis.text_utils import extract_key_fields, normalize_compare_text
 from src.recon.common import normalize_url
 
 

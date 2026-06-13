@@ -10,7 +10,6 @@ from src.analysis.helpers._probe_utils import (
 from src.analysis.helpers._probe_utils import (
     probe_severity_from_map as _probe_severity_from_map,
 )
-from src.analysis.passive.runtime import ResponseCache
 
 from ._constants import (
     AUTH_ENDPOINT_PATTERNS,
@@ -49,7 +48,7 @@ def build_login_payload(url: str, username: str, password: str) -> str:
 
 def check_rate_limiting(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     max_attempts: int,
 ) -> dict[str, Any]:
     """Check for rate limiting on authentication endpoint."""
@@ -114,7 +113,7 @@ def check_rate_limiting(
 
 def check_account_lockout(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     max_attempts: int,
 ) -> dict[str, Any]:
     """Check for account lockout after failed attempts."""
@@ -170,7 +169,7 @@ def check_account_lockout(
 
 def check_captcha(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     max_attempts: int,
 ) -> dict[str, Any]:
     """Check for CAPTCHA presence after failed attempts."""
@@ -227,7 +226,7 @@ def check_captcha(
 
 def check_progressive_delays(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     max_attempts: int,
 ) -> dict[str, Any]:
     """Check for progressive delays between failed attempts."""
@@ -277,7 +276,7 @@ def check_progressive_delays(
 
 def check_ip_blocking(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     max_attempts: int,
 ) -> dict[str, Any]:
     """Check for IP-based blocking after failed attempts."""
@@ -334,7 +333,7 @@ def check_ip_blocking(
 
 def check_username_enumeration(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
 ) -> dict[str, Any]:
     """Check for username enumeration via different error messages."""
     enumeration_possible = False
@@ -403,7 +402,7 @@ def check_username_enumeration(
 
 def check_timing_attack(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     iterations: int = 5,
 ) -> dict[str, Any]:
     """Check for timing attack vulnerability."""
@@ -461,7 +460,7 @@ def check_timing_attack(
 
 def check_credential_stuffing(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     max_attempts: int,
 ) -> dict[str, Any]:
     """Check for credential stuffing resistance."""
