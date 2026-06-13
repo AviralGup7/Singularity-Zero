@@ -13,7 +13,6 @@ from typing import Any
 from src.analysis.automation.access_control import AccessControlAnalyzer, EnforcementResult
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers.scoring import severity_score
-from src.analysis.passive.runtime import ResponseCache
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +91,7 @@ def _build_finding(
 
 def access_control_analyzer(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     """Run automated authorization bypass detection and return findings.
@@ -146,7 +145,7 @@ def _build_findings_from_results(
 
 async def analyze_access_control_async(
     endpoints: list[dict[str, Any]],
-    response_cache: ResponseCache | None = None,
+    response_cache: Any | None = None,
     limit: int = 20,
     progress_callback: ProgressCallback | None = None,
 ) -> list[dict[str, Any]]:
@@ -167,7 +166,7 @@ async def analyze_access_control_async(
 
 def analyze_access_control(
     endpoints: list[dict[str, Any]],
-    response_cache: ResponseCache | None = None,
+    response_cache: Any | None = None,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     """Compatibility wrapper for access control testing entrypoints.

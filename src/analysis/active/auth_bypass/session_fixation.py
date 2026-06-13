@@ -10,7 +10,6 @@ from src.analysis.helpers import (
     endpoint_base_key,
     endpoint_signature,
 )
-from src.analysis.passive.runtime import ResponseCache
 
 from .auth_bypass_utils import (
     _has_auth_indicator,
@@ -26,7 +25,7 @@ _RATE_LIMIT_DELAY = 0.05
 
 def probe_session_fixation(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Manipulate session cookies and test for fixation vulnerabilities.

@@ -12,7 +12,8 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
+
+# Removed passive package import
 from src.recon.common import normalize_url
 
 from .diff import _variant_diff_summary
@@ -51,7 +52,7 @@ def _json_mutation_variants(name: str, value: str) -> list[tuple[str, str]]:
 
 
 def json_mutation_attacks(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 16
+    priority_urls: list[str], response_cache: Any, limit: int = 16
 ) -> list[dict[str, Any]]:
     """Test JSON mutation attacks on query parameters."""
     findings: list[dict[str, Any]] = []

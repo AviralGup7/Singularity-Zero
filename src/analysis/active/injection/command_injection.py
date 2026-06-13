@@ -4,7 +4,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 from ._confidence import probe_confidence, probe_severity
@@ -13,7 +12,7 @@ from ._patterns import CMD_ERROR_RE, CMD_OUTPUT_RE
 
 def command_injection_active_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test command-relevant parameters with command injection payloads.

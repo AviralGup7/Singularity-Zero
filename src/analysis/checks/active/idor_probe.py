@@ -9,7 +9,6 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers.scoring import normalized_confidence
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 IDOR_NUMERIC_RE = re.compile(r"/(\d+)(?:/|$|\?)")
@@ -87,7 +86,7 @@ SENSITIVE_PATH_HINTS = {
 
 
 def _safe_request(
-    response_cache: ResponseCache,
+    response_cache: Any,
     url: str,
     method: str = "GET",
     headers: dict[str, str] | None = None,
@@ -205,7 +204,7 @@ def _build_finding(
 
 def idor_active_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     """Test endpoints for Insecure Direct Object Reference vulnerabilities.

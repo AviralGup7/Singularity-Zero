@@ -6,7 +6,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 from ._confidence import probe_confidence, probe_severity
@@ -102,7 +101,7 @@ def _analyze_metadata_response(body: str, provider: str) -> list[str]:
 
 def ssrf_active_probe(
     priority_urls: list[dict[str, Any] | str],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test for SSRF via URL parameters, header injection, and POST bodies. (Fix Audit #9, #10)"""

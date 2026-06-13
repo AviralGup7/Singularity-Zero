@@ -12,15 +12,11 @@ from src.analysis.json.support import (
     is_low_risk_read_candidate,
     mutate_role_url,
 )
-from src.analysis.passive.runtime import (
-    ResponseCache,
-    extract_key_fields,
-    normalize_compare_text,
-)
+from src.analysis.text_utils import extract_key_fields, normalize_compare_text
 
 
 def privilege_escalation_detector(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 24
+    priority_urls: list[str], response_cache: Any, limit: int = 24
 ) -> list[dict[str, Any]]:
     """Detect privilege escalation via role parameter mutation."""
     findings: list[dict[str, Any]] = []

@@ -6,7 +6,6 @@ from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
 from src.analysis._core.http_request import _safe_request
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 from ._confidence import probe_confidence, probe_severity
@@ -108,7 +107,7 @@ def _is_xml_backed_endpoint(url: str, response: dict[str, Any] | None = None) ->
 
 def xpath_injection_active_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test endpoints for XPath injection vulnerabilities.

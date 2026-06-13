@@ -10,7 +10,8 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
+
+# Removed passive package import
 from src.recon.common import normalize_url
 
 from .diff import _variant_diff_summary
@@ -75,7 +76,7 @@ def _all_parameter_pollution_variants(name: str, value: str) -> list[str]:
 
 
 def parameter_pollution_exploitation(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 16
+    priority_urls: list[str], response_cache: Any, limit: int = 16
 ) -> list[dict[str, Any]]:
     """Test for HTTP parameter pollution vulnerabilities."""
     findings: list[dict[str, Any]] = []

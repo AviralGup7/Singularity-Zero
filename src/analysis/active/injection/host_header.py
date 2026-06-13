@@ -3,14 +3,13 @@
 from typing import Any
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 from ._confidence import probe_confidence, probe_severity
 
 
 def host_header_injection_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 8,
 ) -> list[dict[str, Any]]:
     """Send requests with manipulated Host headers.

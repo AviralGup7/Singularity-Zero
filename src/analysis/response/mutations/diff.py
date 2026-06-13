@@ -4,7 +4,7 @@ import json
 from difflib import SequenceMatcher
 from typing import Any
 
-from src.analysis.response.filter_rules import classify_response_delta
+from src.analysis.helpers import classify_response_delta
 
 NOISE_FIELD_NAMES = {
     "id",

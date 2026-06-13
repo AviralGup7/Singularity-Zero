@@ -2,12 +2,10 @@
 
 from typing import Any
 
-from src.analysis.passive.runtime import ResponseCache
-
 
 def probe_mfa_bypass(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Test for MFA bypass vulnerabilities.

@@ -6,7 +6,6 @@ from urllib.parse import parse_qsl, urlparse
 
 from src.analysis._core.http_request import _safe_request
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 from ._confidence import probe_confidence, probe_severity
 
@@ -138,7 +137,7 @@ def _check_cookie_security(headers: dict[str, Any]) -> dict[str, Any]:
 
 
 def _detect_get_state_change(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache
+    priority_urls: list[dict[str, Any]], response_cache: Any
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for url_entry in priority_urls:
@@ -196,7 +195,7 @@ def _detect_get_state_change(
 
 def csrf_active_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test endpoints for CSRF vulnerabilities actively.

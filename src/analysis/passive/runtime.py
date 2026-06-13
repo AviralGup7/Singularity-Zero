@@ -28,10 +28,10 @@ from src.analysis.text_utils import (
     shannon_entropy,
 )
 from src.core.models import DEFAULT_USER_AGENT
+from src.core.utils import normalize_url
 from src.core.utils.url_validation import is_safe_url
 from src.pipeline.cache import load_cached_json, response_cache_fresh, save_cached_json
 from src.pipeline.retry import RetryPolicy
-from src.recon.common import normalize_url
 
 RequestRetryPolicy = RetryPolicy
 

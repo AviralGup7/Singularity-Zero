@@ -17,7 +17,6 @@ from src.analysis.helpers import (
     endpoint_signature,
     meaningful_query_pairs,
 )
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.ranking_support import build_flow_graph
 
 logger = logging.getLogger(__name__)
@@ -43,7 +42,7 @@ class FlowProber:
     Identifies and tests multi-request sequences.
     """
 
-    def __init__(self, response_cache: ResponseCache):
+    def __init__(self, response_cache: Any):
         self.cache = response_cache
 
     def analyze_flows(self, urls: set[str], limit: int = 15) -> list[dict[str, Any]]:
@@ -192,7 +191,7 @@ class FlowProber:
 
 
 def run_cognitive_flow_analysis(
-    urls: set[str], response_cache: ResponseCache, limit: int = 12
+    urls: set[str], response_cache: Any, limit: int = 12
 ) -> list[dict[str, Any]]:
     """Standalone entry point for flow analysis."""
     prober = FlowProber(response_cache)

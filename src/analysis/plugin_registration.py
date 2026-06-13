@@ -100,6 +100,49 @@ def register_analysis_hooks() -> None:
     register_analysis_plugin_registrar(registrar)
     logger.debug("Analysis plugin hooks registered")
 
+    try:
+        from src.analysis.plugin_runtime import (
+            ANALYZER_BINDING,
+            ANALYZER_BINDINGS,
+            prime_analysis_primitives,
+            run_analysis_plugins,
+            run_registered_analyzer,
+        )
+        from src.core.plugins import list_plugins
+        from src.detection.registry import get_detection_plugin, register_run_plugin_handler
+        from src.detection.runtime import register_detection_handlers
+
+        register_detection_handlers(prime_analysis_primitives, run_analysis_plugins)
+
+        def run_single_plugin_adapter(plugin_key: str, context: Any) -> list[dict[str, Any]]:
+            plugin = get_detection_plugin(plugin_key)
+            binding = ANALYZER_BINDINGS.get(plugin.key)
+            if binding is None:
+                bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
+                binding = bindings.get(plugin.key)
+            if binding is None:
+                raise KeyError(f"No analyzer binding found for plugin key '{plugin.key}'")
+            return run_registered_analyzer(binding, context)
+
+        register_run_plugin_handler(run_single_plugin_adapter)
+        logger.debug("Detection handlers registered with Analysis plugin runner")
+
+        from src.analysis.intelligence.decision_engine import (
+            annotate_finding_decisions as ana_annotate,
+        )
+        from src.analysis.intelligence.decision_engine import (
+            classify_finding as ana_classify,
+        )
+        from src.analysis.intelligence.decision_engine import (
+            filter_reportable_findings as ana_filter,
+        )
+        from src.decision.prioritization import register_prioritization_handlers
+
+        register_prioritization_handlers(ana_annotate, ana_classify, ana_filter)
+        logger.debug("Prioritization handlers registered with Decision engine")
+    except Exception as exc:
+        logger.warning("Failed to register detection/prioritization handlers: %s", exc)
+
 
 # Auto-register when imported
 register_analysis_hooks()

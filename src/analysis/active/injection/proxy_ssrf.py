@@ -17,8 +17,6 @@ import logging
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from src.analysis.passive.runtime import ResponseCache
-
 logger = logging.getLogger(__name__)
 
 PROXY_PATH_PATTERNS = [
@@ -202,7 +200,7 @@ def _analyze_proxy_response(
 
 def proxy_ssrf_probe(
     priority_urls: list[dict[str, Any] | str],
-    response_cache: ResponseCache,
+    response_cache: Any,
     test_urls: list[str] | None = None,
     limit: int = 10,
 ) -> list[dict[str, Any]]:

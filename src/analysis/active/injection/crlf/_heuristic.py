@@ -3,15 +3,13 @@
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from src.analysis.passive.runtime import ResponseCache
-
 from ._user_agents import _rotate_user_agent
 from ._waf_detector import _detect_waf
 
 
 def _heuristic_check(
     url: str,
-    response_cache: ResponseCache,
+    response_cache: Any,
     token: str,
 ) -> dict[str, Any] | None:
     """Send 1-2 quick CRLF probes to determine if full scan is worthwhile.

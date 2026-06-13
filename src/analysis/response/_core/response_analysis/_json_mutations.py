@@ -13,14 +13,15 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
+
+# Removed passive package import
 from src.recon.common import normalize_url
 
 from ._diff_utils import variant_diff_summary
 
 
 def json_mutation_attacks(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 16
+    priority_urls: list[str], response_cache: Any, limit: int = 16
 ) -> list[dict[str, Any]]:
     """Test query parameters with JSON-shaped mutations."""
     findings: list[dict[str, Any]] = []
@@ -96,7 +97,7 @@ def json_mutation_attacks(
 
 
 def post_body_mutation_attacks(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 12
+    priority_urls: list[str], response_cache: Any, limit: int = 12
 ) -> list[dict[str, Any]]:
     """Test POST body parameters for type confusion and boundary value vulnerabilities."""
     findings: list[dict[str, Any]] = []

@@ -10,8 +10,8 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
 
+# Removed passive package import
 from .diff import _variant_diff_summary
 
 
@@ -73,7 +73,7 @@ def _post_body_mutations(field_name: str, field_type: str) -> list[dict[str, Any
 
 def post_body_mutation_attacks(
     priority_urls: list[str],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 16,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []

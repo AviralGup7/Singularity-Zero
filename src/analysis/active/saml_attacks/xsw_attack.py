@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 
 from src.analysis._core.http_request import _safe_request
 from src.analysis.active.auth.credential_vault import CredentialVault
-from src.analysis.passive.runtime import ResponseCache
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +104,7 @@ def _is_web_target(host: str) -> bool:
 
 def run_xsw_attack(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     credential_vault: CredentialVault | None = None,
     *,
     limit: int = 12,

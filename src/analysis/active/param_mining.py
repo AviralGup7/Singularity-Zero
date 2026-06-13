@@ -10,7 +10,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ HIDDEN_PARAMS = [
 
 
 def param_mining_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 10
+    priority_urls: list[dict[str, Any]], response_cache: Any, limit: int = 10
 ) -> list[dict[str, Any]]:
     """Actively discover hidden parameters on high priority endpoints.
 

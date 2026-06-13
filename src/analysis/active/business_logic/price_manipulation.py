@@ -13,10 +13,7 @@ from typing import Any
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url_with_dns_check
 
-try:
-    from src.analysis.passive.runtime import ResponseCache  # type: ignore[import]
-except ImportError:  # pragma: no cover
-    ResponseCache = Any  # type: ignore[misc,assignment]
+ResponseCache = Any
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +49,7 @@ def _safe_item(item: dict[str, Any]) -> str:
 
 def price_manipulation_probe(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache | None = None,
+    response_cache: Any | None = None,
     *,
     client: Any = None,
     sandbox_session: Any = None,

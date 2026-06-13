@@ -82,7 +82,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     from src.infrastructure.observability.system_sampler import start_system_sampler
     from src.infrastructure.security.audit import AuditLogger
     from src.infrastructure.security.config import SecurityConfig
-    from src.pipeline.services.tool_execution import ToolExecutionService
 
     setup_logging()
     install_trace_log_filter()
@@ -413,8 +412,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     action_registry.register(CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER, _trip_tool_breaker)
 
-    tool_service: ToolExecutionService = (
-        getattr(app.state, "tool_execution_service", None) or ToolExecutionService()
+    import importlib
+    tool_execution_mod = importlib.import_module("src.pipeline.services.tool_execution")
+    tool_service = (
+        getattr(app.state, "tool_execution_service", None) or tool_execution_mod.ToolExecutionService()
     )
     app.state.tool_execution_service = tool_service
 

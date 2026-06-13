@@ -9,11 +9,12 @@ from src.analysis.helpers import (
     is_auth_flow_endpoint,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
+
+# Removed passive package import
 
 
 def redirect_chain_analyzer(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 24
+    priority_urls: list[str], response_cache: Any, limit: int = 24
 ) -> list[dict[str, Any]]:
     """Analyze redirect chains for cross-host and auth-related redirects."""
     findings: list[dict[str, Any]] = []
@@ -58,7 +59,7 @@ def redirect_chain_analyzer(
 
 
 def auth_boundary_redirect_detection(
-    priority_urls: list[str], response_cache: ResponseCache, limit: int = 24
+    priority_urls: list[str], response_cache: Any, limit: int = 24
 ) -> list[dict[str, Any]]:
     """Detect redirects that cross authentication boundaries."""
     findings: list[dict[str, Any]] = []

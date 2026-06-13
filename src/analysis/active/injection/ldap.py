@@ -5,7 +5,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 from src.recon.common import normalize_url
 
 from ._confidence import probe_confidence, probe_severity
@@ -107,7 +106,7 @@ def _detect_ldap_issues(
 
 def ldap_injection_active_probe(
     priority_urls: list[str],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 15,
 ) -> list[dict[str, Any]]:
     """Test LDAP-relevant parameters with injection payloads.

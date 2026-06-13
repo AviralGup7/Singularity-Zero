@@ -9,7 +9,8 @@ from src.analysis.helpers import (
     endpoint_signature,
     is_noise_url,
 )
-from src.analysis.passive.runtime import ResponseCache
+
+# Removed passive package import
 from src.recon.common import normalize_url
 from src.recon.ranking_support import stage_for_url
 
@@ -18,7 +19,7 @@ from .diff import _variant_diff_summary
 
 def _http_method_probe(
     priority_urls: list[str],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 16,
     method: str = "OPTIONS",
 ) -> list[dict[str, Any]]:
@@ -65,7 +66,7 @@ def _redirect_target(response: dict[str, Any]) -> str:
 
 def multi_step_flow_breaking_probe(
     flow_items: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 12,
     max_steps: int = 8,
 ) -> list[dict[str, Any]]:
@@ -144,7 +145,7 @@ def multi_step_flow_breaking_probe(
 
 def http_method_override_probe(
     priority_urls: list[str],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []

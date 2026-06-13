@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.analysis.helpers import (
+    UUID_RE,
     classify_endpoint,
     endpoint_base_key,
     endpoint_signature,
@@ -31,8 +32,7 @@ from src.analysis.json.support import (
 from src.analysis.json.support import (
     response_has_auth_signals as _response_has_auth_signals,
 )
-from src.analysis.passive.patterns import UUID_RE
-from src.analysis.passive.runtime import extract_key_fields, normalize_compare_text
+from src.analysis.text_utils import extract_key_fields, normalize_compare_text
 
 
 def session_reuse_detection(

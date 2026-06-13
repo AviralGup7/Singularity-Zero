@@ -11,7 +11,6 @@ from src.analysis.helpers import (
     endpoint_base_key,
     endpoint_signature,
 )
-from src.analysis.passive.runtime import ResponseCache
 
 from .auth_bypass_utils import (
     AUTH_BYPASS_PARAMS,
@@ -27,7 +26,7 @@ _RATE_LIMIT_DELAY = 0.05
 
 def probe_privilege_escalation(
     priority_urls: list[dict[str, Any]],
-    response_cache: ResponseCache,
+    response_cache: Any,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Test common bypass patterns (admin=true, role=admin, bypass=1, etc.).

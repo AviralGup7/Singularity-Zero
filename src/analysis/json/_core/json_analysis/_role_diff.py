@@ -8,7 +8,7 @@ from src.analysis.helpers import (
     endpoint_signature,
     meaningful_query_pairs,
 )
-from src.analysis.passive.runtime import normalize_compare_text
+from src.analysis.text_utils import normalize_compare_text
 
 ROLE_PARAM_NAMES = {
     "role",

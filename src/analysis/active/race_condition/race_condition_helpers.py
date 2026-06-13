@@ -35,7 +35,6 @@ except Exception:  # pragma: no cover - optional dependency guard
     httpx = None  # type: ignore[assignment]
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.passive.runtime import ResponseCache
 
 from ._constants import (
     AUTH_RACE_PATH_KEYWORDS,
@@ -462,7 +461,7 @@ async def _race_single_request_async(
 
 
 async def _race_cache_request_async(
-    response_cache: ResponseCache,
+    response_cache: Any,
     url: str,
     index: int,
     method: str,
@@ -508,7 +507,7 @@ async def _race_cache_request_async(
 
 
 async def _execute_race(
-    response_cache: ResponseCache | None,
+    response_cache: Any | None,
     url: str,
     count: int,
     method: str,
@@ -542,7 +541,7 @@ async def _execute_race(
 
 
 def make_concurrent_requests(
-    response_cache: ResponseCache | None,
+    response_cache: Any | None,
     url: str,
     count: int,
     method: str = "GET",

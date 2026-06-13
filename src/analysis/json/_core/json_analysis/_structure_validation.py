@@ -11,7 +11,7 @@ from src.analysis.json.support import (
     parse_json_payload,
     summarize_json_payload,
 )
-from src.analysis.passive.runtime import extract_key_fields
+from src.analysis.text_utils import extract_key_fields
 
 
 def response_structure_validator(

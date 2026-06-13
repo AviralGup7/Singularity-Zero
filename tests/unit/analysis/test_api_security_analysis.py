@@ -92,7 +92,7 @@ class PassiveApiExposureTests(unittest.TestCase):
 
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["indicator"], "graphql_introspection_enabled")
-        self.assertEqual(findings[0]["endpoint_type"], "DEBUG")
+        self.assertEqual(findings[0]["endpoint_type"], "EXPOSED")
 
     def test_openapi_swagger_spec_checker_flags_path_and_schema_exposure(self) -> None:
         findings = openapi_swagger_spec_checker(
