@@ -67,7 +67,7 @@ class HealthResponse(BaseModel):
 
     status: str
     timestamp: str
-    version: str = "2.0.0"
+    version: str = "3.0.0"
     uptime_seconds: float | None = None
     dependencies: dict[str, Any] = Field(default_factory=dict)
     mesh: list[MeshNodeSchema] = Field(default_factory=list)

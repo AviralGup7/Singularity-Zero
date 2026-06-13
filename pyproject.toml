@@ -1,6 +1,6 @@
 [project]
 name = "cyber-security-test-pipeline"
-version = "2.0.0"
+version = "3.0.0"
 description = "API security scanner with exploit verification and closed-loop remediation - validated findings from recon to report."
 requires-python = ">=3.13"
 license = {text = "MIT"}
