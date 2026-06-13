@@ -1,9 +1,10 @@
 """Active analysis probes."""
 
 import logging
+from typing import Any
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name == "detect_grafana":
         from .injection.grafana_ssrf import detect_grafana
 

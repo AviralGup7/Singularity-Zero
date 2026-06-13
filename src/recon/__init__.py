@@ -7,6 +7,8 @@ Uses lazy imports via __getattr__ to avoid circular import cascades
 through the pipeline/tools chain at module load time.
 """
 
+from typing import Any
+
 _LAZY_IMPORT_MAP: dict[str, tuple[str, str]] = {
     "AzureReconResult": ("src.recon.azure_sas", "AzureReconResult"),
     "AzureSasUrlPattern": ("src.recon.azure_sas", "AzureSasUrlPattern"),
@@ -104,7 +106,7 @@ _LAZY_IMPORT_MAP: dict[str, tuple[str, str]] = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name in _LAZY_IMPORT_MAP:
         module_path, attr = _LAZY_IMPORT_MAP[name]
         import importlib
