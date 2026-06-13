@@ -40,7 +40,7 @@ def register_event_metrics_subscribers(event_bus: EventBus) -> None:
         "stage_failure_count",
         "Total stage failures by stage name",
     )
-    pipeline_run_counter = metrics.counter(
+    metrics.counter(
         "pipeline_run_count",
         "Total pipeline runs started",
     )

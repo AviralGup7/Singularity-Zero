@@ -668,9 +668,9 @@ class CloudBucketScanner:
         if not bucket or len(bucket) < 3 or len(bucket) > 63:
             # Alibaba OSS naming rules: 3-63 chars, lowercase, digits, dash.
             return None
-        if not all(c.isalnum() or c in ('-', '_') for c in bucket):
+        if not all(c.isalnum() or c in ("-", "_") for c in bucket):
             return None
-        if bucket.startswith(('-', '_')) or bucket.endswith(('-', '_')):
+        if bucket.startswith(("-", "_")) or bucket.endswith(("-", "_")):
             return None
         url = f"https://{bucket}.oss-cn-hangzhou.aliyuncs.com"
         return await self._generic_object_storage_check(

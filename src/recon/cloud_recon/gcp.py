@@ -8,7 +8,6 @@ import aiohttp
 from src.recon.cloud_recon.helpers import (
     _build_cloud_run_1st_gen_candidates,
     _build_cloud_run_2nd_gen_candidates,
-    _generic_object_storage_check,
 )
 
 logger = logging.getLogger(__name__)

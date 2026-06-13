@@ -4,8 +4,8 @@ import tempfile
 import threading
 from unittest.mock import MagicMock
 
-from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
+from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.infrastructure.queue.models import ResourceProfile, WorkerInfo
 from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
 from src.learning.signal_quality import score_signal_quality

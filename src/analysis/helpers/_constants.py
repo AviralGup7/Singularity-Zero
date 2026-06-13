@@ -9,17 +9,6 @@ from src.core.utils.param_types import (
     SSRF_PARAM_NAMES,
     TOKEN_PARAM_NAMES,
 )
-from src.core.utils.endpoint_classification import (
-    AUTH_PATH_HINTS,
-    BACKUP_PATH_HINTS,
-    DEBUG_PATH_HINTS,
-    EXPOSED_PATH_HINTS,
-    LOW_VALUE_ENDPOINT_TYPES,
-    STATIC_PATH_HINTS,
-    THIRD_PARTY_AUTH_HOSTS,
-    TRACKING_PARAM_NAMES,
-    TRACKING_PARAM_PREFIXES,
-)
 
 __all__ = [
     "SCHEMA_VERSION",

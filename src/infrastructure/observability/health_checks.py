@@ -25,7 +25,13 @@ from src.core.contracts.health import HealthStatus
 from src.infrastructure.observability.config import get_config
 
 # Re-export for backward compatibility
-__all__ = ["HealthStatus", "ComponentStatus", "ComponentHealth", "HealthCheckResult", "HealthChecker"]
+__all__ = [
+    "HealthStatus",
+    "ComponentStatus",
+    "ComponentHealth",
+    "HealthCheckResult",
+    "HealthChecker",
+]
 
 
 class ComponentStatus(StrEnum):

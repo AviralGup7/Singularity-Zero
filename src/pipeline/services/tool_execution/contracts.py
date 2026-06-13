@@ -8,6 +8,9 @@ CompletedToolRun, ToolExecutionOutcome, ToolExecutionError)`` continues to work.
 from __future__ import annotations
 
 import dataclasses as _dataclasses
+from pathlib import Path
+
+from src.core.utils.stderr_classification import StderrClassification
 
 
 @_dataclasses.dataclass(slots=True, frozen=True)

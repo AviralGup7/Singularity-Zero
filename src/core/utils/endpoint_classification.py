@@ -99,12 +99,40 @@ def is_auth_flow_endpoint(url: str) -> bool:
     """Check if a URL is part of an authentication flow."""
     path = urlparse(url).path.lower()
     auth_flow_hints = {
-        "login", "logout", "signin", "signout", "signup", "register",
-        "auth", "oauth", "token", "refresh", "reset", "forgot",
-        "password", "verify", "confirm", "activate", "deactivate",
-        "session", "sso", "saml", "openid", "callback", "authorize",
-        "consent", "challenge", "mfa", "totp", "webauthn", "passkey",
-        "magic-link", "invite", "accept-invite", "recover", "unlock",
+        "login",
+        "logout",
+        "signin",
+        "signout",
+        "signup",
+        "register",
+        "auth",
+        "oauth",
+        "token",
+        "refresh",
+        "reset",
+        "forgot",
+        "password",
+        "verify",
+        "confirm",
+        "activate",
+        "deactivate",
+        "session",
+        "sso",
+        "saml",
+        "openid",
+        "callback",
+        "authorize",
+        "consent",
+        "challenge",
+        "mfa",
+        "totp",
+        "webauthn",
+        "passkey",
+        "magic-link",
+        "invite",
+        "accept-invite",
+        "recover",
+        "unlock",
     }
     return any(hint in path for hint in auth_flow_hints)
 
@@ -214,7 +242,19 @@ def same_host_family(left: str, right: str) -> bool:
         return False
 
     common_slds = {
-        "co", "com", "org", "gov", "edu", "net", "mil", "asn", "id", "ltd", "me", "plc", "sch",
+        "co",
+        "com",
+        "org",
+        "gov",
+        "edu",
+        "net",
+        "mil",
+        "asn",
+        "id",
+        "ltd",
+        "me",
+        "plc",
+        "sch",
     }
 
     def get_family_slice(labels: list[str]) -> list[str]:
@@ -233,7 +273,9 @@ def is_third_party_auth_host(host: str, target_host: str = "") -> bool:
     lowered = str(host or "").lower()
     if target_host and same_host_family(lowered, target_host.lower()):
         return False
-    return any(lowered == domain or lowered.endswith(f".{domain}") for domain in THIRD_PARTY_AUTH_HOSTS)
+    return any(
+        lowered == domain or lowered.endswith(f".{domain}") for domain in THIRD_PARTY_AUTH_HOSTS
+    )
 
 
 def filter_noise_urls(urls: set[str]) -> list[str]:

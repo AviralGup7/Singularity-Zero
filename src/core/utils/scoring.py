@@ -5,7 +5,6 @@ analysis packages without creating cross-layer dependencies.
 """
 
 import re
-from typing import Any
 
 # Pre-compiled regex patterns for token shape detection
 _UUID_RE = re.compile(

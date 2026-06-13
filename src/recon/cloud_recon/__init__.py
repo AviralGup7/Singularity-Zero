@@ -8,16 +8,16 @@ from urllib.parse import urlparse
 import aiohttp
 
 from src.recon.cloud_recon.constants import (
+    _AZURE_FUNCTIONS_REGIONS,
     _BACKBLAZE_REGIONS,
-    _DO_REGIONS,
     _DEFAULT_AWS_REGIONS,
     _DEFAULT_GCP_REGIONS,
+    _DO_REGIONS,
     _GCP_CLOUD_RUN_REGION_TEMPLATES,
     _GCP_CLOUD_RUN_SERVICE_HINTS,
     _OCI_REGIONS,
     _S3_COMMON_OBJECT_PATHS,
     _WASABI_REGIONS,
-    _AZURE_FUNCTIONS_REGIONS,
     DEFAULT_S3_WEBSITE_REGIONS,
 )
 

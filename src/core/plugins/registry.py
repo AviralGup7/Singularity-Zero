@@ -39,6 +39,7 @@ class PluginRegistry:
             ):
                 # Log a warning for protocol violations in non-strict mode
                 import warnings
+
                 warnings.warn(
                     f"Plugin '{normalized_key}' does not implement contract {contract.__name__}",
                     stacklevel=2,

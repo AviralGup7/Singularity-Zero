@@ -8,13 +8,13 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
+from src.core.contracts.health import CorrectionEvent, HealthFinding, HealthStatus
 from src.infrastructure.notifications.base import (
     BaseNotifier,
     NotificationEvent,
     NotificationPriority,
     NotificationResult,
 )
-from src.core.contracts.health import CorrectionEvent, HealthFinding, HealthStatus
 
 logger = logging.getLogger(__name__)
 

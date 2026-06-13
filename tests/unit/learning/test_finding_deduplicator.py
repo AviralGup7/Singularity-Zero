@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-import pytest
-
 from src.learning.finding_deduplicator import FindingDeduplicator, FindingGroup
 
 
@@ -46,7 +42,11 @@ class TestFindingDeduplicator:
         findings = [
             {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a"},
             {"type": "xss", "title": "Stored XSS", "url": "https://example.com/b"},
-            {"type": "ssrf", "title": "Server-Side Request Forgery", "url": "https://example.com/c"},
+            {
+                "type": "ssrf",
+                "title": "Server-Side Request Forgery",
+                "url": "https://example.com/c",
+            },
         ]
         unique, groups = self.dedup.deduplicate(findings)
         assert len(unique) == 3
@@ -54,8 +54,18 @@ class TestFindingDeduplicator:
 
     def test_same_type_same_url_different_params_not_deduplicated(self) -> None:
         findings = [
-            {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a", "parameter": "q"},
-            {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a", "parameter": "search"},
+            {
+                "type": "xss",
+                "title": "Reflected XSS",
+                "url": "https://example.com/a",
+                "parameter": "q",
+            },
+            {
+                "type": "xss",
+                "title": "Reflected XSS",
+                "url": "https://example.com/a",
+                "parameter": "search",
+            },
         ]
         unique, groups = self.dedup.deduplicate(findings)
         assert len(unique) == 2
@@ -111,8 +121,18 @@ class TestFindingDeduplicator:
 
     def test_parameter_included_in_fingerprint(self) -> None:
         findings = [
-            {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a", "parameter": "q"},
-            {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a", "parameter": "search"},
+            {
+                "type": "xss",
+                "title": "Reflected XSS",
+                "url": "https://example.com/a",
+                "parameter": "q",
+            },
+            {
+                "type": "xss",
+                "title": "Reflected XSS",
+                "url": "https://example.com/a",
+                "parameter": "search",
+            },
         ]
         unique, groups = self.dedup.deduplicate(findings)
         assert len(unique) == 2
@@ -120,8 +140,18 @@ class TestFindingDeduplicator:
 
     def test_method_included_in_fingerprint(self) -> None:
         findings = [
-            {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a", "method": "GET"},
-            {"type": "xss", "title": "Reflected XSS", "url": "https://example.com/a", "method": "POST"},
+            {
+                "type": "xss",
+                "title": "Reflected XSS",
+                "url": "https://example.com/a",
+                "method": "GET",
+            },
+            {
+                "type": "xss",
+                "title": "Reflected XSS",
+                "url": "https://example.com/a",
+                "method": "POST",
+            },
         ]
         unique, groups = self.dedup.deduplicate(findings)
         assert len(unique) == 2

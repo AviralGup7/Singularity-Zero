@@ -22,9 +22,9 @@ from src.core.frontier.vfs_isolation import (
     VFSEncryptionPolicy,
     eBPFHookManager,
 )
-from src.infrastructure.frontier.vfs_mounts import VFSMountsMixin
 from src.core.frontier.vfs_paths import VFSPathMixin
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.frontier.vfs_mounts import VFSMountsMixin
 from src.infrastructure.security.encryption import secure_wipe
 
 logger = get_pipeline_logger(__name__)

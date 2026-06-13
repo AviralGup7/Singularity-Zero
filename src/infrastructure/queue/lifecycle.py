@@ -13,15 +13,15 @@ import socket
 import time
 from typing import Any
 
-from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.checkpoint import DistributedCheckpointStore
-from src.infrastructure.queue.models import WorkerInfo
 from src.core.contracts.health import (
     CorrectionEvent,
     CorrectiveAction,
     HealthComponent,
     HealthFinding,
 )
+from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.checkpoint import DistributedCheckpointStore
+from src.infrastructure.queue.models import WorkerInfo
 
 logger = get_pipeline_logger(__name__)
 

@@ -9,8 +9,6 @@ from typing import Any
 from src.core.plugins.registration_hooks import (
     get_analysis_registrar,
     get_detection_invalidator,
-    has_analysis_registrar,
-    has_detection_invalidator,
 )
 from src.core.plugins.registry import register_plugin, unregister_plugin
 from src.core.plugins.sandbox import ProcessSandboxCallable
@@ -188,7 +186,10 @@ class DynamicPluginCatalog:
     def _register_analysis(self, record: DynamicPluginRecord) -> None:
         registrar = get_analysis_registrar()
         if registrar is None:
-            logger.warning("Analysis plugin registrar not available, skipping analysis plugin registration for %s", record.manifest.key)
+            logger.warning(
+                "Analysis plugin registrar not available, skipping analysis plugin registration for %s",
+                record.manifest.key,
+            )
             return
 
         manifest = record.manifest

@@ -33,15 +33,9 @@ def _get_analyzer_stats() -> dict[str, dict]:
     # or if we have separate metric instances per analyzer
 
     # For now, aggregate from the global histogram
-    duration_hist = all_m.get("histograms", {}).get(
-        "cyber_pipeline_analyzer_duration_seconds", {}
-    )
-    exec_count = all_m.get("counters", {}).get(
-        "cyber_pipeline_analyzer_execution_count", 0
-    )
-    fail_count = all_m.get("counters", {}).get(
-        "cyber_pipeline_analyzer_failure_count", 0
-    )
+    duration_hist = all_m.get("histograms", {}).get("cyber_pipeline_analyzer_duration_seconds", {})
+    exec_count = all_m.get("counters", {}).get("cyber_pipeline_analyzer_execution_count", 0)
+    fail_count = all_m.get("counters", {}).get("cyber_pipeline_analyzer_failure_count", 0)
 
     return {
         "duration_histogram": duration_hist,
@@ -105,7 +99,7 @@ def _print_histogram_table(hist_data: dict) -> None:
         count = counts[i] if i < len(counts) else 0
         cumulative += count
         pct = (count / total * 100) if total > 0 else 0
-        cum_pct = (cumulative / total * 100) if total > 0 else 0
+        (cumulative / total * 100) if total > 0 else 0
         bar = "█" * int(pct / 2)
         print(f"  ≤{boundary:>6.3f}s  {count:>5} ({pct:>5.1f}%) {bar}")
 
@@ -120,7 +114,6 @@ def _print_histogram_table(hist_data: dict) -> None:
 def _print_analyzer_benchmark() -> None:
     """Run a quick benchmark of all registered analyzers."""
     from src.analysis.plugin_runtime._bindings import ANALYZER_BINDINGS
-    from src.analysis.plugin_runtime._runner import _get_analyzer_metrics
 
     print(f"\n  Registered analyzers: {len(ANALYZER_BINDINGS)}")
     print()
@@ -143,6 +136,7 @@ def main() -> None:
 
     # Register metrics
     from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
+
     register_pipeline_metrics(get_metrics())
 
     print("=" * 72)
@@ -158,8 +152,8 @@ def main() -> None:
     print("  " + "=" * 50)
     print(f"  Total executions: {stats['total_executions']}")
     print(f"  Total failures:   {stats['total_failures']}")
-    if stats['total_executions'] > 0:
-        fail_rate = stats['total_failures'] / stats['total_executions'] * 100
+    if stats["total_executions"] > 0:
+        fail_rate = stats["total_failures"] / stats["total_executions"] * 100
         print(f"  Failure rate:     {fail_rate:.1f}%")
     print()
 

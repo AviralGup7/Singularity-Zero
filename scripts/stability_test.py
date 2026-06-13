@@ -16,7 +16,7 @@ import os
 import sys
 import time
 import tracemalloc
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -59,15 +59,9 @@ def _snapshot_analyzer_metrics() -> dict[str, dict[str, float]]:
     registry = get_metrics()
     all_m = registry.get_all()
 
-    duration_hist = all_m.get("histograms", {}).get(
-        "cyber_pipeline_analyzer_duration_seconds", {}
-    )
-    count_counter = all_m.get("counters", {}).get(
-        "cyber_pipeline_analyzer_execution_count", 0
-    )
-    failure_counter = all_m.get("counters", {}).get(
-        "cyber_pipeline_analyzer_failure_count", 0
-    )
+    duration_hist = all_m.get("histograms", {}).get("cyber_pipeline_analyzer_duration_seconds", {})
+    count_counter = all_m.get("counters", {}).get("cyber_pipeline_analyzer_execution_count", 0)
+    failure_counter = all_m.get("counters", {}).get("cyber_pipeline_analyzer_failure_count", 0)
 
     return {
         "duration": duration_hist,
@@ -93,6 +87,7 @@ def _cleanup_run_lock(target_name: str) -> None:
 def _run_scan(args: argparse.Namespace, config_path: str, scope_path: str) -> int:
     """Run a single scan and return exit code."""
     import asyncio
+
     from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 
     scan_args = argparse.Namespace(
@@ -148,7 +143,7 @@ def _print_report(snapshots: list[dict], scan_count: int, elapsed: float) -> Non
         start = values[0]
         end = values[-1]
         delta = end - start
-        peak = max(values)
+        max(values)
         # Heuristic: if delta > 20% of start and start > 0, flag as potential leak
         if start > 0 and delta > start * 0.2 and delta > 10:
             status = "WARN GROWING"
@@ -157,8 +152,7 @@ def _print_report(snapshots: list[dict], scan_count: int, elapsed: float) -> Non
         else:
             status = "OK"
         print(
-            f"  {name:<20} {start:>8.1f}{unit}  {end:>8.1f}{unit}  "
-            f"{delta:>+8.1f}{unit}  {status}"
+            f"  {name:<20} {start:>8.1f}{unit}  {end:>8.1f}{unit}  {delta:>+8.1f}{unit}  {status}"
         )
 
     _print_row("RSS Memory", rss_values, " MB")
@@ -231,6 +225,7 @@ def main() -> None:
 
     # Register metrics
     from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
+
     register_pipeline_metrics(get_metrics())
 
     snapshots: list[dict] = []
@@ -251,20 +246,24 @@ def main() -> None:
             scan_duration = time.time() - scan_start
             print(f"done (exit={exit_code}, {scan_duration:.1f}s)")
 
-            results.append({
-                "scan": i,
-                "exit_code": exit_code,
-                "duration_s": round(scan_duration, 2),
-            })
+            results.append(
+                {
+                    "scan": i,
+                    "exit_code": exit_code,
+                    "duration_s": round(scan_duration, 2),
+                }
+            )
         except Exception as exc:
             scan_duration = time.time() - scan_start
             print(f"FAILED ({scan_duration:.1f}s): {exc}")
-            results.append({
-                "scan": i,
-                "exit_code": -1,
-                "duration_s": round(scan_duration, 2),
-                "error": str(exc),
-            })
+            results.append(
+                {
+                    "scan": i,
+                    "exit_code": -1,
+                    "duration_s": round(scan_duration, 2),
+                    "error": str(exc),
+                }
+            )
 
         # Snapshot at intervals
         if i % args.interval == 0 or i == args.scans:
@@ -292,7 +291,7 @@ def main() -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "total_scans": args.scans,
         "elapsed_seconds": round(elapsed, 2),
         "snapshots": snapshots,

@@ -15,7 +15,6 @@ from src.execution.validators.validators.oauth_saml import (
     validate,
 )
 from src.execution.validators.validators.saml import evaluate_saml
-from src.execution.validators.validators.shared import to_validation_result
 
 
 class _StubScoring(ScoringConfig):

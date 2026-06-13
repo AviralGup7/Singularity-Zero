@@ -13,7 +13,6 @@ from fastapi import FastAPI
 
 from src.core.contracts.health import HealthMetric, HealthStatus
 from src.core.events import get_event_bus
-from src.infrastructure.frontier.bloom_mesh import ReconcileBloom
 from src.core.security.secret_validator import validate_or_raise
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig
@@ -26,6 +25,7 @@ from src.dashboard.fastapi.mesh_setup import (
 from src.dashboard.fastapi.self_healing_setup import setup_self_healing_controller
 from src.dashboard.fastapi.spa import setup_mimetypes
 from src.dashboard.fastapi.ws_setup import setup_websocket
+from src.infrastructure.frontier.bloom_mesh import ReconcileBloom
 from src.infrastructure.mesh.consensus import MeshConsensus
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.manifest import discover_manifest
@@ -78,8 +78,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     from src.infrastructure.cache import CacheManager
     from src.infrastructure.cache.config import CacheConfig
     from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
-    from src.infrastructure.observability.system_sampler import start_system_sampler
     from src.infrastructure.observability.structured_logging import setup_logging
+    from src.infrastructure.observability.system_sampler import start_system_sampler
     from src.infrastructure.security.audit import AuditLogger
     from src.infrastructure.security.config import SecurityConfig
     from src.pipeline.services.tool_execution import ToolExecutionService

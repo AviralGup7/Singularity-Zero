@@ -7,10 +7,10 @@ import json
 import time
 from typing import Any
 
+from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.queue.core import JobQueueCore
 from src.infrastructure.queue.models import Job, JobState
-from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 
 logger = get_pipeline_logger(__name__)
 

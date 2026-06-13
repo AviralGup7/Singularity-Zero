@@ -7,7 +7,7 @@ import json
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from src.core.checkpoint.base import (
     CheckpointIntegrityError,

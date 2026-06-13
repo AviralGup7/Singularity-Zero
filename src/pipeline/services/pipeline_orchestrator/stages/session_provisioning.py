@@ -8,7 +8,6 @@ Supports three authentication methods:
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
@@ -86,9 +85,7 @@ class SessionProvisioningStage:
         )
 
 
-def _provision_static_credentials(
-    auth_config: Any, scan_session: ScanSession
-) -> list[str]:
+def _provision_static_credentials(auth_config: Any, scan_session: ScanSession) -> list[str]:
     """Provision static credentials (session_cookie, bearer_token)."""
     provisioned: list[str] = []
     providers = getattr(auth_config, "providers", []) or []
@@ -106,9 +103,7 @@ def _provision_static_credentials(
     return provisioned
 
 
-async def _provision_oauth(
-    auth_config: Any, scan_session: ScanSession, scan_id: str
-) -> list[str]:
+async def _provision_oauth(auth_config: Any, scan_session: ScanSession, scan_id: str) -> list[str]:
     """Provision OAuth credentials via OAuthAuthenticator."""
     try:
         from src.execution.auth import OAuthAuthenticator
@@ -164,7 +159,11 @@ async def _provision_auth_flow(
             logger.warning("auth_flow method specified but no auth_spec provided")
             return []
 
-        auth_spec = AuthSpec.from_mapping(auth_spec_raw) if isinstance(auth_spec_raw, dict) else auth_spec_raw
+        auth_spec = (
+            AuthSpec.from_mapping(auth_spec_raw)
+            if isinstance(auth_spec_raw, dict)
+            else auth_spec_raw
+        )
 
         async def _http_client(method: str, url: str, **kwargs: Any) -> Any:
             import httpx

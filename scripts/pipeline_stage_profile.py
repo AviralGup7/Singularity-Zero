@@ -12,10 +12,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -30,21 +29,11 @@ def _get_stage_metrics() -> dict[str, dict]:
     registry = get_metrics()
     all_m = registry.get_all()
 
-    stage_duration = all_m.get("histograms", {}).get(
-        "cyber_pipeline_stage_duration_seconds", {}
-    )
-    stage_events = all_m.get("counters", {}).get(
-        "cyber_pipeline_pipeline_stage_events_total", 0
-    )
-    stage_failures = all_m.get("counters", {}).get(
-        "cyber_pipeline_stage_failure_count", 0
-    )
-    pipeline_runs = all_m.get("counters", {}).get(
-        "cyber_pipeline_pipeline_run_count", 0
-    )
-    pipeline_success = all_m.get("counters", {}).get(
-        "cyber_pipeline_pipeline_success_count", 0
-    )
+    stage_duration = all_m.get("histograms", {}).get("cyber_pipeline_stage_duration_seconds", {})
+    stage_events = all_m.get("counters", {}).get("cyber_pipeline_pipeline_stage_events_total", 0)
+    stage_failures = all_m.get("counters", {}).get("cyber_pipeline_stage_failure_count", 0)
+    pipeline_runs = all_m.get("counters", {}).get("cyber_pipeline_pipeline_run_count", 0)
+    pipeline_success = all_m.get("counters", {}).get("cyber_pipeline_pipeline_success_count", 0)
 
     return {
         "stage_duration": stage_duration,
@@ -118,11 +107,21 @@ def _print_stage_list() -> None:
     """Print known pipeline stages with timeouts."""
     # Hardcoded to avoid deep import chain issues
     stages = {
-        "subdomains": 600, "live_hosts": 900, "waf": 120,
-        "urls": 900, "parameters": 120, "ranking": 60,
-        "passive_scan": 300, "active_scan": 900, "semgrep": 600,
-        "validation": 300, "intelligence": 180, "access_control": 600,
-        "reporting": 300, "nuclei": 600, "git_diff_crawl": 30,
+        "subdomains": 600,
+        "live_hosts": 900,
+        "waf": 120,
+        "urls": 900,
+        "parameters": 120,
+        "ranking": 60,
+        "passive_scan": 300,
+        "active_scan": 900,
+        "semgrep": 600,
+        "validation": 300,
+        "intelligence": 180,
+        "access_control": 600,
+        "reporting": 300,
+        "nuclei": 600,
+        "git_diff_crawl": 30,
         "sarif_export": 30,
     }
     print("  Known Pipeline Stages:")
@@ -144,6 +143,7 @@ def main() -> None:
 
     # Register metrics
     from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
+
     register_pipeline_metrics(get_metrics())
 
     print("=" * 72)
@@ -224,7 +224,7 @@ def main() -> None:
     # Save JSON
     if args.json:
         output = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "metrics": metrics,
         }
         Path(args.json).write_text(json.dumps(output, indent=2))

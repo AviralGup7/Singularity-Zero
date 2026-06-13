@@ -8,6 +8,8 @@ from typing import Any
 
 from src.core.contracts.plugin_types import (
     AnalysisExecutionContext as AnalysisExecutionContext,
+)
+from src.core.contracts.plugin_types import (
     AnalyzerBinding as AnalyzerBinding,
 )
 

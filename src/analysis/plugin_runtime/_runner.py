@@ -37,6 +37,7 @@ def _get_analyzer_metrics():
     except Exception:
         return None
 
+
 _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "responses_only": ("responses",),
     "urls_only": ("urls",),

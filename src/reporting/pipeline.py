@@ -6,7 +6,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from src.analysis.behavior.artifacts import write_plugin_artifacts
-from src.learning.finding_deduplicator import FindingDeduplicator
 from src.analysis.helpers import resolve_endpoint_key
 from src.analysis.intelligence.endpoint_attack_graph import build_attack_graph
 from src.analysis.intelligence.endpoint_graphs import (
@@ -18,6 +17,7 @@ from src.analysis.intelligence.endpoint_graphs import (
 from src.core.models import DIFF_TARGETS
 from src.core.plugins import register_plugin
 from src.core.utils import ist_timestamp
+from src.learning.finding_deduplicator import FindingDeduplicator
 from src.pipeline.storage import read_lines, write_json, write_lines
 from src.reporting.html import build_dashboard_index as render_dashboard_index
 from src.reporting.html import generate_run_report

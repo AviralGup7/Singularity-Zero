@@ -12,11 +12,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.storage import ArtifactStore
 from src.core.storage.factory import create_artifact_store
 from src.core.utils import run_dir_stamp
+from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.pipeline.storage import (
     format_json,
     format_jsonl,

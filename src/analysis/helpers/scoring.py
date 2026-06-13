@@ -10,8 +10,14 @@ from typing import Any
 
 from src.core.utils.scoring import (
     PARAMETER_WEIGHTS as PARAMETER_WEIGHTS,
+)
+from src.core.utils.scoring import (
     SIGNAL_WEIGHTS as SIGNAL_WEIGHTS,
+)
+from src.core.utils.scoring import (
     parameter_weight as parameter_weight,
+)
+from src.core.utils.scoring import (
     signal_weight as signal_weight,
 )
 

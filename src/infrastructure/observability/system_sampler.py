@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -41,9 +40,7 @@ class SystemSampler:
 
         self._queue = queue
         self._stop.clear()
-        self._thread = threading.Thread(
-            target=self._run, name="system-sampler", daemon=True
-        )
+        self._thread = threading.Thread(target=self._run, name="system-sampler", daemon=True)
         self._thread.start()
         logger.info("System sampler started (interval=%.1fs)", self._interval)
 
