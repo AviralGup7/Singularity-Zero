@@ -10,14 +10,14 @@ from src.recon.subdomains import enumerate_subdomains, fetch_crtsh_subdomains
 class ReconSubdomainTests(unittest.TestCase):
     def setUp(self) -> None:
         from src.core.plugins import list_plugins as real_list_plugins
+
         self.patcher = patch(
             "src.recon.subdomains.list_plugins",
-            side_effect=lambda kind: tuple(p for p in real_list_plugins(kind) if p.key == "crtsh")
+            side_effect=lambda kind: tuple(p for p in real_list_plugins(kind) if p.key == "crtsh"),
         )
         self.patcher.start()
         self.meta_patcher = patch(
-            "src.recon.sources._meta_wrappers.all_meta_wrappers",
-            return_value={}
+            "src.recon.sources._meta_wrappers.all_meta_wrappers", return_value={}
         )
         self.meta_patcher.start()
 
