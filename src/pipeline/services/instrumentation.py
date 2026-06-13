@@ -14,7 +14,7 @@ from typing import Any, cast
 
 import msgspec
 
-from src.core.events import EventType, EventBus, PipelineEvent, get_event_bus
+from src.core.events import EventType, PipelineEvent, get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ class _StageEventBus:
 
     def subscribe(self, listener: Callable[[StageEvent], None]) -> None:
         """Subscribe to stage telemetry events."""
+
         def _handler(event: PipelineEvent) -> None:
             if event.event_type == EventType.STAGE_TELEMETRY:
                 stage_event = StageEvent(
@@ -62,6 +63,7 @@ class _StageEventBus:
                     details=event.data.get("details", {}),
                 )
                 listener(stage_event)
+
         self._core_bus.subscribe(EventType.STAGE_TELEMETRY, _handler)
 
     def unsubscribe(self, listener: Callable[[StageEvent], None]) -> None:

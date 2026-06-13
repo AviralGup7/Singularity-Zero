@@ -5,6 +5,12 @@ from typing import Any
 
 import aiohttp
 
+from src.recon.cloud_recon.constants import (
+    _DEFAULT_GCP_REGIONS,
+    _GCP_CLOUD_RUN_REGION_TEMPLATES,
+    _GCP_CLOUD_RUN_SERVICE_HINTS,
+)
+
 logger = logging.getLogger(__name__)
 
 

@@ -17,10 +17,10 @@ from typing import Any
 import httpx
 import requests
 
-from src.execution.frontier.chameleon import wrap_polymorphic_request
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.pid_limiter import PIDRateLimiter
 from src.core.utils.url_validation import is_safe_url
+from src.execution.frontier.chameleon import wrap_polymorphic_request
 
 logger = get_pipeline_logger(__name__)
 

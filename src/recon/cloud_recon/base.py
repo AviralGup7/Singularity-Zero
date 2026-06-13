@@ -3,15 +3,16 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 
 from src.recon.cloud_recon.constants import (
+    _AZURE_FUNCTIONS_REGIONS,
     _BACKBLAZE_REGIONS,
-    _DO_REGIONS,
     _DEFAULT_AWS_REGIONS,
-    _GCP_CLOUD_RUN_REGION_TEMPLATES,
-    _GCP_CLOUD_RUN_SERVICE_HINTS,
+    _DEFAULT_GCP_REGIONS,
+    _DO_REGIONS,
     _OCI_REGIONS,
     _S3_COMMON_OBJECT_PATHS,
     _WASABI_REGIONS,
@@ -380,13 +381,8 @@ class CloudBucketScannerBase:
 
     async def scan_all_candidates(self, target: str) -> list[dict[str, Any]]:
         """Generate and scan all bucket candidates concurrently."""
-        from unittest.mock import patch
 
         from src.recon.cloud_recon.gcp import GCPCloudRecon
-        from src.recon.cloud_recon.helpers import (
-            _build_cloud_run_1st_gen_candidates,
-            _build_cloud_run_2nd_gen_candidates,
-        )
 
         parsed = urlparse(target if "://" in target else f"https://{target}")
         domain = parsed.hostname or parsed.path or target
@@ -402,8 +398,14 @@ class CloudBucketScannerBase:
                     tasks.append(asyncio.create_task(self.scan_bucket(session, bucket)))
 
             tasks.append(asyncio.create_task(GCPCloudRecon.probe_cloud_run(self, session, target)))
-            tasks.append(asyncio.create_task(GCPCloudRecon.probe_gcp_cloud_functions(self, session, project_id)))
-            tasks.append(asyncio.create_task(GCPCloudRecon.probe_gcp_app_engine(self, session, project_id)))
+            tasks.append(
+                asyncio.create_task(
+                    GCPCloudRecon.probe_gcp_cloud_functions(self, session, project_id)
+                )
+            )
+            tasks.append(
+                asyncio.create_task(GCPCloudRecon.probe_gcp_app_engine(self, session, project_id))
+            )
             tasks.append(asyncio.create_task(self.probe_aws_lambda_urls(session, project_id)))
             tasks.append(asyncio.create_task(self.probe_api_gateway(session, project_id)))
             tasks.append(asyncio.create_task(self.probe_aws_amplify(session, project_id)))

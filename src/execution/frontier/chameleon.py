@@ -9,13 +9,13 @@ import secrets
 import uuid
 from typing import Any
 
+from src.core.logging.trace_logging import get_pipeline_logger
+from src.execution.active_manifest import ActiveCapability, query_active_manifests
 from src.execution.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
     JA3FingerprintModel,
     TimingPermutator,
 )
-from src.core.logging.trace_logging import get_pipeline_logger
-from src.execution.active_manifest import ActiveCapability, query_active_manifests
 
 logger = get_pipeline_logger(__name__)
 

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import threading
 import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.infrastructure.observability.metrics import MetricsRegistry, get_metrics, reset_metrics_instance
+from src.infrastructure.observability.metrics import (
+    get_metrics,
+    reset_metrics_instance,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -128,7 +129,9 @@ class TestEventSubscriberPerStageFailure:
 
     def test_stage_failure_increments_counter(self):
         from src.core.events import EventBus, EventType, PipelineEvent
-        from src.infrastructure.observability.event_subscribers import register_event_metrics_subscribers
+        from src.infrastructure.observability.event_subscribers import (
+            register_event_metrics_subscribers,
+        )
 
         bus = EventBus()
         register_event_metrics_subscribers(bus)
@@ -137,7 +140,7 @@ class TestEventSubscriberPerStageFailure:
         counter = metrics.counter("stage_failure_count", "test")
         initial = counter.value
 
-        event = PipelineEvent(
+        PipelineEvent(
             event_type=EventType.STAGE_FAILED,
             source="stage.subdomains",
             data={},

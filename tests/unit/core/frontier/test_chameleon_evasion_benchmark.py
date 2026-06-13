@@ -2,9 +2,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.core.http_utils import async_safe_request, safe_request
 from src.execution.frontier.chameleon import RequestChameleon, _chameleon
 from src.execution.frontier.chameleon_evasion import ChameleonEvasionEngine
-from src.core.http_utils import async_safe_request, safe_request
 
 
 def test_chameleon_evasion_engine_telemetry():

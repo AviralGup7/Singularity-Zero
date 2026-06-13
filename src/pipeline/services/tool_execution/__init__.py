@@ -20,10 +20,19 @@ from __future__ import annotations
 
 # Re-export everything that callers could previously import directly from this
 # package (i.e. from ``src.pipeline.services.tool_execution``).
-
 # stdlib — re-exported so ``patch("src.pipeline.services.tool_execution.subprocess.run")``
 # continues to work in existing tests.
 import subprocess
+
+# Re-export symbols that callers import *from* this package but which are
+# actually defined in sibling modules (circuit_breaker, retry, waf_profile).
+from src.pipeline.retry import RetryPolicy
+from src.pipeline.services.circuit_breaker import (
+    CircuitBreakerConfig,
+    CircuitBreakerStats,
+    ProbeCallback,
+)
+from src.pipeline.waf_profile import WafTuningProfile
 
 from .contracts import (
     CompletedToolRun,
@@ -38,19 +47,9 @@ from .runner import (
     _clean_env,
     _coerce_output_text,
     get_circuit_breaker,
+    run_external_tool,  # noqa: E402  (pull async runner after service for ordering)
 )
 from .service import ToolExecutionService
-from .runner import run_external_tool  # noqa: E402  (pull async runner after service for ordering)
-
-# Re-export symbols that callers import *from* this package but which are
-# actually defined in sibling modules (circuit_breaker, retry, waf_profile).
-from src.pipeline.retry import RetryPolicy
-from src.pipeline.services.circuit_breaker import (
-    CircuitBreakerConfig,
-    CircuitBreakerStats,
-    ProbeCallback,
-)
-from src.pipeline.waf_profile import WafTuningProfile
 
 __all__ = [
     # Contracts

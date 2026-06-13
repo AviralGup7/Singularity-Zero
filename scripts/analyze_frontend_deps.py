@@ -17,19 +17,16 @@ DEPENDENCY_SIZES = {
     "@react-three/fiber": 45,
     "@react-three/drei": 120,
     "@react-three/postprocessing": 35,
-
     # Charting (~400-500KB total)
     "recharts": 200,
     "d3-array": 15,
     "d3-force": 20,
     "d3-scale": 15,
     "d3-shape": 15,
-
     # Animation (~200KB total)
     "framer-motion": 100,
     "gsap": 80,
     "lottie-react": 30,
-
     # UI Components (~150KB total)
     "@radix-ui/react-accordion": 5,
     "@radix-ui/react-alert-dialog": 5,
@@ -42,25 +39,20 @@ DEPENDENCY_SIZES = {
     "@radix-ui/react-tooltip": 3,
     "lucide-react": 30,
     "cmdk": 10,
-
     # Core React (~100KB total)
     "react": 40,
     "react-dom": 40,
     "react-router-dom": 15,
-
     # State & Data (~80KB total)
     "@tanstack/react-query": 40,
     "zustand": 10,
     "axios": 15,
-
     # Forms & Validation (~50KB total)
     "react-hook-form": 25,
     "zod": 20,
-
     # i18n (~30KB total)
     "i18next": 15,
     "react-i18next": 10,
-
     # Other (~50KB total)
     "dompurify": 5,
     "hls.js": 0,  # External

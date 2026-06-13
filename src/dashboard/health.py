@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Awaitable
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
 

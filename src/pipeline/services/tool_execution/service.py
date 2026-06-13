@@ -20,7 +20,7 @@ from urllib.parse import urlsplit, urlunsplit
 from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.pipeline_logging import emit_retry_warning, emit_warning
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.utils.stderr_classification import StderrClassification, classify_stderr_lines
+from src.core.utils.stderr_classification import classify_stderr_lines
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
 from src.pipeline.retry.strategies import detect_rate_limit, parse_retry_after
 from src.pipeline.services.circuit_breaker import (
@@ -28,8 +28,6 @@ from src.pipeline.services.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitBreakerStats,
     ProbeCallback,
-    load_all_breakers,
-    persist_all_breakers,
 )
 from src.pipeline.waf_profile import WafTuningProfile
 
@@ -163,10 +161,12 @@ class ToolExecutionService:
 
     def persist_breaker_states(self, cache: Any) -> None:
         from .runner import persist_all_breakers
+
         persist_all_breakers(cache, self._circuit_breakers)
 
     def restore_breaker_states(self, cache: Any) -> None:
         from .runner import load_all_breakers
+
         restored = load_all_breakers(cache)
         for name, state_dict in restored.items():
             if name not in self._circuit_breakers:

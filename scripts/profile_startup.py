@@ -101,10 +101,10 @@ def main() -> None:
     sorted_times = sorted(cold_times.items(), key=lambda x: x[1], reverse=True)
 
     for module, time_s in sorted_times[:10]:
-        print(f"  {module:45s} {time_s*1000:8.2f} ms")
+        print(f"  {module:45s} {time_s * 1000:8.2f} ms")
 
     total_cold = sum(cold_times.values())
-    print(f"\n  {'Total':45s} {total_cold*1000:8.2f} ms")
+    print(f"\n  {'Total':45s} {total_cold * 1000:8.2f} ms")
 
     # Memory
     print("\n[Memory Usage]")

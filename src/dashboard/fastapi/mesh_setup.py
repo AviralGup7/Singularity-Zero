@@ -7,8 +7,8 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from src.core.frontier.bloom import NeuralBloomFilter
-from src.infrastructure.frontier.bloom_mesh import NeuralBloomMesh
 from src.dashboard.fastapi.config import DashboardConfig
+from src.infrastructure.frontier.bloom_mesh import NeuralBloomMesh
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.manifest import discover_manifest
 from src.infrastructure.mesh.sharding import MeshShardManager

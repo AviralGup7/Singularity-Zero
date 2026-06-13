@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 DEFAULT_S3_WEBSITE_REGIONS: tuple[str, ...] = (
     "us-east-1",
     "us-west-2",

@@ -12,7 +12,6 @@ from statistics import mean, pstdev
 from typing import Any, TypedDict
 from urllib.parse import urlparse
 
-from src.core.utils.param_types import REDIRECT_PARAM_NAMES
 from src.core.utils.endpoint_classification import (
     endpoint_base_key,
     endpoint_signature,
@@ -22,6 +21,7 @@ from src.core.utils.endpoint_classification import (
     meaningful_query_pairs,
     same_host_family,
 )
+from src.core.utils.param_types import REDIRECT_PARAM_NAMES
 from src.core.utils.scoring import parameter_weight
 
 logger = logging.getLogger(__name__)
