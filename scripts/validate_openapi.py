@@ -191,6 +191,16 @@ def main() -> int:
                 print(
                     "CRITICAL DRIFT: docs/api-reference.md is OUT OF SYNC with active FastAPI spec!"
                 )
+                import difflib
+
+                diff = difflib.unified_diff(
+                    current_doc_content.splitlines(keepends=True),
+                    updated_doc_content.splitlines(keepends=True),
+                    fromfile="current docs/api-reference.md",
+                    tofile="generated docs/api-reference.md",
+                    n=3,
+                )
+                print("".join(diff))
                 print(
                     "Please run: python scripts/validate_openapi.py --write to synchronize the file."
                 )
