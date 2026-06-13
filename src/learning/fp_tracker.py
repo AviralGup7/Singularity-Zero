@@ -7,8 +7,10 @@ FP probability and confidence for each pattern.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -117,8 +119,6 @@ class FPTracker:
         mesh_sync: Any | None = None,
         redis_repo: RedisFPRepository | None = None,
     ):
-        import threading
-
         self.store = store
         self._cache: dict[str, FPPattern] = {}
         self._loaded = False
