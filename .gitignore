@@ -44,6 +44,9 @@ output/
 .DS_Store
 Thumbs.db
 nul
+.AppleDouble
+.LSOverride
+Desktop.ini
 
 # IDE
 .vscode/
@@ -108,6 +111,8 @@ scratch_*
 
 # Database and Cache state
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 dump.rdb
@@ -152,6 +157,10 @@ GEMINI.md
 **/sessions/
 .ai/
 .ai/traces/
+
+# Local application state (never commit)
+.local/
+.local/state/
 
 # IDE/Editor
 *.tmp
@@ -199,3 +208,16 @@ bandit-report.json
 /tmp_*.py
 /_dead_*.py
 /analyze_imports_static.py
+
+# Python packaging
+pip-wheel-metadata/
+
+# Pyenv
+.python-version
+
+# Local environment tools
+.direnv/
+.envrc
+
+# VSCode test profiles
+.vscode-test/

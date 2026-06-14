@@ -256,6 +256,15 @@ async def run_live_hosts(
             },
         )
 
+        # Write to output store (side effect allowed in wrapper)
+        if ctx.output_store is not None:
+            live_records = stage_output.state_delta.get("live_records", [])
+            ctx.output_store.write_live_hosts(live_records, live_hosts)
+        else:
+            logger.warning(
+                "Stage 'live_hosts': ctx.output_store is None, skipping write_live_hosts()"
+            )
+
         return cast(StageOutput, stage_output)
 
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
@@ -471,6 +480,14 @@ async def run_url_collection(
             artifact_type="url",
             telemetry_items=sorted(urls)[:500],
         )
+
+        # Write to output store (side effect allowed in wrapper)
+        if ctx.output_store is not None:
+            ctx.output_store.write_urls(urls)
+        else:
+            logger.warning(
+                "Stage 'urls': ctx.output_store is None, skipping write_urls()"
+            )
 
         return cast(StageOutput, stage_output)
 

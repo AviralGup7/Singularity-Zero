@@ -20,6 +20,7 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from src.infrastructure.observability.config import get_config
@@ -552,6 +553,67 @@ class MetricsRegistry:
                     hm.count_value = 0
             for sm in self._summaries.values():
                 sm.observations.clear()
+
+    def save_to_file(self, path: str | Path) -> None:
+        """Save all metrics to a JSON file for persistence across process restarts.
+
+        Args:
+            path: File path to write metrics JSON.
+        """
+        import json
+
+        data = self.get_all()
+        Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def load_from_file(self, path: str | Path) -> None:
+        """Load metrics from a JSON file and merge into current state.
+
+        Only merges counters and histograms (the two types used by analyzer
+        performance tracking). Gauges and summaries are skipped because their
+        semantics don't support meaningful merge (gauges are point-in-time,
+        summaries are append-only observation lists).
+
+        Args:
+            path: File path to read metrics JSON from.
+        """
+        import json
+
+        p = Path(path)
+        if not p.exists():
+            return
+
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+
+        with self._lock:
+            # Merge counters (add values)
+            for name, value in data.get("counters", {}).items():
+                if name in self._counters and isinstance(value, (int, float)):
+                    self._counters[name].inc(value)
+
+            # Merge histograms (add observations to buckets)
+            for name, hist_data in data.get("histograms", {}).items():
+                if name not in self._histograms:
+                    continue
+                if not isinstance(hist_data, dict):
+                    continue
+                hist = self._histograms[name]
+                existing_counts = hist_data.get("bucket_counts", [])
+                existing_sum = hist_data.get("sum", 0.0)
+                existing_count = hist_data.get("count", 0)
+                # Re-observe each bucket by adding counts
+                buckets = hist.buckets
+                for i, count in enumerate(existing_counts):
+                    if i < len(buckets) and count > 0:
+                        # Approximate: each bucket contributes boundary value * count
+                        boundary = buckets[i] if i < len(buckets) else buckets[-1]
+                        for _ in range(min(count, 1000)):  # Cap to avoid explosion
+                            hist.observe(boundary)
+                # Directly add to sum and count for accuracy
+                hist.sum_value += existing_sum
+                hist.count_value += existing_count
 
 
 def _format_labels(labels: dict[str, str]) -> str:

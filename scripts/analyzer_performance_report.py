@@ -23,9 +23,17 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def _get_analyzer_stats() -> dict[str, dict]:
     """Collect per-analyzer timing stats from metrics."""
+    from pathlib import Path
+
     from src.infrastructure.observability.metrics import get_metrics
 
     registry = get_metrics()
+
+    # Load accumulated metrics from stability test runs (if any)
+    analyzer_metrics_path = Path("output/stability_test/analyzer_metrics.json")
+    if analyzer_metrics_path.exists():
+        registry.load_from_file(analyzer_metrics_path)
+
     all_m = registry.get_all()
 
     # The analyzer_duration_seconds histogram tracks all analyzers globally
