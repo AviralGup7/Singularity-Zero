@@ -218,9 +218,13 @@ async def run_live_hosts(
             prober=prober,
             enricher=cast(Any, enricher_wrapper),
             force_recheck=bool(getattr(args, "force_recheck", False)),
+            pipeline_config=config,
         )
 
         if stage_output.outcome == StageOutcome.FAILED:
+            # Write empty output files so validation passes (zero live hosts is valid)
+            if ctx.output_store is not None:
+                ctx.output_store.write_live_hosts([], set())
             _record_recon_failure(
                 stage_name="live_hosts",
                 ctx=ctx,
@@ -354,9 +358,13 @@ async def run_url_collection(
             stage_input,
             collector=collector,
             progress_callback=emit_url_progress,
+            pipeline_config=config,
         )
 
         if stage_output.outcome == StageOutcome.FAILED:
+            # Write empty output file so validation passes (zero urls is valid)
+            if ctx.output_store is not None:
+                ctx.output_store.write_urls(set())
             _record_recon_failure(
                 stage_name="urls",
                 ctx=ctx,

@@ -86,6 +86,7 @@ export function useSSEProgress<T = SseEventData>({
   const bufferRef = useRef<SseEvent<T>[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFlushRef = useRef<number>(0);
+  const streamCompletedRef = useRef(false);
 
   // R6: shared primitives.
   const { mountedRef } = useMountedRef();
@@ -149,6 +150,7 @@ export function useSSEProgress<T = SseEventData>({
 
   const connect = useCallback(() => {
     if (!jobId || !enabled || !mountedRef.current) return;
+    if (streamCompletedRef.current) return;
 
     if (esRef.current) {
       esRef.current.close();
@@ -186,6 +188,7 @@ export function useSSEProgress<T = SseEventData>({
       });
 
       try {
+        if (!e.data || e.data === 'undefined') return;
         const parsed = JSON.parse(e.data) as SseEvent<T>;
         const eventId = parsed.id || `${parsed.event_type}:${parsed.timestamp}`;
 
@@ -201,6 +204,24 @@ export function useSSEProgress<T = SseEventData>({
             ? parsed.timestamp
             : toServerTime(Date.now()),
         };
+
+        if (corrected.event_type === 'completed') {
+          streamCompletedRef.current = true;
+          es.close();
+          esRef.current = null;
+          setConnectionState('closed');
+          disarmHeartbeat();
+          return;
+        }
+        if (corrected.event_type === 'error' && corrected.data && !(corrected.data as Record<string, unknown>).recoverable) {
+          streamCompletedRef.current = true;
+          es.close();
+          esRef.current = null;
+          setConnectionState('closed');
+          disarmHeartbeat();
+          return;
+        }
+
         enqueueEvent(corrected);
       } catch (err) {
         captureException(err as Error, { component: 'useSSEProgress', action: 'parse' });
@@ -216,14 +237,20 @@ export function useSSEProgress<T = SseEventData>({
 
     es.onerror = () => {
       if (!mountedRef.current) return;
-      setConnectionState('reconnecting');
       disarmHeartbeat();
+
+      if (streamCompletedRef.current) {
+        setConnectionState('closed');
+        return;
+      }
+
+      setConnectionState('reconnecting');
 
       if (es.readyState === EventSource.CLOSED) {
         const delay = backoff.delayMs();
         backoff.bump();
         setTimeout(() => {
-          if (mountedRef.current) connectRef.current();
+          if (mountedRef.current && !streamCompletedRef.current) connectRef.current();
         }, delay);
       }
     };
@@ -236,9 +263,10 @@ export function useSSEProgress<T = SseEventData>({
 
   useEffect(() => {
     mountedRef.current = true;
+    streamCompletedRef.current = false;
     if (enabled && jobId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      connect();
+      connectRef.current();
     }
     return () => {
       mountedRef.current = false;
@@ -248,7 +276,7 @@ export function useSSEProgress<T = SseEventData>({
       bufferRef.current = [];
       seenIds.clear();
     };
-  }, [jobId, enabled, connect, mountedRef, disarmHeartbeat, seenIds]);
+  }, [jobId, enabled, mountedRef, disarmHeartbeat, seenIds]);
 
   return {
     connectionState,

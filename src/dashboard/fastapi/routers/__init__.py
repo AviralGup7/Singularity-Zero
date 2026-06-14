@@ -28,6 +28,7 @@ from .learning import router as learning_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
 from .notifications import router as notifications_router
+from .projects import router as projects_router
 from .registry import router as registry_router
 from .remediated import router as remediated_router
 from .remediation import router as remediation_router
@@ -74,6 +75,7 @@ api_router.include_router(risk_domain_router, tags=["Risk Domain"])
 api_router.include_router(remediation_router, tags=["Remediation"])
 api_router.include_router(reports_router, tags=["Reports"])
 api_router.include_router(registry_router, tags=["Registry"])
+api_router.include_router(projects_router, tags=["Projects"])
 api_router.include_router(webhooks_router, tags=["Webhooks"])
 if imports_router is not None:
     api_router.include_router(imports_router, tags=["Imports"])

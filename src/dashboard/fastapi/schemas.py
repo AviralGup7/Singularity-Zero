@@ -90,6 +90,7 @@ class JobCreateRequest(StrictRequestModel):
     modules: list[str] | None = Field(default=None, description="Selected module names")
     runtime_overrides: dict[str, str] = Field(default_factory=dict)
     execution_options: dict[str, bool] = Field(default_factory=dict)
+    project_id: str | None = Field(default=None, description="Pre-configured project preset ID")
 
 
 class StageProgressEntry(BaseModel):

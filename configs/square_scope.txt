@@ -1,0 +1,15 @@
+# Square Bug Bounty Program - Scope
+# https://bugcrowd.com/square
+#
+# In-Scope Web Properties
+*.square.com
+*.squareup.com
+square.online
+# In-Scope Mobile Applications
+# Square Point of Sale Android
+# Square Point of Sale iOS
+# In-Scope Hardware
+# Square Register
+# Square Terminal
+# In-Scope Weebly
+weebly.com
