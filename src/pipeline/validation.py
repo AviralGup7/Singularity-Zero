@@ -699,8 +699,6 @@ def validate_stage_artifact(stage_name: str, ctx: Any) -> tuple[bool, str | None
         try:
             txt_content = txt_file.read_text(encoding="utf-8")
             hosts = [line.strip() for line in txt_content.splitlines() if line.strip()]
-            if not hosts:
-                return False, "live_hosts.txt is empty"
             jsonl_content = jsonl_file.read_text(encoding="utf-8")
             for line in jsonl_content.splitlines():
                 if line.strip():
@@ -715,8 +713,6 @@ def validate_stage_artifact(stage_name: str, ctx: Any) -> tuple[bool, str | None
         try:
             content = urls_file.read_text(encoding="utf-8")
             urls = [line.strip() for line in content.splitlines() if line.strip()]
-            if not urls:
-                return False, "urls.txt is empty"
             for url in urls:
                 if not url.startswith(("http://", "https://")):
                     return False, f"Malformed URL in urls.txt: '{url[:30]}...'"

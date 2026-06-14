@@ -228,6 +228,11 @@ def main() -> None:
 
     register_pipeline_metrics(get_metrics())
 
+    # Load accumulated analyzer metrics from previous runs (if any)
+    analyzer_metrics_path = Path("output/stability_test/analyzer_metrics.json")
+    analyzer_metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    get_metrics().load_from_file(analyzer_metrics_path)
+
     snapshots: list[dict] = []
     results: list[dict] = []
     start_time = time.time()
@@ -264,6 +269,12 @@ def main() -> None:
                     "error": str(exc),
                 }
             )
+
+        # Persist analyzer metrics after each scan (survives process restarts)
+        try:
+            get_metrics().save_to_file(analyzer_metrics_path)
+        except Exception:
+            pass
 
         # Snapshot at intervals
         if i % args.interval == 0 or i == args.scans:
