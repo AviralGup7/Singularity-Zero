@@ -265,7 +265,7 @@ export function useSSEProgress<T = SseEventData>({
     mountedRef.current = true;
     streamCompletedRef.current = false;
     if (enabled && jobId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       connectRef.current();
     }
     return () => {

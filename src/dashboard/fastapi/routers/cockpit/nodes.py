@@ -208,7 +208,10 @@ def _merge_graphs(*graphs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _get_run_dir_safe(
-    output_root: Path, target_name: str, run: str | None, job_id: str | None,
+    output_root: Path,
+    target_name: str,
+    run: str | None,
+    job_id: str | None,
     services: Any = None,
 ) -> Path | None:
     # If target_name looks like a URL (e.g. https://square.com), resolve it

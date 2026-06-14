@@ -91,7 +91,9 @@ class DashboardLaunchService:
             selected_mode = (mode_name or self.query_service.default_mode_name()).strip().lower()
             apply_mode_selection(config, selected_mode)
             enabled_modules = list(
-                dict.fromkeys(selected_modules or self.query_service.preset_module_names(selected_mode))
+                dict.fromkeys(
+                    selected_modules or self.query_service.preset_module_names(selected_mode)
+                )
             )
             expand_subdomains = any(module in DISCOVERY_MODULES for module in enabled_modules)
             scope_entries = (

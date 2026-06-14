@@ -211,5 +211,7 @@ register_state_schema("artifacts_meta", dict, "Metadata about persisted stage ar
 register_state_schema("_wal_id", (int, str), "Write-ahead log ID for stage delta replay")
 register_state_schema("threat_graph", dict, "Threat graph structure representing attack vectors")
 register_state_schema("threat_graph_summary", dict, "Summary of the threat graph metrics")
-register_state_schema("secret_findings", (list, tuple), "Secret/credential findings from git secret scan")
+register_state_schema(
+    "secret_findings", (list, tuple), "Secret/credential findings from git secret scan"
+)
 register_state_schema("exposed_credentials_count", int, "Count of exposed credentials found")
