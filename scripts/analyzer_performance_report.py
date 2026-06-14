@@ -96,14 +96,16 @@ def _print_per_analyzer_ranking(by_analyzer: dict[str, list[dict]]) -> None:
         p95 = durations[min(int(n * 0.95), n - 1)]
         total = sum(durations)
 
-        rows.append({
-            "analyzer": key,
-            "calls": n,
-            "failures": failures,
-            "p50_ms": p50 * 1000,
-            "p95_ms": p95 * 1000,
-            "total_s": total,
-        })
+        rows.append(
+            {
+                "analyzer": key,
+                "calls": n,
+                "failures": failures,
+                "p50_ms": p50 * 1000,
+                "p95_ms": p95 * 1000,
+                "total_s": total,
+            }
+        )
 
     # Sort by total time descending (most impactful first)
     rows.sort(key=lambda r: r["total_s"], reverse=True)
@@ -121,7 +123,9 @@ def _print_per_analyzer_ranking(by_analyzer: dict[str, list[dict]]) -> None:
     print("\n  Top 5 Slowest by P95:")
     print("  " + "-" * 60)
     for i, row in enumerate(by_p95, 1):
-        print(f"  {i}. {row['analyzer']}: P95={row['p95_ms']:.1f}ms, calls={row['calls']}, total={row['total_s']:.2f}s")
+        print(
+            f"  {i}. {row['analyzer']}: P95={row['p95_ms']:.1f}ms, calls={row['calls']}, total={row['total_s']:.2f}s"
+        )
 
 
 def _print_histogram_table(hist_data: dict) -> None:

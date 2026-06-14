@@ -493,9 +493,7 @@ async def run_url_collection(
         if ctx.output_store is not None:
             ctx.output_store.write_urls(urls)
         else:
-            logger.warning(
-                "Stage 'urls': ctx.output_store is None, skipping write_urls()"
-            )
+            logger.warning("Stage 'urls': ctx.output_store is None, skipping write_urls()")
 
         return cast(StageOutput, stage_output)
 
