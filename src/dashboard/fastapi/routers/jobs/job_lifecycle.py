@@ -286,7 +286,21 @@ async def stream_job_progress(
                         if isinstance(job_snapshot.get("progress_telemetry"), dict)
                         else None,
                     )
-                    break
+                    # Keep the connection alive so the client can cleanly
+                    # close it. The browser EventSource auto-reconnects
+                    # if the server closes first, causing a reconnect storm.
+                    # Send heartbeats until the client disconnects.
+                    while True:
+                        await asyncio.sleep(heartbeat_interval_seconds())
+                        if await request.is_disconnected():
+                            break
+                        yield emitter.heartbeat(
+                            progress_percent=progress,
+                            stage=stage,
+                            stage_label=stage_label,
+                            stalled=False,
+                            seconds_since_last_update=0,
+                        )
 
                 if now - last_heartbeat >= heartbeat_interval_seconds():
                     from src.dashboard.job_state import _coerce_epoch

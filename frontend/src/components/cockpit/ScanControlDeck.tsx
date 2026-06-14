@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getProjects, type Project } from '@/api/projects';
 
 interface SliderRowProps {
   label: string;
@@ -67,6 +68,9 @@ interface ScanControlDeckProps {
   setScanRateLimit: (n: number) => void;
   excludedPaths: string;
   setExcludedPaths: (s: string) => void;
+  selectedProject: Project | null;
+  setSelectedProject: (project: Project | null) => void;
+  className?: string;
 }
 
 export function ScanControlDeck({
@@ -101,8 +105,17 @@ export function ScanControlDeck({
   setScanRateLimit,
   excludedPaths,
   setExcludedPaths,
+  selectedProject,
+  setSelectedProject,
+  className,
 }: ScanControlDeckProps) {
   const [showTuning, setShowTuning] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [showProjects, setShowProjects] = useState(false);
+
+  useEffect(() => {
+    getProjects().then(setProjects).catch(() => {});
+  }, []);
   const modules = [
     { id: 'subdomain_enum', label: 'Subdomain Recon' },
     { id: 'url_discovery', label: 'URL Discovery' },
@@ -112,7 +125,7 @@ export function ScanControlDeck({
   ];
 
   return (
-    <div className="absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-cyber rounded-xl border border-white/10 bg-black/80 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all">
+    <div className={className ?? "absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-cyber rounded-xl border border-white/10 bg-black/80 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all"}>
       <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-3">
         <div className="flex items-center gap-2">
           <div className="relative flex h-2 w-2">
@@ -175,6 +188,62 @@ export function ScanControlDeck({
                   />
                 </label>
               </div>
+
+              {projects.length > 0 && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowProjects(!showProjects)}
+                    className="flex w-full items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted hover:text-accent transition-colors"
+                  >
+                    <span>{selectedProject ? `Project: ${selectedProject.name}` : '+ Quick Launch Projects'}</span>
+                    {selectedProject && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProject(null);
+                        }}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        [clear]
+                      </span>
+                    )}
+                  </button>
+
+                  {showProjects && !selectedProject && (
+                    <div className="space-y-1.5 rounded border border-white/5 bg-black/40 p-2.5 animate-fadeIn">
+                      {projects.map((project) => (
+                        <button
+                          key={project.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedProject(project);
+                            setShowProjects(false);
+                          }}
+                          className="w-full rounded border border-white/5 bg-white/5 p-2.5 text-left transition-all hover:bg-accent/10 hover:border-accent/30"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[10px] font-bold text-white">{project.name}</span>
+                            {project.rewards && (
+                              <span className="font-mono text-[8px] text-accent">{project.rewards}</span>
+                            )}
+                          </div>
+                          {project.description && (
+                            <p className="mt-1 font-mono text-[8px] leading-relaxed text-muted/70 line-clamp-2">
+                              {project.description}
+                            </p>
+                          )}
+                          {project.scope && (
+                            <p className="mt-1 font-mono text-[8px] text-muted/50">
+                              Scope: {project.scope}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Scan Mode Preset</div>

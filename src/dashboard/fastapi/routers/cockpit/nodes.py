@@ -208,8 +208,19 @@ def _merge_graphs(*graphs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _get_run_dir_safe(
-    output_root: Path, target_name: str, run: str | None, job_id: str | None
+    output_root: Path, target_name: str, run: str | None, job_id: str | None,
+    services: Any = None,
 ) -> Path | None:
+    # If target_name looks like a URL (e.g. https://square.com), resolve it
+    # to the slugified target directory by looking up the job record.
+    if target_name.startswith(("http://", "https://")):
+        if services and job_id:
+            job = services.get_job(job_id)
+            if job:
+                target_name = job.get("target_name", target_name)
+        else:
+            return None
+
     target_dir = get_safe_target_dir(output_root, target_name)
 
     if run:
@@ -273,7 +284,7 @@ async def get_cockpit_graph(
     max_node_limit = max_nodes if isinstance(max_nodes, int) else 2000
 
     output_root = services.query.output_root
-    run_dir = _get_run_dir_safe(output_root, target, run, job_id)
+    run_dir = _get_run_dir_safe(output_root, target, run, job_id, services=services)
 
     if not run_dir:
         return {"nodes": [], "edges": [], "metadata": {"target": target}}

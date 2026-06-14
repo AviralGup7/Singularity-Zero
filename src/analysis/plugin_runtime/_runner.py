@@ -6,6 +6,7 @@ import inspect
 import logging
 import time
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
@@ -20,6 +21,35 @@ from src.core.utils import normalize_url
 from ._bindings import ANALYZER_BINDINGS
 
 logger = logging.getLogger(__name__)
+
+_ANALYZER_TIMING_PATH = None
+
+
+def _get_analyzer_timing_path() -> Path:
+    """Lazily resolve the per-analyzer timing JSONL file path."""
+    global _ANALYZER_TIMING_PATH
+    if _ANALYZER_TIMING_PATH is None:
+        _ANALYZER_TIMING_PATH = Path("output/stability_test/analyzer_timing.jsonl")
+        _ANALYZER_TIMING_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return _ANALYZER_TIMING_PATH
+
+
+def _persist_analyzer_timing(analyzer_key: str, elapsed: float, status: str) -> None:
+    """Append a per-analyzer timing record to the JSONL file."""
+    import json
+
+    try:
+        path = _get_analyzer_timing_path()
+        record = {
+            "analyzer": analyzer_key,
+            "elapsed_s": round(elapsed, 6),
+            "status": status,
+            "ts": time.time(),
+        }
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=True) + "\n")
+    except Exception:
+        pass
 
 
 def _get_analyzer_metrics():
@@ -424,6 +454,7 @@ def run_registered_analyzer(
         metrics["execution_count"].inc()
         metrics["active"].inc()
 
+    _status = "ok"
     start = time.perf_counter()
     try:
         result = runner_fn(**kwargs)
@@ -433,6 +464,7 @@ def run_registered_analyzer(
         )
         return _normalize_analyzer_result(analyzer_key, resolved_result)
     except Exception as exc:
+        _status = "error"
         if metrics:
             metrics["failure_count"].inc()
         runner_name = getattr(runner, "__name__", repr(runner))
@@ -448,6 +480,7 @@ def run_registered_analyzer(
             metrics["duration"].observe(elapsed)
         if elapsed > 1.0:
             logger.info("Slow analyzer %s: %.2fs", analyzer_key, elapsed)
+        _persist_analyzer_timing(analyzer_key, elapsed, _status)
 
 
 def run_analysis_plugins(

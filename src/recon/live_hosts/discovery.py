@@ -189,7 +189,10 @@ def _httpx_batch_plan(hosts: list[str], config: Config) -> tuple[int, int]:
     max_parallel_batches = max(1, int(config.httpx.get("batch_concurrency", 1)))
     if len(hosts) >= 1000:
         max_parallel_batches = max(max_parallel_batches, 2)
-    if str(config.mode).lower() == "aggressive":
+    _mode = getattr(config, "mode", None)
+    if _mode is None and hasattr(config, "get"):
+        _mode = config.get("mode", "")
+    if str(_mode or "").lower() == "aggressive":
         max_parallel_batches = max(max_parallel_batches, 2)
     return batch_size, max_parallel_batches
 
@@ -290,7 +293,10 @@ def probe_live_hosts(
     **kwargs: Any,
 ) -> tuple[list[dict[str, Any]], set[str]]:
     effective_timeout = int(timeout_seconds or getattr(config, "http_timeout_seconds", None) or 30)
-    if str(config.mode).lower() == "safe":
+    _mode = getattr(config, "mode", None)
+    if _mode is None and hasattr(config, "get"):
+        _mode = config.get("mode", "")
+    if str(_mode or "").lower() == "safe":
         from src.recon.live_hosts.health import probe_live_hosts_fallback
 
         return probe_live_hosts_fallback(

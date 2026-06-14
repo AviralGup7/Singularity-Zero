@@ -52,6 +52,78 @@ def _get_analyzer_stats() -> dict[str, dict]:
     }
 
 
+def _load_per_analyzer_timing() -> dict[str, list[dict]]:
+    """Load per-analyzer timing from JSONL file, grouped by analyzer key."""
+    from pathlib import Path
+
+    timing_path = Path("output/stability_test/analyzer_timing.jsonl")
+    if not timing_path.exists():
+        return {}
+
+    by_analyzer: dict[str, list[dict]] = {}
+    for line in timing_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+            key = record.get("analyzer", "unknown")
+            by_analyzer.setdefault(key, []).append(record)
+        except json.JSONDecodeError:
+            continue
+
+    return by_analyzer
+
+
+def _print_per_analyzer_ranking(by_analyzer: dict[str, list[dict]]) -> None:
+    """Print a ranked table of analyzers by P50 duration."""
+    if not by_analyzer:
+        print("  No per-analyzer timing data available.")
+        print("  Run stability_test.py first to populate analyzer_timing.jsonl")
+        return
+
+    # Compute stats per analyzer
+    rows = []
+    for key, records in by_analyzer.items():
+        durations = [r["elapsed_s"] for r in records]
+        failures = sum(1 for r in records if r.get("status") == "error")
+        durations.sort()
+        n = len(durations)
+        if n == 0:
+            continue
+
+        p50 = durations[int(n * 0.5)] if n > 1 else durations[0]
+        p95 = durations[min(int(n * 0.95), n - 1)]
+        total = sum(durations)
+
+        rows.append({
+            "analyzer": key,
+            "calls": n,
+            "failures": failures,
+            "p50_ms": p50 * 1000,
+            "p95_ms": p95 * 1000,
+            "total_s": total,
+        })
+
+    # Sort by total time descending (most impactful first)
+    rows.sort(key=lambda r: r["total_s"], reverse=True)
+
+    print(f"  {'Analyzer':<40} {'Calls':>6} {'Fail':>5} {'P50':>8} {'P95':>8} {'Total':>8}")
+    print("  " + "-" * 80)
+    for row in rows:
+        print(
+            f"  {row['analyzer']:<40} {row['calls']:>6} {row['failures']:>5} "
+            f"{row['p50_ms']:>7.1f}ms {row['p95_ms']:>7.1f}ms {row['total_s']:>7.2f}s"
+        )
+
+    # Top 5 slowest by P95
+    by_p95 = sorted(rows, key=lambda r: r["p95_ms"], reverse=True)[:5]
+    print("\n  Top 5 Slowest by P95:")
+    print("  " + "-" * 60)
+    for i, row in enumerate(by_p95, 1):
+        print(f"  {i}. {row['analyzer']}: P95={row['p95_ms']:.1f}ms, calls={row['calls']}, total={row['total_s']:.2f}s")
+
+
 def _print_histogram_table(hist_data: dict) -> None:
     """Print a formatted histogram distribution table."""
     if not hist_data:
@@ -170,13 +242,18 @@ def main() -> None:
     print("  " + "=" * 50)
     _print_histogram_table(stats["duration_histogram"])
 
+    # Per-analyzer ranking
+    by_analyzer = _load_per_analyzer_timing()
+    print("  Per-Analyzer Ranking (by total time)")
+    print("  " + "=" * 50)
+    _print_per_analyzer_ranking(by_analyzer)
+
     # Analyzer registry
     _print_analyzer_benchmark()
 
     print("\n" + "=" * 72)
-    print("  NOTE: Per-analyzer breakdown requires running actual scans.")
-    print("  Run stability_test.py first to populate analyzer metrics,")
-    print("  then re-run this report.")
+    print("  Per-analyzer timing data: output/stability_test/analyzer_timing.jsonl")
+    print("  Run stability_test.py to accumulate timing across multiple scans.")
     print("=" * 72)
 
     # Save JSON

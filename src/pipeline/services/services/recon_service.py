@@ -41,6 +41,7 @@ async def run_url_collection_service(
     *,
     collector: Callable[..., Any] | None = None,
     progress_callback: Any = None,
+    pipeline_config: Any = None,
 ) -> StageOutput:
     """Pure service implementation for URL collection with strict type guards."""
     started = time.monotonic()
@@ -64,7 +65,7 @@ async def run_url_collection_service(
                 resolved_paths=resolved_paths,
                 env=command_env(),
                 sandbox_constraints={"fd_limit": 1024},
-                config=stage_input.runtime,
+                config=pipeline_config or stage_input.runtime,
             )
             # Run using the provider interface
             urls = await asyncio.to_thread(
@@ -127,6 +128,7 @@ async def run_live_hosts_service(
     prober: Callable[..., Any] | None = None,
     enricher: Any = None,
     force_recheck: bool = False,
+    pipeline_config: Any = None,
 ) -> StageOutput:
     """Pure service implementation for live host probing with strict type guards."""
     started = time.monotonic()
@@ -157,7 +159,7 @@ async def run_live_hosts_service(
                 resolved_paths=resolved_paths,
                 env=command_env(),
                 sandbox_constraints={"fd_limit": 1024},
-                config=stage_input.runtime,
+                config=pipeline_config or stage_input.runtime,
             )
             live_records, live_hosts = await asyncio.to_thread(
                 provider.probe,
@@ -284,7 +286,7 @@ async def run_subdomain_enumeration_service(
             resolved_paths=resolved_paths,
             env=command_env(),
             sandbox_constraints={"fd_limit": 1024},
-            config=stage_input.runtime,
+            config=dict(stage_input.runtime),
         )
 
         enumerated_subdomains = await asyncio.to_thread(

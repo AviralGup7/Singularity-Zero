@@ -79,7 +79,7 @@ def _cleanup_run_lock(target_name: str) -> None:
     lock_file = lock_dir / f"{target_name}.lock"
     try:
         if lock_file.exists():
-            lock_file.unlink()
+            lock_file.unlink(missing_ok=True)
     except Exception:
         pass
 
@@ -107,10 +107,13 @@ def _run_scan(args: argparse.Namespace, config_path: str, scope_path: str) -> in
     target_name = config.get("target_name", "unknown")
 
     orchestrator = PipelineOrchestrator()
-    exit_code = asyncio.run(orchestrator.run(scan_args))
-
-    # Release lock so next scan can proceed
-    _cleanup_run_lock(target_name)
+    try:
+        exit_code = asyncio.run(orchestrator.run(scan_args))
+    except Exception:
+        exit_code = 3
+    finally:
+        # Release lock so next scan can proceed
+        _cleanup_run_lock(target_name)
 
     return exit_code
 
@@ -200,6 +203,17 @@ def main() -> None:
             "tools": {},
             "mode": "quick",
             "analysis": {"max_iteration_limit": 1, "finding_feedback_limit": 5},
+            "filters": {
+                "stage_timeout_overrides": {
+                    "live_hosts": 180,
+                    "urls": 120,
+                }
+            },
+            "httpx": {
+                "threads": 10,
+                "timeout_seconds": 30,
+                "probe_timeout_seconds": 5,
+            },
         }
         with open(config_path, "w") as f:
             json.dump(config, f)

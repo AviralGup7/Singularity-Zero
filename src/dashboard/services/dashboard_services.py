@@ -206,6 +206,7 @@ class DashboardServices:
         mode_name: str | None = None,
         runtime_overrides: dict[str, str] | None = None,
         execution_options: dict[str, bool] | None = None,
+        project_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         result = self.launch.start(
             base_url,
@@ -214,6 +215,7 @@ class DashboardServices:
             mode_name=mode_name,
             runtime_overrides=runtime_overrides,
             execution_options=execution_options,
+            project_config=project_config,
         )
         # Persist the newly created job
         job_id = result.get("id")

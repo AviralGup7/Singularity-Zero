@@ -1,6 +1,8 @@
 """Endpoint for starting a scan job."""
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +13,27 @@ from src.dashboard.fastapi.schemas import ErrorResponse, JobCreateRequest, JobRe
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/jobs")
+
+CONFIGS_DIR = Path(__file__).resolve().parents[5] / "configs"
+
+
+def _load_project_config(project_id: str) -> tuple[dict[str, Any], str]:
+    """Load a project preset config and scope."""
+    cfg_path = CONFIGS_DIR / f"{project_id}.json"
+    scope_path = CONFIGS_DIR / f"{project_id}_scope.txt"
+
+    if not cfg_path.is_file():
+        raise ValueError(f"Project '{project_id}' not found")
+
+    config = json.loads(cfg_path.read_text(encoding="utf-8"))
+    # Strip _project metadata before passing to pipeline
+    config.pop("_project", None)
+
+    scope_text = ""
+    if scope_path.is_file():
+        scope_text = scope_path.read_text(encoding="utf-8")
+
+    return config, scope_text
 
 
 @router.post(
@@ -47,6 +70,15 @@ async def start_job(
     the pipeline subprocess in a background thread.
     """
     try:
+        # If project_id is provided, load the project config
+        project_config = None
+        project_scope = ""
+        if request.project_id:
+            project_config, project_scope = _load_project_config(request.project_id)
+            # Use project scope as fallback if no scope provided
+            if not request.scope_text.strip():
+                request.scope_text = project_scope
+
         result = services.start(
             request.base_url,
             scope_text=request.scope_text,
@@ -54,6 +86,7 @@ async def start_job(
             mode_name=request.mode,
             runtime_overrides=request.runtime_overrides or None,
             execution_options=request.execution_options or None,
+            project_config=project_config,
         )
         return JobResponse(**result)
     except ValueError as exc:

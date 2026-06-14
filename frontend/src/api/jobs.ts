@@ -61,6 +61,7 @@ export interface StartJobPayload {
   modules?: string[];
   runtime_overrides?: Record<string, string>;
   execution_options?: Record<string, boolean>;
+  project_id?: string;
   /**
    * High-level scan tuning knobs surfaced in the cockpit (P1-3) so operators
    * do not need to open the 4-step wizard to tune a 12-hour scan. Values are

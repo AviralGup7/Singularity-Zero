@@ -41,7 +41,10 @@ export function useCockpitData({
   }, []);
 
   useEffect(() => {
-    if (!target) return;
+    if (!target) {
+      setLoading(false);
+      return;
+    }
     const controller = new AbortController();
     const fetchGraph = async () => {
       try {
@@ -51,8 +54,8 @@ export function useCockpitData({
           cockpitApi
             .getAttackChains(target, { signal: controller.signal })
             .catch((err) => {
-              console.error('Failed to fetch attack chains:', err);
-              return { data: [] };
+               console.error('Failed to fetch attack chains:', err);
+               return { data: [] };
             }),
         ]);
         applyGraph(graphRes.data);

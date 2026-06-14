@@ -52,6 +52,7 @@ class DashboardLaunchService:
         mode_name: str | None = None,
         runtime_overrides: dict[str, str] | None = None,
         execution_options: dict[str, bool] | None = None,
+        project_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         pasted_scope = scope_text.strip()
         normalized_url = ""
@@ -65,29 +66,50 @@ class DashboardLaunchService:
         launcher_dir = self.output_root / "launcher" / job_id
         launcher_dir.mkdir(parents=True, exist_ok=True)
 
-        config = self.query_service.load_template()
-        selected_mode = (mode_name or self.query_service.default_mode_name()).strip().lower()
-        apply_mode_selection(config, selected_mode)
-        enabled_modules = list(
-            dict.fromkeys(selected_modules or self.query_service.preset_module_names(selected_mode))
-        )
-        expand_subdomains = any(module in DISCOVERY_MODULES for module in enabled_modules)
-        scope_entries = (
-            build_scope_entries_from_text(pasted_scope, fallback_hostname=hostname)
-            if pasted_scope
-            else build_scope_entries(hostname, expand_subdomains=expand_subdomains)
-        )
-        primary_scope = scope_entries[0].lstrip("*.") if scope_entries else hostname
-        if not hostname:
-            hostname = primary_scope
-        if not normalized_url:
-            normalized_url = f"https://{primary_scope}"
-        target_name = slugify(root_domain(primary_scope))
-        config["target_name"] = target_name
-        config["output_dir"] = str(self.output_root)
-        apply_module_selection(config, set(enabled_modules))
-        if runtime_overrides:
-            apply_runtime_overrides(config, runtime_overrides)
+        # Use project config if provided, otherwise load template
+        if project_config:
+            config = project_config
+            # Apply output_dir
+            config["output_dir"] = str(self.output_root)
+            # Derive scope entries from pasted scope or project scope
+            scope_entries = (
+                build_scope_entries_from_text(pasted_scope, fallback_hostname=hostname)
+                if pasted_scope
+                else build_scope_entries(hostname, expand_subdomains=True)
+            )
+            primary_scope = scope_entries[0].lstrip("*.") if scope_entries else hostname
+            if not hostname:
+                hostname = primary_scope
+            if not normalized_url:
+                normalized_url = f"https://{primary_scope}"
+            target_name = slugify(root_domain(primary_scope))
+            config["target_name"] = target_name
+            enabled_modules = selected_modules or []
+            selected_mode = (mode_name or config.get("mode", "idor")).strip().lower()
+        else:
+            config = self.query_service.load_template()
+            selected_mode = (mode_name or self.query_service.default_mode_name()).strip().lower()
+            apply_mode_selection(config, selected_mode)
+            enabled_modules = list(
+                dict.fromkeys(selected_modules or self.query_service.preset_module_names(selected_mode))
+            )
+            expand_subdomains = any(module in DISCOVERY_MODULES for module in enabled_modules)
+            scope_entries = (
+                build_scope_entries_from_text(pasted_scope, fallback_hostname=hostname)
+                if pasted_scope
+                else build_scope_entries(hostname, expand_subdomains=expand_subdomains)
+            )
+            primary_scope = scope_entries[0].lstrip("*.") if scope_entries else hostname
+            if not hostname:
+                hostname = primary_scope
+            if not normalized_url:
+                normalized_url = f"https://{primary_scope}"
+            target_name = slugify(root_domain(primary_scope))
+            config["target_name"] = target_name
+            config["output_dir"] = str(self.output_root)
+            apply_module_selection(config, set(enabled_modules))
+            if runtime_overrides:
+                apply_runtime_overrides(config, runtime_overrides)
 
         config_path = launcher_dir / "config.json"
         scope_path = launcher_dir / "scope.txt"

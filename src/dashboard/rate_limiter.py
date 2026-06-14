@@ -419,6 +419,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(prefix) for prefix in self._config.excluded_prefixes):
             return await call_next(request)
 
+        # SSE streams are long-lived GET connections; rate-limiting them
+        # causes the frontend to flood with reconnects and get 429'd.
+        if path.endswith("/stream"):
+            return await call_next(request)
+
         if self._config.api_only and not path.startswith("/api/"):
             return await call_next(request)
 

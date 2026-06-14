@@ -110,11 +110,10 @@ async def require_auth(
         )
         tenant_id = request.headers.get("X-Tenant-ID") or "default"
         TenantContext.set_current_tenant(tenant_id)
-        # The disabled bypass now returns the lowest privileged role to avoid
-        # giving an unauthenticated client admin-level access. Callers that
-        # actually need admin functionality will be rejected by ``require_admin``
-        # and must enable real auth.
-        return {"user": "anonymous", "role": "viewer", "tenant_id": tenant_id}
+        # Auth disabled: return operator role so worker endpoints (scan start,
+        # restart) function in dev mode. Callers that need admin functionality
+        # will be rejected by ``require_admin`` and must enable real auth.
+        return {"user": "anonymous", "role": "operator", "tenant_id": tenant_id}
 
     if _SECURITY_ENABLED:
         principal = _security_principal_from_request(request, api_key)
