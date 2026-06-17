@@ -7,7 +7,6 @@ selections, and ensuring analysis defaults are populated.
 import json
 from typing import Any
 
-from src.analysis.plugins import PASSIVE_CHECK_NAMES
 from src.dashboard.form_specs import (
     apply_runtime_overrides as _apply_runtime_overrides,
 )
@@ -294,7 +293,14 @@ def _ensure_analysis_defaults(config: dict[str, Any], output_root: Any) -> dict[
     httpx.setdefault("fallback_threads", 48)
     httpx.setdefault("probe_timeout_seconds", max(3, int(config.get("http_timeout_seconds", 12))))
     analysis = config.setdefault("analysis", {})
-    for check_name in PASSIVE_CHECK_NAMES:
+    from src.core.contracts.protocol_registry import get_passive_check_names
+
+    passive_check_names = get_passive_check_names()
+    if passive_check_names is not None:
+        check_names = passive_check_names() if callable(passive_check_names) else passive_check_names
+    else:
+        check_names = []
+    for check_name in check_names:
         if check_name == "trace_method_probe":
             analysis.setdefault(check_name, False)
         else:

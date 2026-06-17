@@ -26,6 +26,9 @@ from src.infrastructure.observability.tracing.models import (
 from src.infrastructure.observability.tracing.sampling import SamplingDecision
 
 
+_MAX_SPANS = 10000
+
+
 class Tracer:
     """Distributed tracer with span creation and context propagation."""
 
@@ -104,6 +107,8 @@ class Tracer:
 
             if sampled:
                 self._spans.append(span)
+                if len(self._spans) > _MAX_SPANS:
+                    self._spans = self._spans[-_MAX_SPANS // 2:]
                 if isinstance(self.exporter, (InMemoryExporter, OTLPExporter)):
                     self.exporter.export([span])
 

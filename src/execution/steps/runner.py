@@ -6,12 +6,12 @@ can be referenced without importing the full engine module.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from src.core.session import SessionRegistry
 from src.execution.scenario_models import ScenarioStep, ScenarioStepResult
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 if TYPE_CHECKING:
     pass
@@ -83,28 +83,28 @@ def execute_wave(
                 variables.update(result.extracted_values)
             continue
 
-        with ThreadPoolExecutor(max_workers=len(group_steps)) as pool:
-            futures = [
-                pool.submit(
-                    engine._execute_step,
-                    step,
-                    variables=variables,
-                    persisted_headers=dict(persisted_headers),
-                    session_registry=session_registry,
-                    cookie_jars=cookie_jars,
-                    session_locks=session_locks,
-                    state_lock=state_lock,
-                    active_session_key=active_session_key,
-                    timeline=timeline,
-                )
-                for step in group_steps
-            ]
-            for future, step in zip(futures, group_steps):
-                result = future.result()
-                results.append(result)
-                timeline[step] = result
-                if result.extracted_values:
-                    variables.update(result.extracted_values)
+        pool = get_shared_executor()
+        futures = [
+            pool.submit(
+                engine._execute_step,
+                step,
+                variables=variables,
+                persisted_headers=dict(persisted_headers),
+                session_registry=session_registry,
+                cookie_jars=cookie_jars,
+                session_locks=session_locks,
+                state_lock=state_lock,
+                active_session_key=active_session_key,
+                timeline=timeline,
+            )
+            for step in group_steps
+        ]
+        for future, step in zip(futures, group_steps):
+            result = future.result()
+            results.append(result)
+            timeline[step] = result
+            if result.extracted_values:
+                variables.update(result.extracted_values)
 
     results.sort(key=lambda item: item.started_at)
     return results, active_session_key

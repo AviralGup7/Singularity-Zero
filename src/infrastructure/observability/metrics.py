@@ -273,6 +273,8 @@ class SummaryMetric:
     labels: dict[str, str] = field(default_factory=dict)
     observations: list[float] = field(default_factory=list, repr=False)
     max_samples: int = 10000
+    _sorted_cache: list[float] = field(default_factory=list, repr=False)
+    _cache_valid: bool = field(default=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def observe(self, value: float) -> None:
@@ -285,6 +287,7 @@ class SummaryMetric:
             if len(self.observations) >= self.max_samples:
                 self.observations = self.observations[-self.max_samples // 2 :]
             self.observations.append(value)
+            self._cache_valid = False
 
     def get(self) -> dict[str, Any]:
         """Get the current summary statistics.
@@ -295,7 +298,10 @@ class SummaryMetric:
         with self._lock:
             if not self.observations:
                 return {"count": 0, "sum": 0.0, "mean": 0.0, "min": 0.0, "max": 0.0}
-            sorted_obs = sorted(self.observations)
+            if not self._cache_valid:
+                self._sorted_cache = sorted(self.observations)
+                self._cache_valid = True
+            sorted_obs = self._sorted_cache
             count = len(sorted_obs)
             total = sum(sorted_obs)
             return {
@@ -553,6 +559,8 @@ class MetricsRegistry:
                     hm.count_value = 0
             for sm in self._summaries.values():
                 sm.observations.clear()
+                sm._sorted_cache.clear()
+                sm._cache_valid = False
 
     def save_to_file(self, path: str | Path) -> None:
         """Save all metrics to a JSON file for persistence across process restarts.

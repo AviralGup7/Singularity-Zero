@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.infrastructure.observability.cardinality import BoundedLabelSet
+
 try:
     from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 except ImportError:
@@ -47,8 +49,11 @@ def _safe_metric(cls: Any, name: str, documentation: str, labelnames: Any = ()) 
     return cls(name, documentation, labelnames)
 
 
+WS_USER_IDS = BoundedLabelSet(max_size=256, fallback="__other__", name="ws_user_ids")
+WS_JOB_IDS = BoundedLabelSet(max_size=128, fallback="__other__", name="ws_job_ids")
+
 WS_CONNECTIONS = _safe_metric(
-    Gauge, "ws_active_connections", "Active WebSocket connections", ["user_id"]
+    Gauge, "ws_active_connections", "Active WebSocket connections"
 )
 WS_MESSAGES = _safe_metric(Counter, "ws_messages_broadcast_total", "Messages broadcast", ["scope"])
 WS_LATENCY = _safe_metric(Histogram, "ws_dispatch_latency_seconds", "Message dispatch latency")
@@ -63,7 +68,7 @@ WS_DROPPED_MESSAGES = _safe_metric(
     Counter,
     "ws_dropped_messages_total",
     "WebSocket messages dropped due to backpressure",
-    ["scope", "job_id", "user_id"],
+    ["scope"],
 )
 WS_BACKPRESSURE_EVENTS = _safe_metric(
     Counter,

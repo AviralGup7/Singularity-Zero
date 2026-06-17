@@ -41,6 +41,8 @@ KNOWN_BAD_LITERALS: frozenset[str] = frozenset(
         "admin",
         "password",
         "secret",
+        "dev-secret-key-change-in-production-32chars-minimum-length",
+        "dev-jwt-secret-key-at-least-32-characters-long-for-hs256",
     }
 )
 
@@ -53,6 +55,7 @@ DEFAULT_SECRET_ENV_VARS: tuple[str, ...] = (
     "GRAFANA_ADMIN_PASSWORD",
     "MESH_SECRET",
     "JWT_SECRET",
+    "SEC_JWT_SECRET",
     "API_SECRET",
     "DB_PASSWORD",
     "DATABASE_URL",
@@ -118,6 +121,58 @@ def find_placeholder_violations(
     return violations
 
 
+def find_production_security_violations(
+    env: dict[str, str] | None = None,
+) -> list[str]:
+    """Check for dangerous configuration in production environments.
+
+    Returns a list of violation messages. Empty if all clear.
+
+    Checks:
+    - DASHBOARD_AUTH_DISABLED=true in production
+    - Default/placeholder APP_SECRET_KEY in production
+    - Default/placeholder SEC_JWT_SECRET in production
+    """
+    env = env if env is not None else dict(os.environ)
+    app_env = (env.get("APP_ENV") or "").strip().lower()
+    if app_env not in ("production", "prod", "staging"):
+        return []
+
+    violations: list[str] = []
+
+    # Check DASHBOARD_AUTH_DISABLED
+    auth_disabled = env.get("DASHBOARD_AUTH_DISABLED", "").lower()
+    if auth_disabled in ("true", "1", "yes"):
+        violations.append(
+            "DASHBOARD_AUTH_DISABLED=true is not allowed in production. "
+            "Authentication must be enabled."
+        )
+
+    # Check APP_SECRET_KEY
+    _default_secret_keys = {
+        "dev-secret-key-change-in-production-32chars-minimum-length",
+        "REPLACE_WITH_SECURE_RANDOM_VALUE_DO_NOT_USE_DEFAULT",
+    }
+    app_secret = env.get("APP_SECRET_KEY", "")
+    if app_secret in _default_secret_keys:
+        violations.append(
+            "APP_SECRET_KEY is set to a default/placeholder value in production."
+        )
+
+    # Check SEC_JWT_SECRET
+    _default_jwt_secrets = {
+        "dev-jwt-secret-key-at-least-32-characters-long-for-hs256",
+        "REPLACE_WITH_SECURE_RANDOM_VALUE_DO_NOT_USE_DEFAULT",
+    }
+    jwt_secret = env.get("SEC_JWT_SECRET", "")
+    if jwt_secret in _default_jwt_secrets:
+        violations.append(
+            "SEC_JWT_SECRET is set to a default/placeholder value in production."
+        )
+
+    return violations
+
+
 def validate_or_raise(
     env: dict[str, str] | None = None,
     *,
@@ -165,3 +220,23 @@ def validate_or_raise(
         "environment. The following env vars are unsafe:\n"
         f"{rendered}"
     )
+
+
+def enforce_production_security(
+    env: dict[str, str] | None = None,
+) -> None:
+    """Enforce security requirements in production environments.
+
+    Raises RuntimeError if dangerous configuration is detected in production.
+
+    This function should be called at application startup to prevent
+    running with insecure defaults in production.
+    """
+    violations = find_production_security_violations(env)
+    if violations:
+        rendered = "\n".join(f"  - {v}" for v in violations)
+        raise RuntimeError(
+            "Refusing to start in production with insecure configuration:\n"
+            f"{rendered}\n"
+            "Fix the above issues before deploying to production."
+        )

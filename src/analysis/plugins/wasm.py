@@ -5,6 +5,7 @@ Typed manifest and helper definitions for running isolated WASM detectors.
 
 from __future__ import annotations
 
+import importlib
 import os
 import signal
 import sys
@@ -12,7 +13,26 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from src.execution.frontier.wasm import execute_sandboxed_plugin
+
+def execute_sandboxed_plugin(
+    wasm_path: str,
+    stage_input: dict[str, Any],
+    *,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Lazy-import wrapper to avoid load-time circular dependency with execution.
+
+    Uses the protocol registry to resolve the implementation at runtime.
+    """
+    from src.core.contracts.protocol_registry import get_wasm_executor
+
+    executor = get_wasm_executor()
+    if executor is None:
+        raise RuntimeError(
+            "WASM executor not registered. Ensure startup_registration.register_all_implementations() "
+            "has been called."
+        )
+    return executor(wasm_path, stage_input, timeout_seconds=timeout_seconds)
 
 
 @dataclass

@@ -69,13 +69,23 @@ async def replay_request(
     services: Any = Depends(get_queue_client),
 ) -> ReplayResponse:
     """Replay a previously captured request and compare responses."""
-    from src.analysis.behavior.analysis_support import compare_response_records
-    from src.analysis.behavior.artifacts import load_plugin_artifact, plugin_artifact_path
-    from src.analysis.passive.runtime import _get_fetch_response
+    from src.core.contracts.protocol_registry import (
+        get_fetch_response_provider,
+        get_plugin_artifact_loader,
+        get_response_comparator,
+    )
 
-    fetch_response = _get_fetch_response()
+    compare_response_records = get_response_comparator()
+    artifact_loader = get_plugin_artifact_loader()
+    fetch_response_provider = get_fetch_response_provider()
 
-    from src.execution.exploiters.exploit_automation import replay_headers_for_mode
+    if fetch_response_provider is None:
+        raise HTTPException(status_code=500, detail="Fetch response provider not available")
+    fetch_response = fetch_response_provider()
+
+    from src.core.contracts.protocol_registry import get_exploit_replay
+
+    replay_headers_for_mode = get_exploit_replay()
 
     # Refuse to even process the request if the caller put credentials in
     # the URL; this stops the leak before any handler logic runs. The
@@ -93,7 +103,10 @@ async def replay_request(
 
     output_root = services.query.output_root
     run_dir = (output_root / target / run).resolve()
-    behavior_path = plugin_artifact_path(run_dir, "behavior_analysis_layer").resolve()
+    if artifact_loader is not None and hasattr(artifact_loader, 'plugin_artifact_path'):
+        behavior_path = artifact_loader.plugin_artifact_path(run_dir, "behavior_analysis_layer").resolve()
+    else:
+        behavior_path = (run_dir / "behavior_analysis_layer.json").resolve()
     legacy_path = (run_dir / "behavior_analysis_layer.json").resolve()
 
     # Bug #35 fix: previously only ``run_dir`` was checked against
@@ -110,7 +123,11 @@ async def replay_request(
     ) or (not behavior_path.exists() and not legacy_path.exists()):
         raise HTTPException(status_code=404, detail="Replay context not found.")
 
-    records = load_plugin_artifact(run_dir, "behavior_analysis_layer")
+    if artifact_loader is not None and hasattr(artifact_loader, 'load_plugin_artifact'):
+        records = artifact_loader.load_plugin_artifact(run_dir, "behavior_analysis_layer")
+    else:
+        import json as _json
+        records = json.loads(behavior_path.read_text(encoding="utf-8")) if behavior_path.exists() else []
     if not isinstance(records, list):
         raise HTTPException(status_code=500, detail="Replay context could not be loaded.")
 

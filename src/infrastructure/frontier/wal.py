@@ -160,6 +160,8 @@ class FrontierWAL:
         self._stream_key = f"cyber:wal:{run_id}"
         self._snapshot_key = f"cyber:wal:snapshot:{run_id}"
         self._max_stream_entries = 10000
+        self._degraded = False
+        self._degraded_reason: str = ""
         # Setup local append-only file (AOF) path for dual-commit. When
         # ``aof_dir`` is provided the WAL is colocated with the rest of
         # the run output so it survives on a persistent volume; when not
@@ -180,6 +182,8 @@ class FrontierWAL:
         if redis_url is None:
             logger.warning("Frontier WAL inactive: Redis URL is not configured")
             self._active = False
+            self._degraded = True
+            self._degraded_reason = "Redis URL not configured"
             return
         try:
             self._client = redis.from_url(
@@ -206,6 +210,18 @@ class FrontierWAL:
         ) as exc:
             logger.warning("Frontier WAL inactive: Redis connection failed: %s", exc)
             self._active = False
+            self._degraded = True
+            self._degraded_reason = f"Redis connection failed: {exc}"
+
+    @property
+    def is_degraded(self) -> bool:
+        """Return True when the WAL is operating in degraded mode (AOF-only)."""
+        return self._degraded
+
+    @property
+    def degraded_reason(self) -> str:
+        """Return the reason for degraded mode, or empty string if healthy."""
+        return self._degraded_reason
 
     def _prune_expired_aof_files(self, wal_dir: Path) -> None:
         """Remove stale local WAL files without deleting active/recent recovery anchors."""
@@ -295,8 +311,11 @@ class FrontierWAL:
                     stream_id = entry_id.decode() if isinstance(entry_id, bytes) else str(entry_id)
                 except (redis.exceptions.RedisError, ValueError, TypeError) as exc:
                     self._active = False
+                    self._degraded = True
+                    self._degraded_reason = f"Redis append failed: {exc}"
                     logger.warning(
-                        "WAL Redis append failed for stage '%s'; attempting AOF fallback: %s",
+                        "WAL DEGRADED: Redis append failed for stage '%s'; "
+                        "falling back to AOF-only mode. Durability reduced. Error: %s",
                         stage_name,
                         exc,
                     )
@@ -658,4 +677,11 @@ class FrontierWAL:
                 delay *= 2
         if mark_inactive:
             self._active = False
+            self._degraded = True
+            self._degraded_reason = f"Redis call failed after {REDIS_RETRIES} retries: {last_error}"
+            logger.warning(
+                "WAL DEGRADED: Redis unavailable after %d retries, "
+                "operating in AOF-only mode. Durability reduced.",
+                REDIS_RETRIES,
+            )
         raise last_error or RuntimeError("Redis WAL operation failed")

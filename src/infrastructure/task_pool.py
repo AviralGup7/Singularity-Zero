@@ -29,7 +29,7 @@ class SimpleTaskPool:
     """Single-node asyncio task pool backed by an :class:`asyncio.Queue`."""
 
     def __init__(self, max_workers: int = 0) -> None:
-        self._queue: asyncio.Queue[tuple[int, asyncio.Task]] = asyncio.Queue()
+        self._queue: asyncio.Queue[tuple[int, asyncio.Task]] = asyncio.Queue(maxsize=512)
         self._max_workers = max_workers
         self._active_tasks: set[asyncio.Task] = set()
         self._running = False

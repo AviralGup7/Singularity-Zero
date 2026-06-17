@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
 from src.execution.validators.config.scoring_config import ScoringConfig
@@ -156,14 +156,14 @@ def run_race_probe(
     if concurrency <= 0:
         return []
     responses: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = [executor.submit(runner) for _ in range(concurrency)]
-        for future in futures:
-            try:
-                responses.append(future.result(timeout=30) or {})
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("race probe future failed: %s", exc)
-                responses.append({"status_code": 0, "body": "", "error": str(exc)})
+    executor = get_shared_executor()
+    futures = [executor.submit(runner) for _ in range(concurrency)]
+    for future in futures:
+        try:
+            responses.append(future.result(timeout=30) or {})
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("race probe future failed: %s", exc)
+            responses.append({"status_code": 0, "body": "", "error": str(exc)})
     return responses
 
 

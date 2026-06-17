@@ -6,7 +6,11 @@ group findings by endpoint, and recommend validation actions.
 
 from typing import Any
 
-from src.analysis.helpers import replay_likelihood, sort_token_targets, token_location_severity
+from src.core.utils.token_analysis import (
+    replay_likelihood,
+    sort_token_targets,
+    token_location_severity,
+)
 
 
 def analyze_token_exposures(analysis_results: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:

@@ -12,7 +12,6 @@ from src.execution.validators.config import (
 from src.execution.validators.engine_helpers import collect_scope_hosts
 from src.execution.validators.registry import VALIDATOR_RESULT_KEYS
 from src.execution.validators.strategy import ValidationStrategySpec
-from src.pipeline.retry import RetryPolicy
 
 from ._base import BaseValidator, ValidationContext
 from ._http_client import ValidationHttpClient, ValidationHttpConfig
@@ -195,6 +194,8 @@ def run_blackbox_validation_engine(
     retry_multiplier = max(1.0, float(engine_settings.get("retry_backoff_multiplier", 2.0)))
     per_validator_limit = max(1, int(engine_settings.get("per_validator_limit", 20)))
 
+    from src.pipeline.retry import RetryPolicy
+
     http_client = ValidationHttpClient(
         ValidationHttpConfig(
             timeout_seconds=timeout_seconds,
@@ -259,7 +260,9 @@ def run_blackbox_validation_engine(
         else []
     )
 
-    import concurrent.futures
+    from concurrent.futures import as_completed
+
+    from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
     results: dict[str, list[dict[str, Any]]] = {}
     errors: list[dict[str, Any]] = list(selection_errors)
@@ -287,14 +290,12 @@ def run_blackbox_validation_engine(
                 ],
             )
 
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=max(1, len(validator_specs))
-    ) as executor:
-        futures = [executor.submit(_run_validator_spec, spec) for spec in validator_specs]
-        for fut in concurrent.futures.as_completed(futures):
-            res_key, findings, errs = fut.result()
-            results[res_key] = findings
-            errors.extend(errs)
+    executor = get_shared_executor()
+    futures = [executor.submit(_run_validator_spec, spec) for spec in validator_specs]
+    for fut in as_completed(futures):
+        res_key, findings, errs = fut.result()
+        results[res_key] = findings
+        errors.extend(errs)
 
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,

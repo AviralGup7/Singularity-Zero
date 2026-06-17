@@ -10,7 +10,6 @@ import re
 import time
 import weakref
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from http.cookiejar import CookieJar
 from threading import Lock
@@ -28,6 +27,7 @@ from src.execution.scenario_models import (
     ScenarioStep,
     ScenarioStepResult,
 )
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 logger = logging.getLogger(__name__)
 
@@ -310,25 +310,25 @@ class ScenarioExecutionEngine:
                     if source_step.publish_barrier:
                         barrier_times[source_step.publish_barrier] = result.completed_at
                     continue
-                with ThreadPoolExecutor(max_workers=min(len(group_steps), 8)) as pool:
-                    futures = [
-                        pool.submit(
-                            self._execute_step,
-                            step,
-                            variables=variables,
-                            persisted_headers=dict(persisted_headers),
-                            session_registry=session_registry,
-                            cookie_jars=cookie_jars,
-                            session_locks=session_locks,
-                            state_lock=state_lock,
-                            active_session_key=current_session_key,
-                            timeline=step_results_by_name,
-                        )
-                        for step in group_steps
-                    ]
-                    group_results = [future.result() for future in futures]
-                    group_results.sort(key=lambda item: item.name)
-                    wave_results.extend(group_results)
+                pool = get_shared_executor()
+                futures = [
+                    pool.submit(
+                        self._execute_step,
+                        step,
+                        variables=variables,
+                        persisted_headers=dict(persisted_headers),
+                        session_registry=session_registry,
+                        cookie_jars=cookie_jars,
+                        session_locks=session_locks,
+                        state_lock=state_lock,
+                        active_session_key=current_session_key,
+                        timeline=step_results_by_name,
+                    )
+                    for step in group_steps
+                ]
+                group_results = [future.result() for future in futures]
+                group_results.sort(key=lambda item: item.name)
+                wave_results.extend(group_results)
 
             wave_results.sort(key=lambda item: item.started_at)
             wave_results = self._revalidate_wave_assertions(

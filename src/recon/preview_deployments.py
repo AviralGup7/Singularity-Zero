@@ -25,7 +25,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urlparse
 
@@ -294,22 +294,22 @@ def discover_preview_deployments(
     results: list[dict[str, Any]] = []
     total = len(host_list)
     processed = 0
-    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, total))) as ex:
-        futures = {ex.submit(_probe_preview_host, h, timeout=timeout): h for h in host_list}
-        for fut in futures:
+    ex = get_shared_executor()
+    futures = {ex.submit(_probe_preview_host, h, timeout=timeout): h for h in host_list}
+    for fut in futures:
+        try:
+            probe = fut.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Preview probe failed: %s", exc)
+            probe = None
+        processed += 1
+        if progress_callback is not None:
             try:
-                probe = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Preview probe failed: %s", exc)
-                probe = None
-            processed += 1
-            if progress_callback is not None:
-                try:
-                    progress_callback(processed, total)
-                except Exception:  # noqa: BLE001, S110
-                    pass
-            if probe is not None:
-                results.append(probe)
+                progress_callback(processed, total)
+            except Exception:  # noqa: BLE001, S110
+                pass
+        if probe is not None:
+            results.append(probe)
     return results
 
 

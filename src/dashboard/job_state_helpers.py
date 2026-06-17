@@ -7,7 +7,6 @@ from typing import Any
 
 from src.dashboard.registry import STAGE_LABELS
 from src.dashboard.scope_utils import estimate_remaining
-from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +115,27 @@ def _get_active_stages(job: dict[str, Any]) -> set[str]:
     return result
 
 
+def _get_stage_baseline() -> dict[str, int]:
+    """Get the stage baseline percentages via protocol registry."""
+    from src.core.contracts.protocol_registry import get_stage_baseline
+
+    baseline = get_stage_baseline()
+    if baseline is not None and callable(baseline):
+        # If it's a callable, try to get the dict
+        try:
+            return baseline()
+        except TypeError:
+            return {}
+    elif baseline is not None:
+        return baseline
+    return {}
+
+
 def _mark_stage_running(job: dict[str, Any], stage: str) -> None:
     active_stages = _get_active_stages(job)
     active_stages.add(stage)
-    best = max(active_stages, key=lambda s: STAGE_BASELINE_PERCENT.get(s, 0))
+    stage_baseline = _get_stage_baseline()
+    best = max(active_stages, key=lambda s: stage_baseline.get(s, 0))
     job["stage"] = best
     job["stage_label"] = STAGE_LABELS.get(best, best.replace("_", " ").title())
 
@@ -128,7 +144,8 @@ def _mark_stage_done(job: dict[str, Any], stage: str) -> None:
     active_stages = _get_active_stages(job)
     active_stages.discard(stage)
     if active_stages:
-        best = max(active_stages, key=lambda s: STAGE_BASELINE_PERCENT.get(s, 0))
+        stage_baseline = _get_stage_baseline()
+        best = max(active_stages, key=lambda s: stage_baseline.get(s, 0))
         job["stage"] = best
         job["stage_label"] = STAGE_LABELS.get(best, best.replace("_", " ").title())
 

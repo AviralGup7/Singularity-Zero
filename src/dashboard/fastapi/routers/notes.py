@@ -43,13 +43,17 @@ async def get_notes(
     services: Any = Depends(get_queue_client),
 ) -> NoteListResponse:
     """Return all notes for a target."""
-    from src.pipeline.analyst_notes import get_all_notes
+    from src.core.contracts.protocol_registry import get_analyst_notes
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
     output_root = services.query.output_root
-    notes = get_all_notes(target_name, output_dir=output_root)
+    notes_impl = get_analyst_notes()
+    if notes_impl is not None:
+        notes = notes_impl.get_all_notes(target_name, output_dir=output_root)
+    else:
+        notes = []
     return NoteListResponse(
         notes=[NoteResponse(**n.model_dump()) for n in notes],
         target=target_name,
@@ -72,13 +76,16 @@ async def create_note(
     services: Any = Depends(get_queue_client),
 ) -> NoteResponse:
     """Create a new analyst note for a target."""
-    from src.pipeline.analyst_notes import create_note as create_note_fn
+    from src.core.contracts.protocol_registry import get_analyst_notes
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
     output_root = services.query.output_root
-    new_note = create_note_fn(
+    notes_impl = get_analyst_notes()
+    if notes_impl is None:
+        raise HTTPException(status_code=500, detail="Analyst notes not available")
+    new_note = notes_impl.create_note(
         target_name,
         request.finding_id,
         request.note,
@@ -111,13 +118,16 @@ async def update_note(
     services: Any = Depends(get_queue_client),
 ) -> NoteResponse:
     """Update an existing note."""
-    from src.pipeline.analyst_notes import update_note as update_note_fn
+    from src.core.contracts.protocol_registry import get_analyst_notes
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
     output_root = services.query.output_root
-    updated = update_note_fn(
+    notes_impl = get_analyst_notes()
+    if notes_impl is None:
+        raise HTTPException(status_code=500, detail="Analyst notes not available")
+    updated = notes_impl.update_note(
         target_name,
         request.finding_id,
         note_id,
@@ -152,13 +162,16 @@ async def delete_note(
     services: Any = Depends(get_queue_client),
 ) -> NoteDeleteResponse:
     """Delete a note."""
-    from src.pipeline.analyst_notes import delete_note as delete_note_fn
+    from src.core.contracts.protocol_registry import get_analyst_notes
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
     output_root = services.query.output_root
-    success = delete_note_fn(target_name, finding_id, note_id, output_dir=output_root)
+    notes_impl = get_analyst_notes()
+    if notes_impl is None:
+        raise HTTPException(status_code=500, detail="Analyst notes not available")
+    success = notes_impl.delete_note(target_name, finding_id, note_id, output_dir=output_root)
     if not success:
         raise HTTPException(status_code=404, detail="Note not found")
 

@@ -404,6 +404,16 @@ class ResourcePoolManager:
                 await asyncio.sleep(interval_seconds)
 
         self._monitor_task = asyncio.create_task(_monitor_loop(), name="resource-pool-monitor")
+        self._monitor_task.add_done_callback(self._log_task_exception)
+
+    @staticmethod
+    def _log_task_exception(task: asyncio.Task[None]) -> None:
+        """Log exceptions from background monitor tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Resource pool monitor task raised: %s", exc)
 
     async def stop_monitoring(self) -> None:
         """Stop the background monitoring task."""

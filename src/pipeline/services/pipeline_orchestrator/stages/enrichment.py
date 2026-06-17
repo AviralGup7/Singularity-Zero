@@ -25,6 +25,7 @@ from src.intelligence.correlation.engine import (
 from src.intelligence.correlation.engine import (
     detect_multi_vector_endpoints as _detect_multi_vector_endpoints,
 )
+from src.intelligence.chain_proposal import ChainProposalEngine, FindingShape
 from src.intelligence.feeds.base import FeedError
 from src.intelligence.feeds.cve import CVEConfig, CVESyncClient
 from src.intelligence.feeds.mitre import MitreAttackMapper, MitreConfig
@@ -363,6 +364,40 @@ async def run_post_analysis_enrichments(
         logger.error("Stage 'correlation' failed: %s", exc)
         ctx.mark_stage_failed("correlation", str(exc))
 
+    # Chain Proposals — suggest follow-on probes for confirmed findings
+    chain_proposals: list[dict[str, Any]] = []
+    try:
+        emit_progress("intelligence", "Generating chain proposals for confirmed findings", 88)
+        proposal_engine = ChainProposalEngine()
+        for finding in state_delta["reportable_findings"]:
+            shape = FindingShape(
+                category=str(finding.get("category") or ""),
+                severity=str(finding.get("severity") or "medium"),
+                url=str(finding.get("url") or finding.get("target") or ""),
+                target=str(finding.get("url") or finding.get("target") or ""),
+                evidence=finding.get("evidence") if isinstance(finding.get("evidence"), dict) else {},
+            )
+            proposals = proposal_engine.propose_for(shape)
+            if proposals:
+                finding["chain_proposals"] = [
+                    {
+                        "label": p.label,
+                        "description": p.description,
+                        "target_hint": p.target_hint,
+                        "probe": p.probe,
+                        "expected_finding": p.expected_finding,
+                        "confidence": p.confidence,
+                        "references": list(p.references),
+                    }
+                    for p in proposals
+                ]
+                chain_proposals.extend(finding["chain_proposals"])
+        if chain_proposals:
+            state_delta["chain_proposals"] = chain_proposals
+            logger.info("ChainProposalEngine generated %d follow-on probe suggestions", len(chain_proposals))
+    except Exception as exc:
+        logger.error("Chain proposal generation failed: %s", exc)
+
     # Feedback events for findings are now handled by the LearningSubscriber
     # listening for the PIPELINE_COMPLETE event.
 
@@ -637,6 +672,9 @@ async def run_post_analysis_enrichments(
                 "max_risk": state_delta.get("campaign_summary", {})
                 .get("summary", {})
                 .get("max_risk", 0.0),
+            },
+            "chain_proposals": {
+                "count": len(chain_proposals),
             },
         },
         state_delta=state_delta,

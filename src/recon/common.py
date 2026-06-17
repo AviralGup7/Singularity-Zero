@@ -5,11 +5,12 @@ with retry support, and normalization helpers from src.core.utils.
 """
 
 import os
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from src.core.tools.types import ToolExecutionOutcome
 from src.core.utils import normalize_scope_entry, normalize_url, parse_plain_lines
-from src.pipeline.tools import RetryPolicy, ToolExecutionOutcome, execute_command, try_command
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.pipeline.tools import RetryPolicy, execute_command, try_command
 
 __all__ = [
     "run_commands_parallel",
@@ -53,12 +54,12 @@ def run_recon_commands_parallel(
             command, stdin_text, timeout, retry_policy = job
             normalized_jobs.append((command, stdin_text, timeout, retry_policy))
 
-    with ThreadPoolExecutor(max_workers=_resolve_max_workers(len(jobs))) as executor:
-        futures = [
-            executor.submit(try_command, list(command), timeout, stdin_text, retry_policy)
-            for command, stdin_text, timeout, retry_policy in normalized_jobs
-        ]
-        return [future.result() for future in futures]
+    executor = get_shared_executor()
+    futures = [
+        executor.submit(try_command, list(command), timeout, stdin_text, retry_policy)
+        for command, stdin_text, timeout, retry_policy in normalized_jobs
+    ]
+    return [future.result() for future in futures]
 
 
 run_commands_parallel = run_recon_commands_parallel
@@ -101,12 +102,12 @@ def run_commands_parallel_outcomes(
             command, stdin_text, timeout, retry_policy = job
             normalized_jobs.append((command, stdin_text, timeout, retry_policy))
 
-    with ThreadPoolExecutor(max_workers=_resolve_max_workers(len(jobs))) as executor:
-        futures = [
-            executor.submit(execute_command, list(command), timeout, stdin_text, retry_policy)
-            for command, stdin_text, timeout, retry_policy in normalized_jobs
-        ]
-        return [future.result() for future in futures]
+    executor = get_shared_executor()
+    futures = [
+        executor.submit(execute_command, list(command), timeout, stdin_text, retry_policy)
+        for command, stdin_text, timeout, retry_policy in normalized_jobs
+    ]
+    return [future.result() for future in futures]
 
 
 def run_async_in_sync_context(coro: Any) -> Any:

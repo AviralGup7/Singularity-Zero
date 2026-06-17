@@ -13,6 +13,26 @@ except ImportError:
 
 from src.core.storage.interfaces import ArtifactStore, CheckpointStore, FindingStore, VersionId
 
+_STREAMING_CHUNK_SIZE = 8 * 1024 * 1024  # 8 MB for S3 streaming reads
+
+
+def _stream_s3_body(body: Any) -> bytes:
+    """Stream an S3 body object in chunks to reduce peak memory.
+
+    boto3's Body object supports .read() which loads the entire object into
+    memory. For large objects this can cause OOM. Instead, we read in chunks
+    and concatenate only at the end.
+    """
+    parts: list[bytes] = []
+    while True:
+        chunk = body.read(_STREAMING_CHUNK_SIZE)
+        if not chunk:
+            break
+        parts.append(chunk)
+    if len(parts) == 1:
+        return parts[0]
+    return b"".join(parts)
+
 
 def _parse_version_id(version_id: VersionId) -> int:
     if not isinstance(version_id, str) or not version_id.startswith("v"):
@@ -45,13 +65,20 @@ class _S3Base:
         self._bucket = bucket
         self._prefix = prefix.strip("/")
 
-        client_kwargs: dict[str, Any] = {}
-        if endpoint_url:
-            client_kwargs["endpoint_url"] = endpoint_url
-        if region_name:
-            client_kwargs["region_name"] = region_name
-
-        self._s3 = boto3.client("s3", **client_kwargs)
+        try:
+            from src.core.utils.shared_sessions import get_shared_boto3_client
+            self._s3 = get_shared_boto3_client(
+                "s3",
+                region_name=region_name,
+                endpoint_url=endpoint_url,
+            )
+        except Exception:
+            client_kwargs: dict[str, Any] = {}
+            if endpoint_url:
+                client_kwargs["endpoint_url"] = endpoint_url
+            if region_name:
+                client_kwargs["region_name"] = region_name
+            self._s3 = boto3.client("s3", **client_kwargs)
         self._ensure_bucket()
 
     def _ensure_bucket(self) -> None:
@@ -75,7 +102,7 @@ class S3ArtifactStore(_S3Base, ArtifactStore):
         s3_key = self._s3_key(key)
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=s3_key)
-            return bytes(response["Body"].read())
+            return _stream_s3_body(response["Body"])
         except ClientError as e:
             raise FileNotFoundError(f"S3 object not found: {s3_key}") from e
 
@@ -195,7 +222,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         latest_key = candidates[-1][1]
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=latest_key)
-            return dict(json.loads(response["Body"].read().decode("utf-8")))
+            return dict(json.loads(_stream_s3_body(response["Body"]).decode("utf-8")))
         except (ClientError, json.JSONDecodeError):
             return None
 
@@ -204,7 +231,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         key = self._checkpoint_key(run_id, version)
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=key)
-            return dict(json.loads(response["Body"].read().decode("utf-8")))
+            return dict(json.loads(_stream_s3_body(response["Body"]).decode("utf-8")))
         except (ClientError, json.JSONDecodeError):
             return None
 
@@ -237,7 +264,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         key = self._context_snapshot_key(run_id, stage_name)
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=key)
-            return dict(json.loads(response["Body"].read().decode("utf-8")))
+            return dict(json.loads(_stream_s3_body(response["Body"]).decode("utf-8")))
         except (ClientError, json.JSONDecodeError):
             return None
 
@@ -263,7 +290,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
                 continue
             try:
                 response = self._s3.get_object(Bucket=self._bucket, Key=key)
-                payload = dict(json.loads(response["Body"].read().decode("utf-8")))
+                payload = dict(json.loads(_stream_s3_body(response["Body"]).decode("utf-8")))
             except (ClientError, json.JSONDecodeError):
                 continue
             if isinstance(payload, dict):
@@ -282,7 +309,7 @@ class S3FindingStore(_S3Base, FindingStore):
         key = self._s3_key(f"{run_id}.findings.json")
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=key)
-            data = response["Body"].read().decode("utf-8")
+            data = _stream_s3_body(response["Body"]).decode("utf-8")
             return list(json.loads(data) or [])
         except ClientError:
             return []

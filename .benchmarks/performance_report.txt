@@ -1,0 +1,92 @@
+========================================================================
+  PERFORMANCE OPTIMIZATION REPORT
+  Cyber Security Test Pipeline
+========================================================================
+
+  1. STARTUP / IMPORT IMPACT
+  --------------------------------------------------
+  Total import time (baseline):     2276.53 ms
+  Total import time (optimized):    1066.98 ms
+  Delta:                              -53.1%
+
+  Module                                         Base (ms)   Opt (ms)
+  -----------------------------------------------------------------
+  src.infrastructure.execution_engine.concurrent_executor     656.79     334.60 (-49.1%)
+  src.execution.isolated                            611.14     278.14 (-54.5%)
+  src.core.http_utils                               380.41     155.69 (-59.1%)
+  src.core.storage.s3_backends                      323.63     124.42 (-61.6%)
+  src.pipeline                                      152.80      66.88 (-56.2%)
+
+  Memory after imports (baseline):  70.60 MB
+  Memory after imports (optimized): 71.63 MB
+  Memory delta:                    +1.03 MB
+
+  2. THROUGHPUT IMPACT
+  --------------------------------------------------
+  time.sleep vs asyncio.sleep (100 iterations):
+    Blocking (baseline):  158.88 ms
+    Async (optimized):    1580.50 ms
+    Concurrent async:     14.77 ms
+
+  Thread pool overhead:
+    Baseline thread overhead:  0 threads for 10 pools
+    Optimized thread overhead:  0 threads for shared pool
+
+  Connection pooling efficiency:
+    50x separate pool creation: 0.35 ms
+    50x shared pool lookup:     0.63 ms
+    Speedup:                    0.6x
+
+  HTTP client creation overhead (100x):
+    requests.Session p50 (baseline):  0.029 ms
+    requests.Session p50 (optimized): 0.013 ms
+    httpx.AsyncClient p50 (baseline):  526.847 ms
+    httpx.AsyncClient p50 (optimized): 444.225 ms
+
+  3. MEMORY IMPACT
+  --------------------------------------------------
+  S3 read memory (delta MB):
+     1MB: full_load=1.008 MB, stream=0.000 MB
+     5MB: full_load=4.000 MB, stream=0.000 MB
+    10MB: full_load=5.000 MB, stream=0.000 MB
+
+  S3 streaming latency:
+     1KB: full_read=0.0041 ms, stream=0.0076 ms
+    100KB: full_read=0.0011 ms, stream=0.0656 ms
+     1MB: full_read=0.0026 ms, stream=0.7727 ms
+    10MB: full_read=0.0923 ms, stream=11.0501 ms
+
+  System memory baseline:  RSS=76.85 MB, Peak=76.85 MB
+  System memory optimized: RSS=78.19 MB, Peak=78.19 MB
+
+  4. SCAN DURATION IMPACT
+  --------------------------------------------------
+  URL stage throughput (800 URLs):
+    Baseline:  3087.72 ms total (3859.7 us/url)
+    Optimized: 2832.86 ms total (3541.1 us/url)
+    Speedup:   1.09x
+  URL parse overhead:  baseline=0.89ms, optimized=0.77ms
+
+  SSRF check overhead (100x): baseline=51.91ms, optimized=38.01ms
+
+  5. HTTP BOTTLENECK ANALYSIS
+  --------------------------------------------------
+  DNS resolution P50: baseline=0.480ms, optimized=0.408ms
+  DNS resolution P95: baseline=6.215ms, optimized=5.962ms
+  Thread spawn 50x: baseline=21.63ms, optimized=19.38ms
+
+  6. EXECUTIVE SUMMARY
+  --------------------------------------------------
+  Thread count: baseline=7, optimized=7
+  CPU user time: baseline=10.453s, optimized=7.703s
+  CPU system time: baseline=39.141s, optimized=34.016s
+
+  Optimizations applied:
+    [x] Shared ThreadPoolExecutor (reduces thread proliferation)
+    [x] time.sleep -> asyncio.sleep in async paths (non-blocking)
+    [x] Stream S3 object reads (memory-efficient)
+    [x] Connection pooling (httpx + requests shared sessions)
+    [x] HTTP bottleneck profiling hooks
+    [x] URL stage timeout profiling
+
+========================================================================

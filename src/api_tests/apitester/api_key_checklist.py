@@ -1,6 +1,7 @@
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from urllib.parse import urlparse
 
 from .api_key_candidates import discover_api_key_candidates
@@ -140,40 +141,40 @@ def _check_sensitive_endpoints(
     timeout: int,
 ) -> dict[str, Any]:
     endpoints = ("users", "orders", "admin", "admin/users", "admin/dashboard")
-    with ThreadPoolExecutor(max_workers=min(len(endpoints), 5)) as executor:
-        futures = {
-            executor.submit(
-                _request,
-                session,
-                "GET",
-                f"{base_url}{ep}",
-                headers=auth_headers,
-                params=auth_params,
-                timeout=timeout,
-            ): ep
-            for ep in endpoints
-        }
-        sensitive_hits = []
-        for future in futures:
-            ep = futures[future]
-            try:
-                result = future.result()
-                sensitive_hits.append(
-                    {
-                        "endpoint": ep,
-                        "status_code": result.get("status_code"),
-                        "body_length": result.get("body_length"),
-                    }
-                )
-            except Exception as exc:  # noqa: BLE001
-                sensitive_hits.append(
-                    {
-                        "endpoint": ep,
-                        "status_code": "error",
-                        "body_length": 0,
-                        "error": str(exc),
-                    }
-                )
+    executor = get_shared_executor()
+    futures = {
+        executor.submit(
+            _request,
+            session,
+            "GET",
+            f"{base_url}{ep}",
+            headers=auth_headers,
+            params=auth_params,
+            timeout=timeout,
+        ): ep
+        for ep in endpoints
+    }
+    sensitive_hits = []
+    for future in futures:
+        ep = futures[future]
+        try:
+            result = future.result()
+            sensitive_hits.append(
+                {
+                    "endpoint": ep,
+                    "status_code": result.get("status_code"),
+                    "body_length": result.get("body_length"),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            sensitive_hits.append(
+                {
+                    "endpoint": ep,
+                    "status_code": "error",
+                    "body_length": 0,
+                    "error": str(exc),
+                }
+            )
     risky_sensitive = [item for item in sensitive_hits if item.get("status_code") == 200]
     return _record(
         "sensitive_endpoints",
@@ -235,40 +236,40 @@ def _check_id_tampering(
     timeout: int,
 ) -> dict[str, Any]:
     test_ids = ("1", "123", "456", "999999", "admin")
-    with ThreadPoolExecutor(max_workers=min(len(test_ids), 5)) as executor:
-        futures = {
-            executor.submit(
-                _request,
-                session,
-                "GET",
-                f"{base_url}users/{t_id}",
-                headers=auth_headers,
-                params=auth_params,
-                timeout=timeout,
-            ): t_id
-            for t_id in test_ids
-        }
-        id_results = []
-        for future in futures:
-            t_id = futures[future]
-            try:
-                result = future.result()
-                id_results.append(
-                    {
-                        "id": t_id,
-                        "status_code": result.get("status_code"),
-                        "body_length": result.get("body_length"),
-                    }
-                )
-            except Exception as exc:  # noqa: BLE001
-                id_results.append(
-                    {
-                        "id": t_id,
-                        "status_code": "error",
-                        "body_length": 0,
-                        "error": str(exc),
-                    }
-                )
+    executor = get_shared_executor()
+    futures = {
+        executor.submit(
+            _request,
+            session,
+            "GET",
+            f"{base_url}users/{t_id}",
+            headers=auth_headers,
+            params=auth_params,
+            timeout=timeout,
+        ): t_id
+        for t_id in test_ids
+    }
+    id_results = []
+    for future in futures:
+        t_id = futures[future]
+        try:
+            result = future.result()
+            id_results.append(
+                {
+                    "id": t_id,
+                    "status_code": result.get("status_code"),
+                    "body_length": result.get("body_length"),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            id_results.append(
+                {
+                    "id": t_id,
+                    "status_code": "error",
+                    "body_length": 0,
+                    "error": str(exc),
+                }
+            )
     risky_ids = [item for item in id_results if item.get("status_code") == 200]
     return _record(
         "id_tampering",
@@ -327,27 +328,27 @@ def _check_subdomain_scope(
     urls = _different_host_urls(base_url)
     subdomain_hits = []
     if urls:
-        with ThreadPoolExecutor(max_workers=min(len(urls), 6)) as executor:
-            futures = {
-                executor.submit(
-                    _request,
-                    session,
-                    "GET",
-                    f"{u}users/me",
-                    headers=auth_headers,
-                    params=auth_params,
-                    timeout=timeout,
-                ): u
-                for u in urls
-            }
-            for future in futures:
-                u = futures[future]
-                try:
-                    result = future.result()
-                    if result.get("status_code") == 200:
-                        subdomain_hits.append({"url": u, "status_code": 200})
-                except Exception:  # noqa: BLE001, S110
-                    pass
+        executor = get_shared_executor()
+        futures = {
+            executor.submit(
+                _request,
+                session,
+                "GET",
+                f"{u}users/me",
+                headers=auth_headers,
+                params=auth_params,
+                timeout=timeout,
+            ): u
+            for u in urls
+        }
+        for future in futures:
+            u = futures[future]
+            try:
+                result = future.result()
+                if result.get("status_code") == 200:
+                    subdomain_hits.append({"url": u, "status_code": 200})
+            except Exception:  # noqa: BLE001, S110
+                pass
     return _record(
         "subdomain_scope",
         "Use key on different subdomains/services",

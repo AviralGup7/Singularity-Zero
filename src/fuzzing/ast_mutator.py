@@ -10,10 +10,11 @@ import copy
 import json
 import random
 import re
-import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
+
+import defusedxml.ElementTree as ET
 
 # Maximum time allowed for a single regex operation (seconds).
 _REGEX_TIMEOUT: float = 2.0
@@ -34,18 +35,20 @@ def _safe_re_sub(
     """re.sub wrapper with a wall-clock timeout to prevent ReDoS."""
     import concurrent.futures
 
+    from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+
     def _do_sub() -> str:
         return re.sub(pattern, repl, string, count=count, flags=flags)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(_do_sub)
-        try:
-            return future.result(timeout=_REGEX_TIMEOUT)
-        except concurrent.futures.TimeoutError:
-            future.cancel()
-            raise _RegexTimeoutError(
-                f"Regex operation timed out after {_REGEX_TIMEOUT}s (pattern: {pattern[:80]})"
-            )
+    pool = get_shared_executor()
+    future = pool.submit(_do_sub)
+    try:
+        return future.result(timeout=_REGEX_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise _RegexTimeoutError(
+            f"Regex operation timed out after {_REGEX_TIMEOUT}s (pattern: {pattern[:80]})"
+        )
 
 
 class BaseASTMutator(ABC):
@@ -232,8 +235,9 @@ class XMLASTMutator(BaseASTMutator):
     @staticmethod
     def _safe_parse(xml_str: str) -> ET.Element | None:
         try:
-            return ET.fromstring(xml_str)  # noqa: S314  # nosec
-        except ET.ParseError:
+            return ET.fromstring(xml_str)
+        except (ET.ParseError, Exception):
+            # defusedxml raises DefusedXmlException or ParseError for malicious XML
             return None
 
 

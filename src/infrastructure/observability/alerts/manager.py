@@ -22,6 +22,9 @@ from src.infrastructure.observability.config import get_config
 from src.infrastructure.observability.metrics import get_metrics
 
 
+_MAX_ALERT_HISTORY = 5000
+
+
 class AlertManager:
     """Manages alert rules, evaluation, and notification delivery.
 
@@ -142,6 +145,9 @@ class AlertManager:
         for alert in newly_fired:
             if alert.state == AlertState.FIRING:
                 await self._notify(alert)
+                self._alert_history.append(alert)
+                if len(self._alert_history) > _MAX_ALERT_HISTORY:
+                    self._alert_history = self._alert_history[-_MAX_ALERT_HISTORY // 2:]
 
         return newly_fired
 

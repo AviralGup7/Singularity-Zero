@@ -21,19 +21,19 @@ def register_event_metrics_subscribers(event_bus: EventBus) -> None:
     metrics = get_metrics()
 
     stage_counter = metrics.counter(
-        "pipeline_stage_events_total",
+        "stage_events_total",
         "Pipeline stage lifecycle events emitted from event bus",
     )
     finding_counter = metrics.counter(
-        "pipeline_findings_created_total",
+        "findings_created_total",
         "Total findings emitted via finding_created events",
     )
     failure_counter = metrics.counter(
-        "pipeline_failures_total",
+        "failures_total",
         "Total pipeline failures emitted via pipeline_error events",
     )
     stage_duration = metrics.histogram(
-        "pipeline_stage_duration_seconds",
+        "stage_duration_seconds",
         "Stage duration observed from stage_completed events",
     )
     stage_failure_counter = metrics.counter(

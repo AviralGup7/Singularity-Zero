@@ -317,7 +317,13 @@ async def _run_replay(args: argparse.Namespace) -> int:
 
         run_pipeline(config, scope_entries, tmp_output, replay_args)
 
-        from src.dashboard.forensics.launcher import build_launcher_replay_manifest
+        from src.core.contracts.protocol_registry import get_launcher_manifest
+
+        launcher_manifest = get_launcher_manifest()
+        if launcher_manifest is None:
+            emit_warning("Launcher manifest not available")
+            return 1
+        build_launcher_replay_manifest = launcher_manifest.build_launcher_replay_manifest
 
         tmp_path = Path(tmp_output)
         launcher_dirs = list(tmp_path.glob("_launcher/*"))
@@ -384,6 +390,11 @@ def main(argv: list[str] | None = None) -> int:
         # in any non-development environment. The validator logs warnings
         # in dev and raises in production / CI.
         validate_or_raise()
+
+        # Security: enforce production security requirements
+        # (DASHBOARD_AUTH_DISABLED, default secrets, etc.)
+        from src.core.security.secret_validator import enforce_production_security
+        enforce_production_security()
         args = parse_args(argv)
         resume_from = getattr(args, "resume_from", None)
         if resume_from:

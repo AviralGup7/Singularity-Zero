@@ -23,6 +23,12 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 # Removed circular imports and unused MODEL_VERSION constant
+from src.intelligence.severity_calibration import (
+    DEFAULT_ACTIVE_MODEL_VERSION,
+    DEFAULT_DB_PATH as _CALIBRATION_DB_PATH,
+    get_default_active_version,
+)
+
 logger = logging.getLogger(__name__)
 
 SEVERITY_LABELS = ("info", "low", "medium", "high", "critical")
@@ -40,26 +46,7 @@ SCORE_THRESHOLDS = (
     (1.5, "low"),
     (0.0, "info"),
 )
-DEFAULT_DB_PATH = Path(".pipeline") / "telemetry.db"
-# Fallback version string used when no active model is registered yet.
-DEFAULT_ACTIVE_MODEL_VERSION = "severity-logreg-v1"
-
-
-def get_default_active_version(registry: Any | None) -> str:
-    """Return the registry's active ``severity_model`` version, or the
-    hard-coded default if no model is active yet. Public helper used by
-    both ``predict`` and ``enrich_finding`` so they never disagree.
-    """
-    if registry is None:
-        return DEFAULT_ACTIVE_MODEL_VERSION
-    try:
-        active = registry.get_active_model("severity_model")
-    except AttributeError:
-        # Older test doubles that don't implement the public accessor.
-        return DEFAULT_ACTIVE_MODEL_VERSION
-    if active is None:
-        return DEFAULT_ACTIVE_MODEL_VERSION
-    return str(active.version)
+DEFAULT_DB_PATH = Path(_CALIBRATION_DB_PATH)
 
 
 @dataclass(frozen=True)

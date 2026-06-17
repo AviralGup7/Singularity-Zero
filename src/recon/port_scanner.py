@@ -30,7 +30,7 @@ import logging
 import re
 import socket
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 from src.pipeline.tools import tool_available, try_command
 from src.recon.dnsx_wildcard import is_public_ip
@@ -232,13 +232,13 @@ def socket_port_scan(
         return set()
 
     open_ports: set[str] = set()
-    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, max(1, len(host_list))))) as ex:
-        futures = [ex.submit(_socket_scan_worker, host, port_list, timeout) for host in host_list]
-        for fut in futures:
-            try:
-                open_ports.update(fut.result())
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("socket scan failed for host: %s", exc)
+    ex = get_shared_executor()
+    futures = [ex.submit(_socket_scan_worker, host, port_list, timeout) for host in host_list]
+    for fut in futures:
+        try:
+            open_ports.update(fut.result())
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("socket scan failed for host: %s", exc)
     return open_ports
 
 
@@ -325,8 +325,9 @@ async def run_port_scan_async(
 ) -> set[str]:
     """Async wrapper around :func:`run_port_scan` (offloads to a thread)."""
     loop = asyncio.get_running_loop()
+    executor = get_shared_executor()
     return await loop.run_in_executor(
-        None,
+        executor,
         lambda: run_port_scan(
             hosts,
             top_ports=top_ports,

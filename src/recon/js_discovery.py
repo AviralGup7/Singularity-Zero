@@ -12,7 +12,9 @@ from __future__ import annotations
 import logging
 import re
 import time
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, wait
+
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urljoin
 
@@ -318,89 +320,89 @@ def _collect_js_discovery_urls(
         65,
     )
     max_workers = min(workers, len(scoped_hosts))
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        pending: dict[Any, str] = {}
-        submitted = 0
+    executor = get_shared_executor()
+    pending: dict[Any, str] = {}
+    submitted = 0
 
-        while submitted < len(scoped_hosts) and len(pending) < max_workers:
+    while submitted < len(scoped_hosts) and len(pending) < max_workers:
+        host = scoped_hosts[submitted]
+        pending[executor.submit(_scan_single_host, host)] = host
+        submitted += 1
+
+    while pending:
+        elapsed = time.monotonic() - started
+        if elapsed >= js_discovery_time_budget_seconds:
+            budget_exceeded = True
+            for future in pending:
+                future.cancel()
+            emit_collection_progress(
+                progress_callback,
+                (
+                    "JS endpoint discovery budget exceeded "
+                    f"({elapsed:.1f}s/{js_discovery_time_budget_seconds}s); "
+                    "continuing with discovered URLs so far"
+                ),
+                66,
+                processed=hosts_scanned,
+                total=len(scoped_hosts),
+                stage_percent=int((hosts_scanned / max(1, len(scoped_hosts))) * 100),
+            )
+            break
+
+        done, _ = wait(list(pending), timeout=0.2, return_when=FIRST_COMPLETED)
+        if not done:
+            continue
+
+        for future in done:
+            pending.pop(future, None)
+            try:
+                (
+                    host_urls,
+                    host_script_refs,
+                    host_js_files,
+                    h_secrets,
+                    h_prov,
+                    h_wasm,
+                    h_sw,
+                    h_manifest,
+                ) = future.result()
+                all_secrets.extend(h_secrets)
+                endpoint_provenance.update(h_prov)
+                wasm_results.extend(h_wasm)
+                sw_results.extend(h_sw)
+                manifest_results.extend(h_manifest)
+            except Exception as exc:
+                logger.warning("JS discovery scan failed for host: %s", exc, exc_info=True)
+                host_urls, host_script_refs, host_js_files = set(), 0, 0
+                errors += 1
+            hosts_scanned += 1
+            script_refs += host_script_refs
+            js_files_fetched += host_js_files
+            before = len(discovered_urls)
+            discovered_urls.update(host_urls)
+            if max_discovered_urls > 0 and len(discovered_urls) > max_discovered_urls:
+                prioritized = sorted(discovered_urls, key=lambda item: ("?" in item, item))
+                discovered_urls = set(prioritized[:max_discovered_urls])
+            emit_collection_progress(
+                progress_callback,
+                (
+                    f"js discovery host {hosts_scanned}/{len(scoped_hosts)}: "
+                    f"+{max(0, len(discovered_urls) - before)} URLs, total {len(discovered_urls)}"
+                ),
+                66,
+                processed=hosts_scanned,
+                total=len(scoped_hosts),
+                stage_percent=int((hosts_scanned / max(1, len(scoped_hosts))) * 100),
+            )
+
+            if submitted >= len(scoped_hosts):
+                continue
+            if time.monotonic() - started >= js_discovery_time_budget_seconds:
+                continue
+
             host = scoped_hosts[submitted]
             pending[executor.submit(_scan_single_host, host)] = host
             submitted += 1
-
-        while pending:
-            elapsed = time.monotonic() - started
-            if elapsed >= js_discovery_time_budget_seconds:
-                budget_exceeded = True
-                for future in pending:
-                    future.cancel()
-                emit_collection_progress(
-                    progress_callback,
-                    (
-                        "JS endpoint discovery budget exceeded "
-                        f"({elapsed:.1f}s/{js_discovery_time_budget_seconds}s); "
-                        "continuing with discovered URLs so far"
-                    ),
-                    66,
-                    processed=hosts_scanned,
-                    total=len(scoped_hosts),
-                    stage_percent=int((hosts_scanned / max(1, len(scoped_hosts))) * 100),
-                )
-                break
-
-            done, _ = wait(list(pending), timeout=0.2, return_when=FIRST_COMPLETED)
-            if not done:
-                continue
-
-            for future in done:
-                pending.pop(future, None)
-                try:
-                    (
-                        host_urls,
-                        host_script_refs,
-                        host_js_files,
-                        h_secrets,
-                        h_prov,
-                        h_wasm,
-                        h_sw,
-                        h_manifest,
-                    ) = future.result()
-                    all_secrets.extend(h_secrets)
-                    endpoint_provenance.update(h_prov)
-                    wasm_results.extend(h_wasm)
-                    sw_results.extend(h_sw)
-                    manifest_results.extend(h_manifest)
-                except Exception as exc:
-                    logger.warning("JS discovery scan failed for host: %s", exc, exc_info=True)
-                    host_urls, host_script_refs, host_js_files = set(), 0, 0
-                    errors += 1
-                hosts_scanned += 1
-                script_refs += host_script_refs
-                js_files_fetched += host_js_files
-                before = len(discovered_urls)
-                discovered_urls.update(host_urls)
-                if max_discovered_urls > 0 and len(discovered_urls) > max_discovered_urls:
-                    prioritized = sorted(discovered_urls, key=lambda item: ("?" in item, item))
-                    discovered_urls = set(prioritized[:max_discovered_urls])
-                emit_collection_progress(
-                    progress_callback,
-                    (
-                        f"js discovery host {hosts_scanned}/{len(scoped_hosts)}: "
-                        f"+{max(0, len(discovered_urls) - before)} URLs, total {len(discovered_urls)}"
-                    ),
-                    66,
-                    processed=hosts_scanned,
-                    total=len(scoped_hosts),
-                    stage_percent=int((hosts_scanned / max(1, len(scoped_hosts))) * 100),
-                )
-
-                if submitted >= len(scoped_hosts):
-                    continue
-                if time.monotonic() - started >= js_discovery_time_budget_seconds:
-                    continue
-
-                host = scoped_hosts[submitted]
-                pending[executor.submit(_scan_single_host, host)] = host
-                submitted += 1
 
     meta = {
         "status": "degraded_timeout" if budget_exceeded else ("ok" if discovered_urls else "empty"),

@@ -6,7 +6,6 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
-from src.execution.active_manifest import DEFAULT_ACTIVE_MANIFEST_REGISTRY
 from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -282,6 +281,21 @@ def _load_active_probe_functions() -> dict[str, Any]:
             "src.analysis.json.active_probes",
             "state_transition_analyzer",
         ),
+        "workflow_fuzzer_probe": _try_import(
+            "workflow_fuzzer_probe",
+            "src.fuzzing.workflow_fuzzer",
+            "WorkflowFuzzer",
+        ),
+        "graphql_fuzzer_probe": _try_import(
+            "graphql_fuzzer_probe",
+            "src.fuzzing.graphql_fuzzer",
+            "run_graphql_fuzzing_campaign",
+        ),
+        "framing_fuzzer_probe": _try_import(
+            "framing_fuzzer_probe",
+            "src.fuzzing.framing_fuzzer",
+            "run_framing_fuzzing_campaign",
+        ),
         "response_diff_engine": _try_import(
             "response_diff_engine",
             "src.analysis.response._core.response_analysis._diff_engine",
@@ -309,7 +323,13 @@ def _load_active_probe_functions() -> dict[str, Any]:
     )
 
     probes["run_fuzzing_campaign_probe"] = _run_fuzzing_campaign_probe
-    probes["_active_check_manifests"] = DEFAULT_ACTIVE_MANIFEST_REGISTRY.all()
+    from src.core.contracts.protocol_registry import get_active_manifest_registry
+
+    manifest_registry = get_active_manifest_registry()
+    if manifest_registry is not None:
+        probes["_active_check_manifests"] = manifest_registry.all() if hasattr(manifest_registry, 'all') else []
+    else:
+        probes["_active_check_manifests"] = []
     return probes
 
 

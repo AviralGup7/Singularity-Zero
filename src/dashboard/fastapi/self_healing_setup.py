@@ -1,10 +1,18 @@
 """Self-healing controller setup for the FastAPI dashboard."""
 
-from src.pipeline.self_healing import CorrectiveActionRegistry, SelfHealingController
+from typing import Any
+
+from src.core.contracts.protocol_registry import (
+    get_corrective_action_registry_cls,
+    get_self_healing_controller_cls,
+)
 
 
 def setup_self_healing_controller(
-    action_registry: CorrectiveActionRegistry,
-) -> SelfHealingController:
-    controller = SelfHealingController(action_registry=action_registry)
+    action_registry: Any,
+) -> Any:
+    SelfHealingControllerCls = get_self_healing_controller_cls()
+    if SelfHealingControllerCls is None:
+        raise RuntimeError("SelfHealingController not registered")
+    controller = SelfHealingControllerCls(action_registry=action_registry)
     return controller

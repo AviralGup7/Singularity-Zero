@@ -54,6 +54,9 @@ class InMemoryExporter:
         }
 
 
+_MAX_PENDING = 5000
+
+
 class OTLPExporter:
     """OTLP trace exporter for production (Jaeger, Zipkin, Tempo, etc.).
 
@@ -105,6 +108,8 @@ class OTLPExporter:
     def export(self, spans: list[Span]) -> None:
         if not self._available:
             self._pending_spans.extend(spans)
+            if len(self._pending_spans) > _MAX_PENDING:
+                self._pending_spans = self._pending_spans[-_MAX_PENDING // 2:]
             return
         try:
             otel_spans = self._convert_to_otel(spans)

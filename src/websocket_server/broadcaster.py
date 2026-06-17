@@ -306,8 +306,8 @@ class Broadcaster:
 
             state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
             state_file.unlink(missing_ok=True)
-        except Exception:  # noqa: S110
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to clean up redis breaker state file: %s", exc)
 
     async def stop_message_dispatch(self, connection_id: str) -> None:
         """Stop the dispatch task for a single connection."""
@@ -693,18 +693,10 @@ class Broadcaster:
                 self._scope_drop_counts.get((scope, target), 0) + 1
             )
 
-        # Per-scope, per-user, per-job drop counter for Prometheus.
-        # ``job_id`` is derived from the target when the scope is "group"
-        # and the target looks like "job:<id>".
-        job_id_label = ""
-        if scope == "group" and target.startswith("job:"):
-            job_id_label = target[len("job:") :]
         try:
-            WS_DROPPED_MESSAGES.labels(
-                scope=scope, job_id=job_id_label or "-", user_id=info.user_id or "-"
-            ).inc()
-        except Exception:  # noqa: BLE001, S110
-            pass
+            WS_DROPPED_MESSAGES.labels(scope=scope).inc()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to increment dropped messages metric: %s", exc)
 
         # Determine how many messages we are about to drop.
         watermark = info.message_queue.maxsize
@@ -769,8 +761,8 @@ class Broadcaster:
                     )
             try:
                 WS_BACKPRESSURE_EVENTS.labels(scope=scope).inc()
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to increment backpressure events metric: %s", exc)
         except Exception as exc:  # noqa: BLE001
             logger.debug("Backpressure notification construction failed: %s", exc)
 

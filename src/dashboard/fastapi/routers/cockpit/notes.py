@@ -34,9 +34,13 @@ async def get_cockpit_events(
 
     timeline = services.query.get_timeline_data(target)
 
-    from src.pipeline.analyst_notes import get_all_notes
+    from src.core.contracts.protocol_registry import get_analyst_notes
 
-    notes = get_all_notes(target, output_dir=output_root)
+    notes_impl = get_analyst_notes()
+    if notes_impl is not None:
+        notes = notes_impl.get_all_notes(target, output_dir=output_root)
+    else:
+        notes = []
 
     events = []
     for f in timeline:
@@ -90,9 +94,12 @@ async def trigger_cockpit_probe(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Trigger a manual probe with scope validation and forensic capture."""
-    from src.analysis.passive.runtime import _get_fetch_response
+    from src.core.contracts.protocol_registry import get_fetch_response_provider
 
-    fetch_response = _get_fetch_response()
+    fetch_response_provider = get_fetch_response_provider()
+    if fetch_response_provider is None:
+        raise HTTPException(status_code=500, detail="Fetch response provider not available")
+    fetch_response = fetch_response_provider()
 
     from src.core.utils.url_validation import is_safe_url
 

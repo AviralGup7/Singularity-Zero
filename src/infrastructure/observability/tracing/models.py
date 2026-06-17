@@ -127,7 +127,7 @@ class Span:
         }
 
     def to_w3c_traceparent(self) -> str:
-        flags = "01" if self.status == SpanStatus.ERROR else "00"
+        flags = "01"
         return f"00-{self.trace_id}-{self.span_id}-{flags}"
 
     @classmethod
@@ -136,5 +136,5 @@ class Span:
         if len(parts) != 4:
             raise ValueError(f"Invalid traceparent header: {traceparent}")
         version, trace_id, parent_id, flags = parts
-        sampled = flags[-1] in ("1", "2", "3")
+        sampled = int(flags, 16) & 1 == 1
         return trace_id, parent_id, sampled

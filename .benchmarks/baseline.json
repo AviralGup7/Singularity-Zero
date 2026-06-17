@@ -1,0 +1,190 @@
+{
+  "startup": {
+    "status": "ok",
+    "data": {
+      "import_times_ms": {
+        "src.infrastructure.execution_engine.concurrent_executor": 656.790600012755,
+        "src.execution.isolated": 611.1415000050329,
+        "src.core.http_utils": 380.40619998355396,
+        "src.core.storage.s3_backends": 323.6290999921039,
+        "src.pipeline": 152.80179999535903,
+        "src.analysis.plugin_runtime._runner": 51.96000001160428,
+        "src.infrastructure.observability.metrics": 49.015500000678,
+        "src.recon.common": 37.57680000853725,
+        "src.core.utils.streaming": 5.428200005553663,
+        "src.core.utils.http_pool": 4.963899991707876,
+        "src.core": 2.039399987552315,
+        "src.infrastructure": 0.7696999819017947,
+        "src.pipeline.retry.strategies": 0.004199973773211241,
+        "src.pipeline.cache_backend": 0.001600012183189392
+      },
+      "total_import_ms": 2276.53,
+      "top5_slowest": [
+        [
+          "src.infrastructure.execution_engine.concurrent_executor",
+          656.79
+        ],
+        [
+          "src.execution.isolated",
+          611.14
+        ],
+        [
+          "src.core.http_utils",
+          380.41
+        ],
+        [
+          "src.core.storage.s3_backends",
+          323.63
+        ],
+        [
+          "src.pipeline",
+          152.8
+        ]
+      ],
+      "memory_delta_mb": 41.41,
+      "memory_after": {
+        "current_rss_mb": 70.6015625,
+        "current_vms_mb": 55.25390625,
+        "peak_mb": 70.6015625
+      },
+      "thread_count": 4
+    }
+  },
+  "thread_pools": {
+    "status": "ok",
+    "data": {
+      "baseline_threads": 4,
+      "pools_created_threads": 4,
+      "after_shutdown_threads": 4,
+      "thread_overhead": 0
+    }
+  },
+  "http_overhead": {
+    "status": "ok",
+    "data": {
+      "requests_session_create_close_ms": {
+        "p50": 0.02859998494386673,
+        "p95": 0.083099992480129,
+        "total_100": 3.457700164290145
+      },
+      "httpx_client_create_close_ms": {
+        "p50": 526.8465999979526,
+        "p95": 556.4080999756698,
+        "total_100": 53395.79349997803
+      },
+      "thread_count": 7
+    }
+  },
+  "s3_patterns": {
+    "status": "ok",
+    "data": {
+      "1MB": {
+        "full_load_delta_mb": 1.008,
+        "stream_delta_mb": 0.0
+      },
+      "5MB": {
+        "full_load_delta_mb": 4.0,
+        "stream_delta_mb": 0.0
+      },
+      "10MB": {
+        "full_load_delta_mb": 5.0,
+        "stream_delta_mb": 0.0
+      },
+      "thread_count": 7
+    }
+  },
+  "s3_streaming": {
+    "status": "ok",
+    "data": {
+      "1KB": {
+        "full_read_ms": 0.0041,
+        "stream_ms": 0.0086
+      },
+      "100KB": {
+        "full_read_ms": 0.0011,
+        "stream_ms": 0.0647
+      },
+      "1MB": {
+        "full_read_ms": 0.0026,
+        "stream_ms": 0.8964
+      },
+      "10MB": {
+        "full_read_ms": 0.0923,
+        "stream_ms": 13.4788
+      }
+    }
+  },
+  "connection_pooling": {
+    "status": "ok",
+    "data": {
+      "separate_pool_creation_50x_ms": 0.35,
+      "shared_pool_lookup_50x_ms": 0.76,
+      "baseline_threads": 7,
+      "after_pool_threads": 7,
+      "speedup_ratio": 0.5
+    }
+  },
+  "sleep_patterns": {
+    "status": "ok",
+    "data": {
+      "blocking_time_sleep_100x_ms": 158.88,
+      "asyncio_sleep_100x_ms": 1574.84,
+      "concurrent_asyncio_sleep_100x_ms": 14.79,
+      "blocking_vs_async_ratio": 0.1,
+      "concurrent_vs_sequential_speedup": 106.5
+    }
+  },
+  "http_latency_profile": {
+    "status": "ok",
+    "data": {
+      "dns_resolution_ms": {
+        "p50": 0.48,
+        "p95": 6.215,
+        "p99": 6.215
+      },
+      "socket_connect_ms": {
+        "p50": 504.523,
+        "p95": 510.935
+      },
+      "thread_spawn_50x_ms": 21.63,
+      "thread_count": 7
+    }
+  },
+  "url_stage_timeout": {
+    "status": "ok",
+    "data": {
+      "url_count": 800,
+      "is_safe_url_total_ms": 3087.72,
+      "is_safe_url_per_url_us": 3859.65,
+      "urlparse_total_ms": 0.89,
+      "urlparse_per_url_us": 1.12,
+      "ssrf_check_100x_ms": 51.91,
+      "bottleneck_breakdown": {
+        "url_validation_pct": 100.0,
+        "urlparse_pct": 0.0
+      }
+    }
+  },
+  "_meta": {
+    "total_benchmark_time_s": 71.06,
+    "timestamp": "2026-06-16T01:42:40Z",
+    "platform": "win32",
+    "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]"
+  },
+  "_system": {
+    "cpu_count": 16,
+    "memory_total_gb": 15.64,
+    "memory_available_gb": 4.24,
+    "thread_count": 7,
+    "memory": {
+      "current_rss_mb": 76.8515625,
+      "current_vms_mb": 59.390625,
+      "peak_mb": 76.8515625
+    },
+    "cpu_times": {
+      "user_s": 10.453125,
+      "system_s": 39.140625,
+      "iowait_s": 0.0
+    }
+  }
+}

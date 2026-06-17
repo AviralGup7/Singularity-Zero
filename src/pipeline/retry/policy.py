@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
@@ -15,6 +17,7 @@ from src.pipeline.retry.events import (
     RetryEventType,
     _pipeline_event_from_retry_event,
 )
+from src.pipeline.retry.strategies import is_retryable
 
 logger = get_pipeline_logger(__name__)
 
@@ -43,20 +46,6 @@ def _positive_float(value: object, default: float) -> float:
     except (TypeError, ValueError):
         return default
     return max(0.0, parsed)
-
-
-def is_retryable(exc: BaseException, policy: Any) -> bool:
-    """Determine whether an exception should trigger a retry."""
-    classification = classify_error(exc)
-    if classification == "permanent":
-        return False
-    if classification == "transient":
-        if isinstance(exc, TimeoutError) and not policy.retry_on_timeout:
-            return False
-        return True
-    if classification == "unknown":
-        return bool(policy.retry_on_error)
-    return False
 
 
 def cast_to_stage_name(policy: Any) -> str:
@@ -201,6 +190,60 @@ def execute_with_retry[T](  # pylint: disable=W0621
                         classification,
                     )
                     time.sleep(backoff)
+            else:
+                m.record_failure()
+                raise
+
+    m.record_failure()
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Retry loop exited without result or exception")
+
+
+async def execute_with_retry_async[T](  # pylint: disable=W0621
+    func: Callable[..., T],
+    policy: RetryPolicy,
+    metrics: Any = None,
+    *args: Any,
+    **kwargs: Any,
+) -> T:
+    """Async version of execute_with_retry that uses asyncio.sleep."""
+    from src.pipeline.retry.metrics import RetryMetrics
+
+    m = metrics or RetryMetrics()
+    last_exc: BaseException | None = None
+
+    for attempt in range(1, policy.max_attempts + 1):
+        m.record_attempt()
+        try:
+            result = func(*args, **kwargs)
+            m.record_success()
+            return result
+        except Exception as exc:
+            last_exc = exc
+            classification = classify_error(exc)
+
+            if classification == "transient":
+                m.record_transient()
+            elif classification == "permanent":
+                m.record_permanent()
+
+            if not is_retryable(exc, policy):
+                m.record_failure()
+                raise
+
+            if attempt < policy.max_attempts:
+                backoff = policy.delay_for_attempt(attempt + 1, jitter=policy.jitter_factor)
+                m.record_retry(backoff)
+                if backoff > 0:
+                    logger.debug(
+                        "Retry attempt %d/%d after %.2fs (%s)",
+                        attempt,
+                        policy.max_attempts,
+                        backoff,
+                        classification,
+                    )
+                    await asyncio.sleep(backoff)
             else:
                 m.record_failure()
                 raise
@@ -391,6 +434,7 @@ class ToolRetryPolicy(StageRetryPolicy):
     _recent_outcome_window: list[bool] = field(default_factory=list, repr=False)
     _recent_window_max: int = 16
     _stage_parent: StageRetryPolicy | None = field(default=None, repr=False, compare=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.adaptive_heuristic is None:
@@ -409,35 +453,38 @@ class ToolRetryPolicy(StageRetryPolicy):
         return super().is_budget_exhausted()
 
     def consume_budget(self, seconds: float) -> None:
-        if self._stage_parent is not None:
-            self._stage_parent.consume_budget(seconds)
-            object.__setattr__(
-                self,
-                "_total_retry_seconds_consumed",
-                self._stage_parent._total_retry_seconds_consumed,
-            )
-            return
-        super().consume_budget(seconds)
+        with self._lock:
+            if self._stage_parent is not None:
+                self._stage_parent.consume_budget(seconds)
+                object.__setattr__(
+                    self,
+                    "_total_retry_seconds_consumed",
+                    self._stage_parent._total_retry_seconds_consumed,
+                )
+                return
+            super().consume_budget(seconds)
 
     def observe_call_outcome(self, success: bool) -> None:
-        self._recent_outcome_window.append(success)
-        if len(self._recent_outcome_window) > self._recent_window_max:
-            self._recent_outcome_window = self._recent_outcome_window[-self._recent_window_max :]
+        with self._lock:
+            self._recent_outcome_window.append(success)
+            if len(self._recent_outcome_window) > self._recent_window_max:
+                self._recent_outcome_window = self._recent_outcome_window[-self._recent_window_max :]
         self.observe_outcome(success)
 
     def copy(self) -> ToolRetryPolicy:
-        return ToolRetryPolicy(
-            base_policy=self.base_policy,
-            adaptive_heuristic=self.adaptive_heuristic.copy()
-            if self.adaptive_heuristic is not None
-            else None,
-            max_retry_budget_seconds=self.max_retry_budget_seconds,
-            backoff_profile=self.backoff_profile,
-            _total_retry_seconds_consumed=self._total_retry_seconds_consumed,
-            tool_identifier=self.tool_identifier,
-            _recent_outcome_window=list(self._recent_outcome_window),
-            _stage_parent=self._stage_parent,
-        )
+        with self._lock:
+            return ToolRetryPolicy(
+                base_policy=self.base_policy,
+                adaptive_heuristic=self.adaptive_heuristic.copy()
+                if self.adaptive_heuristic is not None
+                else None,
+                max_retry_budget_seconds=self.max_retry_budget_seconds,
+                backoff_profile=self.backoff_profile,
+                _total_retry_seconds_consumed=self._total_retry_seconds_consumed,
+                tool_identifier=self.tool_identifier,
+                _recent_outcome_window=list(self._recent_outcome_window),
+                _stage_parent=self._stage_parent,
+            )
 
     def _make_event(
         self, event_type: RetryEventType, attempt: int, error: str, backoff_seconds: float

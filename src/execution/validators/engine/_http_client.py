@@ -5,10 +5,11 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from src.pipeline.retry import RetryPolicy
+if TYPE_CHECKING:
+    from src.pipeline.retry import RetryPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +242,7 @@ class ValidationHttpClient:
 
     def race_probe(self, target_url: str, *, concurrency: int = 5) -> list[dict[str, Any]]:
         """Send ``concurrency`` concurrent requests to ``target_url``."""
-        from concurrent.futures import ThreadPoolExecutor
+        from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
         responses: list[dict[str, Any]] = []
 
@@ -255,14 +256,14 @@ class ValidationHttpClient:
 
         if concurrency <= 0:
             return responses
-        with ThreadPoolExecutor(max_workers=concurrency) as executor:
-            futures = [executor.submit(_single) for _ in range(concurrency)]
-            for future in futures:
-                try:
-                    responses.append(future.result(timeout=30) or {})
-                except Exception as exc:  # noqa: BLE001 — broad catch intentional for concurrent future isolation
-                    logger.debug("Race probe concurrent request failed: %s", exc)
-                    responses.append({"status_code": 0, "body": "", "headers": {}})
+        executor = get_shared_executor()
+        futures = [executor.submit(_single) for _ in range(concurrency)]
+        for future in futures:
+            try:
+                responses.append(future.result(timeout=30) or {})
+            except Exception as exc:  # noqa: BLE001 — broad catch intentional for concurrent future isolation
+                logger.debug("Race probe concurrent request failed: %s", exc)
+                responses.append({"status_code": 0, "body": "", "headers": {}})
         return responses
 
 
@@ -278,7 +279,7 @@ def _resolve_fetch_response() -> Any:
     """
     fn = globals().get("fetch_response")
     if fn is None:
-        from src.analysis.passive.runtime import _fetch_response_once as _fn
+        from src.core.utils.http_fetch import fetch_response_once as _fn
 
         globals()["fetch_response"] = _fn
         return _fn

@@ -412,13 +412,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     action_registry.register(CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER, _trip_tool_breaker)
 
-    import importlib
+    from src.core.contracts.tool_execution import ToolExecutionServiceProtocol
 
-    tool_execution_mod = importlib.import_module("src.pipeline.services.tool_execution")
-    tool_service = (
-        getattr(app.state, "tool_execution_service", None)
-        or tool_execution_mod.ToolExecutionService()
-    )
+    tool_service = getattr(app.state, "tool_execution_service", None)
+    if tool_service is None:
+        from src.core.contracts.protocol_registry import get_validation_runtime
+
+        # Fallback: try to import via protocol registry or lazy import
+        try:
+            from src.pipeline.services.tool_execution import ToolExecutionService
+
+            tool_service = ToolExecutionService()
+        except ImportError:
+            logger.warning("ToolExecutionService not available")
+            tool_service = None
     app.state.tool_execution_service = tool_service
 
     async def _pipeline_stage_probe() -> list[HealthMetric]:

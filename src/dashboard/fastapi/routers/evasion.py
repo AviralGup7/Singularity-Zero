@@ -11,11 +11,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import require_auth
-from src.execution.frontier.chameleon import _chameleon
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/evasion", tags=["Evasion Telemetry"])
+
+
+def _get_chameleon() -> Any:
+    """Get the chameleon evasion instance via protocol registry."""
+    from src.core.contracts.protocol_registry import get_chameleon_evasion
+
+    chameleon = get_chameleon_evasion()
+    if chameleon is None:
+        raise RuntimeError("Chameleon evasion not registered")
+    return chameleon
 
 # ---------------------------------------------------------------------------
 # In-memory hunt-mode state (toggled via POST /api/evasion/hunt-mode)
@@ -69,7 +78,8 @@ def _get_hunt_mode_details() -> dict[str, Any]:
 
 def _build_metrics_response() -> dict[str, Any]:
     """Build the evasion metrics response."""
-    raw_metrics = _chameleon.get_metrics()
+    chameleon = _get_chameleon()
+    raw_metrics = chameleon.get_metrics()
     processed: dict[str, Any] = {}
     for key, entry in raw_metrics.items():
         total = entry.get("total_requests", 0)
@@ -106,7 +116,8 @@ async def get_evasion_metrics(_auth: Any = Depends(require_auth)) -> dict[str, A
 async def reset_evasion_metrics(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
     """Resets the WAF evasion metrics repository."""
     try:
-        _chameleon.reset_metrics()
+        chameleon = _get_chameleon()
+        chameleon.reset_metrics()
         return {"status": "success", "message": "Evasion metrics reset successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset evasion metrics: {e}")

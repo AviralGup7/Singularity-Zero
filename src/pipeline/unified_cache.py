@@ -193,6 +193,14 @@ class UnifiedCache:
         self._refresh_executor = ThreadPoolExecutor(
             max_workers=max(1, capped_workers // 2), thread_name_prefix="cache-refresh"
         )
+        atexit.register(self._shutdown_refresh_executor)
+
+    def _shutdown_refresh_executor(self) -> None:
+        """Gracefully shut down the refresh executor at process exit."""
+        try:
+            self._refresh_executor.shutdown(wait=True)
+        except Exception:  # noqa: BLE001
+            pass
 
     @property
     def sqlite(self) -> PersistentCache:
@@ -513,6 +521,7 @@ class CoalescingCacheWrapper:
         self._unified = unified
         self._lock_registry: dict[str, asyncio.Lock] = {}
         self._registry_lock = threading.Lock()
+        self._lock_registry_max = 4096
         # Hard cap at 16 threads to prevent resource exhaustion
         capped_workers = min(max_workers, 16)
         self._executor = ThreadPoolExecutor(
@@ -520,6 +529,7 @@ class CoalescingCacheWrapper:
         )
         self._pending_refreshes: dict[str, _PendingRefresh] = {}
         self._pending_lock = threading.Lock()
+        self._pending_refreshes_max = 2048
         self._bg_refresh_callbacks: list[Callable[[str, Any], Awaitable[None]]] = []
 
         self._metrics = {
@@ -537,6 +547,8 @@ class CoalescingCacheWrapper:
         with self._registry_lock:
             lock = self._lock_registry.get(key)
             if lock is None:
+                if len(self._lock_registry) >= self._lock_registry_max:
+                    self._lock_registry.pop(next(iter(self._lock_registry)))
                 lock = asyncio.Lock()
                 self._lock_registry[key] = lock
             return lock
@@ -682,6 +694,9 @@ class CoalescingCacheWrapper:
                 return None
             loop.call_soon(_kick)
             if task is not None:
+                with self._pending_lock:
+                    if len(self._pending_refreshes) >= self._pending_refreshes_max:
+                        self._pending_refreshes.pop(next(iter(self._pending_refreshes)))
                 self._pending_refreshes[key] = _PendingRefresh(key, task)
                 self._metrics["refreshes_triggered"] += 1
                 task.add_done_callback(lambda _: self._pending_refreshes.pop(key, None))

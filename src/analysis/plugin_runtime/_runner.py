@@ -17,6 +17,7 @@ from src.analysis.plugin_runtime_models import (
     DetectionGraphContext,
 )
 from src.core.utils import normalize_url
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 from ._bindings import ANALYZER_BINDINGS
 
@@ -499,42 +500,45 @@ def run_analysis_plugins(
     total_plugins = len([k for k in ANALYZER_BINDINGS if k not in contract_issues])
     completed_plugins = 0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_key = {
-            executor.submit(
-                run_registered_analyzer,
-                binding,
-                context,
-                timeout_seconds,
-                analyzer_key=key,
-            ): key
-            for key, binding in ANALYZER_BINDINGS.items()
-            if key not in contract_issues
-        }
-        for future in concurrent.futures.as_completed(future_to_key):
-            key = future_to_key[future]
-            try:
-                results[key] = future.result()
-            except Exception as exc:
-                logger.warning("Plugin %s failed: %s", key, exc)
-                results[key] = []
+    executor = get_shared_executor()
+    future_to_key = {
+        executor.submit(
+            run_registered_analyzer,
+            binding,
+            context,
+            timeout_seconds,
+            analyzer_key=key,
+        ): key
+        for key, binding in ANALYZER_BINDINGS.items()
+        if key not in contract_issues
+    }
+    for future in concurrent.futures.as_completed(future_to_key):
+        key = future_to_key[future]
+        try:
+            results[key] = future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            logger.warning("Plugin %s timed out after %ds", key, timeout_seconds)
+            results[key] = []
+        except Exception as exc:
+            logger.warning("Plugin %s failed: %s", key, exc)
+            results[key] = []
 
-            completed_plugins += 1
-            if progress_callback and callable(progress_callback):
-                pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)
-                try:
-                    progress_callback(
-                        {
-                            "group": "passive_analysis",
-                            "status": f"running_scanners ({key})",
-                            "processed": completed_plugins,
-                            "total": total_plugins,
-                            "stage_percent": pct,
-                            "plugin": key,
-                        }
-                    )
-                except Exception as p_exc:
-                    logger.debug("Progress callback failed: %s", p_exc)
+        completed_plugins += 1
+        if progress_callback and callable(progress_callback):
+            pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)
+            try:
+                progress_callback(
+                    {
+                        "group": "passive_analysis",
+                        "status": f"running_scanners ({key})",
+                        "processed": completed_plugins,
+                        "total": total_plugins,
+                        "stage_percent": pct,
+                        "plugin": key,
+                    }
+                )
+            except Exception as p_exc:
+                logger.debug("Progress callback failed: %s", p_exc)
 
     for key in ANALYZER_BINDINGS:
         results.setdefault(key, [])

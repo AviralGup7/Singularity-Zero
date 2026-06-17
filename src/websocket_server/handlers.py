@@ -343,8 +343,8 @@ class WebSocketHandler:
         # (e.g. cleanup or "ack" path).
         try:
             info.user_id = auth.user_id  # already set by manager.connect
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to set user_id on connection info: %s", exc)
 
         for channel in default_channels:
             await self.manager.add_to_group(connection_id, channel)
@@ -507,8 +507,8 @@ class WebSocketHandler:
         if not await self._authorize_subscription(info, message):
             try:
                 WS_AUTHZ_REJECTIONS.labels(reason="forbidden", channel=channel or "-").inc()
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to increment authz rejection metric: %s", exc)
             try:
                 err = ErrorMessage(
                     code="forbidden",
@@ -517,12 +517,12 @@ class WebSocketHandler:
                     recoverable=False,
                 )
                 await info.websocket.send_text(err.to_json())
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to send forbidden error to %s: %s", info.connection_id, exc)
             try:
                 await info.websocket.close(code=4003, reason="Forbidden")
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to close websocket for forbidden subscription: %s", exc)
             logger.warning(
                 "Subscription to %s denied for user %s on connection %s",
                 channel,
@@ -567,8 +567,8 @@ class WebSocketHandler:
                         await info.websocket.close(
                             code=1008, reason="Reconnection replay buffer overflow"
                         )
-                    except Exception:  # noqa: S110
-                        pass
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug("Failed to close websocket for buffer overflow: %s", exc)
                     break
 
         logger.info(

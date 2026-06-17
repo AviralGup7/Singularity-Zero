@@ -29,9 +29,13 @@ async def get_attack_chains(
     output_root = services.query.output_root
     target_dir = get_safe_target_dir(output_root, target)
 
-    from src.analysis.intelligence.lateral_graph import LateralGraph
+    from src.core.contracts.protocol_registry import get_lateral_graph_cls
 
-    graph = LateralGraph(db_path=str(target_dir / "graph.db"))
+    LateralGraphCls = get_lateral_graph_cls()
+    if LateralGraphCls is None:
+        logger.debug("LateralGraph not available")
+        return []
+    graph = LateralGraphCls(db_path=str(target_dir / "graph.db"))
     try:
         raw_chains = graph.find_attack_chains()
     except Exception as e:

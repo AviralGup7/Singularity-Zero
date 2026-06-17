@@ -409,3 +409,189 @@ def register_default_alerts(manager: Any = None) -> None:
             },
         )
     )
+
+    # --- DB Performance Alerts ---
+
+    manager.add_rule(
+        AlertRule(
+            name="db_query_latency_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_db_query_duration_seconds",
+            condition="gt",
+            threshold=1.0,
+            for_duration=120.0,
+            labels={"team": "pipeline", "component": "database"},
+            annotations={
+                "message": "DB query latency exceeds 1s (p95). Queries are slowing down.",
+                "runbook": "Check for slow queries, missing indexes, or connection pool exhaustion.",
+            },
+        )
+    )
+
+    manager.add_rule(
+        AlertRule(
+            name="db_query_error_rate_high",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="cyber_pipeline_db_query_errors_total",
+            condition="gt",
+            threshold=10.0,
+            for_duration=60.0,
+            labels={"team": "pipeline", "component": "database"},
+            annotations={
+                "message": "DB query error rate is elevated. Database may be degraded.",
+                "runbook": "Check database connectivity, disk space, and lock contention.",
+            },
+        )
+    )
+
+    manager.add_rule(
+        AlertRule(
+            name="db_pool_exhausted",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="cyber_pipeline_db_pool_checked_out",
+            condition="gte",
+            threshold=9.0,
+            for_duration=30.0,
+            labels={"team": "pipeline", "component": "database"},
+            annotations={
+                "message": "DB connection pool nearly exhausted. Connections may time out.",
+                "runbook": "Check for connection leaks, increase pool size, or optimize queries.",
+            },
+        )
+    )
+
+    # --- Queue Performance Alerts ---
+
+    manager.add_rule(
+        AlertRule(
+            name="queue_consumer_lag_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_queue_consumer_lag",
+            condition="gt",
+            threshold=100.0,
+            for_duration=180.0,
+            labels={"team": "pipeline", "component": "queue_system"},
+            annotations={
+                "message": "Queue consumer lag exceeds 100 jobs. Processing is falling behind.",
+                "runbook": "Check worker health, scale up workers, or investigate slow jobs.",
+            },
+        )
+    )
+
+    manager.add_rule(
+        AlertRule(
+            name="queue_processing_time_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_queue_job_processing_seconds",
+            condition="gt",
+            threshold=300.0,
+            for_duration=60.0,
+            labels={"team": "pipeline", "component": "queue_system"},
+            annotations={
+                "message": "Job processing time exceeds 5 minutes. Jobs may be stuck.",
+                "runbook": "Check for stuck jobs, resource contention, or external API timeouts.",
+            },
+        )
+    )
+
+    # --- HTTP Performance Alerts ---
+
+    manager.add_rule(
+        AlertRule(
+            name="http_error_rate_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_http_request_errors_total",
+            condition="gt",
+            threshold=50.0,
+            for_duration=120.0,
+            labels={"team": "pipeline", "component": "http_api"},
+            annotations={
+                "message": "HTTP 4xx/5xx error rate is elevated.",
+                "runbook": "Check API logs, downstream service health, and client behavior.",
+            },
+        )
+    )
+
+    manager.add_rule(
+        AlertRule(
+            name="http_latency_sla_breach",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="cyber_pipeline_http_request_duration_seconds",
+            condition="gt",
+            threshold=5.0,
+            for_duration=60.0,
+            labels={"team": "pipeline", "component": "http_api"},
+            annotations={
+                "message": "HTTP endpoint latency exceeds 5s SLA.",
+                "runbook": "Check for slow database queries, external API calls, or resource contention.",
+            },
+        )
+    )
+
+    # --- Analyzer Performance Alerts ---
+
+    manager.add_rule(
+        AlertRule(
+            name="analyzer_failure_rate_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_analyzer_errors_total",
+            condition="gt",
+            threshold=20.0,
+            for_duration=300.0,
+            labels={"team": "pipeline", "component": "analysis_engine"},
+            annotations={
+                "message": "Analyzer failure rate is elevated. Analysis quality may be impacted.",
+                "runbook": "Check analyzer logs, target accessibility, and resource availability.",
+            },
+        )
+    )
+
+    manager.add_rule(
+        AlertRule(
+            name="analyzer_duration_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_analyzer_execution_duration_seconds",
+            condition="gt",
+            threshold=120.0,
+            for_duration=120.0,
+            labels={"team": "pipeline", "component": "analysis_engine"},
+            annotations={
+                "message": "Analyzer execution time exceeds 2 minutes. Pipeline may be slow.",
+                "runbook": "Check for large target sets, network latency, or resource constraints.",
+            },
+        )
+    )
+
+    # --- Resource Pool Alerts ---
+
+    manager.add_rule(
+        AlertRule(
+            name="pool_utilization_high",
+            severity=AlertSeverity.WARNING,
+            metric_name="cyber_pipeline_pool_utilization_ratio",
+            condition="gt",
+            threshold=0.85,
+            for_duration=120.0,
+            labels={"team": "pipeline", "component": "resource_pool"},
+            annotations={
+                "message": "Resource pool utilization exceeds 85%. Saturation imminent.",
+                "runbook": "Check pool configuration, scale up, or optimize resource usage.",
+            },
+        )
+    )
+
+    manager.add_rule(
+        AlertRule(
+            name="pool_timeouts_increasing",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="cyber_pipeline_pool_timeouts_total",
+            condition="gt",
+            threshold=5.0,
+            for_duration=60.0,
+            labels={"team": "pipeline", "component": "resource_pool"},
+            annotations={
+                "message": "Pool access timeouts are occurring. Requests are being dropped.",
+                "runbook": "Check pool exhaustion, increase pool size, or optimize resource usage.",
+            },
+        )
+    )

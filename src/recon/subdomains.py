@@ -19,7 +19,7 @@ from src.core.contracts.capabilities import SubdomainEnumeratorProtocol
 from src.core.logging.pipeline_logging import emit_retry_warning, emit_warning
 from src.core.models import DEFAULT_USER_AGENT
 from src.core.plugins import list_plugins, register_plugin
-from src.pipeline.retry import retry_ready, sleep_before_retry
+from src.core.tools.retry import retry_ready, sleep_before_retry
 from src.pipeline.tools import RetryPolicy, build_retry_policy, tool_available
 from src.recon.common import (
     normalize_scope_entry,
@@ -392,6 +392,25 @@ register_plugin(
 )(None)
 
 
+class _SubdomainPermutatorBackend:
+    @staticmethod
+    def query(domain: str, known_subdomains: set[str] | None = None) -> set[str]:
+        from src.recon.subdomain_permutator import generate_permutations
+
+        if not known_subdomains:
+            return set()
+        result = generate_permutations(known_subdomains, domain)
+        return result.permutations
+
+
+try:
+    register_plugin(SUBDOMAIN_ENUMERATOR, "subdomain_permutator", contract=SubdomainEnumeratorProtocol)(
+        _SubdomainPermutatorBackend.query
+    )
+except Exception as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)
+
+
 def _run_async_provider(provider: Any, root: str) -> Any:
     return run_async_in_sync_context(provider(root))
 
@@ -501,5 +520,22 @@ def enumerate_subdomains(
                     "new_urls": len(merged),
                     "errors": errors,
                 }
+
+    # --- Subdomain permutation (alterx-style) ---
+    if tools_config.get("subdomain_permutator", True):
+        try:
+            from src.recon.subdomain_permutator import generate_permutations
+
+            for root in roots:
+                perm_result = generate_permutations(subdomains, root)
+                if perm_result.permutations:
+                    logger.info(
+                        "subdomain_permutator: generated %d candidates for %s",
+                        perm_result.permutations_count,
+                        root,
+                    )
+                    subdomains.update(perm_result.permutations)
+        except Exception as exc:
+            logger.debug("subdomain_permutator failed: %s", exc, exc_info=True)
 
     return subdomains

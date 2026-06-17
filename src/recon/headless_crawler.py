@@ -31,7 +31,7 @@ import logging
 import re
 import time
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -281,35 +281,35 @@ def headless_crawl_hosts(
         65,
     )
     workers = max(1, min(max_workers, len(hosts_list)))
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [
-            ex.submit(
-                headless_crawl_host,
-                host,
-                max_pages=max_pages_per_host,
-                page_timeout_seconds=page_timeout_seconds,
-                max_depth=max_depth,
+    ex = get_shared_executor()
+    futures = [
+        ex.submit(
+            headless_crawl_host,
+            host,
+            max_pages=max_pages_per_host,
+            page_timeout_seconds=page_timeout_seconds,
+            max_depth=max_depth,
+        )
+        for host in hosts_list
+    ]
+    for idx, fut in enumerate(futures, start=1):
+        try:
+            urls = fut.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Headless crawl future failed: %s", exc)
+            urls = set()
+            errors += 1
+        before = len(discovered)
+        discovered.update(urls)
+        delta = len(discovered) - before
+        if hosts_list:
+            emit_collection_progress(
+                progress_callback,
+                f"Headless crawl host {idx}/{len(hosts_list)}: +{delta} urls, total {len(discovered)}",
+                65 + int((idx / len(hosts_list)) * 2),
+                processed=idx,
+                total=len(hosts_list),
             )
-            for host in hosts_list
-        ]
-        for idx, fut in enumerate(futures, start=1):
-            try:
-                urls = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Headless crawl future failed: %s", exc)
-                urls = set()
-                errors += 1
-            before = len(discovered)
-            discovered.update(urls)
-            delta = len(discovered) - before
-            if hosts_list:
-                emit_collection_progress(
-                    progress_callback,
-                    f"Headless crawl host {idx}/{len(hosts_list)}: +{delta} urls, total {len(discovered)}",
-                    65 + int((idx / len(hosts_list)) * 2),
-                    processed=idx,
-                    total=len(hosts_list),
-                )
 
     duration = round(time.monotonic() - start, 1)
     meta = {
