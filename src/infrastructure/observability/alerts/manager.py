@@ -21,7 +21,6 @@ from src.infrastructure.observability.alerts.models import (
 from src.infrastructure.observability.config import get_config
 from src.infrastructure.observability.metrics import get_metrics
 
-
 _MAX_ALERT_HISTORY = 5000
 
 
@@ -147,7 +146,7 @@ class AlertManager:
                 await self._notify(alert)
                 self._alert_history.append(alert)
                 if len(self._alert_history) > _MAX_ALERT_HISTORY:
-                    self._alert_history = self._alert_history[-_MAX_ALERT_HISTORY // 2:]
+                    self._alert_history = self._alert_history[-_MAX_ALERT_HISTORY // 2 :]
 
         return newly_fired
 

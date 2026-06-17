@@ -17,14 +17,19 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
+from src.intelligence.ml.context import truncate_context
 from src.intelligence.ml.prompts import (
     EXPLAIN_FINDING_SYSTEM,
     GENERATE_EXECUTIVE_SUMMARY_SYSTEM,
     GENERATE_PATCH_SYSTEM,
     TRIAGE_FALSE_POSITIVE_SYSTEM,
 )
-from src.intelligence.ml.scoring import GRC_MAPPINGS, fallback_explain, fallback_patch, fallback_triage, fallback_summary
-from src.intelligence.ml.context import truncate_context
+from src.intelligence.ml.scoring import (
+    fallback_explain,
+    fallback_patch,
+    fallback_summary,
+    fallback_triage,
+)
 
 logger = logging.getLogger(__name__)
 

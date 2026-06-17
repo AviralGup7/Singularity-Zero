@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
 from src.execution.validators.config.scoring_config import ScoringConfig
@@ -24,6 +23,7 @@ from src.execution.validators.validators.shared import (
     bounded_confidence,
     to_validation_result,
 )
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 logger = logging.getLogger(__name__)
 

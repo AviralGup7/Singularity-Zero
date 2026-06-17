@@ -11,8 +11,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from src.core.utils import normalize_url
 from src.core.utils.scheduler import RequestScheduler

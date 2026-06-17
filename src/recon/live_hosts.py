@@ -10,8 +10,6 @@ import logging
 import os
 import time
 from concurrent.futures import as_completed
-
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urlparse
 
@@ -19,6 +17,7 @@ import urllib3
 
 from src.core.models import DEFAULT_USER_AGENT, Config
 from src.core.utils.http_pool import get_pooled_connection
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.pipeline.tools import (
     build_retry_policy,
     execute_command,
@@ -563,8 +562,7 @@ def probe_live_hosts_fallback(
 
     executor = get_shared_executor()
     future_to_host = {
-        executor.submit(probe_host_without_httpx, host, timeout_seconds): host
-        for host in to_probe
+        executor.submit(probe_host_without_httpx, host, timeout_seconds): host for host in to_probe
     }
     processed = 0
     current_batch = 0

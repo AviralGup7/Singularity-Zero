@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 
 from src.pipeline.retry.circuit_breaker import CircuitState, ToolCircuitBreaker
 
-
 # ======================================================================== #
 # Fix 1: Circuit Breaker HALF_OPEN Recovery                                  #
 # ======================================================================== #
@@ -200,8 +199,7 @@ class TestIsRetryableDeduplication(unittest.TestCase):
     """Verify is_retryable is canonical from strategies.py."""
 
     def test_is_retryable_imported_from_strategies(self) -> None:
-        from src.pipeline.retry import strategies
-        from src.pipeline.retry import policy
+        from src.pipeline.retry import policy, strategies
 
         self.assertIs(policy.is_retryable, strategies.is_retryable)
 
@@ -239,6 +237,7 @@ class TestIsRetryableDeduplication(unittest.TestCase):
 
     def test_single_definition_in_strategies(self) -> None:
         import inspect
+
         from src.pipeline.retry import strategies
 
         source = inspect.getsource(strategies)
@@ -246,6 +245,7 @@ class TestIsRetryableDeduplication(unittest.TestCase):
 
     def test_no_definition_in_policy(self) -> None:
         import inspect
+
         from src.pipeline.retry import policy
 
         source = inspect.getsource(policy)
@@ -313,7 +313,7 @@ class TestToolRetryPolicyThreadSafety(unittest.TestCase):
     """Verify ToolRetryPolicy handles concurrent access safely."""
 
     def test_concurrent_observe_call_outcome(self) -> None:
-        from src.pipeline.retry.policy import ToolRetryPolicy, RetryPolicy
+        from src.pipeline.retry.policy import RetryPolicy, ToolRetryPolicy
 
         base = RetryPolicy(max_attempts=3)
         policy = ToolRetryPolicy(base_policy=base, tool_identifier="test_tool")
@@ -329,10 +329,7 @@ class TestToolRetryPolicyThreadSafety(unittest.TestCase):
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=worker, args=(i % 2 == 0,))
-            for i in range(n_threads)
-        ]
+        threads = [threading.Thread(target=worker, args=(i % 2 == 0,)) for i in range(n_threads)]
         for t in threads:
             t.start()
         for t in threads:
@@ -342,7 +339,7 @@ class TestToolRetryPolicyThreadSafety(unittest.TestCase):
         self.assertLessEqual(len(policy._recent_outcome_window), policy._recent_window_max)
 
     def test_concurrent_consume_budget(self) -> None:
-        from src.pipeline.retry.policy import ToolRetryPolicy, StageRetryPolicy, RetryPolicy
+        from src.pipeline.retry.policy import RetryPolicy, StageRetryPolicy
 
         base = RetryPolicy(max_attempts=3)
         stage = StageRetryPolicy(base_policy=base, max_retry_budget_seconds=100.0)
@@ -370,7 +367,7 @@ class TestToolRetryPolicyThreadSafety(unittest.TestCase):
         self.assertAlmostEqual(stage._total_retry_seconds_consumed, expected, delta=0.1)
 
     def test_concurrent_copy_is_safe(self) -> None:
-        from src.pipeline.retry.policy import ToolRetryPolicy, RetryPolicy
+        from src.pipeline.retry.policy import RetryPolicy, ToolRetryPolicy
 
         base = RetryPolicy(max_attempts=3)
         policy = ToolRetryPolicy(base_policy=base, tool_identifier="test_tool")
@@ -398,7 +395,7 @@ class TestToolRetryPolicyThreadSafety(unittest.TestCase):
         self.assertEqual(len(copies), 250)
 
     def test_lock_exists_on_tool_retry_policy(self) -> None:
-        from src.pipeline.retry.policy import ToolRetryPolicy, RetryPolicy
+        from src.pipeline.retry.policy import RetryPolicy, ToolRetryPolicy
 
         base = RetryPolicy(max_attempts=3)
         policy = ToolRetryPolicy(base_policy=base, tool_identifier="test")
@@ -429,10 +426,7 @@ class TestConcurrencyStress(unittest.TestCase):
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=worker, args=(f"tool_{i}",))
-            for i in range(10)
-        ]
+        threads = [threading.Thread(target=worker, args=(f"tool_{i}",)) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:
@@ -441,7 +435,7 @@ class TestConcurrencyStress(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_retry_policy_concurrent_stress(self) -> None:
-        from src.pipeline.retry.policy import ToolRetryPolicy, StageRetryPolicy, RetryPolicy
+        from src.pipeline.retry.policy import RetryPolicy, StageRetryPolicy, ToolRetryPolicy
 
         base = RetryPolicy(max_attempts=3)
         stage = StageRetryPolicy(base_policy=base, max_retry_budget_seconds=1000.0)
@@ -459,10 +453,7 @@ class TestConcurrencyStress(unittest.TestCase):
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=worker, args=(p,))
-            for p in policies
-        ]
+        threads = [threading.Thread(target=worker, args=(p,)) for p in policies]
         for t in threads:
             t.start()
         for t in threads:

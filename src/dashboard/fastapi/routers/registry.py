@@ -87,8 +87,8 @@ async def get_registry(
     _auth: Any = Depends(require_auth),
 ) -> RegistryResponse:
     """Return all registry data (modules, analysis, modes) in a single response."""
-    from src.core.contracts.protocol_registry import get_analysis_check_options
     from src.core.capabilities import generate_capability_manifest
+    from src.core.contracts.protocol_registry import get_analysis_check_options
     from src.core.plugins.loader import dynamic_plugin_payload
     from src.dashboard.registry import (
         ANALYSIS_CONTROL_GROUPS,
@@ -104,7 +104,9 @@ async def get_registry(
     return RegistryResponse(
         modules=RegistryModuleOptions(options=MODULE_OPTIONS, groups=MODULE_GROUPS),
         analysis=RegistryAnalysisOptions(
-            check_options=analysis_check_options_fn() if analysis_check_options_fn is not None else {},
+            check_options=analysis_check_options_fn()
+            if analysis_check_options_fn is not None
+            else {},
             control_groups=ANALYSIS_CONTROL_GROUPS,
             focus_presets=ANALYSIS_FOCUS_PRESETS,
             dynamic_plugins=plugin_payload["plugins"],

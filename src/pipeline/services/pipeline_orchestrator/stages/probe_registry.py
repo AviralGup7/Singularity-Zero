@@ -327,7 +327,9 @@ def _load_active_probe_functions() -> dict[str, Any]:
 
     manifest_registry = get_active_manifest_registry()
     if manifest_registry is not None:
-        probes["_active_check_manifests"] = manifest_registry.all() if hasattr(manifest_registry, 'all') else []
+        probes["_active_check_manifests"] = (
+            manifest_registry.all() if hasattr(manifest_registry, "all") else []
+        )
     else:
         probes["_active_check_manifests"] = []
     return probes

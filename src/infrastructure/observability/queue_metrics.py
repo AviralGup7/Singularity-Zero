@@ -15,9 +15,8 @@ Usage:
 
 from __future__ import annotations
 
-import time
 import threading
-from typing import Any
+import time
 
 from src.infrastructure.observability.cardinality import WORKER_IDS
 
@@ -153,7 +152,9 @@ class QueueMetricsCollector:
         except Exception:
             pass
 
-    async def record_processing_time(self, duration_seconds: float, job_type: str = "unknown") -> None:
+    async def record_processing_time(
+        self, duration_seconds: float, job_type: str = "unknown"
+    ) -> None:
         """Record job processing time.
 
         Args:
@@ -214,7 +215,9 @@ class QueueMetricsCollector:
         except Exception:
             pass
 
-    async def record_dead_letter(self, job_type: str = "unknown", error_type: str = "unknown") -> None:
+    async def record_dead_letter(
+        self, job_type: str = "unknown", error_type: str = "unknown"
+    ) -> None:
         """Record a dead-letter event.
 
         Args:

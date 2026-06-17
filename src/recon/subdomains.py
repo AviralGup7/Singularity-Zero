@@ -404,9 +404,9 @@ class _SubdomainPermutatorBackend:
 
 
 try:
-    register_plugin(SUBDOMAIN_ENUMERATOR, "subdomain_permutator", contract=SubdomainEnumeratorProtocol)(
-        _SubdomainPermutatorBackend.query
-    )
+    register_plugin(
+        SUBDOMAIN_ENUMERATOR, "subdomain_permutator", contract=SubdomainEnumeratorProtocol
+    )(_SubdomainPermutatorBackend.query)
 except Exception as exc:
     logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)
 

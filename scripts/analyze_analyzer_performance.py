@@ -90,7 +90,9 @@ def print_ranking_table(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyzer Performance Analysis")
     parser.add_argument("--json", type=str, help="Output JSON path")
-    parser.add_argument("--metrics", type=str, default="output/stability_test/analyzer_metrics.json")
+    parser.add_argument(
+        "--metrics", type=str, default="output/stability_test/analyzer_metrics.json"
+    )
     args = parser.parse_args()
 
     data = load_metrics(args.metrics)
@@ -116,9 +118,11 @@ def main() -> None:
     print(f"  Total invocations:            {summary['total_invocations']:,}")
     print(f"  Total findings:               {summary['total_findings']:,.1f}")
     print(f"  Total failures:               {summary['total_failures']:,}")
-    print(f"  Total runtime:                {summary['total_runtime_s']:,.1f}s ({summary['total_runtime_s']/60:.1f}m)")
+    print(
+        f"  Total runtime:                {summary['total_runtime_s']:,.1f}s ({summary['total_runtime_s'] / 60:.1f}m)"
+    )
     print(f"  Avg findings/second:          {summary['avg_findings_per_second']:.2f}")
-    print(f"  Overall failure rate:         {summary['overall_failure_rate']*100:.1f}%")
+    print(f"  Overall failure rate:         {summary['overall_failure_rate'] * 100:.1f}%")
     print()
 
     # Cost breakdown by input_kind
@@ -293,11 +297,15 @@ def main() -> None:
     # =========================================================================
     print_header("COST-VS-VALUE TABLE (All Active Analyzers)")
     print()
-    print(f"  {'Key':<45} {'Cost':>6} {'Runtime':>9} {'Findings':>9} {'Value':>7} {'Invoc':>6} {'Fail%':>5}")
+    print(
+        f"  {'Key':<45} {'Cost':>6} {'Runtime':>9} {'Findings':>9} {'Value':>7} {'Invoc':>6} {'Fail%':>5}"
+    )
     print("  " + "-" * 105)
     for a in sorted(active, key=lambda a: -a["value_score"]):
-        cost_char = "H" if a["cost_relative"] >= 0.8 else ("M" if a["cost_relative"] >= 0.4 else "L")
-        fail_pct = f"{a['failure_rate']*100:.1f}%" if a["failure_rate"] > 0 else "0.0%"
+        cost_char = (
+            "H" if a["cost_relative"] >= 0.8 else ("M" if a["cost_relative"] >= 0.4 else "L")
+        )
+        fail_pct = f"{a['failure_rate'] * 100:.1f}%" if a["failure_rate"] > 0 else "0.0%"
         print(
             f"  {a['key']:<45} [{cost_char}] "
             f"{a['total_runtime_s']:>8.1f}s "
@@ -315,9 +323,9 @@ def main() -> None:
     # 1. Removal candidates
     print_subheader("1. REMOVAL CANDIDATES (90 stub analyzers)")
     print(f"  {len(stubs)} analyzers are registered with runner=None and produce zero findings.")
-    print(f"  They consume memory in ANALYZER_BINDINGS dict but add no value.")
+    print("  They consume memory in ANALYZER_BINDINGS dict but add no value.")
     print(f"  Impact: Reduces binding registry from {summary['total_analyzers']} to {len(active)}")
-    print(f"  Priority: HIGH - reduces iteration overhead in run_analysis_plugins()")
+    print("  Priority: HIGH - reduces iteration overhead in run_analysis_plugins()")
     print()
 
     # 2. Lazy loading candidates
@@ -327,18 +335,22 @@ def main() -> None:
     )[:15]
     print_subheader("2. LAZY LOADING CANDIDATES (Low-frequency active analyzers)")
     print(f"  {len(lazy_candidates)} active analyzers run infrequently (<150 invocations)")
-    print(f"  and contribute <50s total runtime. Consider lazy-loading them.")
+    print("  and contribute <50s total runtime. Consider lazy-loading them.")
     for a in lazy_candidates:
-        print(f"    - {a['key']:<45} invocations={a['invocations']:>4}  runtime={a['total_runtime_s']:.1f}s")
+        print(
+            f"    - {a['key']:<45} invocations={a['invocations']:>4}  runtime={a['total_runtime_s']:.1f}s"
+        )
 
     # 3. Batching candidates
     print_subheader("3. BATCHING CANDIDATES (High invocation count)")
     batch_candidates = sorted(active, key=lambda a: -a["invocations"])[:10]
     print(f"  These {len(batch_candidates)} analyzers have the highest invocation counts.")
-    print(f"  Batching multiple URLs per call would reduce overhead.")
+    print("  Batching multiple URLs per call would reduce overhead.")
     for a in batch_candidates:
         batch_savings = a["invocations"] * 0.005  # 5ms overhead per call
-        print(f"    - {a['key']:<45} invocations={a['invocations']:>4}  est_overhead={batch_savings:.1f}s")
+        print(
+            f"    - {a['key']:<45} invocations={a['invocations']:>4}  est_overhead={batch_savings:.1f}s"
+        )
 
     # 4. Timeout tuning candidates
     timeout_candidates = sorted(
@@ -347,10 +359,10 @@ def main() -> None:
     )[:10]
     print_subheader("4. TIMEOUT TUNING CANDIDATES (High failure rate)")
     print(f"  {len(timeout_candidates)} analyzers have >5% failure rate.")
-    print(f"  Consider increasing timeouts or implementing retry logic.")
+    print("  Consider increasing timeouts or implementing retry logic.")
     for a in timeout_candidates:
         print(
-            f"    - {a['key']:<45} failure_rate={a['failure_rate']*100:.1f}% "
+            f"    - {a['key']:<45} failure_rate={a['failure_rate'] * 100:.1f}% "
             f"failures={a['failures']} input_kind={a['input_kind']}"
         )
 
@@ -382,20 +394,34 @@ def main() -> None:
     med_cost = [a for a in active if 0.4 <= a["cost_relative"] < 0.8]
     low_cost = [a for a in active if a["cost_relative"] < 0.4]
 
-    print(f"  {'Active analyzers':<40} {len(active):>8} {total_active_runtime:>11,.1f}s {total_active_findings:>12,.1f}")
+    print(
+        f"  {'Active analyzers':<40} {len(active):>8} {total_active_runtime:>11,.1f}s {total_active_findings:>12,.1f}"
+    )
     print(f"  {'Stub analyzers (no runner)':<40} {len(stubs):>8} {'0.0s':>12} {'0.0':>12}")
     print(f"  {'---':<40} {'---':>8} {'---':>12} {'---':>12}")
-    print(f"  {'HIGH COST (active/cache)':<40} {len(high_cost):>8} {sum(a['total_runtime_s'] for a in high_cost):>11,.1f}s {sum(a['findings'] for a in high_cost):>12,.1f}")
-    print(f"  {'MEDIUM COST (local analysis)':<40} {len(med_cost):>8} {sum(a['total_runtime_s'] for a in med_cost):>11,.1f}s {sum(a['findings'] for a in med_cost):>12,.1f}")
-    print(f"  {'LOW COST (parsing/trivial)':<40} {len(low_cost):>8} {sum(a['total_runtime_s'] for a in low_cost):>11,.1f}s {sum(a['findings'] for a in low_cost):>12,.1f}")
+    print(
+        f"  {'HIGH COST (active/cache)':<40} {len(high_cost):>8} {sum(a['total_runtime_s'] for a in high_cost):>11,.1f}s {sum(a['findings'] for a in high_cost):>12,.1f}"
+    )
+    print(
+        f"  {'MEDIUM COST (local analysis)':<40} {len(med_cost):>8} {sum(a['total_runtime_s'] for a in med_cost):>11,.1f}s {sum(a['findings'] for a in med_cost):>12,.1f}"
+    )
+    print(
+        f"  {'LOW COST (parsing/trivial)':<40} {len(low_cost):>8} {sum(a['total_runtime_s'] for a in low_cost):>11,.1f}s {sum(a['findings'] for a in low_cost):>12,.1f}"
+    )
     print()
 
     # Savings estimate
     stub_memory = len(stubs) * 0.5  # ~0.5KB per binding entry
     potential_runtime_savings = sum(a["total_runtime_s"] for a in stubs)
-    print(f"  Potential runtime savings from removing stubs:  ~{stub_memory:.0f}KB memory + 0s runtime")
-    print(f"  Potential runtime savings from lazy loading:   ~{sum(a['total_runtime_s'] for a in lazy_candidates):.1f}s")
-    print(f"  Potential runtime savings from batching:       ~{sum(a['invocations'] * 0.005 for a in batch_candidates):.1f}s overhead")
+    print(
+        f"  Potential runtime savings from removing stubs:  ~{stub_memory:.0f}KB memory + 0s runtime"
+    )
+    print(
+        f"  Potential runtime savings from lazy loading:   ~{sum(a['total_runtime_s'] for a in lazy_candidates):.1f}s"
+    )
+    print(
+        f"  Potential runtime savings from batching:       ~{sum(a['invocations'] * 0.005 for a in batch_candidates):.1f}s overhead"
+    )
     print()
 
     print("=" * 120)

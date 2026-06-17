@@ -13,13 +13,12 @@ Usage:
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from typing import Any
 
-from sqlalchemy import event, engine
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from sqlalchemy.pool import QueuePool
 
 # Bucket boundaries optimized for DB query latency (seconds)
 _DB_LATENCY_BUCKETS = (0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
@@ -139,7 +138,9 @@ class DBMetricsCollector:
         except Exception:
             pass
 
-    def _handle_dbapi_error(self, conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, exception: Any) -> None:
+    def _handle_dbapi_error(
+        self, conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, exception: Any
+    ) -> None:
         """Record database errors."""
         try:
             from src.infrastructure.observability.metrics import get_metrics
@@ -191,6 +192,7 @@ def install_db_metrics(engine_instance: Engine) -> None:
     def _on_connect(dbapi_conn: Any, connection_record: Any) -> None:
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             get_metrics().counter("db_connections_total", "Total DB connections created").inc()
         except Exception:
             pass
@@ -199,7 +201,10 @@ def install_db_metrics(engine_instance: Engine) -> None:
     def _on_checkout(dbapi_conn: Any, connection_record: Any, connection_proxy: Any) -> None:
         try:
             from src.infrastructure.observability.metrics import get_metrics
-            get_metrics().counter("db_connection_checkouts_total", "Total DB connection checkouts").inc()
+
+            get_metrics().counter(
+                "db_connection_checkouts_total", "Total DB connection checkouts"
+            ).inc()
         except Exception:
             pass
 
@@ -221,10 +226,16 @@ def record_pool_stats(pool: Any) -> None:
         if hasattr(pool, "size"):
             metrics.gauge("db_pool_size", "Connection pool total size").set(pool.size())
         if hasattr(pool, "checkedout"):
-            metrics.gauge("db_pool_checked_out", "Connections currently checked out").set(pool.checkedout())
+            metrics.gauge("db_pool_checked_out", "Connections currently checked out").set(
+                pool.checkedout()
+            )
         if hasattr(pool, "checkedin"):
-            metrics.gauge("db_pool_checked_in", "Connections currently idle in pool").set(pool.checkedin())
+            metrics.gauge("db_pool_checked_in", "Connections currently idle in pool").set(
+                pool.checkedin()
+            )
         if hasattr(pool, "overflow"):
-            metrics.gauge("db_pool_overflow", "Connections created beyond pool size").set(pool.overflow())
+            metrics.gauge("db_pool_overflow", "Connections created beyond pool size").set(
+                pool.overflow()
+            )
     except Exception:
         pass

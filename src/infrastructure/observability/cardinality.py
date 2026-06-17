@@ -259,7 +259,9 @@ def cardinality_audit() -> dict[str, Any]:
             report["sets"][name] = {
                 "type": "allowlist",
                 "cardinality": cardinality,
-                "allowed_values": label_set.get_all_values() if hasattr(label_set, "get_all_values") else [],
+                "allowed_values": label_set.get_all_values()
+                if hasattr(label_set, "get_all_values")
+                else [],
             }
 
         report["total_sets"] += 1

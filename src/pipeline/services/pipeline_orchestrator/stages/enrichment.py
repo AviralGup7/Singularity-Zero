@@ -16,6 +16,7 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.core.plugins import resolve_plugin
 from src.intelligence.campaigns.campaign_builder import build_attack_campaigns
+from src.intelligence.chain_proposal import ChainProposalEngine, FindingShape
 from src.intelligence.correlation.engine import (
     calculate_compound_risk as _calculate_compound_risk,
 )
@@ -25,7 +26,6 @@ from src.intelligence.correlation.engine import (
 from src.intelligence.correlation.engine import (
     detect_multi_vector_endpoints as _detect_multi_vector_endpoints,
 )
-from src.intelligence.chain_proposal import ChainProposalEngine, FindingShape
 from src.intelligence.feeds.base import FeedError
 from src.intelligence.feeds.cve import CVEConfig, CVESyncClient
 from src.intelligence.feeds.mitre import MitreAttackMapper, MitreConfig
@@ -375,7 +375,9 @@ async def run_post_analysis_enrichments(
                 severity=str(finding.get("severity") or "medium"),
                 url=str(finding.get("url") or finding.get("target") or ""),
                 target=str(finding.get("url") or finding.get("target") or ""),
-                evidence=finding.get("evidence") if isinstance(finding.get("evidence"), dict) else {},
+                evidence=finding.get("evidence")
+                if isinstance(finding.get("evidence"), dict)
+                else {},
             )
             proposals = proposal_engine.propose_for(shape)
             if proposals:
@@ -394,7 +396,9 @@ async def run_post_analysis_enrichments(
                 chain_proposals.extend(finding["chain_proposals"])
         if chain_proposals:
             state_delta["chain_proposals"] = chain_proposals
-            logger.info("ChainProposalEngine generated %d follow-on probe suggestions", len(chain_proposals))
+            logger.info(
+                "ChainProposalEngine generated %d follow-on probe suggestions", len(chain_proposals)
+            )
     except Exception as exc:
         logger.error("Chain proposal generation failed: %s", exc)
 

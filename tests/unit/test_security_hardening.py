@@ -217,7 +217,9 @@ class TestSSRFProtectionConsistency:
         from pathlib import Path
 
         # Read the validation file to verify SSRF protections exist
-        validation_path = Path(__file__).parent.parent.parent / "src" / "dashboard" / "fastapi" / "validation.py"
+        validation_path = (
+            Path(__file__).parent.parent.parent / "src" / "dashboard" / "fastapi" / "validation.py"
+        )
         content = validation_path.read_text(encoding="utf-8")
         assert "validate_url" in content
         assert "_ALLOWED_URL_SCHEMES" in content

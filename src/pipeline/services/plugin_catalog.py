@@ -156,6 +156,7 @@ def _register_defaults() -> None:
     import src.analysis.behavior.dns_security  # noqa: F401
     import src.analysis.intelligence.aggregator  # noqa: F401
     import src.analysis.intelligence.cvss_scoring  # noqa: F401
+
     try:
         import src.execution.validators.engine._validators  # noqa: F401
     except ImportError:

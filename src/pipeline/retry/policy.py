@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import time
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
@@ -468,7 +468,9 @@ class ToolRetryPolicy(StageRetryPolicy):
         with self._lock:
             self._recent_outcome_window.append(success)
             if len(self._recent_outcome_window) > self._recent_window_max:
-                self._recent_outcome_window = self._recent_outcome_window[-self._recent_window_max :]
+                self._recent_outcome_window = self._recent_outcome_window[
+                    -self._recent_window_max :
+                ]
         self.observe_outcome(success)
 
     def copy(self) -> ToolRetryPolicy:

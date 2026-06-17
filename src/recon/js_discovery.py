@@ -13,12 +13,11 @@ import logging
 import re
 import time
 from concurrent.futures import FIRST_COMPLETED, wait
-
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urljoin
 
 from src.core.models import Config
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.js_fetcher import _fetch_text_content
 from src.recon.js_parsers import (

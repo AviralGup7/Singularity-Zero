@@ -469,7 +469,6 @@ def _register_bindings() -> None:
         # REWIRED STUBS: Inline bindings with runner=None converted to
         # lazy-loaded bindings with actual implementations
         # ================================================================
-
         # ---- Passive detectors (previously inline stubs) ----
         "sensitive_data_scanner": (
             "src.analysis.checks.passive._detectors",
@@ -491,7 +490,6 @@ def _register_bindings() -> None:
             "token_lifetime_analyzer",
             "responses_only",
         ),
-
         # ---- Passive detectors (separate module, previously inline) ----
         "token_leak_detector": (
             "src.analysis.passive.detectors.detector_token",
@@ -523,7 +521,6 @@ def _register_bindings() -> None:
             "race_condition_signal_analyzer",
             "urls_and_responses",
         ),
-
         # ---- Response analysis (previously inline stubs) ----
         "response_snapshot_system": (
             "src.analysis.response._core.response_analysis._snapshot",
@@ -575,7 +572,6 @@ def _register_bindings() -> None:
             "redirect_chain_analyzer",
             "priority_urls_and_cache",
         ),
-
         # ---- JSON analysis (previously inline stubs) ----
         "session_reuse_detection": (
             "src.analysis.json.auth",
@@ -652,7 +648,6 @@ def _register_bindings() -> None:
             "response_size_anomaly_detector",
             "responses_only",
         ),
-
         # ---- Active probes (previously inline stubs) ----
         "options_method_probe": (
             "src.analysis.active.http_methods",
@@ -734,7 +729,6 @@ def _register_bindings() -> None:
             "tenant_isolation_check",
             "priority_urls_and_cache",
         ),
-
         # ---- Exposure detectors (previously inline stubs) ----
         "graphql_error_leakage_checker": (
             "src.analysis.checks.exposure._api_surface",
@@ -871,7 +865,6 @@ def _register_bindings() -> None:
             "dns_record_analyzer",
             "urls_and_responses",
         ),
-
         # ---- Behavior analysis (previously inline stubs) ----
         "payment_flow_intelligence": (
             "src.analysis.behavior.payment",

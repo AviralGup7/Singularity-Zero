@@ -30,8 +30,8 @@ import logging
 import re
 import socket
 from collections.abc import Iterable
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.pipeline.tools import tool_available, try_command
 from src.recon.dnsx_wildcard import is_public_ip
 from src.recon.domain_validation import normalize_domain

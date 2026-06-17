@@ -17,7 +17,6 @@ Usage:
 from __future__ import annotations
 
 import threading
-from typing import Any
 
 
 class ResourcePoolMetrics:
@@ -74,7 +73,9 @@ class ResourcePoolMetrics:
             metrics.gauge("pool_active", "Active resources in pool", labels=labels).set(active)
             metrics.gauge("pool_idle", "Idle resources in pool", labels=labels).set(idle)
             metrics.gauge("pool_max_size", "Maximum pool capacity", labels=labels).set(max_size)
-            metrics.gauge("pool_waiting", "Callers waiting for a resource", labels=labels).set(waiting)
+            metrics.gauge("pool_waiting", "Callers waiting for a resource", labels=labels).set(
+                waiting
+            )
             metrics.gauge(
                 "pool_utilization_ratio",
                 "Pool utilization ratio (active/max_size)",
@@ -188,9 +189,9 @@ def collect_thread_pool_metrics(pool_name: str = "default") -> None:
         metrics.gauge("thread_pool_active_count", "Number of active threads", labels=labels).set(
             active_count
         )
-        metrics.gauge(
-            "thread_pool_daemon_count", "Number of daemon threads", labels=labels
-        ).set(daemon_count)
+        metrics.gauge("thread_pool_daemon_count", "Number of daemon threads", labels=labels).set(
+            daemon_count
+        )
         metrics.gauge(
             "thread_pool_non_daemon_count", "Number of non-daemon threads", labels=labels
         ).set(non_daemon_count)
@@ -223,9 +224,9 @@ def collect_asyncio_pool_metrics(pool_name: str = "default") -> None:
         metrics = get_metrics()
         labels = {"pool": pool_name}
 
-        metrics.gauge("asyncio_tasks_pending", "Number of pending asyncio tasks", labels=labels).set(
-            pending
-        )
+        metrics.gauge(
+            "asyncio_tasks_pending", "Number of pending asyncio tasks", labels=labels
+        ).set(pending)
         metrics.gauge("asyncio_tasks_done", "Number of completed asyncio tasks", labels=labels).set(
             done
         )

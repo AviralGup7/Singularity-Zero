@@ -52,9 +52,7 @@ def _safe_metric(cls: Any, name: str, documentation: str, labelnames: Any = ()) 
 WS_USER_IDS = BoundedLabelSet(max_size=256, fallback="__other__", name="ws_user_ids")
 WS_JOB_IDS = BoundedLabelSet(max_size=128, fallback="__other__", name="ws_job_ids")
 
-WS_CONNECTIONS = _safe_metric(
-    Gauge, "ws_active_connections", "Active WebSocket connections"
-)
+WS_CONNECTIONS = _safe_metric(Gauge, "ws_active_connections", "Active WebSocket connections")
 WS_MESSAGES = _safe_metric(Counter, "ws_messages_broadcast_total", "Messages broadcast", ["scope"])
 WS_LATENCY = _safe_metric(Histogram, "ws_dispatch_latency_seconds", "Message dispatch latency")
 WS_RECONNECTS = _safe_metric(

@@ -67,6 +67,7 @@ class _S3Base:
 
         try:
             from src.core.utils.shared_sessions import get_shared_boto3_client
+
             self._s3 = get_shared_boto3_client(
                 "s3",
                 region_name=region_name,
