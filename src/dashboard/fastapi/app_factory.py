@@ -44,6 +44,10 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                 "Set DATABASE_URL to a PostgreSQL connection string."
             )
 
+    # Production safety guard: enforce all production security requirements
+    from src.core.security.secret_validator import enforce_production_security
+    enforce_production_security()
+
     app = FastAPI(
         title="Cyber Security Test Pipeline Dashboard",
         description="Unified security orchestration and vulnerability analysis dashboard.",

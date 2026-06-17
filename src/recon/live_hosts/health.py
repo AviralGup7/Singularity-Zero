@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import logging
 import socket
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
+
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
 import urllib3
@@ -105,54 +107,54 @@ def probe_live_hosts_fallback(
         concurrency=executor_workers,
     )
 
-    with ThreadPoolExecutor(max_workers=executor_workers) as executor:
-        future_to_host = {
-            executor.submit(probe_host_without_httpx, host, timeout_seconds): host
-            for host in to_probe
-        }
-        processed = 0
-        current_batch = 0
-        batch_hosts: list[str] = []
-        batch_records: list[dict[str, Any]] = []
-        batch_live: set[str] = set()
-        for future in as_completed(future_to_host):
-            host = future_to_host[future]
-            processed += 1
-            batch_hosts.append(host)
-            try:
-                result = future.result()
-            except Exception as exc:
-                logger.warning("Error during host probing for %s: %s", host, exc)
-                result = None
-            if result and result.get("url"):
-                observed_url = str(result.get("url", "") or "").strip()
-                if observed_url:
-                    live_hosts.add(observed_url)
-                    batch_live.add(observed_url)
-                records.append(result)
-                batch_records.append(result)
-            if len(batch_hosts) >= batch_size or processed == len(to_probe):
-                _cache_update_from_batch(
-                    batch_hosts,
-                    batch_records,
-                    batch_live,
-                    ttl_seconds=ttl_seconds,
-                    target_name=target_name,
-                )
-                current_batch += 1
-                percent = min(47, 36 + int((current_batch / total_batches) * 11))
-                emit_collection_progress(
-                    progress_callback,
-                    f"live-host batch {current_batch}/{total_batches}: total {len(live_hosts)} "
-                    f"live hosts after {processed + skipped_count}/{len(hosts)} candidates",
-                    percent,
-                    processed=processed + skipped_count,
-                    total=len(hosts),
-                    stage_percent=int(((processed + skipped_count) / max(1, len(hosts))) * 100),
-                )
-                batch_hosts = []
-                batch_records = []
-                batch_live = set()
+    executor = get_shared_executor()
+    future_to_host = {
+        executor.submit(probe_host_without_httpx, host, timeout_seconds): host
+        for host in to_probe
+    }
+    processed = 0
+    current_batch = 0
+    batch_hosts: list[str] = []
+    batch_records: list[dict[str, Any]] = []
+    batch_live: set[str] = set()
+    for future in as_completed(future_to_host):
+        host = future_to_host[future]
+        processed += 1
+        batch_hosts.append(host)
+        try:
+            result = future.result()
+        except Exception as exc:
+            logger.warning("Error during host probing for %s: %s", host, exc)
+            result = None
+        if result and result.get("url"):
+            observed_url = str(result.get("url", "") or "").strip()
+            if observed_url:
+                live_hosts.add(observed_url)
+                batch_live.add(observed_url)
+            records.append(result)
+            batch_records.append(result)
+        if len(batch_hosts) >= batch_size or processed == len(to_probe):
+            _cache_update_from_batch(
+                batch_hosts,
+                batch_records,
+                batch_live,
+                ttl_seconds=ttl_seconds,
+                target_name=target_name,
+            )
+            current_batch += 1
+            percent = min(47, 36 + int((current_batch / total_batches) * 11))
+            emit_collection_progress(
+                progress_callback,
+                f"live-host batch {current_batch}/{total_batches}: total {len(live_hosts)} "
+                f"live hosts after {processed + skipped_count}/{len(hosts)} candidates",
+                percent,
+                processed=processed + skipped_count,
+                total=len(hosts),
+                stage_percent=int(((processed + skipped_count) / max(1, len(hosts))) * 100),
+            )
+            batch_hosts = []
+            batch_records = []
+            batch_live = set()
     return records, live_hosts
 
 

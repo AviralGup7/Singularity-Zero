@@ -19,16 +19,16 @@ def workspace_root() -> Path:
 def source_dirs(workspace_root: Path) -> list[Path]:
     """Return all source code directories to scan."""
     return [
-        workspace_root / "core",
-        workspace_root / "analysis",
-        workspace_root / "recon",
-        workspace_root / "detection",
-        workspace_root / "intelligence",
-        workspace_root / "decision",
-        workspace_root / "execution",
-        workspace_root / "reporting",
-        workspace_root / "fuzzing",
-        workspace_root / "plugins",
-        workspace_root / "pipeline_platform",
-        workspace_root / "dashboard_app",
+        workspace_root / "src" / "core",
+        workspace_root / "src" / "analysis",
+        workspace_root / "src" / "recon",
+        workspace_root / "src" / "detection",
+        workspace_root / "src" / "intelligence",
+        workspace_root / "src" / "decision",
+        workspace_root / "src" / "execution",
+        workspace_root / "src" / "reporting",
+        workspace_root / "src" / "fuzzing",
+        workspace_root / "src" / "plugins",
+        workspace_root / "src" / "pipeline_platform",
+        workspace_root / "src" / "dashboard_app",
     ]

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import logging
 import shutil
@@ -13,6 +12,7 @@ import time
 import uuid
 from pathlib import Path
 
+from src.cli.types import Namespace
 from src.cli.ui import console
 
 _FRONTEND_SRC = Path(__file__).resolve().parents[2] / "frontend"
@@ -77,7 +77,7 @@ def _ensure_frontend_built() -> bool:
     return True
 
 
-def handle_dashboard(args: argparse.Namespace) -> None:
+def handle_dashboard(args: Namespace) -> None:
     """Orchestrate the FastAPI dashboard startup."""
     if not _ensure_frontend_built():
         sys.exit(1)
@@ -104,7 +104,7 @@ def handle_dashboard(args: argparse.Namespace) -> None:
     run_server(argv)
 
 
-def handle_worker(args: argparse.Namespace) -> None:
+def handle_worker(args: Namespace) -> None:
     """Orchestrate the distributed worker startup."""
     from src.infrastructure.queue.worker_lite import main as run_worker
 
@@ -119,7 +119,7 @@ def handle_worker(args: argparse.Namespace) -> None:
     run_worker(argv)
 
 
-def handle_launch(args: argparse.Namespace) -> None:
+def handle_launch(args: Namespace) -> None:
     """Orchestrate starting both the dashboard and background queue worker in a single command."""
     from src.dashboard.fastapi.main import main as run_server
 

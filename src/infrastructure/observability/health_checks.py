@@ -420,11 +420,35 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
 
         try:
             worker_count = multiprocessing.cpu_count()
+            if not worker_count or worker_count <= 0:
+                return ComponentHealth(
+                    name="workers",
+                    status=ComponentStatus.DEGRADED,
+                    message=f"Invalid CPU count: {worker_count}",
+                    metadata={"logical_cpus": worker_count},
+                )
+
+            pool_alive = False
+            try:
+                from src.infrastructure.execution_engine.shared_pool import _pool
+
+                pool_alive = _pool is not None and not _pool.shutdown
+            except Exception:
+                pass
+
+            if not pool_alive:
+                return ComponentHealth(
+                    name="workers",
+                    status=ComponentStatus.DEGRADED,
+                    message=f"Thread pool executor not available (cpus={worker_count})",
+                    metadata={"logical_cpus": worker_count, "pool_alive": pool_alive},
+                )
+
             return ComponentHealth(
                 name="workers",
                 status=ComponentStatus.UP,
-                message=f"System has {worker_count} logical CPUs available",
-                metadata={"logical_cpus": worker_count},
+                message=f"System has {worker_count} logical CPUs, thread pool alive",
+                metadata={"logical_cpus": worker_count, "pool_alive": True},
             )
         except Exception as exc:
             return ComponentHealth(
@@ -439,20 +463,30 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
 
         try:
             cache_dir = os.path.join(tempfile.gettempdir(), "pipeline_cache")
-            if os.path.isdir(cache_dir):
-                items = os.listdir(cache_dir)
+            os.makedirs(cache_dir, exist_ok=True)
+
+            test_file = os.path.join(cache_dir, "_health_check_test")
+            test_payload = b"pipeline-cache-ok"
+            with open(test_file, "wb") as f:
+                f.write(test_payload)
+            with open(test_file, "rb") as f:
+                read_back = f.read()
+            os.remove(test_file)
+
+            if read_back != test_payload:
                 return ComponentHealth(
                     name="cache",
-                    status=ComponentStatus.UP,
-                    message=f"Cache directory accessible with {len(items)} entries",
-                    metadata={"cache_dir": cache_dir, "entries": len(items)},
+                    status=ComponentStatus.DOWN,
+                    message="Cache write/read round-trip mismatch",
+                    metadata={"cache_dir": cache_dir},
                 )
-            os.makedirs(cache_dir, exist_ok=True)
+
+            items = os.listdir(cache_dir)
             return ComponentHealth(
                 name="cache",
                 status=ComponentStatus.UP,
-                message="Cache directory initialized",
-                metadata={"cache_dir": cache_dir},
+                message=f"Cache directory read/write OK ({len(items)} entries)",
+                metadata={"cache_dir": cache_dir, "entries": len(items)},
             )
         except Exception as exc:
             return ComponentHealth(
@@ -462,27 +496,22 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
             )
 
     async def check_queue() -> ComponentHealth:
-        import importlib
-
         try:
-            mod = importlib.import_module("asyncio")
-            if hasattr(mod, "Queue"):
+            q = asyncio.Queue(maxsize=10)
+            await q.put("health_check")
+            item = await asyncio.wait_for(q.get(), timeout=1.0)
+            if item != "health_check":
                 return ComponentHealth(
                     name="queue",
-                    status=ComponentStatus.UP,
-                    message="Async queue subsystem available",
-                    metadata={"backend": "asyncio"},
+                    status=ComponentStatus.DEGRADED,
+                    message="Queue returned unexpected value",
                 )
+            loop_running = asyncio.get_event_loop().is_running()
             return ComponentHealth(
                 name="queue",
-                status=ComponentStatus.DEGRADED,
-                message="Queue module loaded but missing expected interface",
-            )
-        except ImportError:
-            return ComponentHealth(
-                name="queue",
-                status=ComponentStatus.DOWN,
-                message="Queue subsystem unavailable: asyncio not found",
+                status=ComponentStatus.UP,
+                message="Async queue put/get round-trip OK",
+                metadata={"backend": "asyncio", "loop_running": loop_running},
             )
         except Exception as exc:
             return ComponentHealth(
@@ -492,45 +521,49 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
             )
 
     async def check_api() -> ComponentHealth:
-        return await _check_http_health(
-            {
-                "name": "api",
-                "url": "http://localhost:8000/health",
-            }
-        )
-
-    async def check_websocket() -> ComponentHealth:
-        import importlib
+        import urllib.request
+        import urllib.error
 
         try:
-            ws_mod = importlib.import_module("websockets")
-            version = getattr(ws_mod, "__version__", "unknown")
+            req = urllib.request.Request("http://localhost:8000/health", method="GET")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                status_code = resp.getcode()
+                return ComponentHealth(
+                    name="api",
+                    status=ComponentStatus.UP,
+                    message=f"Dashboard API responded HTTP {status_code}",
+                    metadata={"status_code": status_code},
+                )
+        except urllib.error.URLError as exc:
+            return ComponentHealth(
+                name="api",
+                status=ComponentStatus.DOWN,
+                message=f"Dashboard API unreachable: {exc.reason}",
+            )
+        except Exception as exc:
+            return ComponentHealth(
+                name="api",
+                status=ComponentStatus.DOWN,
+                message=f"Dashboard API health check failed: {exc}",
+            )
+
+    async def check_websocket() -> ComponentHealth:
+        import socket
+
+        try:
+            sock = socket.create_connection(("localhost", 8000), timeout=2)
+            sock.close()
             return ComponentHealth(
                 name="websocket",
                 status=ComponentStatus.UP,
-                message=f"WebSocket server module available (v{version})",
-                metadata={"version": version},
+                message="WebSocket endpoint reachable on dashboard port",
+                metadata={"host": "localhost", "port": 8000},
             )
-        except ImportError:
-            try:
-                importlib.import_module("starlette.websockets")
-                return ComponentHealth(
-                    name="websocket",
-                    status=ComponentStatus.UP,
-                    message="WebSocket support available via Starlette",
-                    metadata={"backend": "starlette"},
-                )
-            except ImportError:
-                return ComponentHealth(
-                    name="websocket",
-                    status=ComponentStatus.DOWN,
-                    message="WebSocket support unavailable",
-                )
         except Exception as exc:
             return ComponentHealth(
                 name="websocket",
-                status=ComponentStatus.DEGRADED,
-                message=f"WebSocket check encountered an issue: {exc}",
+                status=ComponentStatus.DOWN,
+                message=f"WebSocket endpoint unreachable: {exc}",
             )
 
     checker.register("redis", check_redis)

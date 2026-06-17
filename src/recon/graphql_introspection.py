@@ -64,7 +64,7 @@ import json
 import logging
 import re
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -816,8 +816,9 @@ async def introspect_endpoint_async(
 ) -> GraphQLEndpoint:
     """Async wrapper around :func:`_introspect_endpoint_sync`."""
     loop = asyncio.get_running_loop()
+    executor = get_shared_executor()
     return await loop.run_in_executor(
-        None,
+        executor,
         lambda: _introspect_endpoint_sync(
             url,
             headers=headers,
@@ -865,21 +866,21 @@ def discover_graphql_endpoints(
 
     workers = max(1, min(max_workers, len(candidate_urls)))
     results: list[GraphQLEndpoint] = []
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [
-            ex.submit(
-                _introspect_endpoint_sync,
-                url,
-                headers=headers,
-                timeout_seconds=timeout_seconds,
-            )
-            for _, url in candidate_urls
-        ]
-        for fut in futures:
-            try:
-                results.append(fut.result())
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("GraphQL probe failed: %s", exc)
+    ex = get_shared_executor()
+    futures = [
+        ex.submit(
+            _introspect_endpoint_sync,
+            url,
+            headers=headers,
+            timeout_seconds=timeout_seconds,
+        )
+        for _, url in candidate_urls
+    ]
+    for fut in futures:
+        try:
+            results.append(fut.result())
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("GraphQL probe failed: %s", exc)
     return results
 
 

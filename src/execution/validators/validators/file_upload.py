@@ -15,12 +15,12 @@ if TYPE_CHECKING:
 import logging
 import uuid
 
-from src.analysis.helpers import (
+from src.core.utils.endpoint_classification import (
     endpoint_signature,
     is_auth_flow_endpoint,
     is_low_value_endpoint,
-    normalized_confidence,
 )
+from src.core.utils.scoring import normalized_confidence
 from src.execution.validators.validators.shared import to_validation_result
 
 logger = logging.getLogger(__name__)

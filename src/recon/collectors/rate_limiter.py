@@ -48,6 +48,20 @@ class TokenBucket:
                 wait = max(0.01, needed / max(self.rate, 1e-6))
             time.sleep(wait)
 
+    async def acquire_async(self, tokens: int = 1) -> None:
+        """Non-blocking async acquire that uses asyncio.sleep."""
+        import asyncio
+
+        while True:
+            with self._lock:
+                self._add_tokens()
+                if self._tokens >= tokens:
+                    self._tokens -= tokens
+                    return
+                needed = tokens - self._tokens
+                wait = max(0.01, needed / max(self.rate, 1e-6))
+            await asyncio.sleep(wait)
+
 
 # Global default limiter (can be overridden by tests)
 DEFAULT_LIMITER = TokenBucket(rate_per_second=20.0, capacity=40)

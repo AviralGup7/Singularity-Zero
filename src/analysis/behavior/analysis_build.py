@@ -23,7 +23,7 @@ from src.analysis.helpers import (
     signal_weight,
 )
 from src.core.contracts.pipeline import dedup_digest
-from src.execution.exploiters.exploit_automation import enrich_behavior_finding
+from src.core.exploiters.exploit_automation import enrich_behavior_finding
 
 
 def build_behavior_analysis(

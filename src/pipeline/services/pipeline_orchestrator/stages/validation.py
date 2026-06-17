@@ -9,7 +9,6 @@ from typing import Any
 from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
-from src.execution.validators import execute_validation_runtime
 from src.pipeline.pipeline_logging import instrument
 from src.pipeline.runner_support import emit_progress
 
@@ -71,6 +70,8 @@ async def run_validation(
 
     for attempt in range(1, 3):
         try:
+            from src.execution.validators import execute_validation_runtime
+
             validation_summary = await asyncio.to_thread(
                 execute_validation_runtime,
                 analysis_results,

@@ -70,12 +70,15 @@ frontend/dist/
 frontend/coverage/
 .vite
 
-# Environment and Secrets (CRITICAL)
+# Environment and Secrets (CRITICAL - NEVER COMMIT)
 .env
-.env.local
-.env.*.local
-*.env
+.env.*
 !.env.example
+!.env.example.*
+*.env
+*.env.local
+*.env.production
+*.env.staging
 .secrets
 secrets/
 credentials/
@@ -83,6 +86,22 @@ credentials/
 *.pem
 *.crt
 *.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+*secret*.json
+*secret*.yaml
+*secret*.yml
+*credentials*.json
+*credentials*.yaml
+*credentials*.yml
+service-account*.json
+*-key.json
+*-service-account.json
+*.gcloudignore
+.github/secrets.yml
+.github/actions/*/secrets.yml
 
 # Security scan artifacts
 scan_results/
@@ -172,6 +191,11 @@ GEMINI.md
 !src/dashboard/output/square.com/**
 !frontend/dist/
 !frontend/dist/**
+
+# Security: never commit pipeline launch artifacts that may contain secrets
+src/dashboard/output/launcher/*/config.json
+src/dashboard/output/launcher/*/scope.txt
+src/dashboard/output/launcher/*/*.log
 
 # Ignore runtime launcher job data
 launcher/

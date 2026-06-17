@@ -107,7 +107,33 @@ from ._utils import (
     json_type_name,
     normalize_headers,
 )
-from .response_filters import classify_response_delta
+from src.core.utils.response_filters import classify_response_delta
+
+from src.core.utils.token_analysis import (
+    EMAIL_VALUE_RE,
+    extract_host_candidate as extract_host_candidate,
+    has_remote_scheme,
+    is_dangerous_scheme,
+    is_internal_host_value,
+    is_suspicious_path_redirect as is_suspicious_path_redirect,
+    looks_like_dns_callback,
+    token_shape,
+)
+
+from src.core.utils.validator_helpers import (
+    SCHEMA_VERSION as SCHEMA_VERSION,
+    build_manual_hint as build_manual_hint,
+    build_validator_result as build_validator_result,
+    classify_object_family,
+    json_type_name,
+    normalize_headers,
+)
+
+from src.core.utils.scoring import (
+    normalized_confidence as normalized_confidence,
+    apply_bounded_confidence,
+    severity_score,
+)
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -185,4 +211,14 @@ __all__ = [
     "probe_confidence_from_map",
     "probe_severity_from_map",
     "classify_response_delta",
+    "EMAIL_VALUE_RE",
+    "has_remote_scheme",
+    "is_dangerous_scheme",
+    "is_internal_host_value",
+    "looks_like_dns_callback",
+    "token_shape",
+    "json_type_name",
+    "normalize_headers",
+    "apply_bounded_confidence",
+    "severity_score",
 ]

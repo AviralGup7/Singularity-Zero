@@ -228,7 +228,7 @@ class ConnectionManager:
             user_connections.add(connection_id)
             ip_connections.add(connection_id)
 
-            WS_CONNECTIONS.labels(user_id=user_id).inc()
+            WS_CONNECTIONS.inc()
 
             logger.info(
                 "Connection registered: id=%s user=%s ip=%s (total=%d)",
@@ -398,7 +398,7 @@ class ConnectionManager:
 
                 info.closed = True
 
-                WS_CONNECTIONS.labels(user_id=info.user_id).dec()
+                WS_CONNECTIONS.dec()
 
                 self.user_connections[info.user_id].discard(conn_id)
                 if not self.user_connections[info.user_id]:

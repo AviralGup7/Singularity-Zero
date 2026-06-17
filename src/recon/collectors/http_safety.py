@@ -182,8 +182,8 @@ def reset_default_session() -> None:
         if _DEFAULT_SESSION is not None:
             try:
                 _DEFAULT_SESSION.close()
-            except Exception:  # pragma: no cover - defensive  # noqa: S110
-                pass
+            except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+                logger.debug("Failed to close default session: %s", exc)
         _DEFAULT_SESSION = None
 
 
@@ -382,6 +382,18 @@ def _sleep(seconds: float) -> None:
         time.sleep(max(0.0, seconds))
     except Exception as exc:  # pragma: no cover - very defensive
         logger.debug("safe_get sleep interrupted: %s", exc)
+
+
+async def _sleep_async(seconds: float) -> None:
+    """Async version of _sleep for use in async contexts."""
+    import asyncio
+
+    try:
+        await asyncio.sleep(max(0.0, seconds))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # pragma: no cover - very defensive
+        logger.debug("safe_get async sleep interrupted: %s", exc)
 
 
 __all__ = [

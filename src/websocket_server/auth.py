@@ -366,7 +366,8 @@ async def send_auth_error(websocket: WebSocket, error: AuthenticationError) -> N
         )
         await websocket.send_text(error_payload)
         await websocket.close(code=error.status_code, reason=error.detail)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to send auth error response: %s", exc)
         try:
             await websocket.close(code=error.status_code)
         except Exception as e:

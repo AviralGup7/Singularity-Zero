@@ -57,8 +57,19 @@ class AuditLogger:
         if log_file is not None:
             path = Path(log_file)
             path.parent.mkdir(parents=True, exist_ok=True)
+            self._close_file_handle()
             self._file_handle = path.open("a", encoding="utf-8")
             self._load_tail_hash(path)
+
+    def _close_file_handle(self) -> None:
+        """Close the file handle if open, suppressing errors. Idempotent."""
+        if self._file_handle is not None:
+            try:
+                self._file_handle.flush()
+                self._file_handle.close()
+            except OSError:
+                pass
+            self._file_handle = None
 
     @classmethod
     def get_instance(
@@ -283,14 +294,7 @@ class AuditLogger:
     def close(self) -> None:
         """Close the underlying file handle if open. Idempotent: safe to call multiple times."""
         with self._mutex:
-            if self._file_handle is not None:
-                try:
-                    self._file_handle.flush()
-                    self._file_handle.close()
-                except OSError as exc:
-                    logger.debug("Failed to close audit log file: %s", exc)
-                finally:
-                    self._file_handle = None
+            self._close_file_handle()
 
 
 def get_audit_logger() -> AuditLogger:

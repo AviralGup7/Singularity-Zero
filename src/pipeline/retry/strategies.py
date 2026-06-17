@@ -144,6 +144,16 @@ def retry_ready(policy: Any, attempt: int) -> bool:
 def sleep_before_retry(policy: Any, attempt: int) -> float:
     delay = float(policy.delay_for_attempt(attempt + 1))
     if delay > 0:
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                logger.warning(
+                    "sleep_before_retry called from async context without being awaited; "
+                    "use sleep_before_retry_async instead"
+                )
+        except RuntimeError:
+            pass
         time.sleep(delay)
     return delay
 

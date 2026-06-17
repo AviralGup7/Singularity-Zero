@@ -51,7 +51,8 @@ class IsolatedResponseCacheFactory:
 
 def _materialize_child_value(value: Any) -> Any:
     if isinstance(value, IsolatedResponseCacheFactory):
-        from src.analysis.passive.runtime import RequestScheduler, ResponseCache
+        from src.core.utils.response_cache import ResponseCache
+        from src.core.utils.scheduler import RequestScheduler
 
         scheduler = RequestScheduler(rate_per_second=4.0, capacity=2.0, adaptive_mode=False)
         return ResponseCache(

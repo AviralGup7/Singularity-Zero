@@ -35,9 +35,10 @@ class RemediationScanner:
 
         # Enforce tenant isolation
         if tenant_id:
-            from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+            from src.core.contracts.protocol_registry import get_tenant_isolation_check
 
-            if not is_target_owned_by_tenant(target_name, tenant_id):
+            tenant_check = get_tenant_isolation_check()
+            if tenant_check is not None and not tenant_check(target_name, tenant_id):
                 raise PermissionError("Access denied: target does not belong to this tenant.")
 
         # Check and enforce adaptive 72h cooldown in Redis

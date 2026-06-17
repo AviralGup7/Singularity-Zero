@@ -1,4 +1,52 @@
-# Bloom Frontier Benchmark Notes
+# Performance Benchmark Notes
+
+## Scope
+
+This file tracks performance optimization work across the cyber security test pipeline.
+
+- **Bloom Frontier**: `src/core/frontier/bloom.py` (see [Bloom section](#bloom-frontier-benchmark-notes))
+- **Pipeline Performance**: Shared thread pool, S3 streaming, connection pooling, sleep optimization (see [Pipeline Performance](#pipeline-performance-optimizations))
+
+---
+
+## Pipeline Performance Optimizations
+
+### Overview
+
+Six high-ROI performance optimizations were implemented and measured on 2026-06-16:
+
+| # | Optimization | Key Result |
+|---|---|---|
+| 1 | Shared ThreadPoolExecutor | -53.1% import time |
+| 2 | asyncio.sleep in async paths | 107x concurrent throughput |
+| 3 | Stream S3 object reads | 100% memory reduction for large objects |
+| 4 | Connection pooling | -15.7% httpx creation time |
+| 5 | HTTP profiling hooks | Bottleneck visibility |
+| 6 | URL stage profiling | Timeout visibility |
+
+### Detailed Report
+
+See `.benchmarks/PERFORMANCE_REPORT.md` for the full comparative analysis with CPU, memory, latency, and throughput measurements.
+
+### Reproduction
+
+```bash
+python scripts/benchmark_performance.py --baseline
+python scripts/benchmark_performance.py --optimized
+python scripts/benchmark_performance.py --report .benchmarks/baseline.json .benchmarks/optimized.json
+```
+
+### Key Files
+
+- `src/infrastructure/execution_engine/shared_pool.py` - Shared ThreadPoolExecutor
+- `src/core/utils/shared_sessions.py` - Shared httpx/requests/boto3 sessions
+- `src/core/utils/http_profiler.py` - HTTP profiling hooks
+- `src/pipeline/url_stage_profiler.py` - URL stage timeout profiling
+- `scripts/benchmark_performance.py` - Benchmark suite
+
+---
+
+## Bloom Frontier Benchmark Notes
 
 ## Scope
 

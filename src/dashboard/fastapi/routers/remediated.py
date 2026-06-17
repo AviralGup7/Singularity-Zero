@@ -11,7 +11,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from src.dashboard.fastapi.dependencies import check_rate_limit, get_queue_client, require_auth
 from src.dashboard.fastapi.routers.findings import _find_finding_by_id
 from src.dashboard.fastapi.routers.targets import verify_tenant_boundary
-from src.execution.remediators.remediation_scanner import RemediationScanner
 
 router = APIRouter(prefix="/api/remediated", tags=["Remediation Verification"])
 
@@ -103,7 +102,12 @@ async def verify_finding_remediation(
         raise HTTPException(status_code=404, detail="Finding not found")
 
     # 3. Instantiate RemediationScanner and execute verification
-    scanner = RemediationScanner(use_wasm_sandbox=True)
+    from src.core.contracts.protocol_registry import get_remediation_scanner_cls
+
+    RemediationScannerCls = get_remediation_scanner_cls()
+    if RemediationScannerCls is None:
+        raise HTTPException(status_code=500, detail="RemediationScanner not available")
+    scanner = RemediationScannerCls(use_wasm_sandbox=True)
     try:
         redis_client = (
             services.queue.client

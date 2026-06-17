@@ -22,7 +22,6 @@ from src.core.contracts.schema_validator import (
 )
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
-from src.execution.validators import execute_validation_runtime
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import (
     build_stage_input_from_context,
@@ -221,6 +220,8 @@ async def run_passive_scanning(
             validate_decision_payload({"findings": state_delta["reportable_findings"]})
 
             try:
+                from src.execution.validators import execute_validation_runtime
+
                 state_delta["validation_summary"] = await asyncio.to_thread(
                     execute_validation_runtime,
                     state_delta["analysis_results"],

@@ -367,6 +367,16 @@ class LoadBalancer:
                 await asyncio.sleep(self._sample_interval)
 
         self._monitor_task = asyncio.create_task(_monitor_loop(), name="load-balancer-monitor")
+        self._monitor_task.add_done_callback(self._log_task_exception)
+
+    @staticmethod
+    def _log_task_exception(task: asyncio.Task[None]) -> None:
+        """Log exceptions from background monitor tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Load balancer monitor task raised: %s", exc)
 
     async def stop_monitoring(self) -> None:
         """Stop the background monitoring task."""

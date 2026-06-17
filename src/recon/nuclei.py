@@ -504,11 +504,58 @@ def _verify_templates(config: Config) -> None:
     check was performed at all. We now also verify the default templates
     directory whenever it exists.
     """
+    import pathlib
+
+    manifest_dir = os.getenv("NUCLEI_MANIFEST_DIR") or "configs/templates"
+
+    # --- Step 1: Integrity validation via SHA-256 manifest ---
+    try:
+        from src.recon.nuclei_template_validation import NucleiTemplateValidator
+
+        manifest_path = pathlib.Path(manifest_dir) / "template_manifest.json"
+        validator = NucleiTemplateValidator(str(manifest_path))
+        canonical = pathlib.Path(manifest_dir).resolve()
+        if canonical.exists() and canonical.is_dir():
+            if not validator.verify_templates(str(canonical)):
+                raise ValueError(
+                    "Nuclei template integrity check failed: "
+                    "hash mismatch detected against signed manifest"
+                )
+    except ValueError:
+        raise
+    except Exception as exc:
+        logger.warning("Nuclei template integrity validation skipped: %s", exc)
+
+    # --- Step 2: Schema validation for explicit template files ---
+    try:
+        from src.recon.nuclei_schema import validate_template_file
+
+        extra_args = (
+            config.nuclei.get("extra_args", [])
+            if hasattr(config, "nuclei") and isinstance(config.nuclei, dict)
+            else []
+        )
+        for idx, arg in enumerate(extra_args):
+            if arg in ("-t", "-templates") and idx + 1 < len(extra_args):
+                template_path = extra_args[idx + 1]
+                resolved = pathlib.Path(template_path).resolve()
+                if resolved.exists() and resolved.is_file():
+                    try:
+                        validate_template_file(str(resolved))
+                    except Exception as exc:
+                        logger.warning(
+                            "Schema validation failed for template %s: %s",
+                            template_path,
+                            exc,
+                        )
+    except ImportError:
+        logger.debug("nuclei_schema module unavailable; skipping schema validation")
+    except Exception as exc:
+        logger.warning("Nuclei template schema validation skipped: %s", exc)
+
+    # --- Step 3: Provenance check (existing) ---
     try:
         from src.core.security.provenance import verify_provenance
-
-        manifest_dir = os.getenv("NUCLEI_MANIFEST_DIR") or "configs/templates"
-        import pathlib
 
         # Always verify the canonical templates directory if it exists.
         canonical = pathlib.Path(manifest_dir).resolve()

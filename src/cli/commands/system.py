@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import logging
 import os
 import subprocess
 from pathlib import Path
 
+from src.cli.types import Namespace
 from src.cli.ui import console
 
 logger = logging.getLogger(__name__)
@@ -212,7 +212,7 @@ def handle_doctor() -> int:
     return exit_code
 
 
-def handle_setup(args: argparse.Namespace) -> int:
+def handle_setup(args: Namespace) -> int:
     """Orchestrate downloading and installing required Go binaries locally."""
     from src.core.utils.bin_downloader import setup_all_tools
 
@@ -230,7 +230,7 @@ def handle_setup(args: argparse.Namespace) -> int:
     return 0
 
 
-def handle_cleanup(args: argparse.Namespace) -> int:
+def handle_cleanup(args: Namespace) -> int:
     """Purge old artifacts and checkpoints."""
     from src.pipeline.maintenance import prune_output_history
 
@@ -249,7 +249,7 @@ def handle_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
-def handle_plugin_new(args: argparse.Namespace) -> int:
+def handle_plugin_new(args: Namespace) -> int:
     """Scaffold a new custom security plugin."""
     from rich.prompt import Prompt
 

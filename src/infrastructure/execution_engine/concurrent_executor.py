@@ -285,10 +285,10 @@ class ConcurrentExecutor:
                 await self._load_balancer.stop_monitoring()
             self._running = False
             if self._cpu_executor:
-                self._cpu_executor.shutdown(wait=False)
+                self._cpu_executor.shutdown(wait=True)
                 self._cpu_executor = None
             if self._io_executor:
-                self._io_executor.shutdown(wait=False)
+                self._io_executor.shutdown(wait=True)
                 self._io_executor = None
 
         finished_at = time.monotonic()
@@ -432,9 +432,9 @@ class ConcurrentExecutor:
         self._cancelled = True
         await self._pool_manager.close_all()
         if self._cpu_executor:
-            self._cpu_executor.shutdown(wait=False)
+            self._cpu_executor.shutdown(wait=True)
             self._cpu_executor = None
         if self._io_executor:
-            self._io_executor.shutdown(wait=False)
+            self._io_executor.shutdown(wait=True)
             self._io_executor = None
         logger.info("ConcurrentExecutor shut down complete")

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import argparse
-
+from src.cli.types import Namespace
 from src.cli.ui import console
 
 
-def handle_scan(args: argparse.Namespace) -> int:
+def handle_scan(args: Namespace) -> int:
     """Execute a localized pipeline run."""
     from src.pipeline.runtime import main as run_pipeline
 

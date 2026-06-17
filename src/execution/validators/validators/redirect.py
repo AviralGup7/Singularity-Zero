@@ -1,20 +1,17 @@
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
-from src.analysis.helpers import (
-    REDIRECT_PARAM_NAMES,
-    build_manual_hint,
-    build_validator_result,
-    decode_candidate_value,
+from src.core.utils.endpoint_classification import (
     endpoint_signature,
     extract_host_candidate,
     is_auth_flow_endpoint,
     is_low_value_endpoint,
-    is_suspicious_path_redirect,
-    normalized_confidence,
-    parameter_weight,
     same_host_family,
 )
+from src.core.utils.param_types import REDIRECT_PARAM_NAMES, decode_candidate_value
+from src.core.utils.scoring import normalized_confidence, parameter_weight
+from src.core.utils.token_analysis import is_suspicious_path_redirect
+from src.core.utils.validator_helpers import build_manual_hint, build_validator_result
 from src.core.models import ValidationResult
 from src.execution.validators.validators.shared import (
     REDIRECT_CONFIDENCE_BASE,

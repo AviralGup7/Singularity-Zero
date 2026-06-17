@@ -78,9 +78,9 @@ class ToolCircuitBreaker:
         opened_at = self._opened_at.get(tool_name, 0.0)
         if now - opened_at >= self.recovery_timeout:
             self._state[tool_name] = CircuitState.HALF_OPEN
+            self._opened_at[tool_name] = now
             if self._half_open_trial_used.get(tool_name, False):
                 self._state[tool_name] = CircuitState.OPEN
-                self._opened_at[tool_name] = now
                 self._failures[tool_name] = [now]
                 self._half_open_trial_used[tool_name] = False
                 self._skip_reason[tool_name] = (

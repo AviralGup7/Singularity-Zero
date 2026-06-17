@@ -22,8 +22,11 @@ from .probe_registry import (
     _normalize_scan_targets,
 )
 from .probe_runners import (
+    _run_framing_fuzzer_probe,
     _run_fuzzing_suggestion_probe,
+    _run_graphql_fuzzer_probe,
     _run_jwt_attack_suite,
+    _run_workflow_fuzzer_probe,
     _try_probe,
 )
 from .probe_suites import (
@@ -375,6 +378,8 @@ async def run_active_scanning(
         _run_probe("fuzzing_suggestions", _run_fuzzing_suggestion_probe, urls_l, 12, probes=probes),
         _run_probe("json", _run_json_probe_suite, urls_l, response_cache, probes=probes),
         _run_probe("response_diff", probes["response_diff_engine"], urls_l, response_cache),
+        _run_probe("workflow_fuzzer", _run_workflow_fuzzer_probe, url_priority_items, response_cache, 8, probes=probes),
+        _run_probe("graphql_fuzzer", _run_graphql_fuzzer_probe, url_priority_items, response_cache, 6, probes=probes),
     ]
 
     # Group 3: Host-focused probes
@@ -390,6 +395,7 @@ async def run_active_scanning(
             response_cache,
             probes=probes,
         ),
+        _run_probe("framing_fuzzer", _run_framing_fuzzer_probe, host_priority_items, response_cache, 6, probes=probes),
     ]
 
     total_probe_count = len(group1) + len(group2) + len(group3)

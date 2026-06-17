@@ -44,16 +44,17 @@ async def get_analysis_options(
     _auth: Any = Depends(require_auth),
 ) -> RegistryAnalysisOptions:
     """Return analysis check options, control groups, and focus presets."""
-    from src.analysis.plugins import analysis_check_options
+    from src.core.contracts.protocol_registry import get_analysis_check_options
     from src.core.plugins.loader import dynamic_plugin_payload
     from src.dashboard.registry import (
         ANALYSIS_CONTROL_GROUPS,
         ANALYSIS_FOCUS_PRESETS,
     )
 
+    analysis_check_options_fn = get_analysis_check_options()
     plugin_payload = dynamic_plugin_payload()
     return RegistryAnalysisOptions(
-        check_options=analysis_check_options(),
+        check_options=analysis_check_options_fn() if analysis_check_options_fn is not None else {},
         control_groups=ANALYSIS_CONTROL_GROUPS,
         focus_presets=ANALYSIS_FOCUS_PRESETS,
         dynamic_plugins=plugin_payload["plugins"],
@@ -86,7 +87,7 @@ async def get_registry(
     _auth: Any = Depends(require_auth),
 ) -> RegistryResponse:
     """Return all registry data (modules, analysis, modes) in a single response."""
-    from src.analysis.plugins import analysis_check_options
+    from src.core.contracts.protocol_registry import get_analysis_check_options
     from src.core.capabilities import generate_capability_manifest
     from src.core.plugins.loader import dynamic_plugin_payload
     from src.dashboard.registry import (
@@ -98,11 +99,12 @@ async def get_registry(
         STAGE_LABELS,
     )
 
+    analysis_check_options_fn = get_analysis_check_options()
     plugin_payload = dynamic_plugin_payload()
     return RegistryResponse(
         modules=RegistryModuleOptions(options=MODULE_OPTIONS, groups=MODULE_GROUPS),
         analysis=RegistryAnalysisOptions(
-            check_options=analysis_check_options(),
+            check_options=analysis_check_options_fn() if analysis_check_options_fn is not None else {},
             control_groups=ANALYSIS_CONTROL_GROUPS,
             focus_presets=ANALYSIS_FOCUS_PRESETS,
             dynamic_plugins=plugin_payload["plugins"],

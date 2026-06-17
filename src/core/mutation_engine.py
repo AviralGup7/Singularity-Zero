@@ -236,16 +236,9 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
     decoded = decode_candidate_value(value)
     variants = []
 
-    json_ast_mutator = None
-    try:
-        from src.fuzzing.ast_mutator import JSONASTMutator
+    from src.core.contracts.protocol_registry import get_ast_mutator
 
-        json_ast_mutator = JSONASTMutator()
-    except ImportError as exc:
-        logger.warning(
-            "JSONASTMutator import failed: %s. AST-guided mutations will be skipped.",
-            exc,
-        )
+    json_ast_mutator = get_ast_mutator()
 
     if json_ast_mutator is not None:
         try:

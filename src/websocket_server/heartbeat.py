@@ -146,8 +146,8 @@ class HeartbeatMonitor:
                         from src.websocket_server.metrics import WS_HEARTBEATS
 
                         WS_HEARTBEATS.inc()
-                    except Exception:  # noqa: S110
-                        pass
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug("Failed to increment heartbeats metric: %s", exc)
                     await self._disconnect_client(info)
                     break
 

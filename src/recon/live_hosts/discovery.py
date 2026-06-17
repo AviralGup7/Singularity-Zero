@@ -11,7 +11,9 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
+
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urlparse
 
@@ -378,81 +380,81 @@ def probe_live_hosts(
             probe_timeout_seconds=probe_timeout_seconds,
             batch_timeout_seconds=batch_timeout_seconds,
         )
-        with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-            future_to_batch: dict[Any, tuple[int, list[str], int]] = {}
-            for batch_index, batch_hosts in enumerate(batches, 1):
-                resolved_batch_timeout = _resolve_httpx_batch_timeout_seconds(
-                    config,
-                    len(batch_hosts),
-                )
-                future = executor.submit(
-                    _run_httpx_batch,
-                    batch_hosts,
-                    command=command,
-                    timeout_seconds=resolved_batch_timeout,
-                    retry_policy=retry_policy,
-                )
-                future_to_batch[future] = (
-                    batch_index,
-                    batch_hosts,
-                    resolved_batch_timeout,
-                )
+        executor = get_shared_executor()
+        future_to_batch: dict[Any, tuple[int, list[str], int]] = {}
+        for batch_index, batch_hosts in enumerate(batches, 1):
+            resolved_batch_timeout = _resolve_httpx_batch_timeout_seconds(
+                config,
+                len(batch_hosts),
+            )
+            future = executor.submit(
+                _run_httpx_batch,
+                batch_hosts,
+                command=command,
+                timeout_seconds=resolved_batch_timeout,
+                retry_policy=retry_policy,
+            )
+            future_to_batch[future] = (
+                batch_index,
+                batch_hosts,
+                resolved_batch_timeout,
+            )
 
-            completed_batches = 0
-            processed_count = skipped_count
-            for future in as_completed(future_to_batch):
-                batch_index, batch_hosts, resolved_batch_timeout = future_to_batch[future]
-                completed_batches += 1
-                processed_count = min(len(hosts), processed_count + len(batch_hosts))
-                try:
-                    batch_records, batch_live_hosts, batch_meta = future.result()
-                except Exception as exc:
-                    percent = min(47, 36 + int((completed_batches / total_batches) * 11))
-                    emit_collection_progress(
-                        progress_callback,
-                        (
-                            f"live-host batch {completed_batches}/{total_batches} "
-                            f"(chunk {batch_index}, timeout={resolved_batch_timeout}s) "
-                            f"failed: {exc}"
-                        ),
-                        percent,
-                        processed=processed_count,
-                        total=len(hosts),
-                        stage_percent=int((processed_count / max(1, len(hosts))) * 100),
-                    )
-                    continue
-
-                before = len(live_hosts)
-                records.extend(batch_records)
-                live_hosts.update(batch_live_hosts)
-                _cache_update_from_batch(
-                    batch_hosts,
-                    batch_records,
-                    batch_live_hosts,
-                    ttl_seconds=ttl_seconds,
-                    target_name=target_name,
-                )
+        completed_batches = 0
+        processed_count = skipped_count
+        for future in as_completed(future_to_batch):
+            batch_index, batch_hosts, resolved_batch_timeout = future_to_batch[future]
+            completed_batches += 1
+            processed_count = min(len(hosts), processed_count + len(batch_hosts))
+            try:
+                batch_records, batch_live_hosts, batch_meta = future.result()
+            except Exception as exc:
                 percent = min(47, 36 + int((completed_batches / total_batches) * 11))
-                batch_status = str(batch_meta.get("status", "ok")).strip().lower()
-                batch_effective_timeout = int(
-                    batch_meta.get("effective_timeout_seconds", resolved_batch_timeout)
-                    or resolved_batch_timeout
-                )
-                batch_note = ""
-                if batch_status == "degraded_timeout":
-                    batch_note = f", provider timeout degraded at {batch_effective_timeout}s"
-                elif batch_status == "error":
-                    batch_note = ", provider warning degraded"
                 emit_collection_progress(
                     progress_callback,
-                    f"live-host batch {completed_batches}/{total_batches} "
-                    f"(chunk {batch_index}): +{len(live_hosts) - before} live hosts, "
-                    f"total {len(live_hosts)}{batch_note}",
+                    (
+                        f"live-host batch {completed_batches}/{total_batches} "
+                        f"(chunk {batch_index}, timeout={resolved_batch_timeout}s) "
+                        f"failed: {exc}"
+                    ),
                     percent,
                     processed=processed_count,
                     total=len(hosts),
                     stage_percent=int((processed_count / max(1, len(hosts))) * 100),
                 )
+                continue
+
+            before = len(live_hosts)
+            records.extend(batch_records)
+            live_hosts.update(batch_live_hosts)
+            _cache_update_from_batch(
+                batch_hosts,
+                batch_records,
+                batch_live_hosts,
+                ttl_seconds=ttl_seconds,
+                target_name=target_name,
+            )
+            percent = min(47, 36 + int((completed_batches / total_batches) * 11))
+            batch_status = str(batch_meta.get("status", "ok")).strip().lower()
+            batch_effective_timeout = int(
+                batch_meta.get("effective_timeout_seconds", resolved_batch_timeout)
+                or resolved_batch_timeout
+            )
+            batch_note = ""
+            if batch_status == "degraded_timeout":
+                batch_note = f", provider timeout degraded at {batch_effective_timeout}s"
+            elif batch_status == "error":
+                batch_note = ", provider warning degraded"
+            emit_collection_progress(
+                progress_callback,
+                f"live-host batch {completed_batches}/{total_batches} "
+                f"(chunk {batch_index}): +{len(live_hosts) - before} live hosts, "
+                f"total {len(live_hosts)}{batch_note}",
+                percent,
+                processed=processed_count,
+                total=len(hosts),
+                stage_percent=int((processed_count / max(1, len(hosts))) * 100),
+            )
         if records or live_hosts:
             return records, live_hosts
 

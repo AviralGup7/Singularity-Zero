@@ -286,6 +286,9 @@ class AuditLogger:
         self._current_size = 0
         self._db: sqlite3.Connection | None = None
 
+        import atexit
+        atexit.register(self.close)
+
         self._ensure_log_file()
 
     def _ensure_log_file(self) -> None:
@@ -301,9 +304,12 @@ class AuditLogger:
         # Fix #294: Close existing file handle before re-opening
         if self._file_handle is not None:
             try:
+                self._file_handle.flush()
                 self._file_handle.close()
             except Exception as exc:  # noqa: S110, S112
                 logger.warning("Failed to close existing audit log handle: %s", exc)
+            finally:
+                self._file_handle = None
 
         self._file_handle = open(log_path, "a", encoding="utf-8")
 
@@ -493,6 +499,10 @@ class AuditLogger:
     def _rotate_log(self) -> None:
         """Rotate the audit log file and its SQLite index database."""
         if self._file_handle:
+            try:
+                self._file_handle.flush()
+            except OSError:
+                pass
             self._file_handle.close()
             self._file_handle = None
 
@@ -799,6 +809,10 @@ class AuditLogger:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the context manager, ensuring the file handle is closed."""
+        self.close()
+
+    def __del__(self) -> None:
+        """Ensure file descriptors are released when the object is garbage collected."""
         self.close()
 
         # Fix #302: Removed dangerous __del__ method which acquired locks

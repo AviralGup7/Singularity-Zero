@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import logging
 import threading
 import time
 import weakref
@@ -19,6 +20,7 @@ import requests
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.pid_limiter import PIDRateLimiter
+from src.core.utils.streaming import stream_http_response
 from src.core.utils.url_validation import is_safe_url
 
 
@@ -51,6 +53,7 @@ logger = get_pipeline_logger(__name__)
 
 _PID_LIMITERS: dict[str, PIDRateLimiter] = {}
 _PID_LIMITERS_MAX = 1024
+_PID_LIMITERS_LOCK = threading.Lock()
 
 DEFAULT_TIMEOUT = 10.0
 MAX_BODY_LENGTH = 120_000
@@ -58,10 +61,17 @@ _sync_session_local = threading.local()
 
 
 def _get_sync_session() -> requests.Session:
-    """Return a thread-local requests.Session instance."""
+    """Return a thread-local requests.Session instance with connection pooling."""
     session = getattr(_sync_session_local, "session", None)
     if session is None:
         session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=20,
+            max_retries=3,
+        )
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
         _sync_session_local.session = session
         atexit.register(session.close)
     return session
@@ -110,8 +120,16 @@ httpx.AsyncClient.__init__ = _patched_async_client_init  # type: ignore[method-a
 def _get_async_client(verify_ssl: bool, follow_redirects: bool) -> httpx.AsyncClient:
     client_key = (verify_ssl, follow_redirects)
     client = _ASYNC_CLIENTS.get(client_key)
-    if client is None:
-        client = httpx.AsyncClient(verify=verify_ssl, follow_redirects=follow_redirects)
+    if client is None or client.is_closed:
+        client = httpx.AsyncClient(
+            verify=verify_ssl,
+            follow_redirects=follow_redirects,
+            limits=httpx.Limits(
+                max_connections=100,
+                max_keepalive_connections=20,
+                keepalive_expiry=30.0,
+            ),
+        )
         _ASYNC_CLIENTS[client_key] = client
     return client
 
@@ -181,11 +199,12 @@ def safe_request(
         or "default"
     )
 
-    if target not in _PID_LIMITERS:
-        if len(_PID_LIMITERS) >= _PID_LIMITERS_MAX:
-            _PID_LIMITERS.pop(next(iter(_PID_LIMITERS)))
-        _PID_LIMITERS[target] = PIDRateLimiter()
-    limiter = _PID_LIMITERS[target]
+    with _PID_LIMITERS_LOCK:
+        if target not in _PID_LIMITERS:
+            if len(_PID_LIMITERS) >= _PID_LIMITERS_MAX:
+                _PID_LIMITERS.pop(next(iter(_PID_LIMITERS)))
+            _PID_LIMITERS[target] = PIDRateLimiter()
+        limiter = _PID_LIMITERS[target]
     if limiter.current_delay > 0.0:
         time.sleep(limiter.current_delay)
 
@@ -338,11 +357,12 @@ async def async_safe_request(
         or "default"
     )
 
-    if target not in _PID_LIMITERS:
-        if len(_PID_LIMITERS) >= _PID_LIMITERS_MAX:
-            _PID_LIMITERS.pop(next(iter(_PID_LIMITERS)))
-        _PID_LIMITERS[target] = PIDRateLimiter()
-    limiter = _PID_LIMITERS[target]
+    with _PID_LIMITERS_LOCK:
+        if target not in _PID_LIMITERS:
+            if len(_PID_LIMITERS) >= _PID_LIMITERS_MAX:
+                _PID_LIMITERS.pop(next(iter(_PID_LIMITERS)))
+            _PID_LIMITERS[target] = PIDRateLimiter()
+        limiter = _PID_LIMITERS[target]
     if limiter.current_delay > 0.0:
         await asyncio.sleep(limiter.current_delay)
 

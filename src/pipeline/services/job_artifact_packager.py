@@ -251,7 +251,12 @@ class JobArtifactPackager:
         Returns:
             dict with parity results: matches, changed_fields, warning_delta, etc.
         """
-        from src.dashboard.forensics.launcher import compare_launcher_replay_manifests
+        from src.core.contracts.protocol_registry import get_launcher_manifest
+
+        launcher_manifest = get_launcher_manifest()
+        if launcher_manifest is None:
+            return {"error": "Launcher manifest not available"}
+        compare_launcher_replay_manifests = launcher_manifest.compare_launcher_replay_manifests
 
         baseline_manifest = {
             "schema_version": 1,

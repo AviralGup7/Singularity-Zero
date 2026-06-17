@@ -52,3 +52,69 @@ name = "Core must not depend on execution"
 type = forbidden
 source_modules = src.core
 forbidden_modules = src.execution
+
+[importlinter:contract:8]
+name = "Execution must not depend on analysis (circular coupling fix)"
+type = forbidden
+source_modules = src.execution
+forbidden_modules = src.analysis
+
+[importlinter:contract:9]
+name = "Core exploiters must not depend on execution or pipeline"
+type = forbidden
+source_modules = src.core.exploiters
+forbidden_modules = src.execution, src.pipeline
+
+[importlinter:contract:10]
+name = "Core tools must not depend on execution or pipeline"
+type = forbidden
+source_modules = src.core.tools
+forbidden_modules = src.execution, src.pipeline
+
+[importlinter:contract:11]
+name = Dashboard must not depend on analysis
+type = forbidden
+source_modules = src.dashboard
+forbidden_modules = src.analysis
+
+[importlinter:contract:12]
+name = Dashboard must not depend on execution
+type = forbidden
+source_modules = src.dashboard
+forbidden_modules = src.execution
+
+[importlinter:contract:13]
+name = Dashboard must not depend on pipeline internals
+type = forbidden
+source_modules = src.dashboard
+forbidden_modules = src.pipeline
+
+[importlinter:contract:14]
+name = Pipeline must not depend on execution
+type = forbidden
+source_modules = src.pipeline
+forbidden_modules = src.execution
+
+[importlinter:contract:15]
+name = Execution must not depend on analysis
+type = forbidden
+source_modules = src.execution
+forbidden_modules = src.analysis
+
+[importlinter:contract:16]
+name = Execution must not depend on pipeline
+type = forbidden
+source_modules = src.execution
+forbidden_modules = src.pipeline
+
+[importlinter:contract:17]
+name = Infrastructure must not depend on pipeline
+type = forbidden
+source_modules = src.infrastructure
+forbidden_modules = src.pipeline
+
+[importlinter:contract:18]
+name = Core must not depend on fuzzing
+type = forbidden
+source_modules = src.core
+forbidden_modules = src.fuzzing

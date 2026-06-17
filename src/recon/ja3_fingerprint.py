@@ -30,7 +30,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
 from src.recon.dnsx_wildcard import is_public_ip
@@ -185,29 +185,29 @@ def scan_targets_for_origin_leak(
         return []
 
     results: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(target_list)))) as ex:
-        futures = {
-            ex.submit(extract_ja3_from_session, h, p, timeout_seconds=timeout_seconds): (h, p)
-            for h, p in target_list
-        }
-        for fut in futures:
-            host, port = futures[fut]
-            try:
-                capture = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("JA3 capture failed for %s:%d: %s", host, port, exc)
-                continue
-            ja3s = capture.get("ja3s", "")
-            origin_stack = identify_origin_stack(ja3s) if ja3s else None
-            results.append(
-                {
-                    "host": host,
-                    "port": port,
-                    "ja3": capture.get("ja3", ""),
-                    "ja3s": ja3s,
-                    "origin_stack": origin_stack,
-                }
-            )
+    ex = get_shared_executor()
+    futures = {
+        ex.submit(extract_ja3_from_session, h, p, timeout_seconds=timeout_seconds): (h, p)
+        for h, p in target_list
+    }
+    for fut in futures:
+        host, port = futures[fut]
+        try:
+            capture = fut.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("JA3 capture failed for %s:%d: %s", host, port, exc)
+            continue
+        ja3s = capture.get("ja3s", "")
+        origin_stack = identify_origin_stack(ja3s) if ja3s else None
+        results.append(
+            {
+                "host": host,
+                "port": port,
+                "ja3": capture.get("ja3", ""),
+                "ja3s": ja3s,
+                "origin_stack": origin_stack,
+            }
+        )
     return results
 
 

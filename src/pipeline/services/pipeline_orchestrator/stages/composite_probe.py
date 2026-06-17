@@ -8,7 +8,13 @@ from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
-from .probe_runners import _run_fuzzing_suggestion_probe, _try_probe
+from .probe_runners import (
+    _run_framing_fuzzer_probe,
+    _run_fuzzing_suggestion_probe,
+    _run_graphql_fuzzer_probe,
+    _run_workflow_fuzzer_probe,
+    _try_probe,
+)
 from .probe_suites import _run_auth_bypass_suite, _run_json_probe_suite
 
 logger = get_pipeline_logger(__name__)
@@ -74,6 +80,9 @@ class CompositeActiveProbe:
             "json",
             "fuzzing_suggestions",
             "fuzzing_campaign",
+            "workflow_fuzzer",
+            "graphql_fuzzer",
+            "framing_fuzzer",
         ]
         tasks = [
             _try_probe(
@@ -174,6 +183,36 @@ class CompositeActiveProbe:
                 "fuzzing_campaign",
                 self.probes["run_fuzzing_campaign_probe"],
                 url_l,
+                6,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+                error_accumulator=self.error_accumulator,
+            ),
+            _try_probe(
+                "workflow_fuzzer",
+                _run_workflow_fuzzer_probe,
+                item_l,
+                self.response_cache,
+                8,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+                error_accumulator=self.error_accumulator,
+            ),
+            _try_probe(
+                "graphql_fuzzer",
+                _run_graphql_fuzzer_probe,
+                item_l,
+                self.response_cache,
+                6,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+                error_accumulator=self.error_accumulator,
+            ),
+            _try_probe(
+                "framing_fuzzer",
+                _run_framing_fuzzer_probe,
+                item_l,
+                self.response_cache,
                 6,
                 timeout_seconds=self.timeout_seconds,
                 probes=self.probes,

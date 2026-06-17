@@ -26,7 +26,7 @@ import json
 import logging
 import os
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
 import requests
@@ -243,13 +243,13 @@ def cross_reference_ips(
             results.extend(_leakix_lookup(ip))
         return results
 
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(_all_for_ip, ip) for ip in ip_list]
-        for fut in futures:
-            try:
-                findings.extend(fut.result())
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Cross-reference future failed: %s", exc)
+    ex = get_shared_executor()
+    futures = [ex.submit(_all_for_ip, ip) for ip in ip_list]
+    for fut in futures:
+        try:
+            findings.extend(fut.result())
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Cross-reference future failed: %s", exc)
     return findings
 
 

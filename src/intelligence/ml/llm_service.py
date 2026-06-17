@@ -17,13 +17,16 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
+from src.intelligence.ml.prompts import (
+    EXPLAIN_FINDING_SYSTEM,
+    GENERATE_EXECUTIVE_SUMMARY_SYSTEM,
+    GENERATE_PATCH_SYSTEM,
+    TRIAGE_FALSE_POSITIVE_SYSTEM,
+)
+from src.intelligence.ml.scoring import GRC_MAPPINGS, fallback_explain, fallback_patch, fallback_triage, fallback_summary
+from src.intelligence.ml.context import truncate_context
+
 logger = logging.getLogger(__name__)
-
-
-GRC_MAPPINGS = {
-    "nist_sp_800_53": "Violates SI-10 (Information Input Validation) and SC-28 (Protection of Information at Rest).",
-    "pci_dss": "Breaches Requirement 6.2 (Secure development controls) and 6.5 (Prevent common injection flaws).",
-}
 
 
 class LLMConfig(BaseModel):
@@ -96,15 +99,13 @@ class LLMService:
         """Safely release underlying HTTP resources."""
         await self.client.aclose()
 
-    def _truncate_context(self, text: str, max_chars: int = 4000) -> str:
-        """Truncate context to fit within LLM token limits safely."""
-        if not text:
-            return ""
-        if len(text) <= max_chars:
-            return text
-        # Keep start and end for better context
-        half = max_chars // 2
-        return text[:half] + "\n[... TRUNCATED ...]\n" + text[-half:]
+    @staticmethod
+    def _truncate_context(text: str, max_chars: int = 4000) -> str:
+        """Truncate context to fit within LLM token limits safely.
+
+        Delegates to :func:`src.intelligence.ml.context.truncate_context`.
+        """
+        return truncate_context(text, max_chars)
 
     def _validate_provider_response(
         self, data: Any, required_keys: list[str], provider: str
@@ -211,13 +212,7 @@ class LLMService:
         desc = finding.get("description") or ""
         evidence = finding.get("evidence") or ""
 
-        system_prompt = (
-            "You are an expert security engineer and regulatory GRC auditor.\n"
-            "Analyze the security finding and explain it for two separate audiences:\n"
-            "1. Developer: Deep technical explanation, dynamic code injection mechanics, parameter/boundary context, and framework-level coding controls.\n"
-            "2. Auditor: GRC business risk, compliance standards mapping (NIST SP 800-53, PCI DSS, OWASP Top 10), data confidentiality/integrity impact, and administrative recommendations.\n"
-            "Format the response strictly as a JSON object with keys 'developer' and 'auditor' containing Markdown strings. Do not add markdown wrappers like ```json."
-        )
+        system_prompt = EXPLAIN_FINDING_SYSTEM
 
         user_prompt = (
             f"Finding: {title}\n"
@@ -250,17 +245,7 @@ class LLMService:
         url = finding.get("url") or ""
         evidence = finding.get("evidence") or ""
 
-        system_prompt = (
-            "You are an elite secure coding engineer.\n"
-            "Analyze the vulnerability finding, request payload, and target response.\n"
-            "Determine the technology stack (Python, Node, PHP, etc.) and generate a verified, production-grade secure remediation code patch.\n"
-            "Provide explanation and code. Format the response strictly as a JSON object containing keys:\n"
-            "- 'title': Short remedy name\n"
-            "- 'description': Technical description of the fix\n"
-            "- 'language': Detected programming language\n"
-            "- 'remediation_code': Complete secure cut-and-paste code block patch\n"
-            "Do not add markdown wrappers around the outer JSON."
-        )
+        system_prompt = GENERATE_PATCH_SYSTEM
 
         user_prompt = (
             f"Finding Category: {category}\n"
@@ -296,19 +281,7 @@ class LLMService:
         url = finding.get("url") or ""
         evidence = finding.get("evidence") or ""
 
-        system_prompt = (
-            "You are an automated security analyst evaluating scan findings.\n"
-            "Review the security finding and the HTTP exchange to distinguish True Positives (TP) from False Positives (FP).\n"
-            "Evaluate:\n"
-            "a) Is the injected payload actually reflected/interpreted, or is it returned as static text?\n"
-            "b) Did the response status change significantly (e.g. from 403 blocking to 200)?\n"
-            "c) Are database/stack trace errors leaked?\n"
-            "Return a structured JSON object containing:\n"
-            "- 'decision': Either 'TP' or 'FP'\n"
-            "- 'confidence': Float between 0.0 and 1.0\n"
-            "- 'reasoning': Step-by-step security reasoning detailing the choice\n"
-            "Strictly output only raw JSON without markdown formatting."
-        )
+        system_prompt = TRIAGE_FALSE_POSITIVE_SYSTEM
 
         user_prompt = (
             f"Finding: {title} ({category})\n"
@@ -336,16 +309,7 @@ class LLMService:
         compliance_report: dict[str, Any] | None = None,
     ) -> str:
         """Produce a comprehensive, audit-ready Markdown executive summary for scanned targets."""
-        system_prompt = (
-            "You are an elite Chief Information Security Officer (CISO) and lead auditor.\n"
-            "Summarize the pipeline scan findings and compliance posture into a professional, high-fidelity C-level executive summary.\n"
-            "Include:\n"
-            "1. Overall Security Posture Rating (A-F grade and risk banding)\n"
-            "2. Top Critical Vulnerabilities and operational impacts\n"
-            "3. Compliance Coverage Assessment (NIST SP 800-53 / ISO 27001 readiness attestation)\n"
-            "4. Prioritized immediate and long-term action items.\n"
-            "Write highly professional, audit-ready Markdown."
-        )
+        system_prompt = GENERATE_EXECUTIVE_SUMMARY_SYSTEM
 
         critical_count = sum(
             1 for f in findings if str(f.get("severity", "info")).lower() == "critical"
@@ -387,34 +351,11 @@ class LLMService:
         return text.strip()
 
     def _fallback_explain(self, finding: dict[str, Any]) -> dict[str, str]:
-        """Rule-based backup explanation generator."""
-        title = finding.get("title") or finding.get("type") or "Vulnerability"
-        severity = str(finding.get("severity") or "medium").upper()
-        category = str(finding.get("category") or "general").lower()
+        """Rule-based backup explanation generator.
 
-        dev_desc = (
-            f"### Technical Mechanics of {title}\n\n"
-            f"This vulnerability manifests when untrusted user parameter inputs are ingested without proper validation or sanitization. "
-            f"An attacker can exploit this boundary to inject operational delimiters or syntax structures.\n\n"
-            f"### Developer Action Checklist:\n"
-            f"1. Implement strict context-aware validation.\n"
-            f"2. Use parameterized APIs and prepared statements exclusively.\n"
-            f"3. Apply robust output encoding before rendering dynamic structures."
-        )
-
-        nist = GRC_MAPPINGS.get("nist_sp_800_53", "")
-        pci = GRC_MAPPINGS.get("pci_dss", "")
-        auditor_desc = (
-            f"### Regulatory Impact & GRC Posture for {title}\n\n"
-            f"**Risk Severity**: {severity}\n"
-            f"**Framework Alignments**:\n"
-            f"- **OWASP Top 10**: Mapped to active category based on classification ({category}).\n"
-            f"- **NIST SP 800-53**: {nist}\n"
-            f"- **PCI DSS v4.0**: {pci}\n\n"
-            f"**Operational Business Risk**: Exploitability could lead to unauthorized data exposure, system tampering, or audit-trail evasion."
-        )
-
-        return {"developer": dev_desc, "auditor": auditor_desc}
+        Delegates to :func:`src.intelligence.ml.scoring.fallback_explain`.
+        """
+        return fallback_explain(finding)
 
     def _fallback_patch(
         self,
@@ -422,70 +363,11 @@ class LLMService:
         request_payload: str | None = None,
         response_body: str | None = None,
     ) -> dict[str, Any]:
-        """Rule-based backup patch generator matching vulnerability categories."""
-        category = str(finding.get("category") or finding.get("title") or "general").lower()
+        """Rule-based backup patch generator matching vulnerability categories.
 
-        if "sqli" in category or "sql_injection" in category:
-            return {
-                "title": "Secure Parameterized Database Query",
-                "description": "Utilize parameterized statements to insulate the database interpreter from user variables.",
-                "language": "python",
-                "remediation_code": (
-                    "# Python DB-API Parameterized Query Patch\n"
-                    "import psycopg2\n\n"
-                    "def fetch_user_record(cursor, username, role):\n"
-                    "    query = 'SELECT * FROM users WHERE username = %s AND role = %s'\n"
-                    "    cursor.execute(query, (username, role))\n"
-                    "    return cursor.fetchall()"
-                ),
-            }
-        elif "idor" in category or "auth_bypass" in category or "access_control" in category:
-            return {
-                "title": "Strict Resource Ownership & RBAC Check",
-                "description": "Assert resource-ownership and context identity controls before completing operations.",
-                "language": "python",
-                "remediation_code": (
-                    "# Secure Authorization Context validation patch\n"
-                    "def get_user_data(request, user_id):\n"
-                    "    current_tenant = request.state.tenant_id\n"
-                    "    current_user = request.state.user_id\n"
-                    "    \n"
-                    "    # Verify tenant boundary and user ownership bounds\n"
-                    "    if not is_tenant_resource(user_id, current_tenant):\n"
-                    "        raise PermissionError('Multi-tenant boundary breach detected')\n"
-                    "    if current_user != user_id and not request.state.is_admin:\n"
-                    "        raise PermissionError('Unauthorized access attempt')\n"
-                    "        \n"
-                    "    return db.query_resource(user_id)"
-                ),
-            }
-        elif "xss" in category or "cross_site_scripting" in category:
-            return {
-                "title": "Context-Aware HTML Entity Encoding",
-                "description": "Escape and encode dynamic parameters inside templates to render them strictly as static variables.",
-                "language": "html",
-                "remediation_code": (
-                    "<!-- Secure Context-Aware HTML Encoding Patch -->\n"
-                    "<script>\n"
-                    "  const rawInput = '<%= html_escape(user_input) %>';\n"
-                    "  document.getElementById('display-element').textContent = rawInput;\n"
-                    "</script>"
-                ),
-            }
-
-        # General generic fallback
-        return {
-            "title": "Input Boundary Validation and Sanitization",
-            "description": "Apply strict sanitization filters and parameter type-assertion check gates.",
-            "language": "python",
-            "remediation_code": (
-                "# Insecure parameter sanitization patch\n"
-                "import re\n\n"
-                "def clean_input_parameter(user_input: str) -> str:\n"
-                "    # Enforce strict alphanumeric limits\n"
-                "    return re.sub(r'[^a-zA-Z0-9_.-]', '', user_input)"
-            ),
-        }
+        Delegates to :func:`src.intelligence.ml.scoring.fallback_patch`.
+        """
+        return fallback_patch(finding, request_payload, response_body)
 
     def _fallback_triage(
         self,
@@ -493,99 +375,19 @@ class LLMService:
         request_payload: str | None = None,
         response_body: str | None = None,
     ) -> dict[str, Any]:
-        """Rule-based false positive triage helper."""
-        evidence = str(finding.get("evidence") or "")
-        resp_text = str(response_body or "")
+        """Rule-based false positive triage helper.
 
-        # Heuristic rules:
-        # If evidence or payload is reflected exactly inside the body: High TP confidence
-        # If response shows stack trace leaks or database errors: High TP confidence
-        # If status code is 500: high probability of unhandled crash
-        # If the target is owned by tenant and has classic mock or seed: low confidence
-        is_tp = True
-        confidence = 0.80
-        reasons = ["Automated analysis of finding evidence and request payloads completed."]
-
-        if evidence and evidence in resp_text:
-            confidence = 0.95
-            reasons.append(
-                f"Confirmed reflection of vulnerability payload '{evidence}' directly in the HTTP response body."
-            )
-
-        if any(
-            err in resp_text.lower()
-            for err in ["traceback", "stack trace", "sql syntax", "exception"]
-        ):
-            is_tp = True
-            confidence = 0.98
-            reasons.append(
-                "Detected database syntax or application stack trace disclosure leaking in HTTP response body."
-            )
-
-        return {
-            "decision": "TP" if is_tp else "FP",
-            "confidence": confidence,
-            "reasoning": " ".join(reasons),
-        }
+        Delegates to :func:`src.intelligence.ml.scoring.fallback_triage`.
+        """
+        return fallback_triage(finding, request_payload, response_body)
 
     def _fallback_summary(
         self,
         findings: list[dict[str, Any]],
         compliance_report: dict[str, Any] | None = None,
     ) -> str:
-        """Produce beautiful, GRC-ready backup summary reports."""
-        critical_count = sum(
-            1 for f in findings if str(f.get("severity", "info")).lower() == "critical"
-        )
-        high_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "high")
-        med_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "medium")
-        low_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "low")
+        """Produce GRC-ready backup summary reports.
 
-        score = 100
-        if critical_count > 0:
-            score -= 40
-        if high_count > 0:
-            score -= 30
-        if med_count > 0:
-            score -= 15
-        score = max(0, score)
-
-        grade = "A"
-        if score < 50:
-            grade = "F"
-        elif score < 70:
-            grade = "D"
-        elif score < 85:
-            grade = "C"
-        elif score < 95:
-            grade = "B"
-
-        findings_summary = []
-        for idx, f in enumerate(findings[:5], start=1):
-            findings_summary.append(
-                f"**{idx}. [{str(f.get('severity')).upper()}] {str(f.get('title'))}** on `{str(f.get('url') or f.get('target'))}`"
-            )
-
-        summary_markdown = (
-            f"# Executive Security Posture & Compliance Attestation Report\n\n"
-            f"### 🛡️ Posture Grade: **{grade}** ({score}/100)\n"
-            f"The autonomous security test pipeline completed vulnerability validation across the designated infrastructure target environments. "
-            f"Overall risk assessment indicates a **{grade}** rating with **{len(findings)}** active exposures identified.\n\n"
-            f"### 📊 Exposure Metrics\n"
-            f"- **Critical Severity**: {critical_count} findings\n"
-            f"- **High Severity**: {high_count} findings\n"
-            f"- **Medium Severity**: {med_count} findings\n"
-            f"- **Low Severity**: {low_count} findings\n\n"
-            f"### 🎯 Top Critical Vulnerability Concerns\n"
-            f"{chr(10).join(findings_summary) if findings_summary else '*No active critical or high vulnerability findings recorded.*'}\n\n"
-            f"### 🔐 Compliance Readiness & GRC Attestation\n"
-            f"- **OWASP Top 10 Alignment**: Scans validated input boundaries mapping to injection flaws, access failures, and security configuration drifts.\n"
-            f"- **NIST SP 800-53 Requirements**: Evaluated SI-10 (Input validation checks) and SC-8 (Transmission confidentiality).\n"
-            f"- **PCI-DSS Compliance Assessment**: Identified vulnerability states are cross-referenced with remediation SLAs to ensure compliance timelines are met.\n\n"
-            f"### 🚀 Action Items & Mitigation Prioritization\n"
-            f"1. **Remediation SLA Enforcements**: Standardized critical findings must be resolved within the 14-day window; high findings within 30 days.\n"
-            f"2. **Implement Parameterization**: Update database interfaces to enforce parameterized queries.\n"
-            f"3. **Triage and Rescan**: Leverage collaborative triage modules to verify and execute isolated rescan verification sweeps."
-        )
-
-        return summary_markdown
+        Delegates to :func:`src.intelligence.ml.scoring.fallback_summary`.
+        """
+        return fallback_summary(findings, compliance_report)

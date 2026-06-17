@@ -9,8 +9,6 @@ from typing import Any, cast
 from urllib.parse import parse_qsl, urlparse
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.execution.active_manifest import ActiveCapability, ActiveCheckManifest, get_active_manifest
-from src.execution.isolated import replace_unpicklable_response_caches, run_callable_isolated
 from src.pipeline.runner_support import emit_progress
 
 logger = get_pipeline_logger(__name__)
@@ -268,6 +266,8 @@ async def _try_probe(
 
     try:
         try:
+            from src.execution.active_manifest import get_active_manifest
+
             active_manifest = (manifest or get_active_manifest(name)).with_timeout(timeout_seconds)
         except KeyError:
             active_manifest = None
@@ -276,6 +276,9 @@ async def _try_probe(
             active_manifest is not None
             and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off"
         ):
+            from src.execution.active_manifest import ActiveCapability
+            from src.execution.isolated import replace_unpicklable_response_caches, run_callable_isolated
+
             isolated_args = args
             isolated_kwargs = kwargs
             if ActiveCapability.RESPONSE_CACHE in active_manifest.required_capabilities:
@@ -389,6 +392,91 @@ async def _try_probe(
             details=details,
         )
         event_bus(event)
+
+
+async def _run_workflow_fuzzer_probe(
+    priority_items: list[dict[str, Any]],
+    shared_response_cache: Any,
+    limit: int = 8,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Run the workflow/stateful fuzzer across priority URLs."""
+    WorkflowFuzzerCls = probes.get("workflow_fuzzer_probe")
+    if WorkflowFuzzerCls is None or WorkflowFuzzerCls is probes.get("run_auth_bypass_probes"):
+        return []
+
+    try:
+        fuzzer = WorkflowFuzzerCls(max_steps=12)
+        findings = await fuzzer.fuzz_workflow(
+            priority_items,
+            response_cache=shared_response_cache,
+            limit=limit,
+        )
+        return findings if isinstance(findings, list) else []
+    except Exception as exc:
+        logger.debug("Workflow fuzzer probe failed: %s", exc)
+        return []
+
+
+async def _run_graphql_fuzzer_probe(
+    priority_items: list[dict[str, Any]],
+    shared_response_cache: Any,
+    limit: int = 6,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Run GraphQL introspection and mutation fuzzing on detected GraphQL endpoints."""
+    run_campaign = probes.get("graphql_fuzzer_probe")
+    if run_campaign is None or callable(getattr(run_campaign, "_stub", None)):
+        return []
+
+    findings: list[dict[str, Any]] = []
+    tested = 0
+    for item in priority_items:
+        if tested >= limit:
+            break
+        url = str(item.get("url", "")).strip()
+        if not url or "/graphql" not in url.lower():
+            continue
+        try:
+            result = await run_campaign(url)
+            if isinstance(result, list):
+                findings.extend(result)
+            tested += 1
+        except Exception as exc:
+            logger.debug("GraphQL fuzzer failed for %s: %s", url, exc)
+    return findings
+
+
+async def _run_framing_fuzzer_probe(
+    priority_items: list[dict[str, Any]],
+    shared_response_cache: Any,
+    limit: int = 6,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Run protocol-layer framing fuzzing (CL/TE smuggling, multipart, chunked, h2)."""
+    run_campaign = probes.get("framing_fuzzer_probe")
+    if run_campaign is None or callable(getattr(run_campaign, "_stub", None)):
+        return []
+
+    findings: list[dict[str, Any]] = []
+    tested = 0
+    for item in priority_items:
+        if tested >= limit:
+            break
+        url = str(item.get("url", "")).strip()
+        if not url:
+            continue
+        try:
+            result = await run_campaign(url)
+            if isinstance(result, list):
+                findings.extend(result)
+            tested += 1
+        except Exception as exc:
+            logger.debug("Framing fuzzer failed for %s: %s", url, exc)
+    return findings
 
 
 async def _run_fuzzing_campaign_probe(

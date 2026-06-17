@@ -1,0 +1,29 @@
+ML Libraries (xgboost, scikit-learn) could not be loaded. Running on fallback model mode.
+WARNING:root:Operation failed in validation.py: invalid literal for int() with base 10: '[\x1b[34mINF\x1b[0m] Current Version: v2'
+Traceback (most recent call last):
+  File "D:\cyber security test pipeline - Copy\src\pipeline\validation.py", line 372, in _version_satisfies
+    v_parts = [int(x) for x in version.split(".")[:3]]
+               ^^^^^^
+ValueError: invalid literal for int() with base 10: '[\x1b[34mINF\x1b[0m] Current Version: v2'
+WARNING:root:Operation failed in validation.py: invalid literal for int() with base 10: '__    __  __       _  __'
+Traceback (most recent call last):
+  File "D:\cyber security test pipeline - Copy\src\pipeline\validation.py", line 372, in _version_satisfies
+    v_parts = [int(x) for x in version.split(".")[:3]]
+               ^^^^^^
+ValueError: invalid literal for int() with base 10: '__    __  __       _  __'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\cyber security test pipeline - Copy\src\pipeline\runtime.py", line 488, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "D:\cyber security test pipeline - Copy\src\pipeline\runtime.py", line 475, in main
+    return loop.run_until_complete(_run_with_shutdown_check())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\asus\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "D:\cyber security test pipeline - Copy\src\pipeline\runtime.py", line 436, in _run_with_shutdown_check
+    return await PipelineOrchestrator().run(args)
+                 ^^^^^^^^^^^^^^^^^^^^
+NameError: cannot access free variable 'PipelineOrchestrator' where it is not associated with a value in enclosing scope

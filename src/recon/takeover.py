@@ -28,7 +28,8 @@ try:
 except ImportError:
     httpx = None  # type: ignore
 
-from src.pipeline.services.tool_execution import ToolInvocation, run_external_tool
+from src.core.tools.types import ToolInvocation
+from src.pipeline.services.tool_execution import run_external_tool
 
 logger = logging.getLogger(__name__)
 

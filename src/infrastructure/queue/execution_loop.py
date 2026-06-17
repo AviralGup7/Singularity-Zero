@@ -21,6 +21,15 @@ class WorkerExecutionLoopMixin:
         self._running: bool = False
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _log_task_exception(task: asyncio.Task[Any]) -> None:
+        """Log exceptions from background tasks that would otherwise be silently lost."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Background task %s raised: %s", task.get_name(), exc)
+
     async def start(self) -> None:
         """Start the worker and begin processing jobs."""
         if self._running:
@@ -36,6 +45,7 @@ class WorkerExecutionLoopMixin:
         await self._handle_stale_checkpoints()
 
         heartbeat_task = asyncio.create_task(self._heartbeat())
+        heartbeat_task.add_done_callback(self._log_task_exception)
 
         try:
             await self._poll_and_process()

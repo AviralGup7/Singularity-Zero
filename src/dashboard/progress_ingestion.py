@@ -19,10 +19,24 @@ from src.dashboard.job_state_helpers import (
     append_log,
 )
 from src.dashboard.registry import STAGE_LABELS
-from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
 
 logger = logging.getLogger(__name__)
 TELEMETRY_EVENT_LIMIT = 1000
+
+
+def _get_stage_baseline() -> dict[str, int]:
+    """Get the stage baseline percentages via protocol registry."""
+    from src.core.contracts.protocol_registry import get_stage_baseline
+
+    baseline = get_stage_baseline()
+    if baseline is not None and callable(baseline):
+        try:
+            return baseline()
+        except TypeError:
+            return {}
+    elif baseline is not None:
+        return baseline
+    return {}
 
 
 def _infer_percent(job: dict[str, Any], stage: str, payload: dict[str, Any]) -> int:
@@ -42,9 +56,10 @@ def _infer_percent(job: dict[str, Any], stage: str, payload: dict[str, Any]) -> 
         return current
 
     stage_percent = max(0, min(100, stage_percent))
-    current_base = STAGE_BASELINE_PERCENT.get(stage, current)
+    stage_baseline = _get_stage_baseline()
+    current_base = stage_baseline.get(stage, current)
     next_base = 100
-    for name, candidate in STAGE_BASELINE_PERCENT.items():
+    for name, candidate in stage_baseline.items():
         if candidate > current_base:
             next_base = min(next_base, candidate)
 
@@ -65,12 +80,13 @@ def _infer_stage_percent(stage: str, payload: dict[str, Any], current_percent: i
         return max(0, min(100, derived))
 
     explicit_overall = _coerce_int(payload.get("percent"))
-    base = STAGE_BASELINE_PERCENT.get(stage)
+    stage_baseline = _get_stage_baseline()
+    base = stage_baseline.get(stage)
     if explicit_overall is None or base is None:
         return current_percent
 
     next_base = 100
-    for _, candidate in STAGE_BASELINE_PERCENT.items():
+    for _, candidate in stage_baseline.items():
         if candidate > base:
             next_base = min(next_base, candidate)
     span = max(1, next_base - base)

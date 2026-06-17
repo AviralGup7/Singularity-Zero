@@ -205,7 +205,7 @@ class EventBus:
     async def publish_async(self, event: PipelineEvent) -> None:
         """Publish event to async handlers via queue."""
         if self._async_queue is None:
-            self._async_queue = asyncio.Queue()
+            self._async_queue = asyncio.Queue(maxsize=1024)
         await self._async_queue.put(event)
 
     async def start_async_consumer(self) -> None:
@@ -214,7 +214,7 @@ class EventBus:
         while self._running:
             try:
                 if self._async_queue is None:
-                    self._async_queue = asyncio.Queue()
+                    self._async_queue = asyncio.Queue(maxsize=1024)
                 event = await asyncio.wait_for(self._async_queue.get(), timeout=1.0)
                 handlers = self._get_handlers(event.event_type)
                 for handler in handlers:
