@@ -174,4 +174,6 @@ ANALYSIS_FOCUS_PRESETS = [
 ]
 
 _analysis_check_options_fn = get_analysis_check_options()
-ANALYSIS_CHECK_OPTIONS = _analysis_check_options_fn() if _analysis_check_options_fn is not None else {}
+ANALYSIS_CHECK_OPTIONS = (
+    _analysis_check_options_fn() if _analysis_check_options_fn is not None else {}
+)

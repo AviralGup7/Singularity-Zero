@@ -2,9 +2,9 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
+from src.core.models import ValidationResult
 from src.core.utils.scoring import normalized_confidence
 from src.core.utils.validator_helpers import build_manual_hint, build_validator_result
-from src.core.models import ValidationResult
 from src.execution.validators.validators.shared import (
     SSRF_CONFIDENCE_BASE,
     SSRF_CONFIDENCE_CAP,

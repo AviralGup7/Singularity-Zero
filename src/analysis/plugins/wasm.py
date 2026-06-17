@@ -5,7 +5,6 @@ Typed manifest and helper definitions for running isolated WASM detectors.
 
 from __future__ import annotations
 
-import importlib
 import os
 import signal
 import sys

@@ -173,7 +173,7 @@ def _print_http_profile() -> None:
         return
 
     print(f"  HTTP Profile ({summary.total_requests} requests)")
-    print(f"  " + "-" * 50)
+    print("  " + "-" * 50)
     print(f"  Total duration:  {summary.total_duration_ms:.1f}ms")
     print(f"  Avg duration:    {summary.avg_duration_ms:.1f}ms")
     print(f"  P50:             {summary.p50_duration_ms:.1f}ms")
@@ -188,7 +188,7 @@ def _print_http_profile() -> None:
     if summary.avg_ttfb_ms > 0:
         print(f"  Avg TTFB:        {summary.avg_ttfb_ms:.1f}ms")
     if summary.slowest_requests:
-        print(f"\n  Slowest requests:")
+        print("\n  Slowest requests:")
         for req in summary.slowest_requests[:5]:
             print(f"    {req['label'][:50]:<50} {req['duration_ms']:.1f}ms")
 

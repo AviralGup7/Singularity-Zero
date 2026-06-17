@@ -109,7 +109,7 @@ class OTLPExporter:
         if not self._available:
             self._pending_spans.extend(spans)
             if len(self._pending_spans) > _MAX_PENDING:
-                self._pending_spans = self._pending_spans[-_MAX_PENDING // 2:]
+                self._pending_spans = self._pending_spans[-_MAX_PENDING // 2 :]
             return
         try:
             otel_spans = self._convert_to_otel(spans)

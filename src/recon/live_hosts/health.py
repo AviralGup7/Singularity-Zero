@@ -9,8 +9,6 @@ from __future__ import annotations
 import logging
 import socket
 from concurrent.futures import as_completed
-
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
 import urllib3
@@ -18,6 +16,7 @@ import urllib3
 from src.core.models import DEFAULT_USER_AGENT, Config
 from src.core.utils.http_pool import get_pooled_connection
 from src.core.utils.url_validation import is_safe_url
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -109,8 +108,7 @@ def probe_live_hosts_fallback(
 
     executor = get_shared_executor()
     future_to_host = {
-        executor.submit(probe_host_without_httpx, host, timeout_seconds): host
-        for host in to_probe
+        executor.submit(probe_host_without_httpx, host, timeout_seconds): host for host in to_probe
     }
     processed = 0
     current_batch = 0

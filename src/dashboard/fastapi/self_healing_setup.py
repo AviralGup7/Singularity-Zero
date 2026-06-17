@@ -3,7 +3,6 @@
 from typing import Any
 
 from src.core.contracts.protocol_registry import (
-    get_corrective_action_registry_cls,
     get_self_healing_controller_cls,
 )
 

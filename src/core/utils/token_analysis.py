@@ -5,16 +5,14 @@ internal host detection, and DNS callback detection. Used by both analysis and
 execution packages without cross-layer dependencies.
 """
 
+# ---------------------------------------------------------------------------
+# Regex patterns (duplicated here for zero-dependency import)
+# ---------------------------------------------------------------------------
+import re
 from typing import Any
 from urllib.parse import urlparse
 
 from src.core.utils.param_types import decode_candidate_value
-
-# ---------------------------------------------------------------------------
-# Regex patterns (duplicated here for zero-dependency import)
-# ---------------------------------------------------------------------------
-
-import re
 
 JWT_LIKE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
 EMAIL_VALUE_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)

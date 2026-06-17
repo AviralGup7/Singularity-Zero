@@ -521,8 +521,8 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
             )
 
     async def check_api() -> ComponentHealth:
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         try:
             req = urllib.request.Request("http://localhost:8000/health", method="GET")

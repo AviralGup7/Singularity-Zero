@@ -20,7 +20,7 @@ from typing import Any
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
-from starlette.routing import Match, Route
+from starlette.routing import Match
 
 # Path normalization patterns: replace high-cardinality segments with placeholders
 _PATH_NORMALIZERS: list[tuple[re.Pattern[str], str]] = [

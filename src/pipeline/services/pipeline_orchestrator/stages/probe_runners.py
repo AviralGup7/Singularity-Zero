@@ -277,7 +277,10 @@ async def _try_probe(
             and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off"
         ):
             from src.execution.active_manifest import ActiveCapability
-            from src.execution.isolated import replace_unpicklable_response_caches, run_callable_isolated
+            from src.execution.isolated import (
+                replace_unpicklable_response_caches,
+                run_callable_isolated,
+            )
 
             isolated_args = args
             isolated_kwargs = kwargs

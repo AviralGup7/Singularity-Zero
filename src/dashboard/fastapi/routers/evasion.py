@@ -26,6 +26,7 @@ def _get_chameleon() -> Any:
         raise RuntimeError("Chameleon evasion not registered")
     return chameleon
 
+
 # ---------------------------------------------------------------------------
 # In-memory hunt-mode state (toggled via POST /api/evasion/hunt-mode)
 # ---------------------------------------------------------------------------

@@ -394,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         # Security: enforce production security requirements
         # (DASHBOARD_AUTH_DISABLED, default secrets, etc.)
         from src.core.security.secret_validator import enforce_production_security
+
         enforce_production_security()
         args = parse_args(argv)
         resume_from = getattr(args, "resume_from", None)

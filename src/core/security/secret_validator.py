@@ -155,9 +155,7 @@ def find_production_security_violations(
     }
     app_secret = env.get("APP_SECRET_KEY", "")
     if app_secret in _default_secret_keys:
-        violations.append(
-            "APP_SECRET_KEY is set to a default/placeholder value in production."
-        )
+        violations.append("APP_SECRET_KEY is set to a default/placeholder value in production.")
 
     # Check SEC_JWT_SECRET
     _default_jwt_secrets = {
@@ -166,9 +164,7 @@ def find_production_security_violations(
     }
     jwt_secret = env.get("SEC_JWT_SECRET", "")
     if jwt_secret in _default_jwt_secrets:
-        violations.append(
-            "SEC_JWT_SECRET is set to a default/placeholder value in production."
-        )
+        violations.append("SEC_JWT_SECRET is set to a default/placeholder value in production.")
 
     return violations
 

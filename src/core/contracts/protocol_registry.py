@@ -35,11 +35,9 @@ from src.core.contracts.cross_package_protocols import (
     LateralGraphProtocol,
     LauncherReplayManifestProtocol,
     OAuthAuthenticatorProtocol,
-    PassiveCheckNamesProtocol,
     RemediationScannerProtocol,
     RetryPolicyProtocol,
     SelfHealingControllerProtocol,
-    StageBaselineProtocol,
     TenantIsolationCheckProtocol,
     ValidationRuntimeProtocol,
     WASMExecutorProtocol,
@@ -79,6 +77,7 @@ _tenant_isolation_check: TenantIsolationCheckProtocol | None = None
 # ---------------------------------------------------------------------------
 # Registration functions
 # ---------------------------------------------------------------------------
+
 
 def register_ast_mutator(mutator: ASTMutatorProtocol) -> None:
     """Register the AST mutator implementation."""
@@ -221,6 +220,7 @@ def register_tenant_isolation_check(check: TenantIsolationCheckProtocol) -> None
 # ---------------------------------------------------------------------------
 # Getter functions (return None if not registered)
 # ---------------------------------------------------------------------------
+
 
 def get_ast_mutator() -> ASTMutatorProtocol | None:
     """Get the registered AST mutator."""

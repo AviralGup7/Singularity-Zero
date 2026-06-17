@@ -30,9 +30,9 @@ from __future__ import annotations
 import ipaddress
 import logging
 from collections.abc import Iterable
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.recon.dnsx_wildcard import is_public_ip
 
 logger = logging.getLogger(__name__)

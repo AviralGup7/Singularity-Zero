@@ -25,12 +25,12 @@ import logging
 import os
 import re
 from collections.abc import Iterable
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.recon.url_validation import is_safe_url
 
 logger = logging.getLogger(__name__)

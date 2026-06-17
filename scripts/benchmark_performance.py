@@ -16,7 +16,6 @@ import asyncio
 import json
 import os
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -32,6 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_process() -> psutil.Process:
     return psutil.Process(os.getpid())
@@ -66,6 +66,7 @@ def _measure_thread_count() -> int:
 # ---------------------------------------------------------------------------
 # Benchmark: Import / Startup
 # ---------------------------------------------------------------------------
+
 
 def bench_startup() -> dict[str, Any]:
     """Measure cold-start import latency and memory."""
@@ -121,6 +122,7 @@ def bench_startup() -> dict[str, Any]:
 # Benchmark: Thread Pool Proliferation
 # ---------------------------------------------------------------------------
 
+
 def bench_thread_pools() -> dict[str, Any]:
     """Measure thread count before/after creating multiple ThreadPoolExecutors."""
     import concurrent.futures
@@ -153,6 +155,7 @@ def bench_thread_pools() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Benchmark: HTTP Client Overhead
 # ---------------------------------------------------------------------------
+
 
 def bench_http_overhead() -> dict[str, Any]:
     """Measure overhead of creating/destroying HTTP clients."""
@@ -198,6 +201,7 @@ def bench_http_overhead() -> dict[str, Any]:
 # Benchmark: S3 Read Patterns
 # ---------------------------------------------------------------------------
 
+
 def bench_s3_patterns() -> dict[str, Any]:
     """Measure memory impact of S3 read patterns (simulated)."""
     # Simulate reading a 10MB object into memory vs streaming
@@ -205,7 +209,7 @@ def bench_s3_patterns() -> dict[str, Any]:
     results: dict[str, Any] = {}
 
     for size in sizes:
-        label = f"{size // (1024*1024)}MB"
+        label = f"{size // (1024 * 1024)}MB"
 
         # Pattern 1: Full load (current s3_backends.py behavior)
         mem_before = _measure_memory_mb()
@@ -226,8 +230,12 @@ def bench_s3_patterns() -> dict[str, Any]:
         mem_after_stream = _measure_memory_mb()
 
         results[label] = {
-            "full_load_delta_mb": round(mem_after["current_rss_mb"] - mem_before["current_rss_mb"], 3),
-            "stream_delta_mb": round(mem_after_stream["current_rss_mb"] - mem_before_stream["current_rss_mb"], 3),
+            "full_load_delta_mb": round(
+                mem_after["current_rss_mb"] - mem_before["current_rss_mb"], 3
+            ),
+            "stream_delta_mb": round(
+                mem_after_stream["current_rss_mb"] - mem_before_stream["current_rss_mb"], 3
+            ),
         }
 
     results["thread_count"] = _measure_thread_count()
@@ -237,6 +245,7 @@ def bench_s3_patterns() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Benchmark: S3 Streaming Reads
 # ---------------------------------------------------------------------------
+
 
 def bench_s3_streaming() -> dict[str, Any]:
     """Benchmark S3 streaming vs full-read patterns."""
@@ -280,6 +289,7 @@ def bench_s3_streaming() -> dict[str, Any]:
 # Benchmark: Connection Pool Efficiency
 # ---------------------------------------------------------------------------
 
+
 def bench_connection_pooling() -> dict[str, Any]:
     """Benchmark connection pool reuse vs new connections."""
     import urllib3
@@ -315,6 +325,7 @@ def bench_connection_pooling() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Benchmark: time.sleep vs asyncio.sleep in async context
 # ---------------------------------------------------------------------------
+
 
 def bench_sleep_patterns() -> dict[str, Any]:
     """Compare time.sleep vs asyncio.sleep overhead in async context."""
@@ -356,6 +367,7 @@ def bench_sleep_patterns() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Benchmark: HTTP request latency simulation
 # ---------------------------------------------------------------------------
+
 
 def bench_http_latency_profile() -> dict[str, Any]:
     """Profile HTTP request/response patterns for bottleneck identification."""
@@ -430,6 +442,7 @@ def bench_http_latency_profile() -> dict[str, Any]:
 # Benchmark: Pipeline Stage Timeouts
 # ---------------------------------------------------------------------------
 
+
 def bench_url_stage_timeout() -> dict[str, Any]:
     """Profile URL stage timeout patterns."""
     # Measure the overhead of per-request validation in the URL stage
@@ -489,7 +502,9 @@ def bench_url_stage_timeout() -> dict[str, Any]:
         "urlparse_per_url_us": round(parse_ms * 1000 / len(test_urls), 2),
         "ssrf_check_100x_ms": round(ssrf_check_ms, 2),
         "bottleneck_breakdown": {
-            "url_validation_pct": round(validation_ms / max(validation_ms + parse_ms, 0.001) * 100, 1),
+            "url_validation_pct": round(
+                validation_ms / max(validation_ms + parse_ms, 0.001) * 100, 1
+            ),
             "urlparse_pct": round(parse_ms / max(validation_ms + parse_ms, 0.001) * 100, 1),
         },
     }
@@ -498,6 +513,7 @@ def bench_url_stage_timeout() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def run_all_benchmarks() -> dict[str, Any]:
     """Run all benchmarks and return consolidated results."""
@@ -524,7 +540,7 @@ def run_all_benchmarks() -> dict[str, Any]:
         try:
             result = fn()
             all_results[name] = {"status": "ok", "data": result}
-            print(f"    -> OK")
+            print("    -> OK")
         except Exception as exc:
             all_results[name] = {"status": "error", "error": str(exc)}
             print(f"    -> ERROR: {exc}")
@@ -608,24 +624,38 @@ def generate_report(
     opt_sleep = optimized.get("sleep_patterns", {}).get("data", {})
 
     lines.append("  time.sleep vs asyncio.sleep (100 iterations):")
-    lines.append(f"    Blocking (baseline):  {base_sleep.get('blocking_time_sleep_100x_ms', 0):.2f} ms")
+    lines.append(
+        f"    Blocking (baseline):  {base_sleep.get('blocking_time_sleep_100x_ms', 0):.2f} ms"
+    )
     lines.append(f"    Async (optimized):    {opt_sleep.get('asyncio_sleep_100x_ms', 0):.2f} ms")
-    lines.append(f"    Concurrent async:     {opt_sleep.get('concurrent_asyncio_sleep_100x_ms', 0):.2f} ms")
+    lines.append(
+        f"    Concurrent async:     {opt_sleep.get('concurrent_asyncio_sleep_100x_ms', 0):.2f} ms"
+    )
     lines.append("")
 
     base_tp = baseline.get("thread_pools", {}).get("data", {})
     opt_tp = optimized.get("thread_pools", {}).get("data", {})
     lines.append("  Thread pool overhead:")
-    lines.append(f"    Baseline thread overhead:  {base_tp.get('thread_overhead', 0)} threads for 10 pools")
-    lines.append(f"    Optimized thread overhead:  {opt_tp.get('thread_overhead', 0)} threads for shared pool")
+    lines.append(
+        f"    Baseline thread overhead:  {base_tp.get('thread_overhead', 0)} threads for 10 pools"
+    )
+    lines.append(
+        f"    Optimized thread overhead:  {opt_tp.get('thread_overhead', 0)} threads for shared pool"
+    )
     lines.append("")
 
     base_conn = baseline.get("connection_pooling", {}).get("data", {})
     opt_conn = optimized.get("connection_pooling", {}).get("data", {})
     lines.append("  Connection pooling efficiency:")
-    lines.append(f"    50x separate pool creation: {base_conn.get('separate_pool_creation_50x_ms', 0):.2f} ms")
-    lines.append(f"    50x shared pool lookup:     {opt_conn.get('shared_pool_lookup_50x_ms', 0):.2f} ms")
-    speedup = base_conn.get("separate_pool_creation_50x_ms", 1) / max(opt_conn.get("shared_pool_lookup_50x_ms", 0.001), 0.001)
+    lines.append(
+        f"    50x separate pool creation: {base_conn.get('separate_pool_creation_50x_ms', 0):.2f} ms"
+    )
+    lines.append(
+        f"    50x shared pool lookup:     {opt_conn.get('shared_pool_lookup_50x_ms', 0):.2f} ms"
+    )
+    speedup = base_conn.get("separate_pool_creation_50x_ms", 1) / max(
+        opt_conn.get("shared_pool_lookup_50x_ms", 0.001), 0.001
+    )
     lines.append(f"    Speedup:                    {speedup:.1f}x")
     lines.append("")
 
@@ -666,8 +696,12 @@ def generate_report(
     base_sys = baseline.get("_system", {}).get("memory", {})
     opt_sys = optimized.get("_system", {}).get("memory", {})
     lines.append("")
-    lines.append(f"  System memory baseline:  RSS={base_sys.get('current_rss_mb', 0):.2f} MB, Peak={base_sys.get('peak_mb', 0):.2f} MB")
-    lines.append(f"  System memory optimized: RSS={opt_sys.get('current_rss_mb', 0):.2f} MB, Peak={opt_sys.get('peak_mb', 0):.2f} MB")
+    lines.append(
+        f"  System memory baseline:  RSS={base_sys.get('current_rss_mb', 0):.2f} MB, Peak={base_sys.get('peak_mb', 0):.2f} MB"
+    )
+    lines.append(
+        f"  System memory optimized: RSS={opt_sys.get('current_rss_mb', 0):.2f} MB, Peak={opt_sys.get('peak_mb', 0):.2f} MB"
+    )
     lines.append("")
 
     # ---- Scan Duration Impact ----
@@ -684,8 +718,12 @@ def generate_report(
         url_speedup = base_val_ms / max(opt_val_ms, 0.001)
     else:
         url_speedup = 1.0
-    lines.append(f"    Baseline:  {base_val_ms:.2f} ms total ({base_url.get('is_safe_url_per_url_us', 0):.1f} us/url)")
-    lines.append(f"    Optimized: {opt_val_ms:.2f} ms total ({opt_url.get('is_safe_url_per_url_us', 0):.1f} us/url)")
+    lines.append(
+        f"    Baseline:  {base_val_ms:.2f} ms total ({base_url.get('is_safe_url_per_url_us', 0):.1f} us/url)"
+    )
+    lines.append(
+        f"    Optimized: {opt_val_ms:.2f} ms total ({opt_url.get('is_safe_url_per_url_us', 0):.1f} us/url)"
+    )
     lines.append(f"    Speedup:   {url_speedup:.2f}x")
 
     base_parse = base_url.get("urlparse_total_ms", 0)
@@ -695,7 +733,9 @@ def generate_report(
 
     base_ssrf = base_url.get("ssrf_check_100x_ms", 0)
     opt_ssrf = opt_url.get("ssrf_check_100x_ms", 0)
-    lines.append(f"  SSRF check overhead (100x): baseline={base_ssrf:.2f}ms, optimized={opt_ssrf:.2f}ms")
+    lines.append(
+        f"  SSRF check overhead (100x): baseline={base_ssrf:.2f}ms, optimized={opt_ssrf:.2f}ms"
+    )
     lines.append("")
 
     # ---- HTTP Bottleneck Analysis ----
@@ -707,8 +747,12 @@ def generate_report(
 
     base_dns = base_latency.get("dns_resolution_ms", {})
     opt_dns = opt_latency.get("dns_resolution_ms", {})
-    lines.append(f"  DNS resolution P50: baseline={base_dns.get('p50', 0):.3f}ms, optimized={opt_dns.get('p50', 0):.3f}ms")
-    lines.append(f"  DNS resolution P95: baseline={base_dns.get('p95', 0):.3f}ms, optimized={opt_dns.get('p95', 0):.3f}ms")
+    lines.append(
+        f"  DNS resolution P50: baseline={base_dns.get('p50', 0):.3f}ms, optimized={opt_dns.get('p50', 0):.3f}ms"
+    )
+    lines.append(
+        f"  DNS resolution P95: baseline={base_dns.get('p95', 0):.3f}ms, optimized={opt_dns.get('p95', 0):.3f}ms"
+    )
 
     base_thread = base_latency.get("thread_spawn_50x_ms", 0)
     opt_thread = opt_latency.get("thread_spawn_50x_ms", 0)
@@ -725,8 +769,12 @@ def generate_report(
 
     base_cpu = baseline.get("_system", {}).get("cpu_times", {})
     opt_cpu = optimized.get("_system", {}).get("cpu_times", {})
-    lines.append(f"  CPU user time: baseline={base_cpu.get('user_s', 0):.3f}s, optimized={opt_cpu.get('user_s', 0):.3f}s")
-    lines.append(f"  CPU system time: baseline={base_cpu.get('system_s', 0):.3f}s, optimized={opt_cpu.get('system_s', 0):.3f}s")
+    lines.append(
+        f"  CPU user time: baseline={base_cpu.get('user_s', 0):.3f}s, optimized={opt_cpu.get('user_s', 0):.3f}s"
+    )
+    lines.append(
+        f"  CPU system time: baseline={base_cpu.get('system_s', 0):.3f}s, optimized={opt_cpu.get('system_s', 0):.3f}s"
+    )
     lines.append("")
     lines.append("  Optimizations applied:")
     lines.append("    [x] Shared ThreadPoolExecutor (reduces thread proliferation)")
@@ -746,8 +794,17 @@ def main() -> None:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--baseline", action="store_true", help="Run and save baseline benchmark")
     group.add_argument("--optimized", action="store_true", help="Run and save optimized benchmark")
-    group.add_argument("--report", nargs=2, metavar=("BASELINE.json", "OPTIMIZED.json"), help="Generate comparison report")
-    group.add_argument("--all", action="store_true", help="Run baseline, apply optimizations, run optimized, generate report")
+    group.add_argument(
+        "--report",
+        nargs=2,
+        metavar=("BASELINE.json", "OPTIMIZED.json"),
+        help="Generate comparison report",
+    )
+    group.add_argument(
+        "--all",
+        action="store_true",
+        help="Run baseline, apply optimizations, run optimized, generate report",
+    )
     args = parser.parse_args()
 
     output_dir = PROJECT_ROOT / ".benchmarks"

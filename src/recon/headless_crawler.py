@@ -31,12 +31,12 @@ import logging
 import re
 import time
 from collections.abc import Iterable
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.url_validation import is_safe_url
 

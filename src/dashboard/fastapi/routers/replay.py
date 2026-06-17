@@ -103,8 +103,10 @@ async def replay_request(
 
     output_root = services.query.output_root
     run_dir = (output_root / target / run).resolve()
-    if artifact_loader is not None and hasattr(artifact_loader, 'plugin_artifact_path'):
-        behavior_path = artifact_loader.plugin_artifact_path(run_dir, "behavior_analysis_layer").resolve()
+    if artifact_loader is not None and hasattr(artifact_loader, "plugin_artifact_path"):
+        behavior_path = artifact_loader.plugin_artifact_path(
+            run_dir, "behavior_analysis_layer"
+        ).resolve()
     else:
         behavior_path = (run_dir / "behavior_analysis_layer.json").resolve()
     legacy_path = (run_dir / "behavior_analysis_layer.json").resolve()
@@ -123,11 +125,12 @@ async def replay_request(
     ) or (not behavior_path.exists() and not legacy_path.exists()):
         raise HTTPException(status_code=404, detail="Replay context not found.")
 
-    if artifact_loader is not None and hasattr(artifact_loader, 'load_plugin_artifact'):
+    if artifact_loader is not None and hasattr(artifact_loader, "load_plugin_artifact"):
         records = artifact_loader.load_plugin_artifact(run_dir, "behavior_analysis_layer")
     else:
-        import json as _json
-        records = json.loads(behavior_path.read_text(encoding="utf-8")) if behavior_path.exists() else []
+        records = (
+            json.loads(behavior_path.read_text(encoding="utf-8")) if behavior_path.exists() else []
+        )
     if not isinstance(records, list):
         raise HTTPException(status_code=500, detail="Replay context could not be loaded.")
 

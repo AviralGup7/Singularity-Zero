@@ -22,10 +22,12 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
+from src.intelligence.severity_calibration import (
+    DEFAULT_DB_PATH as _CALIBRATION_DB_PATH,
+)
+
 # Removed circular imports and unused MODEL_VERSION constant
 from src.intelligence.severity_calibration import (
-    DEFAULT_ACTIVE_MODEL_VERSION,
-    DEFAULT_DB_PATH as _CALIBRATION_DB_PATH,
     get_default_active_version,
 )
 

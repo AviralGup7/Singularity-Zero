@@ -16,10 +16,10 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-
 # ---------------------------------------------------------------------------
 # Core → Fuzzing protocol (fixes Contract 4/18)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class ASTMutatorProtocol(Protocol):
@@ -37,6 +37,7 @@ class ASTMutatorProtocol(Protocol):
 # ---------------------------------------------------------------------------
 # Analysis → Execution protocol (fixes Contract 8/15)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class WASMExecutorProtocol(Protocol):
@@ -60,6 +61,7 @@ class WASMExecutorProtocol(Protocol):
 # ---------------------------------------------------------------------------
 # Dashboard → Analysis protocols (fixes Contract 11)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class AnalysisCheckOptionsProtocol(Protocol):
@@ -149,6 +151,7 @@ class PassiveCheckNamesProtocol(Protocol):
 # Dashboard → Execution protocols (fixes Contract 12)
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class ChameleonEvasionProtocol(Protocol):
     """Protocol for chameleon evasion strategy.
@@ -196,6 +199,7 @@ class RemediationScannerProtocol(Protocol):
 # ---------------------------------------------------------------------------
 # Dashboard → Pipeline protocols (fixes Contract 13)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class SelfHealingControllerProtocol(Protocol):
@@ -304,6 +308,7 @@ class StageBaselineProtocol(Protocol):
 # Pipeline → Execution protocols (fixes Contract 14)
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class ActiveManifestRegistryProtocol(Protocol):
     """Protocol for active manifest registry.
@@ -373,6 +378,7 @@ class AuthFlowRunnerProtocol(Protocol):
 # Execution → Pipeline protocols (fixes Contract 16)
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class RetryPolicyProtocol(Protocol):
     """Protocol for retry policies.
@@ -403,6 +409,7 @@ class RetryPolicyProtocol(Protocol):
 # Pipeline → Dashboard protocols (fixes Unlisted violation)
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class LauncherReplayManifestProtocol(Protocol):
     """Protocol for launcher replay manifest operations.
@@ -425,6 +432,7 @@ class LauncherReplayManifestProtocol(Protocol):
 # ---------------------------------------------------------------------------
 # Execution → Dashboard protocols (fixes Unlisted violation)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class TenantIsolationCheckProtocol(Protocol):

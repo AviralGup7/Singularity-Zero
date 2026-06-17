@@ -1,8 +1,8 @@
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 from src.infrastructure.execution_engine.shared_pool import get_shared_executor
-from urllib.parse import urlparse
 
 from .api_key_candidates import discover_api_key_candidates
 from .client import build_base_headers, normalize_base_url, safe_request, summarize_response

@@ -412,12 +412,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     action_registry.register(CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER, _trip_tool_breaker)
 
-    from src.core.contracts.tool_execution import ToolExecutionServiceProtocol
-
     tool_service = getattr(app.state, "tool_execution_service", None)
     if tool_service is None:
-        from src.core.contracts.protocol_registry import get_validation_runtime
-
         # Fallback: try to import via protocol registry or lazy import
         try:
             from src.pipeline.services.tool_execution import ToolExecutionService

@@ -297,7 +297,9 @@ def _ensure_analysis_defaults(config: dict[str, Any], output_root: Any) -> dict[
 
     passive_check_names = get_passive_check_names()
     if passive_check_names is not None:
-        check_names = passive_check_names() if callable(passive_check_names) else passive_check_names
+        check_names = (
+            passive_check_names() if callable(passive_check_names) else passive_check_names
+        )
     else:
         check_names = []
     for check_name in check_names:

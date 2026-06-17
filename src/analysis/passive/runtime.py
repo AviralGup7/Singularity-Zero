@@ -9,7 +9,6 @@ import logging
 import re
 import threading
 import time
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from dataclasses import dataclass, field
 from datetime import UTC
 from pathlib import Path
@@ -30,6 +29,7 @@ from src.analysis.text_utils import (
 from src.core.models import DEFAULT_USER_AGENT
 from src.core.utils import normalize_url
 from src.core.utils.url_validation import is_safe_url
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from src.pipeline.cache import load_cached_json, response_cache_fresh, save_cached_json
 from src.pipeline.retry import RetryPolicy
 

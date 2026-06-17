@@ -64,7 +64,6 @@ import json
 import logging
 import re
 from collections.abc import Iterable
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -72,6 +71,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 
 from src.core.utils.url_validation import is_safe_url
+from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 logger = logging.getLogger(__name__)
 

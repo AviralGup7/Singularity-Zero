@@ -287,6 +287,7 @@ class AuditLogger:
         self._db: sqlite3.Connection | None = None
 
         import atexit
+
         atexit.register(self.close)
 
         self._ensure_log_file()

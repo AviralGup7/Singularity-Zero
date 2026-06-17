@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import atexit
-import logging
 import threading
 import time
 import weakref
@@ -20,7 +19,6 @@ import requests
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.pid_limiter import PIDRateLimiter
-from src.core.utils.streaming import stream_http_response
 from src.core.utils.url_validation import is_safe_url
 
 

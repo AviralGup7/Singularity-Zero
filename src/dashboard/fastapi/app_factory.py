@@ -46,6 +46,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
     # Production safety guard: enforce all production security requirements
     from src.core.security.secret_validator import enforce_production_security
+
     enforce_production_security()
 
     app = FastAPI(

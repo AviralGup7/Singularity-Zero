@@ -15,9 +15,8 @@ Usage:
 
 from __future__ import annotations
 
-import time
 import threading
-from contextlib import contextmanager
+import time
 from typing import Any
 
 # Maximum unique analyzer type labels to prevent cardinality explosion
@@ -102,6 +101,7 @@ class AnalyzerExecutionTracker:
         self._start_time = time.monotonic()
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             get_metrics().gauge(
                 "analyzer_active_executions",
                 "Number of analyzers currently executing",

@@ -10,14 +10,14 @@ import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from src.core.models import ValidationResult
+from src.core.plugins import register_plugin
 from src.core.utils.endpoint_classification import (
     endpoint_signature,
     is_auth_flow_endpoint,
     is_low_value_endpoint,
 )
 from src.core.utils.scoring import normalized_confidence
-from src.core.models import ValidationResult
-from src.core.plugins import register_plugin
 from src.execution.validators.validators.shared import to_validation_result
 
 logger = logging.getLogger(__name__)
