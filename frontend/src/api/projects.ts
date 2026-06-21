@@ -1,4 +1,4 @@
-import { apiClient, cachedGet } from './core';
+import { cachedGet } from './core';
 
 export interface Project {
   id: string;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, X, ChevronDown } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StalledExplainerPanel } from '@/components/StalledExplainerPanel';
@@ -12,7 +12,6 @@ import { LiveTerminalFeed } from '@/components/LiveTerminalFeed';
 import { DurationForecast } from '@/components/DurationForecast';
 import { ModulePerformanceChart } from '@/components/charts/ModulePerformanceChart';
 import { JobStatusHeader } from '@/components/jobs/JobStatusHeader';
-import { JobLogViewer } from '@/components/jobs/JobLogViewer';
 import { JobTimelineComponent } from '@/components/jobs/JobTimelineComponent';
 import { StageProgressBars } from '@/components/StageProgressBars';
 import { StageTheater } from '@/components/ops/StageTheater';
@@ -20,13 +19,17 @@ import { ThroughputStrip } from '@/components/ops/ThroughputStrip';
 import { VisualProvider } from '@/context/VisualContext';
 import { mapToVisualState } from '@/lib/mapToVisualState';
 import { useJobMonitor } from '@/hooks/useJobMonitor';
-import { RemediationSuggestions } from '@/components/findings/RemediationSuggestions';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlowProgress } from '@/components/ui/GlowProgress';
-import { InfoItem, formatDurationLabel } from '@/components/jobs/JobInfoItem';
+import { InfoItem } from '@/components/jobs/JobInfoItem';
 import { useJobDetails, useJobStageTheater, useJobThroughput } from '@/hooks/useJobDetails';
 import { useJobRemediation, useJobTracePanel } from '@/hooks/useJobTracePanel';
 import { ReportFab } from '@/components/report/ReportFab';
+import { JobWarnings } from '@/components/jobs/JobWarnings';
+import { JobLogsCard } from '@/components/jobs/JobLogsCard';
+import { JobInformationCard } from '@/components/jobs/JobInformationCard';
+import { JobFailureCard } from '@/components/jobs/JobFailureCard';
+import { JobRuntimeSignals } from '@/components/jobs/JobRuntimeSignals';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -59,11 +62,8 @@ export function JobDetailPage() {
   const prevStageRef = useRef<Record<string, number>>({});
   const [stageDeltas, setStageDeltas] = useState<Array<{ stage: string; delta: number; status: string }>>([]);
 
-  // Capture the export timestamp once at mount via an effect so render output
-  // stays stable. Empty string is fine for the filename before mount completes.
   const [exportStamp, setExportStamp] = useState<string>('');
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExportStamp(String(Date.now()));
   }, []);
 
@@ -112,9 +112,7 @@ export function JobDetailPage() {
     for (const entry of job.stage_progress) {
       const stageKey = entry.stage || 'unknown';
       const progress = typeof entry.percent === 'number' ? entry.percent : 0;
-      // eslint-disable-next-line security/detect-object-injection
       next[stageKey] = progress;
-      // eslint-disable-next-line security/detect-object-injection
       const prevProgress = stageKey in prev ? prev[stageKey] : -1;
 
       if (prevProgress >= 0 && progress > prevProgress) {
@@ -124,7 +122,6 @@ export function JobDetailPage() {
       }
     }
     if (deltas.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStageDeltas(deltas);
     }
     prevStageRef.current = next;
@@ -177,53 +174,14 @@ export function JobDetailPage() {
           </div>
         )}
 
-        {(job.status === 'failed' || job.status === 'stopped') && (
-          <motion.div variants={itemVariants} className="card error-card" role="alert">
-            <h3>Job Failure Details</h3>
-            {job.failure_reason_code === 'circuit_breaker_open' ? (
-              <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--warning-bg, rgba(234, 179, 8, 0.08))' }}>
-                <span className="text-lg" aria-hidden="true">⚡</span>
-                <div>
-                  <p className="font-medium text-sm" style={{ color: 'var(--warning-text, #eab308)' }}>
-                    Stage Skipped: Circuit Breaker Open
-                  </p>
-                  <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    The <strong>{job.failed_stage || 'tool'}</strong> stage was skipped because its circuit breaker is open
-                    due to repeated failures. The tool may be temporarily unavailable or misconfigured.
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)] mt-2">
-                    Visit <Link to="/self-healing" className="underline">Self-Healing</Link> to reset the circuit breaker
-                    or check tool availability in Settings.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="info-grid">
-                  {job.failed_stage && <InfoItem label="Stage" value={job.failed_stage} />}
-                  {job.failure_reason_code && <InfoItem label="Reason Code" value={job.failure_reason_code} />}
-                  {job.failure_step && <InfoItem label="Failure Step" value={job.failure_step} />}
-                </div>
-                {(job.failure_reason || job.error || sseError) && (
-                  <pre className="error-text mt-4">{job.failure_reason || job.error || sseError}</pre>
-                )}
-              </>
-            )}
-          </motion.div>
-        )}
-
-        {(job.status === 'failed' || job.status === 'stopped') && (
-          <motion.div variants={itemVariants} className="card">
-            <div className="trace-actions-header flex items-center justify-between gap-4">
-              <h3>Debug Actions</h3>
-              <button className="btn btn-secondary btn-sm flex items-center gap-1.5" onClick={openTracePanel} disabled={traceLoading}>
-                <ExternalLink size={14} aria-hidden="true" />
-                <span>{traceLoading ? 'Opening...' : 'Open Jaeger Trace'}</span>
-              </button>
-            </div>
-            <RemediationSuggestions suggestions={remediation} loading={remediationLoading} />
-          </motion.div>
-        )}
+        <JobFailureCard
+          job={job}
+          sseError={sseError}
+          remediation={remediation}
+          remediationLoading={remediationLoading}
+          onOpenTrace={openTracePanel}
+          traceLoading={traceLoading}
+        />
 
         {job.status === 'running' && isPollingFallback && (
           <div className="banner warning">
@@ -231,70 +189,16 @@ export function JobDetailPage() {
           </div>
         )}
 
-        <motion.div variants={itemVariants} className="card">
-          <h3>Job Information</h3>
-          <div className="info-grid">
-            <InfoItem label="Target" value={job.base_url} />
-            <InfoItem label="Hostname" value={job.hostname} />
-            <InfoItem label="Mode" value={job.mode} />
-            <InfoItem label="Stage" value={job.stage_label} />
-            <InfoItem label="Started" value={job.started_at} />
-            <InfoItem label="Status Message" value={job.status_message} />
-            <InfoItem label="Scope Entries" value={job.scope_entries?.join(', ')} />
-            {job.returncode !== null && job.returncode !== undefined && (
-              <InfoItem label="Exit Code" value={String(job.returncode)} />
-            )}
-            {job.finished_at_label && (
-              <InfoItem label="Finished" value={job.finished_at_label} />
-            )}
-          </div>
-        </motion.div>
+        <JobInformationCard job={job} />
 
-        {hasRuntimeSignals && (
-          <motion.div variants={itemVariants} className="card">
-            <h3>Runtime Signals</h3>
-            <div className="info-grid">
-              {warningCount > 0 && (
-                <InfoItem label="Warnings" value={`${warningCount}`} />
-              )}
-              {fatalSignalCount > 0 && (
-                <InfoItem label="Fatal Signals" value={`${fatalSignalCount}`} />
-              )}
-              {typeof job.effective_timeout_seconds === 'number' && (
-                <InfoItem
-                  label="Effective Timeout"
-                  value={formatDurationLabel(job.effective_timeout_seconds)}
-                />
-              )}
-              {degradedProviders.length > 0 && (
-                <InfoItem label="Degraded Providers" value={`${degradedProviders.length}`} />
-              )}
-              {timeoutEvents.length > 0 && (
-                <InfoItem label="Timeout Events" value={`${timeoutEvents.length}`} />
-              )}
-            </div>
-            {degradedProviders.length > 0 && (
-              <>
-                <h4 className="mt-4 text-xs font-bold text-[var(--text-secondary)] font-mono uppercase tracking-wider">Degraded Providers</h4>
-                <div className="modules-list flex flex-wrap gap-2 mt-2">
-                  {degradedProviders.map((provider) => (
-                    <span key={provider} className="module-tag">{provider}</span>
-                  ))}
-                </div>
-              </>
-            )}
-            {timeoutEvents.length > 0 && (
-              <>
-                <h4 className="mt-4 text-xs font-bold text-[var(--text-secondary)] font-mono uppercase tracking-wider">Timeout Events</h4>
-                <ul className="warnings-list mt-2 space-y-1">
-                  {timeoutEvents.map((event) => (
-                    <li key={event}>{event}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </motion.div>
-        )}
+        <JobRuntimeSignals
+          warningCount={warningCount}
+          fatalSignalCount={fatalSignalCount}
+          degradedProviders={degradedProviders}
+          timeoutEvents={timeoutEvents}
+          effectiveTimeoutSeconds={job.effective_timeout_seconds}
+          hasRuntimeSignals={hasRuntimeSignals}
+        />
 
         {job.execution_options && Object.values(job.execution_options).some(Boolean) && (
           <motion.div variants={itemVariants} className="card">
@@ -344,10 +248,7 @@ export function JobDetailPage() {
               />
             )}
             <div className="mt-4">
-              <PluginProgressGrid
-                plugins={[]}
-                loading={loading && job.status === 'running'}
-              />
+              <PluginProgressGrid plugins={[]} loading={loading && job.status === 'running'} />
             </div>
             <div className="mt-4">
               <LiveTerminalFeed jobId={job.id} />
@@ -482,10 +383,7 @@ export function JobDetailPage() {
         )}
 
         {job.status === 'running' && (durationLoading || durationForecast) && (
-          <DurationForecast
-            durations={durationForecast}
-            loading={durationLoading}
-          />
+          <DurationForecast durations={durationForecast} loading={durationLoading} />
         )}
 
         {job.stalled && (
@@ -567,65 +465,19 @@ export function JobDetailPage() {
           </motion.div>
         )}
 
-        {job.warnings && job.warnings.length > 0 && (
-          <motion.div variants={itemVariants} className="card warning-card">
-            <button
-              type="button"
-              onClick={() => setWarningsExpanded(!warningsExpanded)}
-              className="w-full flex items-center justify-between text-left focus:outline-none"
-            >
-              <h3>Warnings ({job.warnings.length})</h3>
-              <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${warningsExpanded ? 'rotate-180 text-[var(--bad)]' : ''}`} />
-            </button>
-            <AnimatePresence initial={false}>
-              {warningsExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: EASE_OUT }}
-                  className="overflow-hidden"
-                >
-                  <ul className="warnings-list mt-4 space-y-1.5">
-                    {job.warnings.map((w, idx) => (
-                      <li key={w.substring(0, 40) + idx}>{w}</li>
-                    ))}
-                  </ul>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
+        <JobWarnings
+          warnings={job.warnings || []}
+          expanded={warningsExpanded}
+          onToggle={() => setWarningsExpanded(!warningsExpanded)}
+        />
 
-        <motion.div variants={itemVariants} className="card">
-          <button
-            type="button"
-            onClick={() => setLogsExpanded(!logsExpanded)}
-            className="w-full flex items-center justify-between text-left focus:outline-none"
-          >
-            <h3>Job Logs</h3>
-            <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${logsExpanded ? 'rotate-180 text-[var(--accent)]' : ''}`} />
-          </button>
-          <AnimatePresence initial={false}>
-            {logsExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25, ease: EASE_OUT }}
-                className="overflow-hidden"
-              >
-                <div className="pt-4">
-                  <JobLogViewer
-                    displayLines={displayLines}
-                    wsFailed={wsFailed}
-                    jobStatus={job.status}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+        <JobLogsCard
+          displayLines={displayLines}
+          wsFailed={wsFailed}
+          jobStatus={job.status}
+          expanded={logsExpanded}
+          onToggle={() => setLogsExpanded(!logsExpanded)}
+        />
 
         <motion.div variants={itemVariants} className="card">
           <h3>Job Timeline</h3>
@@ -691,8 +543,6 @@ export function JobDetailPage() {
           </div>
         )}
 
-        {/* One-click report FAB (P2-5) — surfaces all export strategies and the
-            signed compliance PDF directly from the job detail page. */}
         <ReportFab
           findings={job.streaming_findings ?? []}
           filenameBase={`job-${jobId || 'unknown'}-${exportStamp}`}

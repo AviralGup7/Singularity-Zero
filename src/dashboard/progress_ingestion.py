@@ -26,16 +26,18 @@ TELEMETRY_EVENT_LIMIT = 1000
 
 def _get_stage_baseline() -> dict[str, int]:
     """Get the stage baseline percentages via protocol registry."""
+    from typing import cast
+
     from src.core.contracts.protocol_registry import get_stage_baseline
 
     baseline = get_stage_baseline()
     if baseline is not None and callable(baseline):
         try:
-            return baseline()
+            return cast(dict[str, int], baseline())
         except TypeError:
             return {}
-    elif baseline is not None:
-        return baseline
+    elif baseline is not None and isinstance(baseline, dict):
+        return cast(dict[str, int], baseline)
     return {}
 
 

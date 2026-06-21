@@ -1,5 +1,6 @@
 """Request replay endpoint for the FastAPI dashboard."""
 
+import json
 import logging
 from typing import Any
 
@@ -86,6 +87,8 @@ async def replay_request(
     from src.core.contracts.protocol_registry import get_exploit_replay
 
     replay_headers_for_mode = get_exploit_replay()
+    if replay_headers_for_mode is None:
+        raise HTTPException(status_code=500, detail="Replay handler not available")
 
     # Refuse to even process the request if the caller put credentials in
     # the URL; this stops the leak before any handler logic runs. The

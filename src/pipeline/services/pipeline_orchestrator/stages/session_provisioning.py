@@ -8,6 +8,7 @@ Supports three authentication methods:
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
@@ -116,14 +117,32 @@ async def _provision_oauth(auth_config: Any, scan_session: ScanSession, scan_id:
 
         oauth_config = OAuthConfig.from_mapping(oauth_config_raw)
         authenticator = OAuthAuthenticator(oauth_config)
-        session_context = await authenticator.authenticate()
+        token = await authenticator.authenticate()
+
+        import time
+        from datetime import datetime
+
+        from src.execution.auth import SessionContext
+        session_context = SessionContext(
+            bearer_token=token.access_token,
+            refresh_token=token.refresh_token,
+            expires_at=token.expires_at,
+            obtained_at=time.time(),
+            user_id=None,
+        )
+
+        expires_dt = (
+            datetime.fromtimestamp(session_context.expires_at, tz=UTC)
+            if session_context.expires_at is not None
+            else None
+        )
 
         cred = SessionCredential(
             type="bearer_token",
             name="oauth_access_token",
             value=scan_session.encrypt_value(session_context.bearer_token or ""),
             scope=frozenset(["*"]),
-            expires_at=session_context.expires_at,
+            expires_at=expires_dt,
             metadata={
                 "user_id": session_context.user_id,
                 "obtained_at": session_context.obtained_at,
@@ -137,6 +156,7 @@ async def _provision_oauth(auth_config: Any, scan_session: ScanSession, scan_id:
                 name="oauth_refresh_token",
                 value=scan_session.encrypt_value(session_context.refresh_token),
                 scope=frozenset(["*"]),
+                expires_at=expires_dt,
                 metadata={"user_id": session_context.user_id},
             )
             scan_session.add_credential(refresh_cred)
@@ -152,7 +172,7 @@ async def _provision_auth_flow(
 ) -> list[str]:
     """Provision credentials via AuthFlowRunner multi-step flow."""
     try:
-        from src.execution.auth import AuthFlowRunner, AuthSpec
+        from src.execution.auth import AuthFlowRunner, AuthSpec, AuthStep
 
         auth_spec_raw = getattr(auth_config, "auth_spec", None)
         if not auth_spec_raw:
@@ -165,26 +185,38 @@ async def _provision_auth_flow(
             else auth_spec_raw
         )
 
-        async def _http_client(method: str, url: str, **kwargs: Any) -> Any:
+        async def _invoke(step: AuthStep) -> tuple[int, dict[str, str], str, list[str]]:
             import httpx
+            headers = dict(step.headers)
+            content = step.body if step.body else None
 
             async with httpx.AsyncClient(verify=False) as client:
-                response = await client.request(method, url, **kwargs)
-                return {
-                    "status_code": response.status_code,
-                    "body": response.text,
-                    "headers": dict(response.headers),
-                }
+                response = await client.request(
+                    step.method,
+                    step.url,
+                    headers=headers,
+                    content=content,
+                    follow_redirects=False,
+                )
+                set_cookies = response.headers.get_list("Set-Cookie")
+                return response.status_code, dict(response.headers), response.text, set_cookies
 
-        runner = AuthFlowRunner(auth_spec, http_client=_http_client)
-        session_context = await runner.run()
+        runner = AuthFlowRunner(_invoke)
+        session_context = await runner.run(auth_spec)
+
+        from datetime import datetime
+        expires_dt = (
+            datetime.fromtimestamp(session_context.expires_at, tz=UTC)
+            if session_context.expires_at is not None
+            else None
+        )
 
         cred = SessionCredential(
             type="session_cookie",
             name="auth_flow_session",
             value=scan_session.encrypt_value(str(session_context.cookies)),
             scope=frozenset(["*"]),
-            expires_at=session_context.expires_at,
+            expires_at=expires_dt,
             metadata={
                 "user_id": session_context.user_id,
                 "obtained_at": session_context.obtained_at,
@@ -198,7 +230,7 @@ async def _provision_auth_flow(
                 name="auth_flow_token",
                 value=scan_session.encrypt_value(session_context.bearer_token),
                 scope=frozenset(["*"]),
-                expires_at=session_context.expires_at,
+                expires_at=expires_dt,
             )
             scan_session.add_credential(token_cred)
 

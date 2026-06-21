@@ -24,8 +24,8 @@ vi.mock('@/hooks/useToast', () => ({
 // Mock hooks
 const mockUseCockpitData = vi.fn();
 vi.mock('@/hooks/useCockpitData', () => ({
-  useCockpitData: (opts: any) => mockUseCockpitData(opts),
-  useActiveJob: (id: any) => ({
+  useCockpitData: (opts: unknown) => mockUseCockpitData(opts),
+  useActiveJob: (_id?: unknown) => ({
     activeJob: null,
     activeJobId: undefined,
     setActiveJobId: vi.fn(),

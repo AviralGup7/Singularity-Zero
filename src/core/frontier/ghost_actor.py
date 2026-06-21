@@ -13,12 +13,13 @@ from typing import Any, cast
 
 import pykka
 
-from src.core.frontier.ghost_actor_coordinator import GhostMeshCoordinator as BaseMeshCoordinator
-
 # Modular imports
 from src.core.frontier.ghost_actor_state import ActorState
 from src.core.frontier.state import CRDTCompactionBudget, stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.frontier.ghost_actor_coordinator import (
+    GhostMeshCoordinator as BaseMeshCoordinator,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -403,4 +404,4 @@ class GhostMeshCoordinator(BaseMeshCoordinator):
     ) -> pykka.ActorRef:
         """Spawn a new actor, automatically re-hydrating from registry if state exists."""
         cls = scan_actor_cls if scan_actor_cls is not None else ScanActor
-        return await super().spawn_or_rehydrate_actor(actor_id, logic_fn, cls)
+        return cast(pykka.ActorRef, await super().spawn_or_rehydrate_actor(actor_id, logic_fn, cls))

@@ -1,9 +1,12 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, lazy, Suspense } from 'react';
 import { ArrowRight, List, Network, Shield, Target, Zap } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { AttackChain } from '@/types/api';
 import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
-import { AttackChainGraph3D } from '@/components/charts';
+
+const AttackChainGraph3D = lazy(() =>
+  import('@/components/charts/AttackChainGraph3D').then((m) => ({ default: m.AttackChainGraph3D }))
+);
 
 interface AttackChainVisualizerProps {
   chains: AttackChain[];
@@ -197,15 +200,17 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                 exit={{ opacity: 0 }}
                 className="h-[320px] relative"
               >
-                <AttackChainGraph3D
-                  nodes={activeGraph.nodes}
-                  edges={activeGraph.edges}
-                  selectedNodeId={selectedNodeId}
-                  hoveredNodeId={hoveredNodeId}
-                  onSelectNode={handleSelectNode}
-                  onHoverNode={setHoveredNodeId}
-                  className="h-full w-full"
-                />
+                <Suspense fallback={<div className="h-full w-full flex items-center justify-center text-xs text-muted font-mono">Loading 3D visualization...</div>}>
+                  <AttackChainGraph3D
+                    nodes={activeGraph.nodes}
+                    edges={activeGraph.edges}
+                    selectedNodeId={selectedNodeId}
+                    hoveredNodeId={hoveredNodeId}
+                    onSelectNode={handleSelectNode}
+                    onHoverNode={setHoveredNodeId}
+                    className="h-full w-full"
+                  />
+                </Suspense>
 
                 {/* Visual Graph Legend */}
                 <div className="absolute bottom-3 left-3 z-10 bg-black/85 border border-white/10 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] uppercase font-mono max-w-[85%] backdrop-blur-md shadow-lg pointer-events-none">

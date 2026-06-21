@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 
-from src.recon.cloud_recon.helpers import (
+from src.recon.cloud_recon.services import (
     _build_cloud_run_1st_gen_candidates,
     _build_cloud_run_2nd_gen_candidates,
 )
@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 class GCPCloudRecon:
     """GCP-specific cloud asset probes."""
+
+    timeout_seconds: int
+    gcp_regions: list[str]
 
     async def check_gcp_bucket(
         self,
@@ -142,10 +145,10 @@ class GCPCloudRecon:
         return findings
 
     def _build_cloud_run_1st_gen_candidates(self, target: str) -> list[str]:
-        return _build_cloud_run_1st_gen_candidates(self, target)
+        return cast(list[str], _build_cloud_run_1st_gen_candidates(self, target))
 
     def _build_cloud_run_2nd_gen_candidates(self, target: str) -> list[str]:
-        return _build_cloud_run_2nd_gen_candidates(self, target)
+        return cast(list[str], _build_cloud_run_2nd_gen_candidates(self, target))
 
     async def probe_gcp_cloud_functions(
         self,

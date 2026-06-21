@@ -171,3 +171,19 @@ def normalize_telemetry_event(raw: dict[str, Any], *, fallback_stage: str = "") 
         event_id=str(raw.get("event_id") or ""),
         epoch=float(raw.get("epoch") or time.time()),
     )
+
+
+def emit_telemetry(event: dict[str, Any] | TelemetryEvent) -> None:
+    from src.core.events import EventType, get_event_bus
+    if isinstance(event, TelemetryEvent):
+        data = event.to_dict()
+        source = event.source
+    else:
+        data = event
+        source = event.get("source", "telemetry")
+    get_event_bus().emit(
+        EventType.STAGE_TELEMETRY,
+        source=source,
+        data=data,
+    )
+

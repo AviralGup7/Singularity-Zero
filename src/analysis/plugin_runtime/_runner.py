@@ -53,7 +53,7 @@ def _persist_analyzer_timing(analyzer_key: str, elapsed: float, status: str) -> 
         pass
 
 
-def _get_analyzer_metrics():
+def _get_analyzer_metrics() -> Any:
     """Lazily resolve analyzer metrics to avoid circular imports."""
     try:
         from src.infrastructure.observability.metrics import get_metrics

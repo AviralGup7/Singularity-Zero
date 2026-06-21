@@ -275,8 +275,13 @@ def collect_urls(
                     # future's start time precisely, so we just trust the
                     # provider's own duration_seconds for health.
                     if meta.duration_seconds and meta.duration_seconds > spec.timeout_seconds:
-                        meta.status = CollectorStatus.TIMEOUT
-                        meta.error = f"Provider exceeded timeout ({meta.duration_seconds:.1f}s > {spec.timeout_seconds}s)"
+                        import dataclasses
+                        warning_msg = f"Provider exceeded timeout ({meta.duration_seconds:.1f}s > {spec.timeout_seconds}s)"
+                        meta = dataclasses.replace(
+                            meta,
+                            status=CollectorStatus.TIMEOUT,
+                            warnings=meta.warnings + (warning_msg,),
+                        )
 
                 # Health accounting.
                 if meta.status in (CollectorStatus.OK, CollectorStatus.EMPTY):

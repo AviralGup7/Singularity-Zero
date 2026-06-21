@@ -649,13 +649,14 @@ class ScenarioExecutionEngine:
                         self.max_response_bytes,
                     )
                     # Telemetry metric for response truncation event
-                    from src.core.telemetry import TelemetryEvent, emit_telemetry
+                    from src.core.telemetry import build_telemetry_event, emit_telemetry
 
                     emit_telemetry(
-                        TelemetryEvent(
+                        build_telemetry_event(
                             event_type="response_truncated",
+                            stage=getattr(self, "stage_name", "scenario_engine"),
                             source="scenario_engine",
-                            data={
+                            payload={
                                 "url": url,
                                 "max_bytes": self.max_response_bytes,
                                 "actual_bytes": len(body_bytes),

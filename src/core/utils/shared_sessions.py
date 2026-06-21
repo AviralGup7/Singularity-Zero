@@ -129,7 +129,7 @@ def get_shared_boto3_client(
 
 def _boto3_available() -> bool:
     try:
-        import boto3
+        import boto3  # noqa: F401
 
         return True
     except ImportError:

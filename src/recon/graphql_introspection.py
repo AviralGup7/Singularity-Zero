@@ -864,7 +864,6 @@ def discover_graphql_endpoints(
     if not candidate_urls:
         return []
 
-    workers = max(1, min(max_workers, len(candidate_urls)))
     results: list[GraphQLEndpoint] = []
     ex = get_shared_executor()
     futures = [

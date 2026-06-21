@@ -172,6 +172,7 @@ class DynamicPluginCatalog:
         register_plugin(DYNAMIC_PLUGIN, manifest.key, manifest=manifest.to_dict())(record)
         if manifest.kind == "analysis":
             self._register_analysis(record)
+            self._registered[manifest.id] = (("analyzer_binding", manifest.key),)
             return
 
         registry_kind = _KIND_TO_REGISTRY.get(manifest.kind)
@@ -207,6 +208,14 @@ class DynamicPluginCatalog:
             consumes=manifest.consumes,
             produces=manifest.produces,
         )
+
+    def _remove_analyzer_binding(self, key: str) -> None:
+        registrar = get_analysis_registrar()
+        if registrar is not None:
+            try:
+                registrar.unregister_analysis_plugin(key)
+            except Exception as exc:
+                logger.debug("Unable to unregister analysis plugin: %s", exc)
 
     @staticmethod
     def _invalidate_detection_cache() -> None:

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.core.frontier.vault import CyberVault, TargetSecretStore, VaultRotationPolicy
+from src.infrastructure.frontier.vault import CyberVault, TargetSecretStore, VaultRotationPolicy
 from src.infrastructure.security.encryption import Argon2idParameters
 
 FAST_KDF = Argon2idParameters(time_cost=1, memory_cost=8192, parallelism=1)

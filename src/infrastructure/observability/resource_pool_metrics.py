@@ -177,7 +177,6 @@ def collect_thread_pool_metrics(pool_name: str = "default") -> None:
         import threading as _threading
 
         active_count = _threading.active_count()
-        main_thread = _threading.main_thread()
         daemon_count = sum(1 for t in _threading.enumerate() if t.daemon)
         non_daemon_count = active_count - daemon_count
 

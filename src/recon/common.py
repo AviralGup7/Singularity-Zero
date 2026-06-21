@@ -5,7 +5,7 @@ with retry support, and normalization helpers from src.core.utils.
 """
 
 import os
-from typing import Any
+from typing import Any, cast
 
 from src.core.tools.types import ToolExecutionOutcome
 from src.core.utils import normalize_scope_entry, normalize_url, parse_plain_lines
@@ -107,7 +107,7 @@ def run_commands_parallel_outcomes(
         executor.submit(execute_command, list(command), timeout, stdin_text, retry_policy)
         for command, stdin_text, timeout, retry_policy in normalized_jobs
     ]
-    return [future.result() for future in futures]
+    return cast(list[ToolExecutionOutcome], [future.result() for future in futures])
 
 
 def run_async_in_sync_context(coro: Any) -> Any:

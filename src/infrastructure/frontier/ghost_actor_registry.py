@@ -6,8 +6,8 @@ import asyncio
 import time
 from typing import Any, cast
 
+from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.frontier.marshaller import mesh_marshal, mesh_unmarshal
 from src.infrastructure.queue.redis_config import (
     REDIS_BACKOFF_SECONDS,
     REDIS_TIMEOUT_SECONDS,

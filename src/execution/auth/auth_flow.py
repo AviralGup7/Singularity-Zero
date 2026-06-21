@@ -101,6 +101,28 @@ class AuthSpec:
     response and use it to compute ``expires_at``.
     """
 
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> AuthSpec:
+        steps_data = data.get("steps") or []
+        steps = []
+        for step in steps_data:
+            steps.append(
+                AuthStep(
+                    method=step.get("method", "GET"),
+                    url=step.get("url", ""),
+                    headers=dict(step.get("headers") or {}),
+                    body=step.get("body"),
+                    extract=dict(step.get("extract") or {}),
+                )
+            )
+        return cls(
+            name=data.get("name", "default"),
+            steps=steps,
+            validation_url=data.get("validation_url"),
+            validation_status=int(data.get("validation_status", 200)),
+            expires_in_field=data.get("expires_in_field"),
+        )
+
 
 class AuthFlowRunner:
     """Run an :class:`AuthSpec` and return a :class:`SessionContext`.

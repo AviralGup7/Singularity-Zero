@@ -9,6 +9,7 @@ from typing import Any, cast
 from urllib.parse import parse_qsl, urlparse
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.execution.active_manifest import ActiveCheckManifest
 from src.pipeline.runner_support import emit_progress
 
 logger = get_pipeline_logger(__name__)

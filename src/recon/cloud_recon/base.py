@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import aiohttp
@@ -28,6 +28,20 @@ class CloudBucketScannerBase:
     """Base class that owns AWS bucket handling, S3 resilient probes,
     Azure checks, S3-compatible object-store checks, and service probes
     that belong to non-GCP providers."""
+
+    timeout_seconds: int
+    concurrency: int
+    enable_write_probes: bool
+    s3_website_regions: tuple[str, ...]
+    s3_object_paths: tuple[str, ...]
+    enable_cloud_run_enum: bool
+    aws_regions: tuple[str, ...]
+    gcp_regions: tuple[str, ...]
+    azure_function_regions: tuple[str, ...]
+    backblaze_regions: tuple[str, ...]
+    wasabi_regions: tuple[str, ...]
+    do_regions: tuple[str, ...]
+    oci_regions: tuple[str, ...]
 
     async def scan_bucket(
         self, session: aiohttp.ClientSession, bucket: str
@@ -173,7 +187,7 @@ class CloudBucketScannerBase:
     ) -> dict[str, Any] | None:
         from src.recon.cloud_recon.gcp import GCPCloudRecon
 
-        return await GCPCloudRecon.check_gcp_bucket(self, session, bucket)
+        return await GCPCloudRecon.check_gcp_bucket(cast(Any, self), session, bucket)
 
     async def check_azure_bucket(
         self,
@@ -339,7 +353,7 @@ class CloudBucketScannerBase:
         return await probe_multi_region_s3(self, session, bucket)
 
     def _extract_region_from_url(self, url: str) -> str:
-        from src.recon.cloud_recon.helpers import _extract_region_from_url
+        from src.recon.cloud_recon.services import _extract_region_from_url
 
         return _extract_region_from_url(self, url)
 
@@ -397,14 +411,14 @@ class CloudBucketScannerBase:
                 for bucket in candidates:
                     tasks.append(asyncio.create_task(self.scan_bucket(session, bucket)))
 
-            tasks.append(asyncio.create_task(GCPCloudRecon.probe_cloud_run(self, session, target)))
+            tasks.append(asyncio.create_task(GCPCloudRecon.probe_cloud_run(cast(Any, self), session, target)))
             tasks.append(
                 asyncio.create_task(
-                    GCPCloudRecon.probe_gcp_cloud_functions(self, session, project_id)
+                    GCPCloudRecon.probe_gcp_cloud_functions(cast(Any, self), session, project_id)
                 )
             )
             tasks.append(
-                asyncio.create_task(GCPCloudRecon.probe_gcp_app_engine(self, session, project_id))
+                asyncio.create_task(GCPCloudRecon.probe_gcp_app_engine(cast(Any, self), session, project_id))
             )
             tasks.append(asyncio.create_task(self.probe_aws_lambda_urls(session, project_id)))
             tasks.append(asyncio.create_task(self.probe_api_gateway(session, project_id)))
@@ -435,7 +449,7 @@ class CloudBucketScannerBase:
     def run_scan_sync(self, target: str) -> list[dict[str, Any]]:
         from src.recon.common import run_async_in_sync_context
 
-        return run_async_in_sync_context(self.scan_all_candidates(target))
+        return cast(list[dict[str, Any]], run_async_in_sync_context(self.scan_all_candidates(target)))
 
     def generate_candidates(self, target: str) -> list[str]:
         """Generate smart storage bucket candidates based on target domain.

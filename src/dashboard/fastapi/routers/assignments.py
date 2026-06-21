@@ -26,6 +26,7 @@ def _get_store(request: Request) -> AssignmentStore:
     store = getattr(request.app.state, "assignment_store", None)
     if store is None:
         raise HTTPException(status_code=503, detail="Assignment store not initialized")
+    assert isinstance(store, AssignmentStore)
     return store
 
 

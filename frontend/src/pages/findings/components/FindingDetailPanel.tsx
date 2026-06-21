@@ -1,48 +1,21 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Shield, X, Zap, FileDown, GitMerge, GitBranch, XCircle, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
 import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '../../../types/api';
 import { getFindingRemediation, getFindingById } from '../../../api/client';
 import { useToast } from '../../../hooks/useToast';
 import { EvidenceDisplay } from '../../../components/findings/EvidenceDisplay';
 import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
 import { FindingComments } from '../../../components/findings/FindingComments';
-import { FindingReviewPanel } from '../../../components/findings/FindingReviewPanel';
 import { RequestResponseViewer } from '../../../components/RequestResponseViewer';
 import { EvidenceCustodyViewer } from '../../../components/common/EvidenceCustodyViewer';
 import { useTriageCollaboration } from '@/hooks/useTriageCollaboration';
 import { exportFinding, type ReportFormat } from '@/utils/findingExport';
 import { SubmitToPlatformDialog } from './SubmitToPlatformDialog';
-import { useScopeStore } from '@/stores/scopeStore';
-import { classifyAgainstScope } from '@/utils/scopeParser';
+import { FindingBountyPanel } from './FindingBountyPanel';
+import { FindingRiskPanel } from './FindingRiskPanel';
 
-function estimateBounty(score: number, epss: number, criticality: number): { min: number; max: number } {
-  let min = 0;
-  let max = 0;
-  if (score >= 9.0) {
-    min = 2000;
-    max = 10000;
-  } else if (score >= 7.0) {
-    min = 500;
-    max = 2000;
-  } else if (score >= 4.0) {
-    min = 100;
-    max = 500;
-  } else if (score > 0) {
-    min = 50;
-    max = 100;
-  }
 
-  let multiplier = 1.0;
-  if (epss > 0.1) multiplier += 0.2;
-  if (criticality > 1.0) multiplier += (criticality - 1.0);
-
-  return {
-    min: Math.round(min * multiplier),
-    max: Math.round(max * multiplier),
-  };
-}
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const remediationCache = new Map<string, RemediationSuggestion[]>();
@@ -134,115 +107,10 @@ export function FindingDetailPanel({
   }, [onClose]);
 
   const [detailTab, setDetailTab] = useState<DetailTab>('csi');
-  
-  const parsedScope = useScopeStore((s) => s.parsed);
-  const scopeClassification = useMemo(() => {
-    const asset = finding.url || finding.host || finding.target || '';
-    return classifyAgainstScope(asset, parsedScope);
-  }, [finding, parsedScope]);
 
-  const [bountyValue, setBountyValue] = useState(finding.bounty_value || 0);
-  const [bountySource, setBountySource] = useState<string>(finding.bounty_source || 'estimate');
-  const [bountyCurrency, setBountyCurrency] = useState(finding.bounty_currency || 'USD');
-  const [alreadyReported, setAlreadyReported] = useState(finding.already_reported || false);
-  const [savingBounty, setSavingBounty] = useState(false);
-  const [sanitizePII, setSanitizePII] = useState(true);
-
-  // Sync state if finding changes
-  useEffect(() => {
-    setBountyValue(finding.bounty_value || 0);
-    setBountySource(finding.bounty_source || 'estimate');
-    setBountyCurrency(finding.bounty_currency || 'USD');
-    setAlreadyReported(finding.already_reported || false);
-  }, [finding]);
-
-  const handleSaveBounty = async () => {
-    setSavingBounty(true);
-    try {
-      const { updateFinding } = await import('../../../api/findings');
-      await updateFinding(finding.id, {
-        bounty_value: bountyValue,
-        bounty_source: bountySource as 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'estimate' | 'manual',
-        bounty_currency: bountyCurrency,
-        already_reported: alreadyReported,
-      });
-      toast.success('Bounty details saved successfully');
-    } catch {
-      toast.error('Failed to save bounty details');
-    } finally {
-      setSavingBounty(false);
-    }
-  };
-
-  const rawPocText = useMemo(() => {
-    const severityLabel = finding.severity.toUpperCase();
-    const targetUrl = finding.url || finding.host || finding.target || '';
-    const description = finding.description || '';
-    const pocSteps = finding.proof_of_concept || finding.poc || 'No automated reproduction script recorded.';
-    
-    let reqResDump = '';
-    if (finding.request_response && finding.request_response.length > 0) {
-      reqResDump = finding.request_response.map((pair, idx) => {
-        let reqBody = pair.request.body || '';
-        let resBody = pair.response.body || '';
-        
-        let headersStr = Object.entries(pair.request.headers || {})
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n');
-          
-        let resHeadersStr = Object.entries(pair.response.headers || {})
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n');
-
-        if (sanitizePII) {
-          const sanitizeHeaders = (str: string) => str.replace(/(?:cookie|authorization|token|api-key|session-id|passwd|password):\s*[^\r\n]+/gi, (m) => {
-            const parts = m.split(':');
-            return `${parts[0]}: [REDACTED_BY_RESEARCHER]`;
-          });
-          headersStr = sanitizeHeaders(headersStr);
-          resHeadersStr = sanitizeHeaders(resHeadersStr);
-          reqBody = sanitizeHeaders(reqBody);
-          resBody = sanitizeHeaders(resBody);
-        }
-
-        return `### HTTP Transaction #${idx + 1}
-#### Request
-\`\`\`http
-${pair.request.method} ${pair.request.url} HTTP/1.1
-${headersStr}
-
-${reqBody}
-\`\`\`
-
-#### Response
-\`\`\`http
-HTTP/1.1 ${pair.response.status}
-${resHeadersStr}
-
-${resBody.slice(0, 1000)}${resBody.length > 1000 ? '\n... [TRUNCATED] ...' : ''}
-\`\`\``;
-      }).join('\n\n');
-    }
-
-    return `# [VULNERABILITY REPORT] ${finding.title}
-
-## Executive Summary
-- **Vulnerability Type**: ${finding.type}
-- **Severity**: ${severityLabel}
-- **CVSS Score**: ${finding.cvss_v4_score ?? finding.cvss_score ?? 'N/A'}
-- **Target URL**: ${targetUrl}
-
-## Vulnerability Description
-${description}
-
-## Proof of Concept / Reproduction Steps
-${pocSteps}
-
-${reqResDump ? `## HTTP Request/Response Evidence\n${reqResDump}` : ''}
-
-## Remediation Guidance
-Ensure inputs are strictly validated and output is properly encoded. Apply context-aware mitigation logic.`;
-  }, [finding, sanitizePII]);
+  const handleUpdateFinding = useCallback((updated: Partial<Finding>) => {
+    setFinding((prev) => ({ ...prev, ...updated }));
+  }, []);
   const [reviewerId] = useState<string>(() => {
     try {
       return localStorage.getItem('analyst_reviewer_id') || 'analyst';
@@ -534,163 +402,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
            <div className="min-h-[300px]">
               {detailTab === 'bounty' && (
-                <div className="space-y-6" data-testid="finding-bounty-panel">
-                  {/* Scope Status */}
-                  <div className="glass-panel border border-white/5 rounded-xl p-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-2">Scope Compliance Rules</div>
-                    {scopeClassification.status === 'in_scope' ? (
-                      <div className="p-3 bg-ok/10 border border-ok/20 rounded-lg text-xs text-ok flex flex-col gap-1">
-                        <span className="font-bold">✓ IN SCOPE</span>
-                        <span className="text-[10px] text-text/80 leading-normal">
-                          Matches pattern: <code className="bg-black/40 px-1 rounded">{scopeClassification.matchingEntry?.pattern}</code>
-                        </span>
-                        {scopeClassification.matchingEntry?.notes && (
-                          <p className="text-[9px] text-muted italic mt-1">Notes: {scopeClassification.matchingEntry.notes}</p>
-                        )}
-                      </div>
-                    ) : scopeClassification.status === 'out_of_scope' ? (
-                      <div className="p-3 bg-bad/10 border border-bad/20 rounded-lg text-xs text-bad flex flex-col gap-1 animate-pulse">
-                        <span className="font-bold">⚠️ OUT OF SCOPE WARNING</span>
-                        <span className="text-[10px] text-text/80 leading-normal">
-                          Matches pattern: <code className="bg-black/40 px-1 rounded text-bad">{scopeClassification.matchingEntry?.pattern}</code>
-                        </span>
-                        <p className="text-[9px] text-muted italic mt-1">Caution: Submission of this asset may result in negative reputation or ban.</p>
-                      </div>
-                    ) : (
-                      <div className="p-3 bg-zinc-900/40 border border-white/5 rounded-lg text-xs text-muted flex flex-col gap-1">
-                        <span className="font-bold">? NO SCOPE DATA IMPORTED</span>
-                        <span className="text-[10px] text-muted leading-normal">
-                          Verify with the target's program policy manually before submitting.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bounty Payout Estimator & Manual override */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="glass-panel border border-white/5 rounded-xl p-4 space-y-4">
-                      <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">CVSS-to-Bounty Estimator</div>
-                        <div className="text-sm font-semibold text-text">
-                          Estimated Payout Range:
-                        </div>
-                        {(() => {
-                          const score = finding.cvss_v4_score ?? finding.cvss_score ?? 0;
-                          const epss = finding.threat_intel?.epss_score ?? finding.epss_score ?? 0;
-                          const criticality = finding.asset_criticality ?? 1.0;
-                          const range = estimateBounty(score, epss, criticality);
-                          return (
-                            <div className="mt-2 flex items-baseline gap-2">
-                              <span className="text-3xl font-black text-accent">${range.min.toLocaleString()}</span>
-                              <span className="text-muted text-xs font-mono">—</span>
-                              <span className="text-3xl font-black text-accent">${range.max.toLocaleString()}</span>
-                              <span className="text-[10px] font-mono text-muted uppercase">USD</span>
-                            </div>
-                          );
-                        })()}
-                        <div className="text-[9px] text-muted font-mono mt-2 leading-relaxed">
-                          EPSS Multiplier: {(finding.threat_intel?.epss_score ?? finding.epss_score ?? 0) > 0.1 ? '1.20x (+20% Wild Activity)' : '1.00x'} <br />
-                          Asset Multiplier: {finding.asset_criticality ? `${finding.asset_criticality.toFixed(2)}x` : '1.00x'}
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-white/5 space-y-3">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted">Bounty Custom Details</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <label className="block text-[10px] text-muted">
-                            Amount ($)
-                            <input
-                              type="number"
-                              value={bountyValue}
-                              onChange={(e) => setBountyValue(Number(e.target.value))}
-                              className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg py-1.5 px-2 text-xs font-mono text-text focus:border-accent/50 outline-none"
-                            />
-                          </label>
-                          <label className="block text-[10px] text-muted">
-                            Currency
-                            <input
-                              type="text"
-                              value={bountyCurrency}
-                              onChange={(e) => setBountyCurrency(e.target.value)}
-                              className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg py-1.5 px-2 text-xs font-mono text-text focus:border-accent/50 outline-none uppercase"
-                            />
-                          </label>
-                          <label className="block text-[10px] text-muted">
-                            Platform
-                            <select
-                              value={bountySource}
-                              onChange={(e) => setBountySource(e.target.value)}
-                              className="w-full mt-1 bg-[#151515] border border-white/10 rounded-lg py-1.5 px-2 text-xs font-mono text-text focus:border-accent/50 outline-none"
-                            >
-                              <option value="estimate">Estimate</option>
-                              <option value="hackerone">HackerOne</option>
-                              <option value="bugcrowd">Bugcrowd</option>
-                              <option value="intigriti">Intigriti</option>
-                              <option value="synack">Synack</option>
-                              <option value="manual">Manual</option>
-                            </select>
-                          </label>
-                        </div>
-                        <div className="flex justify-between items-center gap-4 pt-1">
-                          <label className="flex items-center gap-2 text-[10px] text-muted cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={alreadyReported}
-                              onChange={(e) => setAlreadyReported(e.target.checked)}
-                              className="accent-accent"
-                            />
-                            Already Submitted
-                          </label>
-                          <button
-                            type="button"
-                            onClick={handleSaveBounty}
-                            disabled={savingBounty}
-                            className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/40 text-accent font-black text-[9px] uppercase tracking-widest hover:bg-accent/30 transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            {savingBounty ? 'Saving...' : 'Save Details'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Proof of Concept Exporter */}
-                    <div className="glass-panel border border-white/5 rounded-xl p-4 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted">POC Report Builder</div>
-                        <p className="text-[10px] text-muted leading-relaxed">
-                          Export reproduction packages, evidence lists, and HTTP dumps formatted as bug-bounty markdown reports.
-                        </p>
-                        <label className="flex items-center gap-2 text-[10px] text-muted cursor-pointer select-none pt-1">
-                          <input
-                            type="checkbox"
-                            checked={sanitizePII}
-                            onChange={(e) => setSanitizePII(e.target.checked)}
-                            className="accent-accent"
-                          />
-                          Mask PII (Authorization, Cookies)
-                        </label>
-                      </div>
-                      <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
-                        <button
-                          type="button"
-                          className="flex-1 px-3 py-2 rounded-lg bg-accent text-black font-black text-[10px] uppercase tracking-widest hover:bg-accent-dim transition-all cursor-pointer flex items-center justify-center gap-1 shadow-[0_0_15px_rgba(0,255,65,0.2)]"
-                          onClick={() => {
-                            navigator.clipboard.writeText(rawPocText);
-                            toast.success('Sanitized markdown report copied to clipboard!');
-                          }}
-                        >
-                          Copy Report (MD)
-                        </button>
-                        <Link
-                          to={`/reports/builder?finding=${finding.id}`}
-                          className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          Report Bundle
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <FindingBountyPanel finding={finding} onUpdateFinding={handleUpdateFinding} />
               )}
 
               {detailTab === 'csi' && (
@@ -732,135 +444,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                )}
 
                {detailTab === 'risk' && (
-                 <div className="space-y-6" data-testid="finding-risk-panel">
-                    {/* Modern risk composite score */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                       <div className="glass-panel border border-white/5 rounded-xl p-4">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">Modern risk</div>
-                          <div className="text-2xl font-black text-text">
-                            {(finding.modern_risk_score ?? 0).toFixed(1)}
-                          </div>
-                          <div className="text-[10px] font-mono text-muted">/ 100</div>
-                       </div>
-                       <div className="glass-panel border border-white/5 rounded-xl p-4">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">Remediation priority</div>
-                          <div className="text-2xl font-black text-accent">
-                            {(finding.remediation_priority ?? 0).toFixed(1)}
-                          </div>
-                          <div className="text-[10px] font-mono text-muted">/ 100</div>
-                       </div>
-                       <div className="glass-panel border border-white/5 rounded-xl p-4">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">CVSS v4</div>
-                          <div className="text-2xl font-black text-text">
-                            {(finding.cvss_v4_score ?? finding.cvss_score ?? 0).toFixed(1)}
-                          </div>
-                          <div className="text-[10px] font-mono text-muted">/ 10</div>
-                       </div>
-                    </div>
-
-                    {/* Threat intel */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                       <div className="glass-panel border border-white/5 rounded-xl p-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted">EPSS</div>
-                          <div className="text-sm font-mono text-text">
-                            {((finding.threat_intel?.epss_score ?? finding.epss_score ?? 0) * 100).toFixed(1)}%
-                          </div>
-                       </div>
-                       <div className="glass-panel border border-white/5 rounded-xl p-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted">CISA KEV</div>
-                          <div className="text-sm font-mono text-text">
-                            {(finding.threat_intel?.cisa_kev ?? finding.cisa_kev) ? (
-                              <span className="text-critical">LISTED</span>
-                            ) : (
-                              <span className="text-muted">—</span>
-                            )}
-                          </div>
-                       </div>
-                       <div className="glass-panel border border-white/5 rounded-xl p-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted">Asset type</div>
-                          <div className="text-sm font-mono text-text">
-                            {finding.asset_type ?? '—'}
-                          </div>
-                       </div>
-                       <div className="glass-panel border border-white/5 rounded-xl p-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted">Control discount</div>
-                          <div className="text-sm font-mono text-text">
-                            {finding.control_discount != null
-                              ? `${((1 - finding.control_discount) * 100).toFixed(0)}%`
-                              : '—'}
-                          </div>
-                       </div>
-                    </div>
-
-                    {/* Reason codes */}
-                    {finding.remediation_priority_reasons && finding.remediation_priority_reasons.length > 0 && (
-                      <div className="glass-panel border border-white/5 rounded-xl p-3">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-2">
-                          Why this is prioritised
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {finding.remediation_priority_reasons.map((code) => (
-                            <span
-                              key={code}
-                              className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30"
-                            >
-                              {code}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Attack chain membership surface */}
-                    {finding.attack_chain && (
-                      <div className="glass-panel border border-white/5 rounded-xl p-3">
-                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted mb-2">
-                          <GitBranch size={12} /> Attack Chain Membership
-                        </div>
-                        <div className="text-[11px] font-mono text-text space-y-1">
-                          <div>
-                            <span className="text-muted">chain_id:</span> {finding.attack_chain.chain_id ?? '—'}
-                          </div>
-                          <div>
-                            <span className="text-muted">chain_kind:</span> {finding.attack_chain.chain_kind ?? '—'}
-                          </div>
-                          <div>
-                            <span className="text-muted">amplification:</span>{' '}
-                            {finding.attack_chain.chain_amplification?.toFixed(2) ?? '—'}x
-                          </div>
-                          <div>
-                            <span className="text-muted">chain_size:</span> {finding.attack_chain.chain_size ?? '—'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Lifecycle SLA */}
-                    <div className="glass-panel border border-white/5 rounded-xl p-3">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-2">Lifecycle</div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono text-text">
-                        {(
-                          [
-                            ['Triaged', finding.triaged_at],
-                            ['In Remediation', finding.remediation_started_at],
-                            ['Fixed', finding.fixed_at],
-                            ['Verified', finding.verified_at],
-                          ] as Array<[string, string | number | undefined]>
-                        ).map(([label, value]) => (
-                          <div key={label}>
-                            <div className="text-muted uppercase tracking-widest">{label}</div>
-                            <div>{value ? new Date(value).toISOString().slice(0, 10) : '—'}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Analyst review panel */}
-                    <FindingReviewPanel
-                      findingId={finding.id}
-                      defaultReviewer={reviewerId}
-                    />
-                 </div>
+                 <FindingRiskPanel finding={finding} reviewerId={reviewerId} />
                )}
               
               {detailTab === 'evidence' && (

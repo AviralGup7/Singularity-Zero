@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import msgpack
 
 from src.core.frontier.state import NeuralState
-from src.core.frontier.wal import (
+from src.infrastructure.frontier.wal import (
     CRC64_TABLE,
     FrontierWAL,
     _init_crc64_table,

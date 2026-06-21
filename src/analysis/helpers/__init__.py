@@ -25,37 +25,6 @@ from src.core.utils.scoring import (
     apply_bounded_confidence,
     severity_score,
 )
-from src.core.utils.scoring import (
-    normalized_confidence as normalized_confidence,
-)
-from src.core.utils.token_analysis import (
-    EMAIL_VALUE_RE,
-    has_remote_scheme,
-    is_dangerous_scheme,
-    is_internal_host_value,
-    looks_like_dns_callback,
-    token_shape,
-)
-from src.core.utils.token_analysis import (
-    extract_host_candidate as extract_host_candidate,
-)
-from src.core.utils.token_analysis import (
-    is_suspicious_path_redirect as is_suspicious_path_redirect,
-)
-from src.core.utils.validator_helpers import (
-    SCHEMA_VERSION as SCHEMA_VERSION,
-)
-from src.core.utils.validator_helpers import (
-    build_manual_hint as build_manual_hint,
-)
-from src.core.utils.validator_helpers import (
-    build_validator_result as build_validator_result,
-)
-from src.core.utils.validator_helpers import (
-    classify_object_family,
-    json_type_name,
-    normalize_headers,
-)
 
 from ._classification import (
     build_endpoint_meta,

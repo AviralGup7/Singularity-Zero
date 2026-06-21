@@ -191,7 +191,7 @@ class OAuthAuthenticator:
     # Public API
     # ------------------------------------------------------------------
 
-    def authenticate(self) -> OAuthToken:
+    async def authenticate(self) -> OAuthToken:
         """Run the full flow and return the resulting token."""
         if self._config.use_pkce:
             self._pkce_verifier, challenge = _generate_pkce_pair()

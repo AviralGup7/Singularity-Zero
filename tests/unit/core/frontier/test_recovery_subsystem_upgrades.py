@@ -10,7 +10,7 @@ from src.core.frontier.state import (
     NeuralState,
     radix_sort_timestamps,
 )
-from src.core.frontier.wal import FrontierWAL
+from src.infrastructure.frontier.wal import FrontierWAL
 from src.core.storage.bounded_compaction_store import BoundedCompactionStateStore
 from src.core.storage.local_backends import LocalCheckpointStore
 

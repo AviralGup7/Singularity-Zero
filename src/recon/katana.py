@@ -154,7 +154,7 @@ def run_katana(
             urls.update(apply_url_filters(parse_plain_lines(outcome.stdout), config.filters))
             if outcome.timed_out:
                 timeout_count += 1
-            for warning in outcome.warning_messages:
+            for warning in getattr(outcome, "warning_messages", []):
                 if warning not in warning_messages:
                     warning_messages.append(warning)
         processed = min(start + batch_size, total_hosts)

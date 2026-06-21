@@ -47,7 +47,7 @@ class WASMExecutorProtocol(Protocol):
     Used by: src.analysis.plugins.wasm
     """
 
-    def execute_sandboxed_plugin(
+    def __call__(
         self,
         wasm_path: str,
         stage_input: dict[str, Any],
@@ -86,7 +86,7 @@ class LateralGraphProtocol(Protocol):
 
     def __init__(self, db_path: str) -> None: ...
 
-    def find_attack_chains(self) -> list[dict[str, Any]]:
+    def find_attack_chains(self) -> list[list[str]]:
         """Return identified attack chains."""
         ...
 
@@ -160,8 +160,12 @@ class ChameleonEvasionProtocol(Protocol):
     Used by: src.dashboard.fastapi.routers.evasion
     """
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Apply chameleon evasion strategy."""
+    def get_metrics(self) -> dict[str, Any]:
+        """Return the metrics dictionary."""
+        ...
+
+    def reset_metrics(self) -> None:
+        """Reset the metrics."""
         ...
 
 
@@ -186,7 +190,9 @@ class RemediationScannerProtocol(Protocol):
     Used by: src.dashboard.fastapi.routers.remediated
     """
 
-    def verify_remediation(
+    def __init__(self, use_wasm_sandbox: bool = True) -> None: ...
+
+    async def verify_remediation(
         self,
         finding: dict[str, Any],
         redis_client: Any = None,
@@ -247,7 +253,7 @@ class AnalystNotesProtocol(Protocol):
     Used by: src.dashboard.fastapi.routers.notes, src.dashboard.fastapi.routers.cockpit.notes
     """
 
-    def get_all_notes(self, target_name: str, output_dir: str = "") -> list[Any]:
+    def get_all_notes(self, target_name: str, output_dir: Any = None) -> list[Any]:
         """Return all notes for a target."""
         ...
 
@@ -255,12 +261,13 @@ class AnalystNotesProtocol(Protocol):
         self,
         target_name: str,
         finding_id: str,
-        note: str = "",
+        note: str,
         tags: list[str] | None = None,
+        author: str = "anonymous",
         graph_node_id: str | None = None,
         graph_edge_id: str | None = None,
         exchange_id: str | None = None,
-        output_dir: str = "",
+        output_dir: Any = None,
     ) -> Any:
         """Create a new analyst note."""
         ...
@@ -270,12 +277,12 @@ class AnalystNotesProtocol(Protocol):
         target_name: str,
         finding_id: str,
         note_id: str,
-        note: str = "",
+        note: str | None = None,
         tags: list[str] | None = None,
         graph_node_id: str | None = None,
         graph_edge_id: str | None = None,
         exchange_id: str | None = None,
-        output_dir: str = "",
+        output_dir: Any = None,
     ) -> Any:
         """Update an existing note."""
         ...
@@ -283,9 +290,9 @@ class AnalystNotesProtocol(Protocol):
     def delete_note(
         self,
         target_name: str,
-        note_id: str,
         finding_id: str,
-        output_dir: str = "",
+        note_id: str,
+        output_dir: Any = None,
     ) -> bool:
         """Delete a note."""
         ...

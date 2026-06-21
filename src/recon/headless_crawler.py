@@ -280,7 +280,6 @@ def headless_crawl_hosts(
         f"Headless SPA crawl: scanning {len(hosts_list)} hosts",
         65,
     )
-    workers = max(1, min(max_workers, len(hosts_list)))
     ex = get_shared_executor()
     futures = [
         ex.submit(

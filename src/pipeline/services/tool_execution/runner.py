@@ -24,7 +24,7 @@ from src.core.utils.stderr_classification import classify_stderr_lines
 from src.pipeline.services.circuit_breaker import (
     CircuitBreaker,
 )
-from src.pipeline.services.tool_execution.contracts import CompletedToolRun
+from src.pipeline.services.tool_execution.contracts import CompletedToolRun, ToolInvocation
 
 logger = get_pipeline_logger(__name__)
 
@@ -140,7 +140,7 @@ atexit.register(_shutdown_tool_executor)
 # --------------------------------------------------------------------------- #
 
 
-async def run_external_tool(invocation) -> CompletedToolRun:
+async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
     """Run an external binary and return a structured CompletedToolRun.
 
     This is the single entry point for ALL external binary execution in the

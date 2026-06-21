@@ -432,7 +432,7 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
             try:
                 from src.infrastructure.execution_engine.shared_pool import _pool
 
-                pool_alive = _pool is not None and not _pool.shutdown
+                pool_alive = _pool is not None and not getattr(_pool, "_shutdown", False)
             except Exception:
                 pass
 
@@ -497,7 +497,7 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
 
     async def check_queue() -> ComponentHealth:
         try:
-            q = asyncio.Queue(maxsize=10)
+            q: asyncio.Queue[str] = asyncio.Queue(maxsize=10)
             await q.put("health_check")
             item = await asyncio.wait_for(q.get(), timeout=1.0)
             if item != "health_check":

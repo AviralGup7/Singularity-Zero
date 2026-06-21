@@ -438,14 +438,15 @@ async def async_safe_request(
         limiter.update(0.0, is_blocked=is_blocked)
 
         try:
+            response = getattr(e, "response", None)
             err_body = ""
-            if hasattr(e, "response") and e.response is not None:
-                err_body = getattr(e.response, "text", "")
+            if response is not None:
+                err_body = getattr(response, "text", "")
 
             _chameleon_hook.update_observation(
                 response_status=err_status or 403,
                 body=err_body,
-                headers=dict(getattr(e.response, "headers", {}) or {}),
+                headers=dict(getattr(response, "headers", {}) or {}),
                 cookies=None,
                 session_id=session_id,
                 target=target,

@@ -160,12 +160,12 @@ class ToolExecutionService:
         return {tool_name: breaker.stats() for tool_name, breaker in self._circuit_breakers.items()}
 
     def persist_breaker_states(self, cache: Any) -> None:
-        from .runner import persist_all_breakers
+        from src.pipeline.services.circuit_breaker import persist_all_breakers
 
         persist_all_breakers(cache, self._circuit_breakers)
 
     def restore_breaker_states(self, cache: Any) -> None:
-        from .runner import load_all_breakers
+        from src.pipeline.services.circuit_breaker import load_all_breakers
 
         restored = load_all_breakers(cache)
         for name, state_dict in restored.items():

@@ -11,6 +11,7 @@ for registration purposes. It acts as the composition root.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -217,10 +218,10 @@ def register_all_implementations() -> None:
         )
 
         class _LauncherManifest:
-            def build_launcher_replay_manifest(self, *args, **kwargs):
+            def build_launcher_replay_manifest(self, *args: Any, **kwargs: Any) -> Any:
                 return build_launcher_replay_manifest(*args, **kwargs)
 
-            def compare_launcher_replay_manifests(self, baseline, new_run):
+            def compare_launcher_replay_manifests(self, baseline: Any, new_run: Any) -> Any:
                 return compare_launcher_replay_manifests(baseline, new_run)
 
         register_launcher_manifest(_LauncherManifest())

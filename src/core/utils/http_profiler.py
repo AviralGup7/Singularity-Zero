@@ -32,7 +32,7 @@ from typing import Any
 _ENABLED = os.environ.get("CYBER_HTTP_PROFILING", "0") == "1"
 
 _lock = threading.Lock()
-_profiles: list[dict[str, Any]] = []
+_profiles: list[HTTPProfileEntry] = []
 
 
 @dataclass

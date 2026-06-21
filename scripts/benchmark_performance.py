@@ -300,7 +300,7 @@ def bench_connection_pooling() -> dict[str, Any]:
     # Benchmark: pooled connection creation
     start = time.perf_counter()
     for _ in range(50):
-        pm = urllib3.PoolManager(num_pools=1, maxsize=1)
+        _ = urllib3.PoolManager(num_pools=1, maxsize=1)
     pooled_creation_ms = (time.perf_counter() - start) * 1000
 
     # Benchmark: shared pool lookup

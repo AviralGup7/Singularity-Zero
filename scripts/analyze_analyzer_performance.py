@@ -388,7 +388,6 @@ def main() -> None:
 
     total_active_runtime = sum(a["total_runtime_s"] for a in active)
     total_active_findings = sum(a["findings"] for a in active)
-    total_stub_invocations = sum(a["invocations"] for a in stubs)
 
     high_cost = [a for a in active if a["cost_relative"] >= 0.8]
     med_cost = [a for a in active if 0.4 <= a["cost_relative"] < 0.8]
@@ -412,7 +411,6 @@ def main() -> None:
 
     # Savings estimate
     stub_memory = len(stubs) * 0.5  # ~0.5KB per binding entry
-    potential_runtime_savings = sum(a["total_runtime_s"] for a in stubs)
     print(
         f"  Potential runtime savings from removing stubs:  ~{stub_memory:.0f}KB memory + 0s runtime"
     )

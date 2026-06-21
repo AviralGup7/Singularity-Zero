@@ -12,9 +12,9 @@ import random
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
-import defusedxml.ElementTree as ET
+import defusedxml.ElementTree as ET  # noqa: N817
 
 # Maximum time allowed for a single regex operation (seconds).
 _REGEX_TIMEOUT: float = 2.0
@@ -191,7 +191,7 @@ class XMLASTMutator(BaseASTMutator):
             return None
         idx1, idx2 = random.sample(range(len(children)), 2)
         root[idx1], root[idx2] = root[idx2], root[idx1]
-        return ET.tostring(root, encoding="unicode")
+        return cast(str, ET.tostring(root, encoding="unicode"))
 
     def _deeply_nest(self, xml_str: str) -> str | None:
         """Nest an element deeply to test parser stack limits."""
@@ -205,7 +205,7 @@ class XMLASTMutator(BaseASTMutator):
             wrapper = ET.Element("nested")
             wrapper.append(target)
             target = wrapper
-        return ET.tostring(root, encoding="unicode")
+        return cast(str, ET.tostring(root, encoding="unicode"))
 
     def _inject_entities(self, xml_str: str) -> str | None:
         """Inject XXE / entity-related payloads."""

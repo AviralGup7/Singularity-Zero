@@ -10,7 +10,7 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.core.frontier.ghost_vfs import GhostVFS
+    from src.infrastructure.frontier.ghost_vfs import GhostVFS
 
 logger = logging.getLogger(__name__)
 

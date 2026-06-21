@@ -116,7 +116,7 @@ async def verify_finding_remediation(
         )
 
         # Note: verify_remediation enforces tenant_id check internally!
-        result = await scanner.verify_remediation(
+        result: dict[str, Any] = await scanner.verify_remediation(
             finding,
             redis_client=redis_client,
             tenant_id=tenant_id,

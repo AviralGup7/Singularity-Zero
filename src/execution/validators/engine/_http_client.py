@@ -1,5 +1,7 @@
 """HTTP client and configuration for validation probes."""
 
+from __future__ import annotations
+
 import logging
 import threading
 import time

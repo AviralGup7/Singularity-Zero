@@ -28,11 +28,6 @@ export { PageHeader, type PageHeaderProps } from './PageHeader';
 export * from './Toast';
 export * from './FormField';
 export * from './CopyButton';
-
-// ── Overhaul Auto-exports ──────────────────────────────────
-export * from './Toast';
-export * from './FormField';
-export * from './CopyButton';
 export * from './AccessibleEmoji';
 export * from './Icon';
 export * from './FocusTrap';

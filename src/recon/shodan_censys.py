@@ -231,7 +231,6 @@ def cross_reference_ips(
         return []
 
     findings: list[dict[str, Any]] = []
-    workers = max(1, min(max_workers, len(ip_list)))
 
     def _all_for_ip(ip: str) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []

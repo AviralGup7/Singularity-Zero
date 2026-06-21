@@ -12,7 +12,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    pass
+    from src.infrastructure.observability.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ class SystemSampler:
         self._interval = interval_seconds
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._metrics = None
-        self._queue = None
+        self._metrics: MetricsRegistry | None = None
+        self._queue: Any = None
 
     def start(self, queue: Any = None) -> None:
         """Start the background sampler thread.
@@ -105,6 +105,8 @@ class SystemSampler:
 
     def _sample_queue_depth(self) -> None:
         """Bridge queue depth metrics from JobQueue to MetricsRegistry."""
+        if self._metrics is None:
+            return
         try:
             queue_length = asyncio.get_event_loop().run_until_complete(
                 self._queue.get_queue_length()

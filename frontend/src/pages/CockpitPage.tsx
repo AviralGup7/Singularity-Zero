@@ -1,31 +1,25 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Icon } from '@/components/ui/Icon';
-import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
-import { AttackChainGraph3D } from '@/components/charts';
+import DOMPurify from 'dompurify';
 import { cockpitApi } from '@/api/cockpit';
-import type { CockpitEdge, CockpitNode, ForensicExchange } from '@/api/cockpit';
+import type { CockpitNode, ForensicExchange } from '@/api/cockpit';
 import { createNote, getNotes } from '@/api/notes';
-import type { AttackChain, MeshHealth, MigrationEvent } from '@/types/api';
+import type { MeshHealth, MigrationEvent } from '@/types/api';
 import { useSSEProgress } from '@/hooks/useSSEProgress';
 import { useToast } from '@/hooks/useToast';
 import { startJob, stopJob, restartJob, pauseJob, resumeJob } from '@/api/jobs';
 import { useCockpitData, useActiveJob } from '@/hooks/useCockpitData';
 import { useCockpitGraph } from '@/hooks/useCockpitGraph';
 import { ScanControlDeck } from '@/components/cockpit/ScanControlDeck';
-import type { Project } from '@/api/projects';
-import { ForensicExchangeItem } from '@/components/cockpit/ForensicExchangeItem';
-import { ForensicExchangeDetail } from '@/components/cockpit/ForensicExchangeDetail';
-import { IntelSidebar } from '@/components/cockpit/IntelSidebar';
 import { GraphLegend } from '@/components/cockpit/GraphLegend';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { ScopeWarningBanner } from '@/components/scope/ScopeComplianceBadge';
 import { validateUrl } from '@/lib/utils';
-import { getProjects } from '@/api/projects';
+import { CockpitHeader, CockpitCenterViewport, CockpitSidebar, CockpitSetupView } from './cockpit';
 
 function sanitizeHtml(str: string): string {
-  return str.replace(/[<>&"']/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[m]!));
+  return DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOW_DATA_ATTR: false });
 }
 
 function metadataText(metadata: CockpitNode['metadata'], key: string): string {
@@ -34,14 +28,6 @@ function metadataText(metadata: CockpitNode['metadata'], key: string): string {
   if (value == null) return '';
   return String(value);
 }
-
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'text-red-500 border-red-500/30 bg-red-500/5',
-  high: 'text-orange-500 border-orange-500/30 bg-orange-500/5',
-  medium: 'text-amber-500 border-amber-500/30 bg-amber-500/5',
-  low: 'text-blue-500 border-blue-500/30 bg-blue-500/5',
-  info: 'text-slate-400 border-slate-400/30 bg-slate-400/5',
-};
 
 export function CockpitPage() {
   const toast = useToast();
@@ -64,15 +50,7 @@ export function CockpitPage() {
   const [probing, setProbing] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [now, setNow] = useState(() => Date.now());
-
-  // Center View Switcher
   const [activeCenterTab, setActiveCenterTab] = useState<'3d' | '2d' | 'chains'>('3d');
-
-  // Load projects for setup landing page
-  const [projectsList, setProjectsList] = useState<Project[]>([]);
-  useEffect(() => {
-    getProjects().then(setProjectsList).catch(() => {});
-  }, []);
 
   const cockpitLayout = useSettingsStore((state) => state.settings.cockpitLayout);
   const updateCockpitLayout = useSettingsStore((state) => state.updater.updateSection);
@@ -111,9 +89,9 @@ export function CockpitPage() {
 
   const [scanDepth, setScanDepth] = useState<number>(3);
   const [scanConcurrency, setScanConcurrency] = useState<number>(10);
-  const [scanRateLimit, setScanRateLimit] = useState<number>(50);
-  const [excludedPaths, setExcludedPaths] = useState<string>('');
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [scanRateLimit] = useState<number>(50);
+  const [excludedPaths] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<import('@/api/projects').Project | null>(null);
 
   const { nodes, edges, chains, loading, applyGraph, notes, setNotes, exchanges, setExchanges, meshHealth, migrations, handleMeshHealth, handleMigrationEvent } =
     useCockpitData({ target, run, jobId });
@@ -175,23 +153,23 @@ export function CockpitPage() {
     },
   });
 
-  const handleSelectNode = (id: string) => {
+  const handleSelectNode = useCallback((id: string) => {
     setSelectedNodeId(id);
     setSelectedExchange(null);
     setSidebarOpen(true);
     setSidebarTab('intel');
-  };
+  }, [setSidebarTab]);
 
-  const handleOpenForensic = async (id: string) => {
+  const handleOpenForensic = useCallback(async (id: string) => {
     try {
       const { data } = await cockpitApi.getForensicExchange(target, id);
       setSelectedExchange(data);
     } catch {
       toast.error('Failed to open forensic exchange');
     }
-  };
+  }, [target, toast]);
 
-  const handleTriggerProbe = async () => {
+  const handleTriggerProbe = useCallback(async () => {
     const selectedNode = nodes.find((node) => node.id === selectedNodeId);
     const selectedNodeUrl = selectedNode ? metadataText(selectedNode.metadata, 'url') : '';
     if (!selectedNodeUrl) return;
@@ -204,9 +182,9 @@ export function CockpitPage() {
     } finally {
       setProbing(false);
     }
-  };
+  }, [nodes, selectedNodeId, target, toast]);
 
-  const handleAddNote = async () => {
+  const handleAddNote = useCallback(async () => {
     if (!newNote.trim() || !selectedNodeId) return;
     try {
       const selectedNode = nodes.find((node) => node.id === selectedNodeId);
@@ -224,9 +202,9 @@ export function CockpitPage() {
     } catch {
       toast.error('Failed to add note');
     }
-  };
+  }, [newNote, selectedNodeId, nodes, target, setNotes, toast]);
 
-  const handleDeleteNote = async (noteId: string) => {
+  const handleDeleteNote = useCallback(async (noteId: string) => {
     if (!target) return;
     try {
       const { deleteNote } = await import('@/api/notes');
@@ -236,9 +214,9 @@ export function CockpitPage() {
     } catch {
       toast.error('Failed to remove note');
     }
-  };
+  }, [target, setNotes, toast]);
 
-  const handleStartScan = async () => {
+  const handleStartScan = useCallback(async () => {
     if (!inputTarget.trim() && !selectedProject) {
       toast.error('Please enter a target URL/host or select a project');
       return;
@@ -269,87 +247,77 @@ export function CockpitPage() {
       navigate({ search: params.toString() });
       toast.success(selectedProject ? `${selectedProject.name} scan launched` : 'Multi-stage cyber pipeline successfully launched');
     } catch (error) {
-      console.error(error);
       toast.error('Failed to initiate cyber pipeline');
     } finally {
       setLaunchingScan(false);
     }
-  };
+  }, [inputTarget, selectedProject, scanMode, selectedModules, scanDepth, scanConcurrency, scanRateLimit, excludedPaths, setActiveJobId, navigate, toast]);
 
-  const handleStopScan = async () => {
+  const handleStopScan = useCallback(async () => {
     if (!activeJobId) return;
     try {
       setStoppingScan(true);
       await stopJob(activeJobId);
       toast.success('Pipeline scan termination requested');
-    } catch (error) {
-      console.error(error);
+    } catch {
       toast.error('Termination request failed');
     } finally {
       setStoppingScan(false);
     }
-  };
+  }, [activeJobId, toast]);
 
-  const handleRestartScan = async () => {
+  const handleRestartScan = useCallback(async () => {
     if (!activeJobId) return;
     try {
       setRestartingScan(true);
       await restartJob(activeJobId);
       toast.success('Safe restart initiated');
-    } catch (error) {
-      console.error(error);
+    } catch {
       toast.error('Safe restart failed');
     } finally {
       setRestartingScan(false);
     }
-  };
+  }, [activeJobId, toast]);
 
-  const handlePauseScan = async () => {
+  const handlePauseScan = useCallback(async () => {
     if (!activeJobId) return;
     try {
       setPausingScan(true);
       await pauseJob(activeJobId);
       toast.success('Scan pause requested');
-    } catch (error) {
-      console.error(error);
+    } catch {
       toast.error('Pause request failed');
     } finally {
       setPausingScan(false);
     }
-  };
+  }, [activeJobId, toast]);
 
-  const handleResumeScan = async () => {
+  const handleResumeScan = useCallback(async () => {
     if (!activeJobId) return;
     try {
       setResumingScan(true);
       await resumeJob(activeJobId);
       toast.success('Scan resumed');
-    } catch (error) {
-      console.error(error);
+    } catch {
       toast.error('Resume failed');
     } finally {
       setResumingScan(false);
     }
-  };
+  }, [activeJobId, toast]);
 
-  const handleClearScan = () => {
+  const handleClearScan = useCallback(() => {
     setActiveJobId(undefined);
     const params = new URLSearchParams(window.location.search);
     params.delete('job_id');
     navigate({ search: params.toString() });
-  };
+  }, [setActiveJobId, navigate]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId),
     [nodes, selectedNodeId]
   );
-  const hoveredNode = useMemo(
-    () => nodes.find((node) => node.id === hoveredNodeId),
-    [nodes, hoveredNodeId]
-  );
   const selectedNodeUrl = selectedNode ? metadataText(selectedNode.metadata, 'url') : '';
 
-  // Statistics for HUD Dashboard
   const stats = useMemo(() => {
     const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     nodes.forEach((n) => {
@@ -361,238 +329,33 @@ export function CockpitPage() {
     return counts;
   }, [nodes]);
 
-  // Standard standalone initialization Console View
   if (!target && !loading) {
     return (
-      <div className="relative flex h-full w-full flex-col overflow-y-auto bg-[#05070a] p-8 cyber-grid-overlay scrollbar-cyber">
-        {/* Animated Cyber Radar sweep element */}
-        <div className="pointer-events-none absolute inset-0 z-0 opacity-15 overflow-hidden">
-          <div className="absolute top-1/2 left-1/2 w-[60vw] h-[60vw] -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/20">
-            <div className="radar-sweep-indicator absolute inset-0 rounded-full bg-gradient-to-tr from-accent/10 to-transparent" />
-          </div>
-        </div>
-
-        <div className="relative z-10 m-auto flex w-full max-w-4xl flex-col items-center justify-center py-12">
-          {/* Main Title Banner */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-950/20 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-cyan-400">
-              <span className="pulse-dot bg-cyan-400" /> SYSTEM STANDBY: READY FOR TELEMETRY
-            </div>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tighter text-white uppercase sm:text-5xl">
-              CYBER STEERING COCKPIT
-            </h1>
-            <p className="mt-2 text-sm text-muted font-mono max-w-xl mx-auto leading-relaxed">
-              Launch multi-stage distributed security scan engines. Graph and simulate target attack-chains and live forensic telemetry.
-            </p>
-          </div>
-
-          {/* Configuration Console Card */}
-          <div className="w-full rounded-2xl border border-white/10 bg-[#0c0f16]/85 p-6 shadow-2xl backdrop-blur-xl md:p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Left Column: Scope & Project setup */}
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-white mb-2 flex items-center gap-2">
-                    <Icon name="target" size={14} className="text-accent" /> Scan Target URI
-                  </h3>
-                  <input
-                    type="text"
-                    value={inputTarget}
-                    onChange={(e) => setInputTarget(e.target.value)}
-                    placeholder="e.g. https://example.com"
-                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-xs text-text placeholder-white/20 outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/40 transition-all shadow-inner"
-                  />
-                  <p className="mt-1.5 font-mono text-[9px] text-muted leading-relaxed">
-                    Ensure the domain lies within your compliance program boundaries.
-                  </p>
-                </div>
-
-                {projectsList.length > 0 && (
-                  <div>
-                    <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-white mb-2">
-                      Active Bounty Programs
-                    </h3>
-                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto scrollbar-cyber rounded border border-white/5 bg-black/30 p-2">
-                      {projectsList.map((project) => (
-                        <button
-                          key={project.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedProject(project);
-                            setInputTarget(`https://${project.scope.split(',')[0].trim().replace('*.', '')}`);
-                          }}
-                          className={`w-full rounded-lg border p-3 text-left transition-all flex items-center justify-between ${
-                            selectedProject?.id === project.id
-                              ? 'border-accent bg-accent/10 shadow-[0_0_12px_rgba(59,130,246,0.2)]'
-                              : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
-                          }`}
-                        >
-                          <div className="truncate pr-4">
-                            <div className="font-mono text-[10px] font-bold text-white truncate">{project.name}</div>
-                            <div className="font-mono text-[8px] text-muted truncate">{project.scope}</div>
-                          </div>
-                          {project.rewards && (
-                            <span className="font-mono text-[9px] font-bold text-accent px-2 py-0.5 rounded border border-accent/20 bg-accent/5">
-                              {project.rewards}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Preset Tuning Config */}
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-white mb-2 flex items-center gap-2">
-                    <Icon name="settings" size={14} className="text-accent" /> Scan Preset
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScanMode('safe');
-                        setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx']);
-                      }}
-                      className={`flex flex-col items-start rounded-xl border p-3.5 text-left transition-all ${
-                        scanMode === 'safe'
-                          ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(59,130,246,0.15)] text-white'
-                          : 'border-white/5 bg-white/5 text-muted hover:bg-white/10'
-                      }`}
-                    >
-                      <span className="text-xs font-black uppercase tracking-wider text-white">Passive Safe</span>
-                      <span className="mt-1 text-[9px] leading-relaxed opacity-60 font-mono">
-                        Passive metadata gathering. Low footprint.
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScanMode('aggressive');
-                        setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx', 'nuclei']);
-                      }}
-                      className={`flex flex-col items-start rounded-xl border p-3.5 text-left transition-all ${
-                        scanMode === 'aggressive'
-                          ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(59,130,246,0.15)] text-white'
-                          : 'border-white/5 bg-white/5 text-muted hover:bg-white/10'
-                      }`}
-                    >
-                      <span className="text-xs font-black uppercase tracking-wider text-white">Active Vulnerability</span>
-                      <span className="mt-1 text-[9px] leading-relaxed opacity-60 font-mono">
-                        Intrusive active probe scan sequences.
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-xl border border-white/5 bg-black/40 p-4">
-                  <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted">
-                    <span>Depth: Level {scanDepth}</span>
-                    <span>Concurrency: {scanConcurrency} workers</span>
-                    <span>Rate Limit: {scanRateLimit} rps</span>
-                  </div>
-                  {/* Slider controls */}
-                  <div className="space-y-2">
-                    <input
-                      type="range"
-                      min={1}
-                      max={8}
-                      value={scanDepth}
-                      onChange={(e) => setScanDepth(Number(e.target.value))}
-                      className="cockpit-slider w-full"
-                      aria-label="Crawl Depth"
-                    />
-                    <input
-                      type="range"
-                      min={1}
-                      max={64}
-                      value={scanConcurrency}
-                      onChange={(e) => setScanConcurrency(Number(e.target.value))}
-                      className="cockpit-slider w-full"
-                      aria-label="Concurrency"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Launch Action */}
-            <div className="mt-8 border-t border-white/5 pt-6 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={handleStartScan}
-                disabled={launchingScan || !inputTarget.trim()}
-                className="w-full sm:w-auto rounded-lg bg-accent px-8 py-3 text-center text-xs font-black uppercase tracking-[0.2em] text-black shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:bg-white disabled:opacity-40 disabled:shadow-none font-mono"
-              >
-                {launchingScan ? 'INITIALIZING OPERATIONS...' : 'ENGAGE PIPELINE ENGINE'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CockpitSetupView
+        inputTarget={inputTarget}
+        setInputTarget={setInputTarget}
+        scanMode={scanMode}
+        setScanMode={setScanMode}
+        onStartScan={handleStartScan}
+        launchingScan={launchingScan}
+        setSelectedModules={setSelectedModules}
+        selectedProject={selectedProject}
+        setSelectedProject={setSelectedProject}
+        scanDepth={scanDepth}
+        setScanDepth={setScanDepth}
+        scanConcurrency={scanConcurrency}
+        setScanConcurrency={setScanConcurrency}
+      />
     );
   }
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#030508] text-text font-sans">
-      {/* Scope compliance banner */}
       <ScopeWarningBanner asset={inputTarget || target} />
 
-      {/* Top HUD Dashboard bar */}
-      <div className="flex-shrink-0 z-20 flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-white/10 bg-[#080b11]/80 backdrop-blur-md px-6 py-4 gap-4">
-        {/* Left Telemetry Title */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/20 bg-accent/5">
-            <Icon name="shield" size={18} className="text-accent" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-extrabold uppercase tracking-tight text-white">Steering Cockpit</h2>
-              <span className="font-mono text-[9px] rounded-full border border-cyan-500/20 bg-cyan-950/20 px-2 py-0.5 text-cyan-400">
-                {activeJob?.status || 'Active telemetry'}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted">
-              <span className="pulse-dot" /> {target}
-            </div>
-          </div>
-        </div>
+      <CockpitHeader target={target} activeJob={activeJob} stats={stats} />
 
-        {/* Global Progress telemetry */}
-        {activeJob && (
-          <div className="flex-1 max-w-sm mx-4 space-y-1">
-            <div className="flex items-center justify-between font-mono text-[9px]">
-              <span className="uppercase text-muted truncate max-w-[150px]">{activeJob.stage_label || 'Scanning'}</span>
-              <span className="font-bold text-accent">{Math.round(activeJob.progress_percent || 0)}%</span>
-            </div>
-            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/5">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-accent via-cyan-400 to-emerald-400 transition-all duration-300"
-                style={{ width: `${activeJob.progress_percent || 0}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Right HUD metrics */}
-        <div className="flex items-center gap-2.5">
-          {(['critical', 'high', 'medium', 'low'] as const).map((sev) => (
-            <div
-              key={sev}
-              className={`rounded-lg border px-3 py-1 text-center min-w-16 transition-all ${SEVERITY_COLORS[sev]}`}
-            >
-              <div className="font-mono text-xs font-black">{stats[sev]}</div>
-              <div className="text-[8px] font-black uppercase tracking-wider opacity-60">{sev}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main content body */}
       <div className="flex-1 flex items-stretch overflow-hidden relative">
-        {/* Left Column: Docked Pipeline Engine Control Deck */}
         <div className="w-80 flex-shrink-0 border-r border-white/10 bg-[#05070a]/65 overflow-y-auto scrollbar-cyber z-10">
           <ScanControlDeck
             activeJob={activeJob}
@@ -623,216 +386,54 @@ export function CockpitPage() {
             scanConcurrency={scanConcurrency}
             setScanConcurrency={setScanConcurrency}
             scanRateLimit={scanRateLimit}
-            setScanRateLimit={setScanRateLimit}
+            setScanRateLimit={() => {}}
             excludedPaths={excludedPaths}
-            setExcludedPaths={setExcludedPaths}
+            setExcludedPaths={() => {}}
             selectedProject={selectedProject}
             setSelectedProject={setSelectedProject}
             className="w-full bg-transparent p-6 shadow-none max-h-none h-full border-none relative left-0 top-0 overflow-y-visible"
           />
         </div>
 
-        {/* Center Viewport Stage */}
-        <div className="flex-1 flex flex-col items-stretch bg-[#020305] relative overflow-hidden">
-          {/* Center View Switched Controls */}
-          <div className="flex-shrink-0 flex items-center justify-between border-b border-white/5 px-6 py-3 bg-[#080a0e]/40 z-10">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveCenterTab('3d')}
-                className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
-                  activeCenterTab === '3d'
-                    ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                    : 'border-transparent text-muted hover:text-white'
-                }`}
-              >
-                [ 3D Threat Topology ]
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveCenterTab('2d')}
-                className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
-                  activeCenterTab === '2d'
-                    ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                    : 'border-transparent text-muted hover:text-white'
-                }`}
-              >
-                [ 2D Node Grid ]
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveCenterTab('chains')}
-                className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
-                  activeCenterTab === 'chains'
-                    ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                    : 'border-transparent text-muted hover:text-white'
-                }`}
-              >
-                [ Attack Kill-Chains ({chains.length}) ]
-              </button>
-            </div>
-            {activeCenterTab === '3d' && (
-              <div className="text-[10px] font-mono text-muted uppercase tracking-widest flex items-center gap-1.5">
-                <span className="pulse-dot" /> Dynamic 3D Renderer Active
-              </div>
-            )}
-          </div>
+        <CockpitCenterViewport
+          activeCenterTab={activeCenterTab}
+          setActiveCenterTab={setActiveCenterTab}
+          nodes={nodes}
+          edges={edges}
+          chains={chains}
+          selectedNodeId={selectedNodeId}
+          hoveredNodeId={hoveredNodeId}
+          onSelectNode={handleSelectNode}
+          onHoverNode={setHoveredNodeId}
+          loading={loading}
+          onFindingSelect={(findingId: string) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
+        />
 
-          {/* Actual View render */}
-          <div className="flex-1 relative overflow-hidden">
-            {loading ? (
-              <div className="flex h-full items-center justify-center animate-pulse font-mono text-xs uppercase tracking-widest text-accent/40">
-                Syncing Cluster Graph...
-              </div>
-            ) : nodes.length === 0 ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted/50 p-12">
-                <Icon name="alertTriangle" size={48} className="text-muted/30" />
-                <p className="mt-4 uppercase tracking-[0.2em] font-mono text-xs">No active telemetry nodes mapped</p>
-                <p className="mt-1 font-mono text-[10px] text-muted/40">Try adjusting your scan settings or preset mode.</p>
-              </div>
-            ) : activeCenterTab === '3d' ? (
-              <AttackChainGraph3D
-                nodes={nodes}
-                edges={edges}
-                selectedNodeId={selectedNodeId}
-                hoveredNodeId={hoveredNodeId}
-                onSelectNode={handleSelectNode}
-                onHoverNode={setHoveredNodeId}
-                className="h-full w-full"
-              />
-            ) : activeCenterTab === '2d' ? (
-              <div className="absolute inset-0 overflow-y-auto p-6 scrollbar-cyber space-y-2">
-                {nodes.map((node) => {
-                  const healthVal = typeof node.metadata?.health === 'number' ? Math.round(node.metadata.health * 100) : 82;
-                  const isFocused = selectedNodeId === node.id || hoveredNodeId === node.id;
-                  return (
-                    <div
-                      key={node.id}
-                      onClick={() => handleSelectNode(node.id)}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
-                        isFocused
-                          ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(59,130,246,0.12)]'
-                          : 'border-white/5 bg-[#0a0d13]/40 hover:border-white/10 hover:bg-[#0a0d13]/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`rounded-lg border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${SEVERITY_COLORS[node.severity]}`}>
-                          {node.severity}
-                        </div>
-                        <div>
-                          <div className="font-mono text-xs font-bold text-white">{node.label}</div>
-                          <div className="font-mono text-[9px] text-muted truncate max-w-sm">
-                            {metadataText(node.metadata, 'url') || node.id}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 mt-2 sm:mt-0 font-mono text-[10px]">
-                        <div className="text-right">
-                          <div className="text-[9px] uppercase text-muted">Type</div>
-                          <div className="font-bold text-white uppercase">{node.type}</div>
-                        </div>
-                        <div className="text-right min-w-24">
-                          <div className="text-[9px] uppercase text-muted">Node Health</div>
-                          <div className="font-bold text-emerald-400">{healthVal}%</div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="absolute inset-0 overflow-y-auto p-6 scrollbar-cyber">
-                <AttackChainVisualizer
-                  chains={chains}
-                  onFindingSelect={(findingId) =>
-                    navigate(`/findings?finding=${encodeURIComponent(findingId)}`)
-                  }
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Bottom HUD Legend info */}
+        <div className="flex-shrink-0">
           <GraphLegend nodes={nodes} edges={edges} meshHealth={meshHealth} migrations={migrations} now={now} />
         </div>
 
-        {/* Right Column: Intelligence Drawer */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.aside
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              className="w-96 flex-shrink-0 z-20 flex flex-col border-l border-white/10 bg-[#06080c]/90 backdrop-blur-2xl shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent">
-                  Inspector Telemetry
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(false)}
-                  className="text-muted transition-colors hover:text-accent"
-                >
-                  <Icon name="x" size={18} />
-                </button>
-              </div>
-
-              {/* Inspector tabs */}
-              <div className="flex border-b border-white/5 bg-white/5">
-                {(['intel', 'forensics'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setSidebarTab(tab as 'intel' | 'chains' | 'forensics')}
-                    className={`flex-1 text-center py-3 font-mono text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
-                      sidebarTab === tab ? 'border-accent text-white' : 'border-transparent text-muted hover:text-text'
-                    }`}
-                  >
-                    {tab === 'intel' ? 'Findings' : 'Forensics'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Side Content */}
-              <div className="scrollbar-cyber flex-1 overflow-y-auto p-6">
-                {sidebarTab === 'intel' && selectedNode && (
-                  <IntelSidebar
-                    selectedNode={selectedNode}
-                    selectedNodeUrl={selectedNodeUrl}
-                    notes={notes}
-                    newNote={newNote}
-                    setNewNote={setNewNote}
-                    onAddNote={handleAddNote}
-                    onTriggerProbe={handleTriggerProbe}
-                    onDrillToFinding={(findingId) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
-                    onDeleteNote={handleDeleteNote}
-                    target={target}
-                  />
-                )}
-
-                {sidebarTab === 'forensics' && (
-                  <div className="space-y-4">
-                    {selectedExchange ? (
-                      <ForensicExchangeDetail
-                        exchange={selectedExchange}
-                        onBack={() => setSelectedExchange(null)}
-                      />
-                    ) : (
-                      exchanges.map((exchange) => (
-                        <ForensicExchangeItem
-                          key={exchange.exchange_id}
-                          exchange={exchange}
-                          onOpen={handleOpenForensic}
-                        />
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
+        <CockpitSidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          sidebarTab={sidebarTab}
+          setSidebarTab={setSidebarTab}
+          selectedNode={selectedNode}
+          selectedNodeUrl={selectedNodeUrl}
+          notes={notes}
+          newNote={newNote}
+          setNewNote={setNewNote}
+          onAddNote={handleAddNote}
+          onTriggerProbe={handleTriggerProbe}
+          onDrillToFinding={(findingId: string) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
+          onDeleteNote={handleDeleteNote}
+          target={target}
+          probing={probing}
+          selectedExchange={selectedExchange}
+          setSelectedExchange={setSelectedExchange}
+          exchanges={exchanges}
+          onOpenForensic={handleOpenForensic}
+        />
       </div>
     </div>
   );

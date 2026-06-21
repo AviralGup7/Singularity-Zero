@@ -8,9 +8,9 @@ from typing import Any, cast
 import pykka
 
 from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
+from src.core.frontier.ghost_actor_state import ActorState
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
-from src.infrastructure.frontier.ghost_actor_state import ActorState
 
 logger = get_pipeline_logger(__name__)
 

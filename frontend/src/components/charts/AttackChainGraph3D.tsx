@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { memo, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Color, Object3D, Vector3 } from 'three';
+import { Color, Object3D, Vector3, type InstancedMesh } from 'three';
 import * as THREE from 'three';
 import { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
@@ -135,10 +134,10 @@ function writeNodeMatrices(
   isSelected: boolean,
   wave: number,
   temp: Object3D,
-  meshRef: any,
-  pulseRef: any,
-  healthBgRef: any,
-  healthRef: any,
+  meshRef: React.RefObject<InstancedMesh | null>,
+  pulseRef: React.RefObject<InstancedMesh | null>,
+  healthBgRef: React.RefObject<InstancedMesh | null>,
+  healthRef: React.RefObject<InstancedMesh | null>,
 ) {
   const [x, y, z] = node.position;
   const baseSize = typeBaseSize(node) * severityScaleOf(node);
@@ -180,10 +179,10 @@ function writeNodeMatrices(
 }
 
 function flushInstanceNeedsUpdate(
-  meshRef: any,
-  pulseRef: any,
-  healthBgRef: any,
-  healthRef: any,
+  meshRef: React.RefObject<InstancedMesh | null>,
+  pulseRef: React.RefObject<InstancedMesh | null>,
+  healthBgRef: React.RefObject<InstancedMesh | null>,
+  healthRef: React.RefObject<InstancedMesh | null>,
 ) {
   if (meshRef.current) meshRef.current.instanceMatrix.needsUpdate = true;
   if (pulseRef.current) pulseRef.current.instanceMatrix.needsUpdate = true;
@@ -207,10 +206,10 @@ function GraphNodes({
   onSelectNode: (id: string) => void;
   onHoverNode: (id: string | null) => void;
 }) {
-  const meshRef = useRef<any>(null);
-  const pulseRef = useRef<any>(null);
-  const healthRef = useRef<any>(null);
-  const healthBgRef = useRef<any>(null);
+  const meshRef = useRef<InstancedMesh | null>(null);
+  const pulseRef = useRef<InstancedMesh | null>(null);
+  const healthRef = useRef<InstancedMesh | null>(null);
+  const healthBgRef = useRef<InstancedMesh | null>(null);
   const temp = useMemo(() => new Object3D(), []);
 
   // Index lookup so we can convert `event.instanceId` to a node O(1).
@@ -424,7 +423,7 @@ function CameraRig({ selected }: { selected?: PositionedNode }) {
 
 function OrbitRig() {
   const { camera, gl } = useThree();
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<InstanceType<typeof ThreeOrbitControls> | null>(null);
 
   useEffect(() => {
     controlsRef.current = new ThreeOrbitControls(camera, gl.domElement);

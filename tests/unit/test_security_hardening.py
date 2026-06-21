@@ -31,7 +31,7 @@ class TestDefusedXmlReplacement:
 
     def test_defusedxml_blocks_xxe(self) -> None:
         """defusedxml should reject XXE payloads."""
-        import defusedxml.ElementTree as ET
+        import defusedxml.ElementTree as ET  # noqa: N817
 
         xxe_payload = (
             '<?xml version="1.0"?>'

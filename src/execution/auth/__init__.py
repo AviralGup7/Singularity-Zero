@@ -9,9 +9,9 @@ from src.execution.auth.auth_flow import (
     AuthFlowRunner,
     AuthSpec,
     AuthStep,
-    OAuthAuthenticator,
     SessionContext,
 )
+from src.execution.auth.oauth_authenticator import OAuthAuthenticator
 
 __all__ = [
     "AuthFlowRunner",
