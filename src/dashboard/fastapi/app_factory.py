@@ -203,6 +203,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
         return {"status": "ok", "uptime": time.time() - (_START_TIME or time.time())}
 
+    @app.get("/health", tags=["System"])
+    async def health_alias() -> dict[str, Any]:
+        """Alias for /api/health/live to support standard load balancer and Docker health checks."""
+        return await health_check_live()
+
     @app.get("/api/health/ready", tags=["System"])
     async def health_check_ready() -> dict[str, Any]:
         subsystems: dict[str, str] = {}

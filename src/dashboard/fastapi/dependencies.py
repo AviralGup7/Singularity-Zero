@@ -72,7 +72,7 @@ async def get_queue_client(
     Returns the DashboardServices instance from app state,
     which is initialized during lifespan with persistence.
     """
-    return request.app.state.services
+    return getattr(request.app.state, "services", None)
 
 
 async def get_cache_manager(
@@ -83,7 +83,7 @@ async def get_cache_manager(
     Returns the CacheManager from app state, which is initialized
     during application lifespan with proper configuration.
     """
-    return request.app.state.cache_manager
+    return getattr(request.app.state, "cache_manager", None)
 
 
 async def require_auth(
