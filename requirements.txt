@@ -35,7 +35,7 @@ numpy==2.2.0
 Pillow==12.2.0
 networkx==3.0.0
 beartype==0.20.1
-mmh3==5.1.0
+mmh3==5.2.1
 argon2-cffi==23.1.0
 msgspec==0.21.1
 msgpack==1.0.0
