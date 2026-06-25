@@ -6,7 +6,7 @@
 # ──────────────────────────────────────────────────────────────────────
 # Stage 1: Build Frontend
 # ──────────────────────────────────────────────────────────────────────
-FROM node:20.18.0-slim AS frontend-builder
+FROM node:26.4.0-slim AS frontend-builder
 # Pin Node.js to specific version for reproducible builds
 
 WORKDIR /app/frontend
