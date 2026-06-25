@@ -38,6 +38,6 @@ beartype==0.20.1
 mmh3==5.1.0
 argon2-cffi==23.1.0
 msgspec==0.21.1
-msgpack==1.0.0
+msgpack==1.2.1
 cloudpickle==3.0.0
 watchfiles==1.0.4
