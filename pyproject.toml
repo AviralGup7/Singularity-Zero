@@ -88,7 +88,7 @@ ml = [
 ]
 wasm = [
     "pykka==4.0.0",
-    "wasmtime==44.0.0",
+    "wasmtime==45.0.0",
 ]
 
 [tool.pytest.ini_options]
