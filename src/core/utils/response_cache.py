@@ -107,7 +107,8 @@ class ResponseCache:
                 import json
 
                 body_key = hash(json.dumps(body, sort_keys=True))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to compute body key hash: %s", exc, exc_info=True)
                 body_key = hash(str(body))
 
         active_key = (normalized, method.upper(), header_key, body_key)

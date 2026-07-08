@@ -44,10 +44,11 @@ class DynamicPluginCatalog:
         self._file_signatures: dict[Path, tuple[int, int]] = {}
         self._registered: dict[str, tuple[tuple[str, str], ...]] = {}
         self._watch_started = False
+        self._stop_event = threading.Event()
+        self._watch_thread: threading.Thread | None = None
 
     def refresh(self) -> tuple[DynamicPluginRecord, ...]:
         with self._lock:
-            seen: set[Path] = set()
             changed = False
 
             # Phase 1: Identify removed or changed files
@@ -60,7 +61,6 @@ class DynamicPluginCatalog:
                 self._remove_path(path)
 
             for plugin_file in current_files:
-                seen.add(plugin_file)
                 signature = self._signature(plugin_file)
                 if self._file_signatures.get(plugin_file) == signature:
                     continue
@@ -73,13 +73,57 @@ class DynamicPluginCatalog:
                 _invalidate_analysis_cache()
             return tuple(sorted(self._records.values(), key=lambda record: record.manifest.id))
 
+    def _apply_changes(self, changes: set[tuple[Any, str]]) -> None:
+        """Apply incremental changes from watchfiles without full rescan.
+
+        Each entry is (change_type, path_str) where change_type is
+        watchfiles.Change.added (1), modified (2), or deleted (3).
+        """
+        with self._lock:
+            changed = False
+            for _change_type, raw_path in changes:
+                path = Path(raw_path).resolve()
+                if not path.suffix == ".py" or path.name.startswith("_") or path.name == "__init__.py":
+                    continue
+
+                # Check if this file is in one of our watched directories
+                in_watched = any(
+                    directory.exists() and path.is_relative_to(directory)
+                    for directory in self.watched_dirs
+                )
+                if not in_watched:
+                    continue
+
+                # For deleted/modified: re-evaluate the file
+                if not path.exists():
+                    # File deleted
+                    if path in self._file_signatures:
+                        changed = True
+                        self._file_signatures.pop(path, None)
+                        self._remove_path(path)
+                else:
+                    # File added or modified
+                    old_sig = self._file_signatures.get(path)
+                    new_sig = self._signature(path)
+                    if old_sig != new_sig:
+                        changed = True
+                        self._file_signatures[path] = new_sig
+                        self._load_one(path)
+
+            if changed:
+                _invalidate_analysis_cache()
+
     def records(self) -> tuple[DynamicPluginRecord, ...]:
-        self.refresh()
+        """Return cached plugin records without triggering a full rescan.
+
+        The watcher keeps state current via incremental _apply_changes().
+        Call refresh() explicitly when a full directory scan is needed.
+        """
         with self._lock:
             return tuple(sorted(self._records.values(), key=lambda record: record.manifest.id))
 
     def invalid_manifests(self) -> tuple[PluginManifest, ...]:
-        self.refresh()
+        """Return cached invalid manifests without triggering a full rescan."""
         with self._lock:
             return tuple(sorted(self._invalid.values(), key=lambda manifest: manifest.id))
 
@@ -95,11 +139,23 @@ class DynamicPluginCatalog:
             if self._watch_started:
                 return
             self._watch_started = True
+            self._stop_event.clear()
 
         thread = threading.Thread(
             target=self._watch_loop, name="dynamic-plugin-watcher", daemon=True
         )
+        self._watch_thread = thread
         thread.start()
+
+    def stop_watcher(self) -> None:
+        """Signal the watcher thread to stop and wait for it to finish."""
+        self._stop_event.set()
+        thread = self._watch_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=5.0)
+        with self._lock:
+            self._watch_started = False
+            self._watch_thread = None
 
     def _watch_loop(self) -> None:
         try:
@@ -110,8 +166,16 @@ class DynamicPluginCatalog:
         directories = [str(path) for path in self.watched_dirs if path.exists()]
         if not directories:
             return
-        for _changes in watch(*directories, recursive=False):
-            self.refresh()
+        try:
+            for changes in watch(
+                *directories,
+                recursive=False,
+                stop_event=self._stop_event,
+            ):
+                self._apply_changes(changes)
+        except Exception as exc:
+            if not self._stop_event.is_set():
+                logger.debug("Plugin watcher loop exited: %s", exc)
 
     def _iter_plugin_files(self) -> tuple[Path, ...]:
         files: list[Path] = []
@@ -128,6 +192,7 @@ class DynamicPluginCatalog:
     def _load_one(self, path: Path) -> None:
         # Note: Caller MUST hold self._lock
         self._remove_path(path)
+        record: DynamicPluginRecord | None = None
         try:
             manifest = load_manifest_from_source(path)
             if manifest is None:
@@ -136,9 +201,13 @@ class DynamicPluginCatalog:
             record = DynamicPluginRecord(
                 manifest=manifest, path=path, mtime_ns=stat.st_mtime_ns, size=stat.st_size
             )
+            # Optimistically store so _register can reference it, but roll back on failure
             self._records[manifest.id] = record
             self._register(record)
         except (OSError, SyntaxError, PluginValidationError, ValueError) as exc:
+            # Roll back partial state if record was stored
+            if record is not None:
+                self._records.pop(record.manifest.id, None)
             logger.error("Failed to load dynamic plugin from %s: %s", path, exc)
             key = str(path)
             self._invalid[key] = PluginManifest(
@@ -162,27 +231,36 @@ class DynamicPluginCatalog:
             for registration in registrations:
                 unregister_plugin(*registration)
                 if registration[0] == "analyzer_binding":
-                    self._remove_analyzer_binding(record.manifest.key)
                     self._invalidate_detection_cache()
             unregister_plugin(DYNAMIC_PLUGIN, record.manifest.key)
             self._records.pop(plugin_id, None)
 
     def _register(self, record: DynamicPluginRecord) -> None:
         manifest = record.manifest
-        register_plugin(DYNAMIC_PLUGIN, manifest.key, manifest=manifest.to_dict())(record)
-        if manifest.kind == "analysis":
-            self._register_analysis(record)
-            self._registered[manifest.id] = (("analyzer_binding", manifest.key),)
-            return
+        registered_pairs: list[tuple[str, str]] = []
+        try:
+            register_plugin(DYNAMIC_PLUGIN, manifest.key, manifest=manifest.to_dict())(record)
+            registered_pairs.append((DYNAMIC_PLUGIN, manifest.key))
 
-        registry_kind = _KIND_TO_REGISTRY.get(manifest.kind)
-        if registry_kind is None:
-            return
-        provider = ProcessSandboxCallable(manifest, record.path)
-        register_plugin(registry_kind, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
-            provider
-        )
-        self._registered[manifest.id] = ((registry_kind, manifest.key),)
+            if manifest.kind == "analysis":
+                self._register_analysis(record)
+                return
+
+            registry_kind = _KIND_TO_REGISTRY.get(manifest.kind)
+            if registry_kind is None:
+                return
+            provider = ProcessSandboxCallable(manifest, record.path)
+            register_plugin(registry_kind, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
+                provider
+            )
+            registered_pairs.append((registry_kind, manifest.key))
+        except Exception:
+            # Roll back any partial registrations on failure
+            for kind, key in registered_pairs:
+                unregister_plugin(kind, key)
+            raise
+
+        self._registered[manifest.id] = tuple(registered_pairs)
 
     def _register_analysis(self, record: DynamicPluginRecord) -> None:
         registrar = get_analysis_registrar()
@@ -208,14 +286,6 @@ class DynamicPluginCatalog:
             consumes=manifest.consumes,
             produces=manifest.produces,
         )
-
-    def _remove_analyzer_binding(self, key: str) -> None:
-        registrar = get_analysis_registrar()
-        if registrar is not None:
-            try:
-                registrar.unregister_analysis_plugin(key)
-            except Exception as exc:
-                logger.debug("Unable to unregister analysis plugin: %s", exc)
 
     @staticmethod
     def _invalidate_detection_cache() -> None:
@@ -245,8 +315,6 @@ def default_plugin_dirs() -> tuple[Path, ...]:
         repo_root / ".pipeline" / "plugins",
         repo_root / "src" / "core" / "frontier" / "plugins",
         repo_root / "src" / "analysis" / "plugins",
-        repo_root / "src" / "execution" / "validators" / "validators",
-        repo_root / "src" / "core" / "plugins",
     )
     return configured + builtins
 
@@ -264,6 +332,10 @@ def refresh_dynamic_plugins() -> tuple[DynamicPluginRecord, ...]:
 
 def start_dynamic_plugin_watcher() -> None:
     _CATALOG.start_watcher()
+
+
+def stop_dynamic_plugin_watcher() -> None:
+    _CATALOG.stop_watcher()
 
 
 def dynamic_plugin_payload() -> dict[str, Any]:

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import secrets
 from typing import Any
 from urllib.parse import urlparse
 
@@ -197,3 +198,139 @@ def validation_runtime_fixture(**overrides: Any) -> dict[str, Any]:
     }
     fixture.update(overrides)
     return fixture
+
+
+_SYSTEM_RANDOM = secrets.SystemRandom()
+
+
+def _positive_int(value: object, default: int) -> int:
+    try:
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        else:
+            parsed = int(str(value))
+    except (TypeError, ValueError):
+        return default
+    return max(0, parsed)
+
+
+def _positive_float(value: object, default: float) -> float:
+    try:
+        if isinstance(value, (int, float)):
+            parsed = float(value)
+        else:
+            parsed = float(str(value))
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, parsed)
+
+
+class RetryPolicy:
+    """Immutable retry configuration.
+
+    This is a core contract class that defines retry policy without
+    depending on pipeline-specific logic. Pipeline and execution layers
+    both depend on this class.
+    """
+
+    def __init__(
+        self,
+        max_attempts: int = 1,
+        initial_backoff_seconds: float = 0.0,
+        backoff_multiplier: float = 2.0,
+        max_backoff_seconds: float = 8.0,
+        retry_on_timeout: bool = True,
+        retry_on_error: bool = True,
+        jitter_factor: float = 0.25,
+    ) -> None:
+        self.max_attempts = max_attempts
+        self.initial_backoff_seconds = initial_backoff_seconds
+        self.backoff_multiplier = backoff_multiplier
+        self.max_backoff_seconds = max_backoff_seconds
+        self.retry_on_timeout = retry_on_timeout
+        self.retry_on_error = retry_on_error
+        self.jitter_factor = jitter_factor
+
+    @classmethod
+    def from_settings(
+        cls,
+        global_settings: dict[str, Any] | None = None,
+        tool_settings: dict[str, Any] | None = None,
+    ) -> "RetryPolicy":
+        global_settings = global_settings or {}
+        tool_settings = tool_settings or {}
+        retry_attempts = _positive_int(
+            tool_settings.get(
+                "retry_attempts",
+                global_settings.get("retry_attempts", RETRY_DEFAULTS["retry_attempts"]),
+            ),
+            int(RETRY_DEFAULTS["retry_attempts"]),
+        )
+        return cls(
+            max_attempts=max(1, retry_attempts + 1),
+            initial_backoff_seconds=_positive_float(
+                tool_settings.get(
+                    "retry_backoff_seconds",
+                    global_settings.get(
+                        "retry_backoff_seconds", RETRY_DEFAULTS["retry_backoff_seconds"]
+                    ),
+                ),
+                float(RETRY_DEFAULTS["retry_backoff_seconds"]),
+            ),
+            backoff_multiplier=max(
+                1.0,
+                _positive_float(
+                    tool_settings.get(
+                        "retry_backoff_multiplier",
+                        global_settings.get(
+                            "retry_backoff_multiplier",
+                            RETRY_DEFAULTS["retry_backoff_multiplier"],
+                        ),
+                    ),
+                    float(RETRY_DEFAULTS["retry_backoff_multiplier"]),
+                ),
+            ),
+            max_backoff_seconds=max(
+                0.0,
+                _positive_float(
+                    tool_settings.get(
+                        "retry_max_backoff_seconds",
+                        global_settings.get(
+                            "retry_max_backoff_seconds",
+                            RETRY_DEFAULTS["retry_max_backoff_seconds"],
+                        ),
+                    ),
+                    float(RETRY_DEFAULTS["retry_max_backoff_seconds"]),
+                ),
+            ),
+            retry_on_timeout=bool(
+                tool_settings.get(
+                    "retry_on_timeout",
+                    global_settings.get("retry_on_timeout", RETRY_DEFAULTS["retry_on_timeout"]),
+                )
+            ),
+            retry_on_error=bool(
+                tool_settings.get(
+                    "retry_on_error",
+                    global_settings.get("retry_on_error", RETRY_DEFAULTS["retry_on_error"]),
+                )
+            ),
+            jitter_factor=_positive_float(
+                tool_settings.get("retry_jitter", global_settings.get("retry_jitter", 0.25)),
+                0.25,
+            ),
+        )
+
+    def delay_for_attempt(self, attempt_number: int, jitter: float | None = None) -> float:
+        """Calculate backoff with exponential growth and jitter to prevent thundering herd."""
+        if attempt_number <= 1:
+            return 0.0
+        effective_backoff = max(0.0, self.initial_backoff_seconds)
+        base_delay = effective_backoff * (self.backoff_multiplier ** max(0, attempt_number - 2))
+        if self.max_backoff_seconds > 0:
+            base_delay = min(base_delay, self.max_backoff_seconds)
+
+        jitter_factor = self.jitter_factor if jitter is None else max(0.0, float(jitter))
+        jitter_range = base_delay * jitter_factor
+        jittered = base_delay + (_SYSTEM_RANDOM.random() * 2 - 1) * jitter_range
+        return float(max(0.0, jittered))

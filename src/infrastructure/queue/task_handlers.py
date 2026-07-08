@@ -104,17 +104,58 @@ class WorkerTaskHandlersMixin:
                     "scope_size": 0,
                 },
             ) as span:
+                # Global governor check: each job execution counts toward
+                # system-wide concurrency.  This prevents the feedback loop
+                # where Queue workers + EventBus + Analyzers each stay within
+                # their own limits while collectively exhausting resources.
+                try:
+                    from src.core.concurrency_governor import get_governor
+
+                    if not get_governor().allow("queue_workers"):
+                        logger.warning(
+                            "Job %s deferred: global concurrency governor "
+                            "limit reached",
+                            job.id,
+                        )
+                        await self.queue.fail_job(
+                            job.id,
+                            self.worker_id,
+                            "Deferred: system concurrency limit reached",
+                        )
+                        return
+                except ImportError:
+                    pass
+
                 if asyncio.iscoroutinefunction(handler):
                     result_task = asyncio.create_task(handler(handler_input))
                 else:
                     result_task = asyncio.create_task(asyncio.to_thread(handler, handler_input))
 
-                while not result_task.done() and not task_cancelled:
-                    await asyncio.sleep(0.5)
+                # Wait for either the result or a cancellation signal using
+                # FIRST_COMPLETED instead of polling with sleep(0.5).
+                done, _pending = await asyncio.wait(
+                    {result_task, cancel_checker},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
 
                 if task_cancelled:
-                    if not result_task.done():
-                        result_task.cancel()
+                    # Bug #13 fix: if the result task already finished
+                    # before cancellation arrived, preserve the result
+                    # instead of discarding hours of work.
+                    if result_task.done():
+                        exc = result_task.exception() if not result_task.cancelled() else None
+                        if exc is not None:
+                            raise exc
+                        result = result_task.result()
+                        span.set_attribute("status", "OK")
+                        await self.queue.complete_job(job.id, self.worker_id, result)
+                        self._info.total_processed += 1
+                        logger.info(
+                            "Job %s completed despite cancellation (result preserved)",
+                            job.id,
+                        )
+                        return
+                    result_task.cancel()
                     logger.info("Worker aborted job %s due to cancellation", job.id)
                     return
 
@@ -153,3 +194,11 @@ class WorkerTaskHandlersMixin:
 
             if len(self._info.active_jobs) == 0:
                 self._info.status = "idle"
+
+            # Release the global governor slot acquired at job start.
+            try:
+                from src.core.concurrency_governor import get_governor
+
+                get_governor().release("queue_workers")
+            except ImportError:
+                pass

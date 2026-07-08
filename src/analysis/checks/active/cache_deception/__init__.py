@@ -13,7 +13,7 @@ import logging
 from typing import Any
 
 from src.analysis.helpers import endpoint_base_key, normalize_headers
-from src.analysis.helpers.scoring import normalized_confidence
+from src.core.utils.scoring import normalized_confidence
 
 from ._constants import CHECK_SPEC
 from .cache_deception_helpers import (

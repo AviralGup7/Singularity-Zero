@@ -76,7 +76,8 @@ def _lower_body(body: str | bytes | None) -> str:
     if isinstance(body, bytes):
         try:
             return body.decode("utf-8", errors="ignore").lower()
-        except Exception:  # pragma: no cover
+        except Exception:
+            logger.warning("Failed to decode body bytes in _lower_body", exc_info=True)
             return ""
     if isinstance(body, str):
         return body.lower()

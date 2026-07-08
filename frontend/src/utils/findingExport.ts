@@ -65,7 +65,7 @@ export function buildMarkdownReport(finding: Finding): string {
   lines.push(`**Confidence:** ${Math.round((finding.confidence ?? 0) * 100)}%`);
   lines.push(`**Status:** ${safe(finding.status)}`);
   if (finding.bounty_value) {
-    lines.push(`**Bounty:** $${finding.bounty_value.toLocaleString()}${finding.bounty_currency ? ' ' + finding.bounty_currency : ''}`);
+    lines.push(`**Bounty:** ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finding.bounty_value)}${finding.bounty_currency ? ' ' + finding.bounty_currency : ''}`);
   }
   lines.push(`**Discovered:** ${safe(finding.timestamp)}`);
   lines.push(`**Finding ID:** ${safe(finding.id)}`);
@@ -120,7 +120,7 @@ export function buildHtmlReport(finding: Finding): string {
     ['Finding ID', safe(finding.id)],
   ];
   if (finding.bounty_value) {
-    facts.push(['Bounty', `$${finding.bounty_value.toLocaleString()}${finding.bounty_currency ? ' ' + finding.bounty_currency : ''}`]);
+    facts.push(['Bounty', new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finding.bounty_value)]);
   }
   return `<!doctype html>
 <html lang="en">

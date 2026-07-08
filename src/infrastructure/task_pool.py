@@ -1,12 +1,10 @@
-from __future__ import annotations
-
-import logging
-
 """Single-node asyncio task pool, filesystem run lock, and mesh compatibility shim."""
 
+from __future__ import annotations
 
 import asyncio
 import enum
+import logging
 import os
 import threading
 from pathlib import Path
@@ -83,7 +81,7 @@ class SimpleTaskPool:
             priority, task = await self._queue.get()
             async with self._lock:
                 self._active_tasks.add(task)
-            task.add_done_callback(lambda _: self._active_tasks.discard(task))
+            task.add_done_callback(lambda _, t=task: self._active_tasks.discard(t))
             task.add_done_callback(lambda _: self._queue.task_done())
             await asyncio.sleep(0)
 
@@ -125,7 +123,7 @@ class RunLock:
             )
             self._redis_client.ping()
             return self._redis_client
-        except Exception as exc:
+        except (ImportError, TypeError, AttributeError) as exc:
             logging.debug("Redis unavailable for distributed lock, using filesystem: %s", exc)
             self._redis_client = None
             return None
@@ -171,7 +169,7 @@ class RunLock:
                         self._acquired = True
                         return True
                     return False
-                except Exception as exc:
+                except (TypeError, ValueError, AttributeError) as exc:
                     logging.debug("Redis lock acquire failed, falling back to filesystem: %s", exc)
 
             # Fallback: filesystem lock
@@ -184,8 +182,8 @@ class RunLock:
                     if owner_id and val == owner_id:
                         self._acquired = True
                         return True
-                except Exception:  # noqa: S110
-                    pass
+                except (OSError, ValueError):
+                    logging.debug("Failed to read lock file")
                 self._lock_file = None
                 return False
 
@@ -222,7 +220,7 @@ class RunLock:
                         end
                         """
                         redis.eval(lua_script, 1, self._lock_key, self._lock_value)
-                    except Exception as exc:
+                    except (TypeError, ValueError, AttributeError) as exc:
                         logging.debug("Redis lock release failed: %s", exc)
                 self._lock_key = None
                 self._lock_value = None
@@ -298,7 +296,8 @@ class MeshShim:
 
     async def submit_task(self, coroutine: Coroutine, priority: int = 0) -> asyncio.Task[Any]:
         task_pool = self._task_pool
-        assert task_pool is not None
+        if task_pool is None:
+            raise RuntimeError("Task pool is not initialized; cannot submit task")
         return await task_pool.submit(coroutine, priority=priority)
 
     @property

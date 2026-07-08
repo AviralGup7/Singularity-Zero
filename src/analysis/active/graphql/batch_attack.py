@@ -30,7 +30,7 @@ pipeline via :class:`GraphQLBatchAttack`.
 from __future__ import annotations
 
 import logging
-import random
+import secrets
 import string
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -59,7 +59,7 @@ class GraphQLProbe:
 
 
 def _stable_id() -> str:
-    return "".join(random.choices(string.ascii_lowercase + string.digits, k=6))  # noqa: S311
+    return "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(6))
 
 
 class GraphQLBatchAttack:
@@ -171,7 +171,7 @@ class GraphQLBatchAttack:
         """
         probes: list[GraphQLProbe] = []
         for i in range(attempts):
-            short_id = "".join(random.choices("0123456789abcdef", k=8))  # noqa: S311
+            short_id = "".join(secrets.choice("0123456789abcdef") for _ in range(8))
             probes.append(
                 GraphQLProbe(
                     label=f"graphql-persisted-query-{i}",

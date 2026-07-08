@@ -83,8 +83,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Operation failed in jwt_manipulation.py", exc_info=True)
         return {
             "status": status,
             "headers": headers,

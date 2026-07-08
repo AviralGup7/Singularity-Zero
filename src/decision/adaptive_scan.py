@@ -151,14 +151,39 @@ class AdaptiveScanCoordinator:
                 len(self._total_findings),
             )
 
-            # Scan the batch with cancellation-safe shielding
+            # Finding 1: Replace asyncio.shield with a cancellation-aware
+            # wrapper.  shield() creates zombie batches that continue
+            # consuming resources after the pipeline is cancelled.
+            # Instead, we run the batch with a timeout and explicitly
+            # cancel the inner task when the outer is cancelled.
             cancelled = False
+            _BATCH_TIMEOUT = 300.0  # 5 minutes per batch hard cap
             task = asyncio.create_task(self._scan_batch(urls))
             try:
-                batch_results = await asyncio.shield(task)
+                batch_results = await asyncio.wait_for(
+                    asyncio.shield(task), timeout=_BATCH_TIMEOUT,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "Adaptive scan batch %d timed out after %.0fs; "
+                    "cancelling batch task",
+                    batch_num, _BATCH_TIMEOUT,
+                )
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                batch_results = []
+                cancelled = True
             except asyncio.CancelledError:
                 cancelled = True
-                batch_results = await task
+                # Cancel the inner task to prevent zombie execution
+                task.cancel()
+                try:
+                    batch_results = await task
+                except asyncio.CancelledError:
+                    batch_results = []
 
             self._results.extend(batch_results)
 
@@ -240,7 +265,13 @@ class AdaptiveScanCoordinator:
         )
 
     async def _scan_batch(self, urls: list[str]) -> list[ScanResult]:
-        """Scan a batch of URLs with controlled concurrency."""
+        """Scan a batch of URLs with controlled concurrency.
+
+        Finding 6: Uses a semaphore-bounded worker pool instead of
+        ``asyncio.gather(*tasks)`` to prevent creating thousands of
+        coroutine objects simultaneously (which causes RAM spikes
+        before any work starts).
+        """
         import time
 
         async def scan_one(url: str) -> ScanResult:
@@ -265,42 +296,43 @@ class AdaptiveScanCoordinator:
                 )
 
         semaphore = asyncio.Semaphore(self._concurrency)
+        processed_results: list[ScanResult] = []
+        pending: set[asyncio.Task[ScanResult]] = set()
 
         async def bounded_scan(url: str) -> ScanResult:
             async with semaphore:
                 return await scan_one(url)
 
-        tasks = [bounded_scan(url) for url in urls]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Finding 6: Producer-consumer pattern with bounded concurrency.
+        # Instead of creating all tasks at once (which allocates coroutine
+        # objects for every URL), we maintain at most `concurrency` tasks
+        # in flight simultaneously.
+        url_iter = iter(urls)
+        for url in url_iter:
+            # Wait if we've hit the concurrency limit
+            while len(pending) >= self._concurrency:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED,
+                )
+                for completed_task in done:
+                    try:
+                        processed_results.append(completed_task.result())
+                    except Exception as exc:
+                        # Should not happen since scan_one catches all exceptions
+                        logger.error("Unexpected task completion error: %s", exc)
 
-        processed_results: list[ScanResult] = []
-        for url, r in zip(urls, results):
-            if isinstance(r, ScanResult):
-                processed_results.append(r)
-            elif isinstance(r, Exception):
-                logger.error("Target scan task crashed exceptionally: url=%s error=%s", url, r)
-                processed_results.append(
-                    ScanResult(
-                        target=url,
-                        success=False,
-                        findings=[],
-                        duration_ms=0.0,
-                        error=f"Task execution crash: {r}",
-                    )
-                )
-            else:
-                logger.error(
-                    "Target scan task returned invalid result type: url=%s got=%s", url, type(r)
-                )
-                processed_results.append(
-                    ScanResult(
-                        target=url,
-                        success=False,
-                        findings=[],
-                        duration_ms=0.0,
-                        error="Task execution returned invalid result type",
-                    )
-                )
+            task = asyncio.create_task(bounded_scan(url))
+            pending.add(task)
+
+        # Drain remaining tasks
+        if pending:
+            done, _ = await asyncio.wait(pending)
+            for completed_task in done:
+                try:
+                    processed_results.append(completed_task.result())
+                except Exception as exc:
+                    logger.error("Unexpected task completion error: %s", exc)
+
         return processed_results
 
 

@@ -40,14 +40,16 @@ def _endpoint_key(url: str) -> str:
     try:
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.hostname}{parsed.path or '/'}"
-    except Exception:  # noqa: S110
+    except Exception as exc:
+        logger.warning("Failed to parse endpoint URL %s: %s", url, exc, exc_info=True)
         return url
 
 
 def _netloc(url: str) -> str:
     try:
         return _clean(urlparse(url).hostname or "")
-    except Exception:  # noqa: S110
+    except Exception as exc:
+        logger.warning("Failed to parse netloc from %s: %s", url, exc, exc_info=True)
         return ""
 
 

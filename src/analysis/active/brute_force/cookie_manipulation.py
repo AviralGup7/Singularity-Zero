@@ -57,16 +57,16 @@ def _try_base64_decode(value: str) -> bytes | None:
     try:
         padded = value + "=" * (4 - len(value) % 4) if len(value) % 4 else value
         return base64.b64decode(padded)
-    except Exception:
-        logger.debug("cookie_manipulation: base64 decode failed for value %r", value[:16])
+    except Exception as exc:
+        logger.debug("cookie_manipulation: base64 decode failed for value %r: %s", value[:16], exc, exc_info=True)
         return None
 
 
 def _try_json_decode(value: str) -> Any | None:
     try:
         return json.loads(value)
-    except Exception:
-        logger.debug("cookie_manipulation: json decode failed for value %r", value[:32])
+    except Exception as exc:
+        logger.debug("cookie_manipulation: json decode failed for value %r: %s", value[:32], exc, exc_info=True)
         return None
 
 

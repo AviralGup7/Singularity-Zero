@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import hashlib
 import logging
 import os
 import threading
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 _integration_instance: LearningIntegration | None = None
 _integration_lock = threading.Lock()
+_integration_config_hash: str | None = None
 
 
 def _resolve_db_path(config_path: str | None = None) -> Path:
@@ -32,6 +34,24 @@ def _resolve_db_path(config_path: str | None = None) -> Path:
     if config_path:
         return Path(config_path)
     return Path(".pipeline") / "telemetry.db"
+
+
+def _config_fingerprint(config: LearningConfig) -> str:
+    """Return a stable hash of config parameters that affect behavior.
+
+    If the fingerprint changes between calls, the singleton is stale and
+    must be recreated to prevent cross-target contamination (Bug #19).
+    """
+    key_parts = [
+        str(config.database_path),
+        str(config.enabled),
+        str(config.threshold_tuning.learning_rate),
+        str(config.threshold_tuning.max_adjustment_per_run),
+        str(config.threshold_tuning.min_threshold),
+        str(config.fp_tracking.target_fp_rate),
+        str(config.fp_tracking.convergence_window),
+    ]
+    return hashlib.sha256("|".join(key_parts).encode()).hexdigest()[:16]
 
 
 class LearningIntegration:
@@ -92,10 +112,33 @@ class LearningIntegration:
         Args:
             ctx: Pipeline context dict. May contain learning config.
             config: Explicit learning config. Overrides ctx config.
+
+        If the config changes between calls, the singleton is reset to
+        prevent cross-target contamination (Bug #19).
         """
-        global _integration_instance
+        global _integration_instance, _integration_config_hash
+
+        # Resolve config first so we can compare fingerprints
+        if ctx and not config:
+            learning_cfg = ctx.get("learning", {})
+            if learning_cfg:
+                config = LearningConfig.from_dict(learning_cfg)
+        if not config:
+            config = LearningConfig()
+
+        new_fingerprint = _config_fingerprint(config)
 
         if _integration_instance is not None:
+            # Check for config contamination (Bug #19)
+            if _integration_config_hash is not None and _integration_config_hash != new_fingerprint:
+                logger.warning(
+                    "Learning config changed (fingerprint %s -> %s); "
+                    "resetting singleton to prevent cross-target contamination",
+                    _integration_config_hash,
+                    new_fingerprint,
+                )
+                cls.reset()
+
             target = (
                 ctx.get("target_name")
                 if isinstance(ctx, dict)
@@ -116,20 +159,12 @@ class LearningIntegration:
                     _integration_instance._current_target = target
                 return _integration_instance
 
-            # Load config from pipeline context if available
-            if ctx and not config:
-                learning_cfg = ctx.get("learning", {})
-                if learning_cfg:
-                    config = LearningConfig.from_dict(learning_cfg)
-
-            if not config:
-                config = LearningConfig()
-
             if not config.enabled:
                 # Return a no-op instance
                 store = TelemetryStore(_resolve_db_path())
                 store.initialize()
                 _integration_instance = cls(store, config)
+                _integration_config_hash = new_fingerprint
                 if ctx:
                     _integration_instance._current_target = ctx.get("target_name")
                 return _integration_instance
@@ -139,6 +174,7 @@ class LearningIntegration:
             store.initialize()
 
             _integration_instance = cls(store, config)
+            _integration_config_hash = new_fingerprint
             if ctx:
                 _integration_instance._current_target = ctx.get("target_name")
 
@@ -176,10 +212,11 @@ class LearningIntegration:
     @classmethod
     def reset(cls) -> None:
         """Reset the global instance (useful for testing)."""
-        global _integration_instance
+        global _integration_instance, _integration_config_hash
         if _integration_instance is not None:
-            _integration_instance.store.close()
+            _integration_instance.close()
         _integration_instance = None
+        _integration_config_hash = None
 
     def get_kpis(self, target: str | None = None) -> PipelineKPIs:
         """Get current pipeline KPIs."""
@@ -190,34 +227,63 @@ class LearningIntegration:
         return self.store.get_db_size()
 
     def close(self) -> None:
-        """Close the telemetry store and mesh sync."""
+        """Close the telemetry store and mesh sync.
+
+        Handles three cases:
+        1. Running event loop on another thread → schedule close via
+           run_coroutine_threadsafe with short timeout (Bug #21: reduced
+           from 5s to 2s to prevent shutdown hangs)
+        2. Running event loop on this thread → schedule as task (non-blocking)
+        3. No running loop → synchronous cleanup of connection pools
+
+        Bug #20: Properly cancels and awaits the mesh sync background task
+        before closing the connection, preventing ghost listeners.
+        """
+        # Bug #20: Cancel mesh sync background task first
+        if self._mesh_sync_task is not None and not self._mesh_sync_task.done():
+            self._mesh_sync_task.cancel()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None and loop.is_running():
+                # Can't block on the loop thread — fire done callback
+                def _log_task_done(t: asyncio.Task) -> None:
+                    if t.cancelled():
+                        logger.debug("Mesh sync task cancelled")
+                    elif t.exception():
+                        logger.debug("Mesh sync task ended with error: %s", t.exception())
+
+                self._mesh_sync_task.add_done_callback(_log_task_done)
+            self._mesh_sync_task = None
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
         if loop is not None and loop.is_running():
-
+            # Bug #21: Use short timeout (2s) to prevent shutdown hangs.
+            # If the event loop is on another thread, schedule the close
+            # coroutine and wait with a bounded timeout.
             def run_coro(coro: Any) -> None:
                 import threading
 
-                # Check if we're on the loop's thread - if so, we can't block
                 current_thread = threading.current_thread()
                 loop_thread = getattr(loop, "_thread", None)
                 if loop_thread is not None and current_thread is not loop_thread:
                     future = asyncio.run_coroutine_threadsafe(coro, loop)
                     try:
-                        future.result(timeout=5.0)
-                    except Exception:  # noqa: S110
-                        pass
+                        future.result(timeout=2.0)
+                    except TimeoutError:
+                        logger.debug("Learning close timed out after 2s; continuing")
+                    except Exception:
+                        logger.warning("Operation failed in __init__.py", exc_info=True)
                 else:
-                    # We're on the event loop thread or _thread is None;
-                    # schedule as a task to avoid deadlock
                     try:
                         loop.create_task(coro)
                     except RuntimeError:
-                        pass
-
+                        logger.warning("Operation failed in __init__.py", exc_info=True)
             if self._mesh_sync:
                 try:
                     run_coro(self._mesh_sync.stop())
@@ -230,26 +296,25 @@ class LearningIntegration:
                 except Exception as e:
                     logger.debug("Redis repository shutdown during close failed: %s", e)
         else:
-            # Synchronous cleanup: directly disconnect the connection pools to avoid connection leaks
+            # Synchronous cleanup: directly disconnect the connection pools
+            # to avoid connection leaks
             if self._mesh_sync:
                 if hasattr(self._mesh_sync, "_client") and self._mesh_sync._client is not None:
                     try:
                         self._mesh_sync._client.connection_pool.disconnect()
-                    except Exception:  # noqa: S110
-                        pass
+                    except Exception:
+                        logger.warning("Operation failed in __init__.py", exc_info=True)
                 if hasattr(self._mesh_sync, "_pubsub") and self._mesh_sync._pubsub is not None:
                     try:
                         self._mesh_sync._pubsub.connection_pool.disconnect()
-                    except Exception:  # noqa: S110
-                        pass
-
+                    except Exception:
+                        logger.warning("Operation failed in __init__.py", exc_info=True)
             if self._redis_repo:
                 if hasattr(self._redis_repo, "_client") and self._redis_repo._client is not None:
                     try:
                         self._redis_repo._client.connection_pool.disconnect()
-                    except Exception:  # noqa: S110
-                        pass
-
+                    except Exception:
+                        logger.warning("Operation failed in __init__.py", exc_info=True)
         self.store.close()
 
     # ------------------------------------------------------------------
@@ -402,4 +467,16 @@ def _cleanup_learning_integration() -> None:
         _integration_instance = None
 
 
-atexit.register(_cleanup_learning_integration)
+def _register_with_lifecycle() -> None:
+    """Register cleanup with the lifecycle manager."""
+    try:
+        from src.core.lifecycle import get_lifecycle_manager
+
+        get_lifecycle_manager().register_shutdown(
+            "learning_integration", _cleanup_learning_integration
+        )
+    except ImportError:
+        atexit.register(_cleanup_learning_integration)
+
+
+_register_with_lifecycle()

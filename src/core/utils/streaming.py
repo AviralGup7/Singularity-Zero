@@ -138,8 +138,8 @@ def stream_http_response(
         if resp is not None:
             try:
                 resp.release_conn()
-            except Exception:  # noqa: S110
-                pass  # Connection release best-effort
+            except Exception as exc:
+                logger.warning("Failed to release connection: %s", exc, exc_info=True)
 
     return result
 

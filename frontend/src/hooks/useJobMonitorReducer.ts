@@ -1,3 +1,4 @@
+import { useDisplayStore } from '../stores/displayStore';
 import type {
   Job,
   PluginProgressEntry,
@@ -68,7 +69,13 @@ export const initialState: JobMonitorState = {
   lastUpdateTs: 0,
 };
 
-const MAX_LOG_LINES = 10000;
+function getMaxLogLines(): number {
+  return useDisplayStore.getState().display.constrainedDevice ? 5_000 : 10_000;
+}
+
+function getMaxStreamingFindings(): number {
+  return useDisplayStore.getState().display.constrainedDevice ? 2_500 : 5_000;
+}
 
 /**
  * Enforces strict precedence: SSE/WS (realtime) > Manual Refetch > Polling.
@@ -107,7 +114,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
         loading: false,
         error: null,
         allLogLines: logs.length > 0 
-          ? [...state.allLogLines, ...logs].slice(-MAX_LOG_LINES)
+          ? [...state.allLogLines, ...logs].slice(-getMaxLogLines())
           : state.allLogLines,
         lastUpdateTs: now,
       };
@@ -124,7 +131,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_LOG_LINE':
       return {
         ...state,
-        allLogLines: [...state.allLogLines, action.payload].slice(-MAX_LOG_LINES),
+        allLogLines: [...state.allLogLines, action.payload].slice(-getMaxLogLines()),
         lastUpdateTs: now,
       };
 
@@ -183,7 +190,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_FINDINGS':
       return {
         ...state,
-        streamingFindings: action.payload.slice(-5000),
+        streamingFindings: action.payload.slice(-getMaxStreamingFindings()),
         lastUpdateTs: now,
       };
 

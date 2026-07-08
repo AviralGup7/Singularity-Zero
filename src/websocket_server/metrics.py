@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.infrastructure.observability.cardinality import BoundedLabelSet
@@ -44,10 +45,12 @@ def _safe_metric(cls: Any, name: str, documentation: str, labelnames: Any = ()) 
             if name in REGISTRY._names_to_collectors:
                 return REGISTRY._names_to_collectors[name]
             return cls(name, documentation, labelnames)
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Failed to look up existing metric %s", name, exc_info=True)
     return cls(name, documentation, labelnames)
 
+
+logger = logging.getLogger(__name__)
 
 WS_USER_IDS = BoundedLabelSet(max_size=256, fallback="__other__", name="ws_user_ids")
 WS_JOB_IDS = BoundedLabelSet(max_size=128, fallback="__other__", name="ws_job_ids")

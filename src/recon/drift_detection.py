@@ -40,7 +40,7 @@ def _get_target_lock(target: str) -> threading.Lock:
 class DriftDetector:
     """Manages recon outcome snapshots and calculates differences between runs."""
 
-    def __init__(self, output_dir: str | Path):
+    def __init__(self, output_dir: str | Path) -> None:
         self.output_dir = Path(output_dir)
         self.snapshots_dir = self.output_dir / "recon_snapshots"
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)

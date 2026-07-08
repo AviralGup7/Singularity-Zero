@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from src.core.contracts.health import (
     CorrectionEvent,
     CorrectiveAction,
+    CorrectiveActionRegistry,
     HealthComponent,
     HealthFinding,
     HealthMetric,
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
 logger = get_pipeline_logger(__name__)
 
 Probe = Callable[[], Awaitable[list[HealthMetric]] | list[HealthMetric]]
-ActionHandler = Callable[[HealthFinding], Awaitable[CorrectionEvent] | CorrectionEvent]
 
 
 class _CircuitBreakerBridge(Protocol):
@@ -45,60 +45,6 @@ class _CircuitBreakerBridge(Protocol):
     def breaker_snapshot(self) -> dict[str, Any]: ...
 
     def consume_pending_probes(self) -> dict[str, Callable[[Any], None]]: ...
-
-
-class CorrectiveActionRegistry:
-    """Maps health findings to bounded corrective actions."""
-
-    def __init__(self) -> None:
-        self._handlers: dict[CorrectiveAction, ActionHandler] = {}
-        self._history: list[CorrectionEvent] = []
-
-    @property
-    def history(self) -> list[CorrectionEvent]:
-        return list(self._history)
-
-    def register(self, action: CorrectiveAction, handler: ActionHandler) -> None:
-        self._handlers[action] = handler
-
-    async def execute(self, finding: HealthFinding) -> CorrectionEvent:
-        handler = self._handlers.get(finding.action)
-        event: CorrectionEvent | None = None
-        if handler is None:
-            event = CorrectionEvent(
-                finding_id=finding.finding_id,
-                action=CorrectiveAction.ESCALATE_ANALYST,
-                success=False,
-                message=f"No corrective handler registered for {finding.action.value}",
-                component=finding.component,
-                details={"reason": finding.reason, "labels": finding.labels},
-            )
-        else:
-            try:
-                result = handler(finding)
-                event = await result if inspect.isawaitable(result) else result
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                logger.exception("Self-healing action %s failed", finding.action.value)
-                event = CorrectionEvent(
-                    finding_id=finding.finding_id,
-                    action=finding.action,
-                    success=False,
-                    message=str(exc),
-                    component=finding.component,
-                    details={"reason": finding.reason, "labels": finding.labels},
-                )
-        if event is None:
-            event = CorrectionEvent(
-                finding_id=finding.finding_id,
-                action=finding.action,
-                success=False,
-                message="Handler failed to return correction event",
-                component=finding.component,
-                details={"reason": finding.reason, "labels": finding.labels},
-            )
-        self._history.append(event)
-        del self._history[:-100]
-        return event
 
 
 class SelfHealingController:

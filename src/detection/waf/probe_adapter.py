@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
-class WafEvasionConfig:
+class WAFEvasionConfig:
     """Configuration for the WAF-aware probe adapter.
 
     Attributes:
@@ -75,7 +75,7 @@ class WafEvasionConfig:
     per_category: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> WafEvasionConfig:
+    def from_dict(cls, data: dict[str, Any] | None) -> WAFEvasionConfig:
         if not isinstance(data, dict):
             return cls()
         auto_apply = bool(data.get("auto_apply", True))
@@ -126,11 +126,11 @@ def _apply_strategy(value: str, strategy: str) -> str:
             # override routes to the HTML variant.
             return comment_injection_sql(value)
     except Exception as exc:
-        logger.debug("WafAwareProbeAdapter: strategy %s failed: %s", strategy, exc)
+        logger.debug("WAFAwareProbeAdapter: strategy %s failed: %s", strategy, exc)
     return value
 
 
-def _select_strategies(config: WafEvasionConfig, category: str | None) -> list[str]:
+def _select_strategies(config: WAFEvasionConfig, category: str | None) -> list[str]:
     if category and category in config.per_category:
         return list(config.per_category[category])
     return list(config.strategy_order)
@@ -180,7 +180,7 @@ def _rewrite_header_value(value: str, strategies: Iterable[str]) -> str:
     return out
 
 
-class WafAwareProbeAdapter:
+class WAFAwareProbeAdapter:
     """Apply :class:`StrategyBundle` strategies to active probe requests.
 
     The adapter is constructed once and shared across probes. It is
@@ -191,11 +191,11 @@ class WafAwareProbeAdapter:
 
     def __init__(
         self,
-        config: WafEvasionConfig | None = None,
+        config: WAFEvasionConfig | None = None,
         *,
         bundle: StrategyBundle | None = None,
     ) -> None:
-        self._config = config or WafEvasionConfig()
+        self._config = config or WAFEvasionConfig()
         # The bundle is currently informational — the actual
         # strategies are applied by name from ``strategy_order``.
         # We keep the reference so the adapter can be wired into the
@@ -206,11 +206,11 @@ class WafAwareProbeAdapter:
     @classmethod
     def from_config_block(
         cls, data: dict[str, Any] | None, bundle: StrategyBundle | None = None
-    ) -> WafAwareProbeAdapter:
-        return cls(WafEvasionConfig.from_dict(data), bundle=bundle)
+    ) -> WAFAwareProbeAdapter:
+        return cls(WAFEvasionConfig.from_dict(data), bundle=bundle)
 
     @property
-    def config(self) -> WafEvasionConfig:
+    def config(self) -> WAFEvasionConfig:
         return self._config
 
     def strategies_for(self, category: str | None) -> list[str]:
@@ -234,7 +234,7 @@ class WafAwareProbeAdapter:
             url = _rewrite_query(url, strategies)
             url = _rewrite_path(url, strategies)
         except Exception as exc:
-            logger.debug("WafAwareProbeAdapter: URL rewrite failed for %s: %s", url, exc)
+            logger.debug("WAFAwareProbeAdapter: URL rewrite failed for %s: %s", url, exc)
         return url
 
     def adapt_body(self, body: str | None, *, category: str | None = None) -> str | None:
@@ -244,7 +244,7 @@ class WafAwareProbeAdapter:
         try:
             return _rewrite_body(body, strategies)
         except Exception as exc:
-            logger.debug("WafAwareProbeAdapter: body rewrite failed: %s", exc)
+            logger.debug("WAFAwareProbeAdapter: body rewrite failed: %s", exc)
             return body
 
     def adapt_headers(
@@ -265,7 +265,7 @@ class WafAwareProbeAdapter:
                     continue
                 out[k] = _rewrite_header_value(v, strategies)
         except Exception as exc:
-            logger.debug("WafAwareProbeAdapter: header rewrite failed: %s", exc)
+            logger.debug("WAFAwareProbeAdapter: header rewrite failed: %s", exc)
             return dict(headers)
         return out
 
@@ -329,8 +329,8 @@ def adapt_probe(
     body: str | None = None,
     headers: dict[str, str] | None = None,
     category: str | None = None,
-    config: WafEvasionConfig | None = None,
+    config: WAFEvasionConfig | None = None,
 ) -> dict[str, Any]:
-    """Convenience wrapper around :class:`WafAwareProbeAdapter`."""
-    adapter = WafAwareProbeAdapter(config or WafEvasionConfig())
+    """Convenience wrapper around :class:`WAFAwareProbeAdapter`."""
+    adapter = WAFAwareProbeAdapter(config or WAFEvasionConfig())
     return adapter.adapt_request(url, headers=headers, body=body, category=category)

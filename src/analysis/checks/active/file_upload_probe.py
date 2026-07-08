@@ -7,8 +7,11 @@ from urllib.parse import parse_qsl, urlparse
 import requests
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.helpers.scoring import normalized_confidence
+from src.core.utils.scoring import normalized_confidence
 from src.core.utils.url_validation import is_safe_url
+import logging
+logger = logging.getLogger(__name__)
+
 
 UPLOAD_PATH_HINTS = {
     "/upload",
@@ -179,8 +182,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Suppressed exception", exc_info=True)
         return {
             "status": status,
             "headers": headers,

@@ -26,6 +26,9 @@ from src.analysis.json.support import (
     summarize_json_payload as _summarize_json_payload,
 )
 from src.recon.common import normalize_url
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 def _extract_field_value(payload: dict[str, Any] | list[Any], field_path: str) -> Any | None:
@@ -136,8 +139,8 @@ def token_scope_analyzer(responses: list[dict[str, Any]], limit: int = 60) -> li
                     decoded = base64.urlsafe_b64decode(header)
                     header_obj = json.loads(decoded)
                     jwt_alg_hint = str(header_obj.get("alg", ""))
-                except Exception:  # noqa: S110, BLE001
-                    pass
+                except Exception:
+                    logger.warning("Suppressed exception", exc_info=True)
 
         admin_scope_hint = any("admin" in field for field in granted) or privilege_score >= 3
 

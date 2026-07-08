@@ -9,7 +9,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-class CspBypassProbe:
+class CSPBypassProbe:
     """Utility class that extracts CSP from an HTTP response and runs
     common bypass heuristics against the parsed policy.
     """

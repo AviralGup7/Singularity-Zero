@@ -1,16 +1,18 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { APP_VERSION } from '../../config';
+import { ROUTES } from '@/config/paths';
+import { PAGE_META } from '@/config/routes';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
-import { CommandPalette } from './CommandPalette';
-import { emitSearchItems, emitRefresh } from '../../lib/events';
-import { useCommandPaletteItems, getAllItems } from '../../hooks/useCommandPaletteItems';
+import { emitRefresh } from '../../lib/events';
+import { useCommandPaletteItems, useCommandItems } from '../../hooks/useCommandPaletteItems';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
 import { useDisplayStore } from '@/stores/displayStore';
+const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
 import type { SearchableItem } from './CommandPalette';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -33,11 +35,11 @@ function useNavSections(): NavSection[] {
   const workflowMode = useDisplayStore((state) => state.workflowMode);
   return useMemo(() => {
     const overview = [
-      { path: '/', label: 'Dashboard', icon: 'barChart', count: '1' },
-      { path: '/targets', label: t('navigation.targets'), icon: 'target', count: '2' },
-      { path: '/jobs', label: t('navigation.jobs'), icon: 'zap', count: '3' },
-      { path: '/findings', label: t('navigation.findings'), icon: 'shield', count: '4' },
-      { path: '/bug-bounty', label: 'Bounty Dashboard', icon: 'bug', count: '6' },
+      { path: ROUTES.DASHBOARD, label: 'Dashboard', icon: 'barChart', count: '1' },
+      { path: ROUTES.TARGETS, label: t('navigation.targets'), icon: 'target', count: '2' },
+      { path: ROUTES.JOBS, label: t('navigation.jobs'), icon: 'zap', count: '3' },
+      { path: ROUTES.FINDINGS, label: t('navigation.findings'), icon: 'shield', count: '4' },
+      { path: ROUTES.BUG_BOUNTY, label: 'Bounty Dashboard', icon: 'bug', count: '6' },
     ];
 
     if (workflowMode === 'pentest') {
@@ -46,32 +48,32 @@ function useNavSections(): NavSection[] {
         {
           label: 'Analysis',
           items: [
-            { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
-            { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
-            { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
-            { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
-            { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
-            { path: '/findings-timeline', label: 'Findings Timeline', icon: 'activity' },
-            { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
-            { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
-            { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
-            { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
+            { path: ROUTES.PIPELINE, label: 'Pipeline Overview', icon: 'activity' },
+            { path: ROUTES.COCKPIT, label: 'Security Cockpit', icon: 'target' },
+            { path: ROUTES.REMEDIATION_PLANNER, label: 'Remediation Planner', icon: 'checkCircle' },
+            { path: ROUTES.RISK_SCORE, label: 'Risk Score', icon: 'alertTriangle' },
+            { path: ROUTES.SCAN_DIFF, label: 'Scan Diff', icon: 'activity' },
+            { path: ROUTES.FINDINGS_TIMELINE, label: 'Findings Timeline', icon: 'activity' },
+            { path: ROUTES.TARGET_COMPARISON, label: t('navigation.compare'), icon: 'activity' },
+            { path: ROUTES.GAP_ANALYSIS, label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
+            { path: ROUTES.LEARNING, label: 'Autonomous Learning', icon: 'zap' },
+            { path: ROUTES.EVASION, label: 'Evasion Metrics', icon: 'shield' },
           ],
         },
         {
           label: t('navigation.system'),
           items: [
-            { path: '/mesh', label: 'Mesh Command', icon: 'server' },
-            { path: '/self-healing', label: 'Self-Healing', icon: 'zap' },
-            { path: '/tracing', label: 'Tracing', icon: 'activity' },
-            { path: '/cache-management', label: 'Cache', icon: 'database' },
-            { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
-            { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
-            { path: '/reports', label: 'Reports', icon: 'fileText' },
-            { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
-            { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
-            { path: '/security', label: 'Security', icon: 'shieldCheck' },
-            { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
+            { path: ROUTES.MESH, label: 'Mesh Command', icon: 'server' },
+            { path: ROUTES.SELF_HEALING, label: 'Self-Healing', icon: 'zap' },
+            { path: ROUTES.TRACING, label: 'Tracing', icon: 'activity' },
+            { path: ROUTES.CACHE_MANAGEMENT, label: 'Cache', icon: 'database' },
+            { path: ROUTES.AUDIT_LOGS, label: 'Audit Logs', icon: 'file' },
+            { path: ROUTES.COMPLIANCE, label: 'Compliance', icon: 'shieldCheck' },
+            { path: ROUTES.REPORTS, label: 'Reports', icon: 'fileText' },
+            { path: ROUTES.ACCESS_LOGS, label: 'Access Logs', icon: 'fileText' },
+            { path: ROUTES.EVIDENCE_CUSTODY, label: 'Evidence Chain', icon: 'link' },
+            { path: ROUTES.SECURITY, label: 'Security', icon: 'shieldCheck' },
+            { path: ROUTES.SETTINGS, label: t('navigation.settings'), icon: 'settings', count: 'S' },
           ],
         },
       ];
@@ -82,31 +84,31 @@ function useNavSections(): NavSection[] {
       {
         label: 'Analysis',
         items: [
-          { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
-          { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
-          { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
-          { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
-          { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
-          { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
-          { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
-          { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
-          { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
+          { path: ROUTES.PIPELINE, label: 'Pipeline Overview', icon: 'activity' },
+          { path: ROUTES.COCKPIT, label: 'Security Cockpit', icon: 'target' },
+          { path: ROUTES.REMEDIATION_PLANNER, label: 'Remediation Planner', icon: 'checkCircle' },
+          { path: ROUTES.RISK_SCORE, label: 'Risk Score', icon: 'alertTriangle' },
+          { path: ROUTES.TARGET_COMPARISON, label: t('navigation.compare'), icon: 'activity' },
+          { path: ROUTES.SCAN_DIFF, label: 'Scan Diff', icon: 'activity' },
+          { path: ROUTES.GAP_ANALYSIS, label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
+          { path: ROUTES.LEARNING, label: 'Autonomous Learning', icon: 'zap' },
+          { path: ROUTES.EVASION, label: 'Evasion Metrics', icon: 'shield' },
         ],
       },
       {
         label: t('navigation.system'),
         items: [
-          { path: '/mesh', label: 'Mesh Command', icon: 'server' },
-          { path: '/self-healing', label: 'Self-Healing', icon: 'zap' },
-          { path: '/tracing', label: 'Tracing', icon: 'activity' },
-          { path: '/cache-management', label: 'Cache', icon: 'database' },
-          { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
-          { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
-          { path: '/reports', label: 'Reports', icon: 'fileText' },
-          { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
-          { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
-          { path: '/security', label: 'Security', icon: 'shieldCheck' },
-          { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
+          { path: ROUTES.MESH, label: 'Mesh Command', icon: 'server' },
+          { path: ROUTES.SELF_HEALING, label: 'Self-Healing', icon: 'zap' },
+          { path: ROUTES.TRACING, label: 'Tracing', icon: 'activity' },
+          { path: ROUTES.CACHE_MANAGEMENT, label: 'Cache', icon: 'database' },
+          { path: ROUTES.AUDIT_LOGS, label: 'Audit Logs', icon: 'file' },
+          { path: ROUTES.COMPLIANCE, label: 'Compliance', icon: 'shieldCheck' },
+          { path: ROUTES.REPORTS, label: 'Reports', icon: 'fileText' },
+          { path: ROUTES.ACCESS_LOGS, label: 'Access Logs', icon: 'fileText' },
+          { path: ROUTES.EVIDENCE_CUSTODY, label: 'Evidence Chain', icon: 'link' },
+          { path: ROUTES.SECURITY, label: 'Security', icon: 'shieldCheck' },
+          { path: ROUTES.SETTINGS, label: t('navigation.settings'), icon: 'settings', count: 'S' },
         ],
       },
     ];
@@ -167,7 +169,7 @@ function buildDefaultActionItems(
       title: 'Go to Findings',
       subtitle: 'Jump to the findings triage surface',
       meta: 'Navigate',
-      action: () => navigate('/findings'),
+      action: () => navigate(ROUTES.FINDINGS),
     },
     {
       id: 'action-go-jobs',
@@ -175,7 +177,7 @@ function buildDefaultActionItems(
       title: 'Go to Jobs',
       subtitle: 'Jump to the active scan queue',
       meta: 'Navigate',
-      action: () => navigate('/jobs'),
+      action: () => navigate(ROUTES.JOBS),
     },
     {
       id: 'action-go-targets',
@@ -183,7 +185,7 @@ function buildDefaultActionItems(
       title: 'Go to Targets',
       subtitle: 'Open target management',
       meta: 'Navigate',
-      action: () => navigate('/targets'),
+      action: () => navigate(ROUTES.TARGETS),
     },
     {
       id: 'action-go-settings',
@@ -191,7 +193,7 @@ function buildDefaultActionItems(
       title: 'Open Settings',
       subtitle: 'Configure display, motion, and notifications',
       meta: 'Navigate',
-      action: () => navigate('/settings'),
+      action: () => navigate(ROUTES.SETTINGS),
     },
     {
       id: 'action-go-cockpit',
@@ -199,7 +201,7 @@ function buildDefaultActionItems(
       title: 'Open Security Cockpit',
       subtitle: 'Launch the operations command center',
       meta: 'Navigate',
-      action: () => navigate('/cockpit'),
+      action: () => navigate(ROUTES.COCKPIT),
     },
     {
       id: 'action-reopen-palette',
@@ -211,32 +213,6 @@ function buildDefaultActionItems(
     },
   ];
 }
-
-const PAGE_META: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: 'Dashboard', subtitle: 'Security Operations Overview' },
-  '/targets': { title: 'Targets', subtitle: 'Asset and URL testing scope' },
-  '/jobs': { title: 'Jobs', subtitle: 'Pipeline execution queue' },
-  '/pipeline': { title: 'Pipeline Overview', subtitle: 'Stage flow and scanner telemetry' },
-  '/findings': { title: 'Findings', subtitle: 'Security issues and evidence' },
-  '/bug-bounty': { title: 'Bounty Dashboard', subtitle: 'Bug bounty submission pipeline and yields' },
-  '/risk-score': { title: 'Risk Score', subtitle: 'Target exposure scoring' },
-  '/findings-timeline': { title: 'Timeline', subtitle: 'Findings activity over time' },
-  '/target-comparison': { title: 'Compare', subtitle: 'Target posture comparison' },
-  '/gap-analysis': { title: 'Gap Analysis', subtitle: 'Detection coverage review' },
-  '/learning': { title: 'Autonomous Learning', subtitle: 'Neural feedback and threshold calibration' },
-  '/replay': { title: 'Replay', subtitle: 'Request replay tooling' },
-  '/cache-management': { title: 'Cache', subtitle: 'Backend cache controls' },
-  '/settings': { title: 'Settings', subtitle: 'System preferences and controls' },
-  '/tracing': { title: 'Tracing', subtitle: 'Distributed stage waterfalls' },
-  '/security': { title: 'Security', subtitle: 'API controls and enforcement events' },
-  '/cockpit': { title: 'Security Cockpit', subtitle: 'Operations command center' },
-  '/remediation-planner': { title: 'Remediation Planner', subtitle: 'Prioritized fix tracking' },
-  '/mesh': { title: 'Mesh Command', subtitle: 'Distributed node orchestration' },
-  '/audit-logs': { title: 'Audit Logs', subtitle: 'System event journal' },
-  '/compliance': { title: 'Security Compliance', subtitle: 'Regulatory GRC mapping and attestations' },
-  '/reports': { title: 'Reports', subtitle: 'Signed report artefacts and attestations' },
-  '/access-logs': { title: 'Access Logs', subtitle: 'Compliance audit trail' },
-};
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -252,6 +228,7 @@ export function AppLayout({ children }: AppLayoutProps) {
    
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const sidebarCollapsed = useDisplayStore((state) => state.sidebarCollapsed);
@@ -287,6 +264,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   useCommandPaletteItems([...defaultNavItems, ...defaultActionItems]);
 
+  // Reactively track all registered command items
+  const allCommandItems = useCommandItems();
+
   // Toast on incoming SSE notifications
   const prevNotifCountRef = useRef(notifications.length);
   useEffect(() => {
@@ -312,24 +292,20 @@ export function AppLayout({ children }: AppLayoutProps) {
     onFallback: () => {},
   });
 
+  // Items are now managed reactively via useCommandItems() above.
+  // The old search:items-update event dance has been removed in favor of
+  // the CommandRegistry singleton that components register with at import time.
+
+  // Save/restore focus for command palette
   useEffect(() => {
-    const handleSearchUpdate = (e: Event) => {
-      const detail = (e as CustomEvent<{ items: SearchableItem[] }>).detail;
-      const existing = getAllItems();
-   
-      const merged = [...defaultNavItems, ...detail.items, ...existing.filter(i => i.type !== 'page')];
-      const seen = new Set<string>();
-      const deduped = merged.filter(i => {
-        if (seen.has(i.id)) return false;
-        seen.add(i.id);
-        return true;
-      });
-      emitSearchItems({ items: deduped });
-    };
-    window.addEventListener('search:items-update', handleSearchUpdate);
-    return () => window.removeEventListener('search:items-update', handleSearchUpdate);
-   
-  }, [defaultNavItems]);
+    if (commandPaletteOpen) {
+      commandPaletteTriggerRef.current = document.activeElement as HTMLButtonElement;
+    } else if (commandPaletteTriggerRef.current) {
+      const trigger = commandPaletteTriggerRef.current;
+      requestAnimationFrame(() => trigger.focus());
+      commandPaletteTriggerRef.current = null;
+    }
+  }, [commandPaletteOpen]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -345,31 +321,31 @@ export function AppLayout({ children }: AppLayoutProps) {
       setShowShortcuts(prev => !prev);
     } else if (e.key === '1') {
       e.preventDefault();
-      navigate('/');
+      navigate(ROUTES.DASHBOARD);
     } else if (e.key === '2') {
       e.preventDefault();
-      navigate('/targets');
+      navigate(ROUTES.TARGETS);
     } else if (e.key === '3') {
       e.preventDefault();
-      navigate('/jobs');
+      navigate(ROUTES.JOBS);
     } else if (e.key === '4') {
       e.preventDefault();
-      navigate('/findings');
+      navigate(ROUTES.FINDINGS);
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       themeUpdater.setThemeMode(theme.mode === 'dark' ? 'light' : 'dark');
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      navigate('/settings');
+      navigate(ROUTES.SETTINGS);
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
       toggleSidebarCollapsed();
     } else if (e.key === '5') {
       e.preventDefault();
-      navigate('/pipeline');
+      navigate(ROUTES.PIPELINE);
     } else if (e.key === '6') {
       e.preventDefault();
-      navigate('/bug-bounty');
+      navigate(ROUTES.BUG_BOUNTY);
     } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       emitRefresh();
@@ -404,24 +380,22 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
   }, []);
 
-  const allCommandItems = useMemo(() => getAllItems(), []);
-
   const quickActions = useMemo(() => [
-    { label: 'New Scan', path: '/targets', icon: 'plus' },
+    { label: 'New Scan', path: ROUTES.TARGETS, icon: 'plus' },
   ], []);
 
   const mobilePrimary = useMemo(() => navSections
     .flatMap(section => section.items)
-    .filter(item => ['/', '/targets', '/jobs', '/findings', '/bug-bounty', '/cockpit', '/reports', '/settings'].includes(item.path)), [navSections]);
+    .filter(item => [ROUTES.DASHBOARD, ROUTES.TARGETS, ROUTES.JOBS, ROUTES.FINDINGS, ROUTES.BUG_BOUNTY, ROUTES.COCKPIT, ROUTES.REPORTS, ROUTES.SETTINGS].includes(item.path)), [navSections]);
 
   const motionDuration = strategy.duration || 0.2;
-  const isLogin = location.pathname === '/login';
-  
+  const isLogin = location.pathname === ROUTES.LOGIN;
+
   const pageMeta = useMemo(() => {
-    if (location.pathname.startsWith('/jobs/')) {
+    if (location.pathname.startsWith(ROUTES.JOBS + '/')) {
       return { title: 'Job Detail', subtitle: 'Pipeline run telemetry and artifacts' };
     }
-    return PAGE_META[location.pathname] ?? PAGE_META['/'];
+    return PAGE_META[location.pathname] ?? PAGE_META[ROUTES.DASHBOARD];
   }, [location.pathname]);
 
   if (isLogin) {
@@ -489,6 +463,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           role="main"
           tabIndex={-1}
           className="app-main-content flex-1"
+          style={{ scrollMarginTop: 'var(--topbar-height, 64px)' }}
           initial={policy.allowFramer ? { opacity: 0, y: strategy.distance } : false}
           animate={policy.allowFramer ? { opacity: 1, y: 0 } : undefined}
           transition={{ duration: motionDuration, ease: 'easeOut' }}
@@ -522,11 +497,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         })}
       </nav>
 
-      <CommandPalette
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        items={allCommandItems}
-      />
+      <Suspense fallback={null}>
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          items={allCommandItems}
+        />
+      </Suspense>
 
       <ShortcutsModal
         isOpen={showShortcuts}

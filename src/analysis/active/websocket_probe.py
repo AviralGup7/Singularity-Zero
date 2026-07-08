@@ -208,11 +208,13 @@ def _stringify(msg: Any) -> str:
         try:
             return msg.decode("utf-8", errors="replace")
         except Exception:
+            logger.warning("Failed to decode bytes message in _stringify", exc_info=True)
             return repr(msg)[:200]
     if isinstance(msg, Mapping):
         try:
             return json.dumps(msg)
         except Exception:
+            logger.warning("Failed to JSON-serialize mapping in _stringify", exc_info=True)
             return str(msg)
     return str(msg)
 

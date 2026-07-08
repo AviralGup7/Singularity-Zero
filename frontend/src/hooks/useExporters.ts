@@ -50,7 +50,6 @@ export function useExporters({ findings, filenameBase = 'findings', context }: U
       download(artifact.blob, artifact.filename);
       toast.success(`Exported ${findings.length} findings as ${exporter.label}`);
     } catch (err) {
-      console.error('[export] failed', err);
       toast.error('Export failed');
     } finally {
       setPendingFormat(null);

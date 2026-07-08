@@ -30,7 +30,8 @@ def _locate_finding_on_disk(
                 continue
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: S112
+            except Exception:
+                logger.warning("Failed to read findings file %s", findings_path, exc_info=True)
                 continue
             for idx, f in enumerate(findings):
                 fid = (

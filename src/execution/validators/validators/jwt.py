@@ -56,7 +56,11 @@ def _b64url_decode(data: str) -> bytes:
 
 
 def _create_jwt(header: dict, payload: dict, secret: str = "secret") -> str:
-    """Create a JWT with given header and payload."""
+    """Create a JWT with given header and payload.
+
+    Note: The default "secret" is intentionally weak - this is a security
+    testing tool that validates JWT implementations against common weak keys.
+    """
     header_b64 = _b64url_encode(json.dumps(header, separators=(",", ":")).encode())
     payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode())
     message = f"{header_b64}.{payload_b64}"

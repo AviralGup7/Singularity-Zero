@@ -388,7 +388,6 @@ def main() -> None:
 
     total_active_runtime = sum(a["total_runtime_s"] for a in active)
     total_active_findings = sum(a["findings"] for a in active)
-
     high_cost = [a for a in active if a["cost_relative"] >= 0.8]
     med_cost = [a for a in active if 0.4 <= a["cost_relative"] < 0.8]
     low_cost = [a for a in active if a["cost_relative"] < 0.4]

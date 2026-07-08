@@ -4,7 +4,6 @@ Provides a thread-safe singleton PoolManager with configurable
 connection pooling, retries, and keep-alive timeouts.
 """
 
-import atexit
 import logging
 import threading
 
@@ -93,11 +92,20 @@ def _cleanup_pool_on_exit() -> None:
         if _pool_manager is not None:
             try:
                 _pool_manager.clear()
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:
+                logger.warning("Failed to clear pool on exit: %s", exc, exc_info=True)
+def _register_with_lifecycle() -> None:
+    try:
+        from src.core.lifecycle import get_lifecycle_manager
 
-
-atexit.register(_cleanup_pool_on_exit)
+        get_lifecycle_manager().register_shutdown(
+            "http_pool",
+            _cleanup_pool_on_exit,
+            after=["shared_sessions"],
+        )
+    except ImportError:
+        logger.warning("Operation failed in http_pool.py", exc_info=True)
+_register_with_lifecycle()
 
 
 def reset_pool() -> None:

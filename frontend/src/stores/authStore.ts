@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createToken, createGuestToken, verifyAuthToken } from '@/api/security';
 import type { TokenResponse } from '@/api/security';
 import { safeSession, safeStorage } from '@/utils/storage';
-import type { AuthContextType } from '@/context/auth-context';
+import type { AuthContextType } from '@/context/AuthContext';
 import type { UserRole } from '@/types/auth';
 import type { Permission } from '@/types/auth';
 

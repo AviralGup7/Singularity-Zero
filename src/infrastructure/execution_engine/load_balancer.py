@@ -10,9 +10,10 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,8 @@ class LoadBalancer:
         self._monitoring = False
         self._effective_concurrency: int = num_workers
         self._target_concurrency: int = num_workers
+        self._last_concurrency_reduction: float = 0.0
+        self._concurrency_reduction_cooldown: float = 30.0
 
         for i in range(num_workers):
             worker_id = f"worker-{i}"
@@ -235,7 +238,9 @@ class LoadBalancer:
         """Adaptively adjust effective concurrency based on worker load.
 
         Examines all workers' backpressure factors and adjusts the
-        effective concurrency up or down.
+        effective concurrency up or down.  Includes proportional recovery:
+        when all workers are healthy and time has elapsed since the last
+        reduction, concurrency ramps back toward the target.
 
         Returns:
             The new effective concurrency value.
@@ -248,8 +253,21 @@ class LoadBalancer:
                 self._workers
             )
 
+            now = time.monotonic()
+            time_since_reduction = now - self._last_concurrency_reduction
+
             if avg_backpressure < 0.3:
-                self._effective_concurrency = max(1, self._effective_concurrency - 1)
+                if time_since_reduction >= self._concurrency_reduction_cooldown:
+                    recovery_step = max(1, (self._target_concurrency - self._effective_concurrency) // 3)
+                    if recovery_step > 0 and self._effective_concurrency < self._target_concurrency:
+                        self._effective_concurrency = min(
+                            self._target_concurrency, self._effective_concurrency + recovery_step
+                        )
+                    elif self._effective_concurrency > 1:
+                        self._effective_concurrency = max(1, self._effective_concurrency - 1)
+                else:
+                    if self._effective_concurrency > 1:
+                        self._effective_concurrency = max(1, self._effective_concurrency - 1)
             elif avg_backpressure > 0.8 and self._effective_concurrency < self._target_concurrency:
                 self._effective_concurrency = min(
                     self._target_concurrency, self._effective_concurrency + 1
@@ -260,6 +278,35 @@ class LoadBalancer:
                 self._effective_concurrency,
                 avg_backpressure,
             )
+            return self._effective_concurrency
+
+    async def validate_effective_concurrency(self, actual_running_tasks: int) -> int:
+        """Validate and correct effective concurrency against actual running tasks.
+
+        This is a control-plane/data-plane reconciliation method. If the
+        effective concurrency is lower than actual running tasks (drift),
+        it corrects upward to avoid permanently throttling the system.
+
+        Args:
+            actual_running_tasks: The real number of tasks currently executing.
+
+        Returns:
+            The reconciled effective concurrency value.
+        """
+        async with self._lock:
+            if actual_running_tasks > self._effective_concurrency:
+                correction = min(
+                    self._target_concurrency,
+                    max(actual_running_tasks, self._effective_concurrency + 1),
+                )
+                logger.warning(
+                    "Concurrency drift detected: effective=%d but actual=%d, correcting to %d",
+                    self._effective_concurrency,
+                    actual_running_tasks,
+                    correction,
+                )
+                self._effective_concurrency = correction
+
             return self._effective_concurrency
 
     async def get_load_summary(self) -> dict[str, Any]:
@@ -296,8 +343,10 @@ class LoadBalancer:
             "target_concurrency": self._target_concurrency,
         }
 
-    async def health_metrics(self) -> list[HealthMetric]:
+    async def health_metrics(self) -> list[Any]:
         """Expose worker pressure as controller-readable metrics."""
+        from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
+
         summary = await self.get_load_summary()
         metrics = [
             HealthMetric(
@@ -322,12 +371,26 @@ class LoadBalancer:
         return metrics
 
     async def rebalance_overloaded_workers(self) -> dict[str, Any]:
-        """Reduce pressure on overloaded workers by lowering effective concurrency."""
+        """Reduce pressure on overloaded workers by lowering effective concurrency.
+
+        Includes a cooldown to prevent repeated reductions from collapsing
+        concurrency permanently, and tracks when the last reduction occurred
+        so recovery can occur in ``adjust_concurrency``.
+        """
         before = self._effective_concurrency
         async with self._lock:
             overloaded = [w.worker_id for w in self._workers.values() if w.is_overloaded]
+            now = time.monotonic()
             if overloaded:
-                self._effective_concurrency = max(1, self._effective_concurrency - len(overloaded))
+                if (now - self._last_concurrency_reduction) < self._concurrency_reduction_cooldown:
+                    logger.debug(
+                        "Skipping concurrency reduction: cooldown active (%.1fs since last)",
+                        now - self._last_concurrency_reduction,
+                    )
+                else:
+                    reduction = min(len(overloaded), max(1, self._effective_concurrency // 4))
+                    self._effective_concurrency = max(1, self._effective_concurrency - reduction)
+                    self._last_concurrency_reduction = now
                 for worker_id in overloaded:
                     self._workers[worker_id].backpressure_factor = 0.1
         return {
@@ -352,6 +415,7 @@ class LoadBalancer:
 
                     if sample_count % 3 == 0:
                         summary = await self.get_load_summary()
+                        await self.validate_effective_concurrency(summary["total_active"])
                         logger.debug(
                             "Load balancer summary: active=%d, completed=%d, failed=%d, concurrency=%d",
                             summary["total_active"],
@@ -359,6 +423,15 @@ class LoadBalancer:
                             summary["total_failed"],
                             summary["effective_concurrency"],
                         )
+
+                    if sample_count % 10 == 0:
+                        from src.core.task_registry import get_task_registry
+                        reconciliation = get_task_registry().reconcile()
+                        if reconciliation["ghosts_removed"]:
+                            logger.info(
+                                "Task registry reconciliation: removed %d ghost tasks",
+                                len(reconciliation["ghosts_removed"]),
+                            )
                 except asyncio.CancelledError:
                     break
                 except Exception:
@@ -366,7 +439,10 @@ class LoadBalancer:
 
                 await asyncio.sleep(self._sample_interval)
 
-        self._monitor_task = asyncio.create_task(_monitor_loop(), name="load-balancer-monitor")
+        from src.core.task_registry import get_task_registry
+        self._monitor_task = get_task_registry().create_task(
+            _monitor_loop(), owner="load_balancer", name="monitor"
+        )
         self._monitor_task.add_done_callback(self._log_task_exception)
 
     @staticmethod
@@ -400,3 +476,4 @@ class LoadBalancer:
             stats.backpressure_factor = 1.0
             stats._duration_samples.clear()
         self._effective_concurrency = self._target_concurrency
+        self._last_concurrency_reduction = 0.0

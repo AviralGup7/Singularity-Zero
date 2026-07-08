@@ -87,6 +87,7 @@ def xml_bomb_detector(
                     "Cache lookup failed for %s (will retry with direct request): %s",
                     url,
                     cache_exc,
+                    exc_info=True,
                 )
                 baseline_resp = None
         if baseline_resp is None:
@@ -146,7 +147,8 @@ def xml_bomb_detector(
                         },
                         body=request_body,
                     )
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Cache probe request failed for %s: %s", url, exc, exc_info=True)
                     probe_resp = None
             if probe_resp is None:
                 probe_resp = safe_request(

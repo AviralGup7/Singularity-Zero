@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { safeStorage } from '@/utils/storage';
-import type { DensityMode, FontSize, DisplayState, DisplayUpdater } from '@/context/display-context';
+import type { DensityMode, FontSize, DisplayState, DisplayUpdater } from '@/context/DisplayContext';
 
 const defaultDisplay: DisplayState = {
   density: 'comfortable',
@@ -102,8 +102,11 @@ const applyDisplaySideEffects = (display: DisplayState) => {
   safeStorage.set('cyber-pipeline-display', JSON.stringify(display));
 };
 
+/** Global display preferences store. Handles density, font size, animations, accessibility, sidebar, and workflow mode. */
 export interface DisplayStore {
+  /** Current display state (density, font size, animations, etc.) */
   display: DisplayState;
+  /** Actions to mutate individual display properties */
   updater: DisplayUpdater;
   /**
    * Layout-level UI state that is persisted across reloads but is *not*
@@ -114,7 +117,9 @@ export interface DisplayStore {
    * `useState(false)` and reset on every navigation.
    */
   sidebarCollapsed: boolean;
+  /** Persist and set the sidebar collapsed state. */
   setSidebarCollapsed: (collapsed: boolean) => void;
+  /** Toggle the sidebar between collapsed and expanded. */
   toggleSidebarCollapsed: () => void;
   /**
    * Workflow mode (pentest vs appsec). Used to gate telemetry-heavy
@@ -122,6 +127,7 @@ export interface DisplayStore {
    * views so that AppSec auditors can opt into a quieter surface.
    */
   workflowMode: WorkflowMode;
+  /** Persist and set the active workflow mode. */
   setWorkflowMode: (mode: WorkflowMode) => void;
 }
 
@@ -143,27 +149,39 @@ export const useDisplayStore = create<DisplayStore>((set, get) => {
   return {
     display: initialDisplay,
     updater: {
+      /** Merge a partial `DisplayState` into the current display settings. */
       updateDisplay,
+      /** Set the UI density mode (compact / comfortable / spacious). */
       setDensity: (density: DensityMode) => updateDisplay({ density }),
+      /** Set the base font size (small / medium / large). */
       setFontSize: (fontSize: FontSize) => updateDisplay({ fontSize }),
+      /** Enable or disable UI animations globally. */
       setAnimations: (animations: boolean) => updateDisplay({ animations }),
+      /** Show or hide the background grid pattern. */
       setGridBackground: (gridBackground: boolean) => updateDisplay({ gridBackground }),
+      /** Request reduced motion from animation components. */
       setReduceMotion: (reduceMotion: boolean) => updateDisplay({ reduceMotion }),
+      /** Toggle high-contrast mode for accessibility. */
       setHighContrast: (highContrast: boolean) => updateDisplay({ highContrast }),
+      /** Enable or disable visible focus indicators for keyboard navigation. */
       setFocusIndicators: (focusIndicators: boolean) => updateDisplay({ focusIndicators }),
+      /** Optimize UI for screen reader compatibility. */
       setScreenReaderOptimizations: (screenReaderOptimizations: boolean) => updateDisplay({ screenReaderOptimizations }),
     },
     sidebarCollapsed: initialSidebar.collapsed,
+    /** Collapse or expand the sidebar and persist the choice. */
     setSidebarCollapsed: (collapsed: boolean) => {
       persistSidebar({ collapsed });
       set({ sidebarCollapsed: collapsed });
     },
+    /** Toggle sidebar collapsed state and persist it. */
     toggleSidebarCollapsed: () => {
       const next = !get().sidebarCollapsed;
       persistSidebar({ collapsed: next });
       set({ sidebarCollapsed: next });
     },
     workflowMode: getInitialWorkflowMode(),
+    /** Switch between pentest and appsec workflow mode. Persisted across reloads. */
     setWorkflowMode: (mode: WorkflowMode) => {
       safeStorage.set(WORKFLOW_MODE_STORAGE_KEY, mode);
       set({ workflowMode: mode });

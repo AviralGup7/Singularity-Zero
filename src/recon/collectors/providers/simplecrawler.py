@@ -18,12 +18,12 @@ import logging
 import re
 import time
 from collections.abc import Generator, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.types import CollectorMeta, CollectorStatus
 from src.recon.common import normalize_url
@@ -147,55 +147,54 @@ def iter_for_hosts(
 
     max_response_bytes = 120000
     scope_roots: set[str] = set()
-    workers = min(max_workers, max(1, len(hosts_list)))
     errors = 0
     timeout_count = 0
     total_new = 0
 
     emit_collection_progress(progress_callback, f"Crawler: scanning {len(hosts_list)} hosts", 10)
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_host = {
-            executor.submit(
-                _scan_host,
-                host,
-                timeout_seconds,
-                max_response_bytes,
-                scope_roots,
-                session,
-            ): host
-            for host in hosts_list
-        }
-        idx = 0
-        for future in future_to_host:
-            idx += 1
-            host = future_to_host[future]
-            try:
-                host_urls = future.result()
-            except requests.Timeout:
-                host_urls = set()
-                errors += 1
-                timeout_count += 1
-            except Exception:
-                host_urls = set()
-                errors += 1
+    executor = get_recon_executor()
+    future_to_host = {
+        executor.submit(
+            _scan_host,
+            host,
+            timeout_seconds,
+            max_response_bytes,
+            scope_roots,
+            session,
+        ): host
+        for host in hosts_list
+    }
+    idx = 0
+    for future in future_to_host:
+        idx += 1
+        host = future_to_host[future]
+        try:
+            host_urls = future.result()
+        except requests.Timeout:
+            host_urls = set()
+            errors += 1
+            timeout_count += 1
+        except Exception:
+            host_urls = set()
+            errors += 1
 
-            host_meta = CollectorMeta(
-                status=CollectorStatus.OK if host_urls else CollectorStatus.EMPTY,
-                new_urls=len(host_urls),
-                hosts_scanned=1,
-                provider_name="crawler",
-                extras={"host": host},
-            )
-            total_new += len(host_urls)
-            emit_collection_progress(
-                progress_callback,
-                f"Crawler host {idx}/{len(hosts_list)}: +{len(host_urls)} urls, total {total_new}",
-                10 + int((idx / len(hosts_list)) * 40),
-                processed=idx,
-                total=len(hosts_list),
-            )
-            yield host, host_urls, host_meta
+        host_meta = CollectorMeta(
+            status=CollectorStatus.OK if host_urls else CollectorStatus.EMPTY,
+            new_urls=len(host_urls),
+            hosts_scanned=1,
+            provider_name="crawler",
+            extras={"host": host},
+        )
+        total_new += len(host_urls)
+        emit_collection_progress(
+            progress_callback,
+            f"Crawler host {idx}/{len(hosts_list)}: +{len(host_urls)} urls, total {total_new}",
+            10 + int((idx / len(hosts_list)) * 40),
+            processed=idx,
+            total=len(hosts_list),
+        )
+        yield host, host_urls, host_meta
 
     duration = round(time.monotonic() - start, 1)
     return CollectorMeta(

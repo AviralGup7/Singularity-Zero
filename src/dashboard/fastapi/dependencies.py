@@ -24,14 +24,33 @@ API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 _config_instance: DashboardConfig | None = None
 _config_lock = threading.Lock()
+_app_ref: Any = None
 logger = logging.getLogger(__name__)
 
 # Cache api_security_enabled() at module load to avoid repeated env var reads
 _SECURITY_ENABLED = api_security_enabled()
 
 
+def set_app_ref(app: Any) -> None:
+    """Store a reference to the FastAPI app so get_config() can reach app.state.config.
+
+    Called once during create_app() before any request arrives.
+    """
+    global _app_ref
+    _app_ref = app
+
+
 def get_config() -> DashboardConfig:
-    """Return the dashboard configuration singleton."""
+    """Return the dashboard configuration singleton.
+
+    Prefers app.state.config (set during lifespan) over a module-level singleton
+    so that lifecycle-managed dependencies are always current.
+    """
+    if _app_ref is not None:
+        try:
+            return _app_ref.state.config
+        except AttributeError:
+            pass
     global _config_instance
     if _config_instance is None:
         with _config_lock:
@@ -50,10 +69,12 @@ async def get_db_session(
     """
     session = None
     try:
+        import asyncio
+
         import aiosqlite
 
         db_path = config.cache_db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        await asyncio.to_thread(os.makedirs, os.path.dirname(db_path), exist_ok=True)
         session = await aiosqlite.connect(db_path)
         session.row_factory = aiosqlite.Row
         yield session
@@ -308,12 +329,12 @@ def get_tool_execution_service(request: Request) -> Any:
     service = getattr(request.app.state, "tool_execution_service", None)
     if service is not None:
         return service
-    try:
-        from src.pipeline.services.tool_execution import ToolExecutionService
+    from src.core.contracts.protocol_registry import get_tool_execution_service_cls
 
-        return ToolExecutionService()
-    except ImportError:
-        return None
+    _cls = get_tool_execution_service_cls()
+    if _cls is not None:
+        return _cls()
+    return None
 
 
 class RateLimiter:

@@ -28,8 +28,8 @@ try:
 except ImportError:
     httpx = None  # type: ignore
 
+from src.core.tools.types import ToolInvocation
 from src.pipeline.services.tool_execution import run_external_tool
-from src.pipeline.services.tool_execution.contracts import ToolInvocation
 
 logger = logging.getLogger(__name__)
 
@@ -287,10 +287,8 @@ async def _resolve_cname(subdomain: str) -> str | None:
         answer = await resolver.resolve(subdomain, "CNAME")
         values = [str(rdata).rstrip(".") for rdata in answer]
         return values[0] if values else None
-    except Exception:  # noqa: S110
-        pass
-
-    # Fallback: nslookup via canonical tool runner
+    except Exception:
+        logger.warning("Operation failed in takeover.py", exc_info=True)
     invocation = ToolInvocation(
         tool_name="nslookup",
         args=["-type=CNAME", subdomain],

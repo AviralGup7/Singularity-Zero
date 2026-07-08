@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.url_validation import is_safe_url
 
 logger = logging.getLogger(__name__)
@@ -294,7 +294,7 @@ def discover_preview_deployments(
     results: list[dict[str, Any]] = []
     total = len(host_list)
     processed = 0
-    ex = get_shared_executor()
+    ex = get_recon_executor()
     futures = {ex.submit(_probe_preview_host, h, timeout=timeout): h for h in host_list}
     for fut in futures:
         try:
@@ -306,8 +306,8 @@ def discover_preview_deployments(
         if progress_callback is not None:
             try:
                 progress_callback(processed, total)
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                logger.warning("Operation failed in preview_deployments.py", exc_info=True)
         if probe is not None:
             results.append(probe)
     return results

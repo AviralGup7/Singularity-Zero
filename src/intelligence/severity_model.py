@@ -107,7 +107,7 @@ def _numeric(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _normalise_token(value: object) -> str:
+def _normalize_token(value: object) -> str:
     return str(value or "").strip().lower().replace(" ", "_") or "unknown"
 
 
@@ -124,18 +124,18 @@ def _tokens_from_finding(finding: dict[str, Any]) -> list[str]:
     parsed = urlparse(url)
     path_parts = [part for part in parsed.path.lower().split("/") if part][:4]
     tokens = [
-        f"category={_normalise_token(finding.get('category') or finding.get('finding_category'))}",
-        f"plugin={_normalise_token(finding.get('plugin_name') or finding.get('module'))}",
-        f"endpoint_type={_normalise_token(finding.get('endpoint_type'))}",
-        f"parameter_type={_normalise_token(finding.get('parameter_type'))}",
-        f"decision={_normalise_token(finding.get('decision') or finding.get('finding_decision'))}",
-        f"host={_normalise_token(parsed.netloc or finding.get('host') or finding.get('target_host'))}",
+        f"category={_normalize_token(finding.get('category') or finding.get('finding_category'))}",
+        f"plugin={_normalize_token(finding.get('plugin_name') or finding.get('module'))}",
+        f"endpoint_type={_normalize_token(finding.get('endpoint_type'))}",
+        f"parameter_type={_normalize_token(finding.get('parameter_type'))}",
+        f"decision={_normalize_token(finding.get('decision') or finding.get('finding_decision'))}",
+        f"host={_normalize_token(parsed.netloc or finding.get('host') or finding.get('target_host'))}",
     ]
     tokens.extend(f"path={part}" for part in path_parts)
-    tokens.extend(f"signal={_normalise_token(signal)}" for signal in signals[:8])
+    tokens.extend(f"signal={_normalize_token(signal)}" for signal in signals[:8])
     combined = str(finding.get("combined_signal") or "")
     tokens.extend(
-        f"combined={_normalise_token(part)}" for part in combined.split("+") if part.strip()
+        f"combined={_normalize_token(part)}" for part in combined.split("+") if part.strip()
     )
     return tokens
 
@@ -297,8 +297,8 @@ class CalibratedSeverityModel:
             modern_risk_score = modern.modern_risk_score
             modern_components = modern.components
             modern_weights = modern.weights
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Modern risk blend unavailable: %s", exc)
+        except Exception as exc:
+            logger.warning("Modern risk blend unavailable: %s", exc, exc_info=True)
 
         prediction = SeverityPrediction(
             score=score,
@@ -329,8 +329,8 @@ class CalibratedSeverityModel:
             get_metrics().counter(
                 "severity_predictions_total", "Total model predictions made"
             ).inc()
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("SeverityModel: Failed to record prediction metric", exc_info=True)
         logger.info("SeverityModel: predicted in %.4fs", latency)
 
         return prediction
@@ -460,16 +460,15 @@ class CalibratedSeverityModel:
                 )
                 self.registry.register(mv, activate=True, pipeline=self.pipeline)
         except Exception as e:
-            logger.warning("SeverityModel: Pipeline retraining failed: %s", e)
+            logger.warning("SeverityModel: Pipeline retraining failed: %s", e, exc_info=True)
             try:
                 from src.infrastructure.observability.metrics import get_metrics
 
                 get_metrics().counter(
                     "severity_retraining_failures_total", "Total model retraining failures"
                 ).inc()
-            except Exception:  # noqa: S110
-                pass
-
+            except Exception:
+                logger.warning("SeverityModel: Failed to record retraining failure metric", exc_info=True)
     def _load_training_examples(self) -> list[_TrainingExample]:
         if not self.db_path.exists():
             return []
@@ -492,9 +491,9 @@ class CalibratedSeverityModel:
         examples: list[_TrainingExample] = []
         for row in rows:
             item = dict(row)
-            category = _normalise_token(item.get("finding_category"))
-            plugin = _normalise_token(item.get("plugin_name"))
-            parameter_type = _normalise_token(item.get("parameter_type"))
+            category = _normalize_token(item.get("finding_category"))
+            plugin = _normalize_token(item.get("plugin_name"))
+            parameter_type = _normalize_token(item.get("parameter_type"))
             was_tp = bool(item.get("was_validated")) and not bool(item.get("was_false_positive"))
             was_fp = bool(item.get("was_false_positive"))
             if not was_tp and not was_fp:
@@ -525,7 +524,7 @@ class CalibratedSeverityModel:
                 # carries the asset type so downstream models can
                 # condition on it. ``asset_type`` defaults to "unknown"
                 # for older rows.
-                "asset_type": _normalise_token(item.get("asset_type") or "unknown"),
+                "asset_type": _normalize_token(item.get("asset_type") or "unknown"),
             }
             self._record_rate(self.category_rates, category, label)
             self._record_rate(self.plugin_rates, f"{category}|{plugin}", label)
@@ -550,8 +549,8 @@ class CalibratedSeverityModel:
         examples: list[_TrainingExample] = []
         for row in rows:
             item = dict(row)
-            lifecycle = _normalise_token(item.get("lifecycle_state"))
-            decision = _normalise_token(item.get("decision"))
+            lifecycle = _normalize_token(item.get("lifecycle_state"))
+            decision = _normalize_token(item.get("decision"))
             label = 1.0 if lifecycle in {"validated", "exploitable", "reportable"} else 0.0
             if decision == "drop":
                 label = 0.0
@@ -567,10 +566,10 @@ class CalibratedSeverityModel:
     def _calibrate(
         self, raw_probability: float, finding: dict[str, Any]
     ) -> tuple[float, dict[str, Any]]:
-        category = _normalise_token(finding.get("category") or finding.get("finding_category"))
-        plugin = _normalise_token(finding.get("plugin_name") or finding.get("module"))
-        parameter_type = _normalise_token(finding.get("parameter_type"))
-        asset_type = _normalise_token(finding.get("asset_type") or "unknown")
+        category = _normalize_token(finding.get("category") or finding.get("finding_category"))
+        plugin = _normalize_token(finding.get("plugin_name") or finding.get("module"))
+        parameter_type = _normalize_token(finding.get("parameter_type"))
+        asset_type = _normalize_token(finding.get("asset_type") or "unknown")
         rates = [
             self._smoothed_rate(self.category_rates.get(category, (0, 0)), strength=0.36),
             self._smoothed_rate(

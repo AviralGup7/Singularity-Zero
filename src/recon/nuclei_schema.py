@@ -41,7 +41,10 @@ def validate_template_file(filepath: str) -> None:
     if not path.exists():
         raise FileNotFoundError(path)
 
-    content = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in template file {filepath}: {exc}") from exc
     schema = load_schema()
     jsonschema.validate(instance=content, schema=schema)
 

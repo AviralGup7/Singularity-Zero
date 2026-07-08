@@ -457,7 +457,7 @@ def reconcile_stale_terminal_job(
                 else:
                     process_returncode = int(polled)
                     job["returncode"] = process_returncode
-        except Exception:  # noqa: S110
+        except Exception:
             logger.warning("query_service_recovery: failed to poll process status", exc_info=True)
 
     if not is_terminal_reporting_state_fn(job):
@@ -562,7 +562,8 @@ def reconcile_stale_terminal_job(
             persist_callback(job)
             return
 
-        assert recovered_job_data is not None
+        if recovered_job_data is None:
+            raise ValueError("Recovered job data is missing; cannot restore job")
         existing_process = job.get("process")
         job.clear()
         job.update(recovered_job_data)
@@ -571,7 +572,7 @@ def reconcile_stale_terminal_job(
                 terminate = getattr(existing_process, "terminate", None)
                 if callable(terminate):
                     terminate()
-            except Exception:  # noqa: S110
+            except Exception:
                 logger.warning(
                     "query_service_recovery: failed to terminate existing process during recovery",
                     exc_info=True,
@@ -591,7 +592,7 @@ def reconcile_stale_terminal_job(
                 terminate = getattr(process, "terminate", None)
                 if callable(terminate):
                     terminate()
-        except Exception:  # noqa: S110
+        except Exception:
             logger.warning(
                 "query_service_recovery: failed to terminate process on completion", exc_info=True
             )

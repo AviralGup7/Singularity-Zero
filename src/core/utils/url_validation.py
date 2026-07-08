@@ -121,7 +121,9 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
         # through and perform our own resolution as a best-effort.
 
     try:
-        addr_infos = socket.getaddrinfo(hostname, None)
+        timeout_remaining = max(timeout, 1.0)
+        socket.setdefaulttimeout(timeout_remaining)
+        addr_infos = socket.getaddrinfo(hostname, None, family=socket.AF_UNSPEC)
     except (TimeoutError, socket.gaierror, OSError):
         with _DNS_CACHE_LOCK:
             _lru_dns_insert(hostname, now + _DNS_NEGATIVE_TTL_SECONDS, None)
@@ -130,6 +132,8 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
                 _DNS_INFLIGHT.pop(hostname, None)
             inflight.set()
         return None
+    finally:
+        socket.setdefaulttimeout(None)
 
     resolved_ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
     with _DNS_CACHE_LOCK:

@@ -6,8 +6,11 @@ Extracted from scenario_engine.py for better separation of concerns.
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 from src.core.models import Request, Response
 
@@ -114,7 +117,8 @@ class ValueExtractor:
                 return None
             try:
                 payload = json.loads(response.body or "")
-            except Exception:  # noqa: BLE001
+            except Exception:
+                logger.warning("Failed to parse JSON response body", exc_info=True)
                 return None
             value = payload
             for segment in self.json_path.split("."):

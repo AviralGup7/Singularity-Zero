@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -99,3 +101,62 @@ class PipelineHealthSnapshot:
             "findings": [_dataclass_to_dict(finding) for finding in self.findings],
             "corrections": [_dataclass_to_dict(event) for event in self.corrections],
         }
+
+
+ActionHandler = Callable[
+    ["HealthFinding"],
+    "Awaitable[CorrectionEvent] | CorrectionEvent",
+]
+
+
+class CorrectiveActionRegistry:
+    """Maps health findings to bounded corrective actions."""
+
+    def __init__(self) -> None:
+        self._handlers: dict[CorrectiveAction, ActionHandler] = {}
+        self._history: list[CorrectionEvent] = []
+
+    @property
+    def history(self) -> list[CorrectionEvent]:
+        return list(self._history)
+
+    def register(self, action: CorrectiveAction, handler: ActionHandler) -> None:
+        self._handlers[action] = handler
+
+    async def execute(self, finding: HealthFinding) -> CorrectionEvent:
+        handler = self._handlers.get(finding.action)
+        event: CorrectionEvent | None = None
+        if handler is None:
+            event = CorrectionEvent(
+                finding_id=finding.finding_id,
+                action=CorrectiveAction.ESCALATE_ANALYST,
+                success=False,
+                message=f"No corrective handler registered for {finding.action.value}",
+                component=finding.component,
+                details={"reason": finding.reason, "labels": finding.labels},
+            )
+        else:
+            try:
+                result = handler(finding)
+                event = await result if inspect.isawaitable(result) else result
+            except Exception as exc:
+                event = CorrectionEvent(
+                    finding_id=finding.finding_id,
+                    action=finding.action,
+                    success=False,
+                    message=str(exc),
+                    component=finding.component,
+                    details={"reason": finding.reason, "labels": finding.labels},
+                )
+        if event is None:
+            event = CorrectionEvent(
+                finding_id=finding.finding_id,
+                action=finding.action,
+                success=False,
+                message="Handler failed to return correction event",
+                component=finding.component,
+                details={"reason": finding.reason, "labels": finding.labels},
+            )
+        self._history.append(event)
+        del self._history[:-100]
+        return event

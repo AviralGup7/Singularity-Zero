@@ -26,6 +26,8 @@ class GhostActorCoordinator(Protocol):
 
     async def migrate_if_needed(self, actor_ref: Any, task_metadata: dict[str, Any]) -> bool: ...
 
+    async def verify_actor_alive(self, actor_id: str) -> bool: ...
+
 
 class ProactiveMigrationHandler:
     """
@@ -39,6 +41,8 @@ class ProactiveMigrationHandler:
         check_interval_seconds: float = 30.0,
         cpu_threshold: float = 90.0,
         ram_threshold: float = 95.0,
+        verification_timeout_seconds: float = 10.0,
+        max_verification_retries: int = 3,
     ) -> None:
         self._coordinator = coordinator
         self._check_interval = check_interval_seconds
@@ -47,6 +51,8 @@ class ProactiveMigrationHandler:
         self._active = False
         self._monitor_task: asyncio.Task | None = None
         self._actor_refs: dict[str, Any] = {}  # actor_id -> actor_ref
+        self._verification_timeout = verification_timeout_seconds
+        self._max_verification_retries = max_verification_retries
 
     def register_actor(self, actor_id: str, actor_ref: Any) -> None:
         """Track an active actor for health monitoring."""
@@ -63,7 +69,10 @@ class ProactiveMigrationHandler:
         if self._active:
             return
         self._active = True
-        self._monitor_task = asyncio.create_task(self._run_monitor())
+        from src.core.task_registry import get_task_registry
+        self._monitor_task = get_task_registry().create_task(
+            self._run_monitor(), owner="migration_handler", name="monitor"
+        )
         logger.info(
             "ProactiveMigration: Handler started (Thresholds: CPU=%.1f%%, RAM=%.1f%%)",
             self._cpu_threshold,
@@ -81,38 +90,95 @@ class ProactiveMigrationHandler:
                 logger.warning("Operation failed in migration_handler.py: %s", exc, exc_info=True)  # noqa: BLE001
         logger.info("ProactiveMigration: Handler stopped")
 
+    async def _verify_migration(self, actor_id: str) -> bool:
+        """Verify that a migrated actor is alive on the destination before local removal.
+
+        Retries up to ``_max_verification_retries`` times with a short delay
+        between attempts to allow the remote actor time to start.
+        """
+        if not hasattr(self._coordinator, "verify_actor_alive"):
+            logger.debug(
+                "ProactiveMigration: Coordinator does not support verify_actor_alive; "
+                "skipping verification for actor [%s]",
+                actor_id,
+            )
+            return True
+
+        for attempt in range(1, self._max_verification_retries + 1):
+            try:
+                alive = await asyncio.wait_for(
+                    self._coordinator.verify_actor_alive(actor_id),
+                    timeout=self._verification_timeout,
+                )
+                if alive:
+                    logger.info(
+                        "ProactiveMigration: Actor [%s] verified alive on destination (attempt %d/%d)",
+                        actor_id,
+                        attempt,
+                        self._max_verification_retries,
+                    )
+                    return True
+                logger.warning(
+                    "ProactiveMigration: Actor [%s] NOT alive on destination (attempt %d/%d)",
+                    actor_id,
+                    attempt,
+                    self._max_verification_retries,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "ProactiveMigration: Verification timed out for actor [%s] (attempt %d/%d)",
+                    actor_id,
+                    attempt,
+                    self._max_verification_retries,
+                )
+            except Exception as exc:
+                logger.error(
+                    "ProactiveMigration: Verification error for actor [%s] (attempt %d/%d): %s",
+                    actor_id,
+                    attempt,
+                    self._max_verification_retries,
+                    exc,
+                )
+                return False
+
+            if attempt < self._max_verification_retries:
+                await asyncio.sleep(1.0 * attempt)
+
+        return False
+
     async def _run_monitor(self) -> None:
         """Main loop that scans active actors for health violations."""
         while self._active:
             try:
-                # 🛸 Sprint 1: Proactive Evaluation
-                # Check health for each registered actor
                 actor_ids = list(self._actor_refs.keys())
                 for actor_id in actor_ids:
                     actor_ref = self._actor_refs.get(actor_id)
                     if not actor_ref:
                         continue
 
-                    # Request a migration check from the coordinator
-                    # The coordinator uses the balancer to decide if a better node exists.
                     migration_triggered = await self._coordinator.migrate_if_needed(
                         actor_ref, task_metadata={"actor_id": actor_id}
                     )
 
                     if migration_triggered:
-                        # Once migrated, we remove our local reference as the actor
-                        # is now effectively on another node.
-                        self.unregister_actor(actor_id)
-
-                        get_event_bus().emit(
-                            EventType.GHOST_ACTOR_EVACUATED,
-                            source="proactive-migration-handler",
-                            data={
-                                "actor_id": actor_id,
-                                "timestamp": time.time(),
-                                "reason": "resource_pressure_evacuation",
-                            },
-                        )
+                        verified = await self._verify_migration(actor_id)
+                        if verified:
+                            self.unregister_actor(actor_id)
+                            get_event_bus().emit(
+                                EventType.GHOST_ACTOR_EVACUATED,
+                                source="proactive-migration-handler",
+                                data={
+                                    "actor_id": actor_id,
+                                    "timestamp": time.time(),
+                                    "reason": "resource_pressure_evacuation",
+                                },
+                            )
+                        else:
+                            logger.error(
+                                "ProactiveMigration: Actor [%s] migration NOT verified; "
+                                "keeping local reference to prevent actor loss",
+                                actor_id,
+                            )
 
             except Exception as e:
                 logger.error("ProactiveMigration: Error in monitor loop: %s", e)

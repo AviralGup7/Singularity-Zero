@@ -22,12 +22,12 @@ import re
 import socket
 import time
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.pipeline.tools import tool_available, try_command
 from src.recon.dnsx_wildcard import is_public_ip
 
@@ -364,17 +364,17 @@ def expand_ips_to_cidrs(
 
     asn_map: dict[str, str] = {}
     asns: set[str] = set()
-    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(ip_list)))) as ex:
-        futures = [ex.submit(ip_to_asn, ip) for ip in ip_list]
-        for fut in futures:
-            try:
-                asn_info = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("ASN lookup future failed: %s", exc)
-                continue
-            if asn_info and asn_info.get("asn"):
-                asn_map[asn_info["ip"]] = asn_info["asn"]
-                asns.add(asn_info["asn"])
+    executor = get_recon_executor()
+    futures = [executor.submit(ip_to_asn, ip) for ip in ip_list]
+    for fut in futures:
+        try:
+            asn_info = fut.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("ASN lookup future failed: %s", exc)
+            continue
+        if asn_info and asn_info.get("asn"):
+            asn_map[asn_info["ip"]] = asn_info["asn"]
+            asns.add(asn_info["asn"])
 
     cidrs: set[str] = set()
     for asn in asns:

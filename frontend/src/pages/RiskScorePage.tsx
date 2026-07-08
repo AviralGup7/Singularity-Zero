@@ -11,11 +11,11 @@ import {
   Legend,
   Line,
   LineChart,
+  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
-import { SafeResponsiveContainer } from '@/components/ui/SafeResponsiveContainer';
 import { Activity, Crosshair, RefreshCw, ShieldAlert } from 'lucide-react';
 import { buildRiskDateColumns, useRiskHistory, useTargets } from '@/hooks';
 
@@ -380,7 +380,7 @@ export function RiskScorePage() {
                     </Canvas>
                   </div>
                 ) : (
-                  <SafeResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
                       <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                       <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
@@ -391,7 +391,7 @@ export function RiskScorePage() {
                         <Line key={target} type="monotone" dataKey={target} stroke={TARGET_COLORS[index % TARGET_COLORS.length]} strokeWidth={2} dot={false} />
                       ))}
                     </LineChart>
-                  </SafeResponsiveContainer>
+                  </ResponsiveContainer>
                 )}
               </div>
             </div>
@@ -404,7 +404,7 @@ export function RiskScorePage() {
                 </div>
               </div>
               <div className="h-[260px] w-full">
-                <SafeResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                     <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
@@ -412,7 +412,7 @@ export function RiskScorePage() {
                     <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
                     <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
                   </BarChart>
-                </SafeResponsiveContainer>
+                </ResponsiveContainer>
               </div>
               <div className="risk-factor-details space-y-3 px-4 pb-4">
                 {factors?.factors.map((f) => (

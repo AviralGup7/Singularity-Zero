@@ -10,6 +10,7 @@ interface CockpitSetupViewProps {
   setScanMode: (mode: 'safe' | 'aggressive') => void;
   onStartScan: () => void;
   launchingScan: boolean;
+  selectedModules: string[];
   setSelectedModules: (modules: string[]) => void;
   selectedProject: Project | null;
   setSelectedProject: (project: Project | null) => void;

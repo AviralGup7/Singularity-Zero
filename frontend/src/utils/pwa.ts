@@ -7,7 +7,6 @@ export async function unregisterStaleServiceWorkers(): Promise<void> {
     const registrations = await navigator.serviceWorker.getRegistrations();
     for (const registration of registrations) {
       await registration.unregister();
-      console.log('SW unregistered:', registration.scope);
     }
   }
 

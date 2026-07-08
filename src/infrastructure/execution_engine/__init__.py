@@ -11,32 +11,30 @@ Public API exports:
     - DEFAULT_EXECUTION_CONFIG, load_execution_config
 """
 
-from src.infrastructure.execution_engine.concurrent_executor import (
-    ConcurrentExecutor,
-    ExecutionSummary,
-)
-from src.infrastructure.execution_engine.config import (
-    DEFAULT_EXECUTION_CONFIG,
-    ExecutionConfig,
-    load_execution_config,
-)
-from src.infrastructure.execution_engine.load_balancer import LoadBalancer, WorkerStats
-from src.infrastructure.execution_engine.models import (
-    ExecutionConfig as ExecutionConfigModel,
-)
-from src.infrastructure.execution_engine.models import (
-    ResourcePool as ResourcePoolModel,
-)
-from src.infrastructure.execution_engine.models import (
-    Task,
-    TaskPriority,
-    TaskResult,
-    TaskStatus,
-)
-from src.infrastructure.execution_engine.resource_pool import ResourcePool, ResourcePoolManager
+from __future__ import annotations
+
+from importlib import import_module
+from types import ModuleType
+
+_LAZY_IMPORTS: dict[str, str] = {
+    "ConcurrentExecutor": "src.infrastructure.execution_engine.concurrent_executor",
+    "ExecutionSummary": "src.infrastructure.execution_engine.concurrent_executor",
+    "DEFAULT_EXECUTION_CONFIG": "src.infrastructure.execution_engine.config",
+    "ExecutionConfig": "src.infrastructure.execution_engine.config",
+    "load_execution_config": "src.infrastructure.execution_engine.config",
+    "LoadBalancer": "src.infrastructure.execution_engine.load_balancer",
+    "WorkerStats": "src.infrastructure.execution_engine.load_balancer",
+    "ResourcePool": "src.infrastructure.execution_engine.resource_pool",
+    "ResourcePoolManager": "src.infrastructure.execution_engine.resource_pool",
+    "Task": "src.infrastructure.execution_engine.models",
+    "TaskPriority": "src.infrastructure.execution_engine.models",
+    "TaskResult": "src.infrastructure.execution_engine.models",
+    "TaskStatus": "src.infrastructure.execution_engine.models",
+    "ExecutionConfigModel": "src.infrastructure.execution_engine.models",
+    "ResourcePoolModel": "src.infrastructure.execution_engine.models",
+}
 
 __all__ = [
-    # Models
     "Task",
     "TaskResult",
     "TaskStatus",
@@ -45,16 +43,22 @@ __all__ = [
     "ResourcePoolModel",
     "ExecutionConfig",
     "ExecutionConfigModel",
-    # Resource pool
     "ResourcePool",
     "ResourcePoolManager",
-    # Executor
     "ConcurrentExecutor",
     "ExecutionSummary",
-    # Load balancer
     "LoadBalancer",
     "WorkerStats",
-    # Config
     "DEFAULT_EXECUTION_CONFIG",
     "load_execution_config",
 ]
+
+
+def __getattr__(name: str) -> ModuleType | object:
+    module_path = _LAZY_IMPORTS.get(name)
+    if module_path is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(module_path)
+    attr = getattr(module, name)
+    globals()[name] = attr
+    return attr

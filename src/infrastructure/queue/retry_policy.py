@@ -1,6 +1,9 @@
 """Configurable retry policy with exponential backoff and jitter.
 
 Provides the RetryPolicy class which calculates retry delays for failed jobs.
+
+Note: This is a queue-specific retry policy. For pipeline-level retry logic,
+use ``src.pipeline.retry.RetryPolicy`` instead.
 """
 
 from __future__ import annotations

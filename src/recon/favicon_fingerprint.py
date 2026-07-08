@@ -29,12 +29,12 @@ import hashlib
 import json
 import logging
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.url_validation import is_safe_url
 
 logger = logging.getLogger(__name__)
@@ -211,17 +211,17 @@ def fetch_favicons(
         return {}
 
     results: dict[str, dict[str, Any]] = {}
-    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(host_list)))) as ex:
-        futures = {ex.submit(_fetch_favicon_for_host, h, timeout=timeout): h for h in host_list}
-        for fut in futures:
-            host = futures[fut]
-            try:
-                fav = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Favicon fetch failed for %s: %s", host, exc)
-                continue
-            if fav is not None:
-                results[host] = fav
+    executor = get_recon_executor()
+    futures = {executor.submit(_fetch_favicon_for_host, h, timeout=timeout): h for h in host_list}
+    for fut in futures:
+        host = futures[fut]
+        try:
+            fav = fut.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Favicon fetch failed for %s: %s", host, exc)
+            continue
+        if fav is not None:
+            results[host] = fav
     return results
 
 

@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
 
-class ApiSchemaReconstructor:
+class APISchemaReconstructor:
     """Clusters raw endpoints and structures them into valid OpenAPI 3.0 specs."""
 
     def __init__(self, output_dir: str | Path):

@@ -451,8 +451,12 @@ class ConnectionManager:
                         try:
                             while not q.empty():
                                 await asyncio.sleep(0.05)
-                        except Exception:  # noqa: S110
-                            pass
+                        except Exception:
+                            logger.warning(
+                                "Failed to drain message queue for connection %s",
+                                info.connection_id,
+                                exc_info=True,
+                            )
 
                     drain_tasks.append(
                         asyncio.wait_for(wait_for_drain(info.message_queue), timeout=timeout)

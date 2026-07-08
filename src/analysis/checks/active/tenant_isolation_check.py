@@ -12,7 +12,7 @@ from src.analysis.active.tenant_isolation import (
     run_tenant_isolation_probes,
 )
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
 
 logger = logging.getLogger(__name__)

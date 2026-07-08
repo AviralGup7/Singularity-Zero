@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import DOMPurify from 'dompurify';
 import { cockpitApi } from '@/api/cockpit';
 import type { CockpitNode, ForensicExchange } from '@/api/cockpit';
 import { createNote, getNotes } from '@/api/notes';
-import type { MeshHealth, MigrationEvent } from '@/types/api';
+import type { MeshHealth } from '@/types/api';
 import { useSSEProgress } from '@/hooks/useSSEProgress';
 import { useToast } from '@/hooks/useToast';
 import { startJob, stopJob, restartJob, pauseJob, resumeJob } from '@/api/jobs';
@@ -14,13 +13,9 @@ import { useCockpitGraph } from '@/hooks/useCockpitGraph';
 import { ScanControlDeck } from '@/components/cockpit/ScanControlDeck';
 import { GraphLegend } from '@/components/cockpit/GraphLegend';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { ScopeWarningBanner } from '@/components/scope/ScopeComplianceBadge';
 import { validateUrl } from '@/lib/utils';
-import { CockpitHeader, CockpitCenterViewport, CockpitSidebar, CockpitSetupView } from './cockpit';
-
-function sanitizeHtml(str: string): string {
-  return DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOW_DATA_ATTR: false });
-}
+import DOMPurify from 'dompurify';
+import { CockpitSetupView, CockpitHeader, CockpitCenterViewport, CockpitSidebar } from '@/pages/cockpit';
 
 function metadataText(metadata: CockpitNode['metadata'], key: string): string {
   const value = metadata ? Reflect.get(metadata, key) : undefined;
@@ -38,10 +33,10 @@ export function CockpitPage() {
   const rawJobId = searchParams.get('job_id') || '';
   const rawFocus = searchParams.get('focus') || '';
 
-  const target = sanitizeHtml(rawTarget);
-  const run = rawRun ? sanitizeHtml(rawRun) : undefined;
-  const jobId = rawJobId ? sanitizeHtml(rawJobId) : undefined;
-  const focusFindingId = sanitizeHtml(rawFocus);
+  const target = DOMPurify.sanitize(rawTarget);
+  const run = rawRun ? DOMPurify.sanitize(rawRun) : undefined;
+  const jobId = rawJobId ? DOMPurify.sanitize(rawJobId) : undefined;
+  const focusFindingId = DOMPurify.sanitize(rawFocus);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -52,33 +47,9 @@ export function CockpitPage() {
   const [now, setNow] = useState(() => Date.now());
   const [activeCenterTab, setActiveCenterTab] = useState<'3d' | '2d' | 'chains'>('3d');
 
-  const cockpitLayout = useSettingsStore((state) => state.settings.cockpitLayout);
-  const updateCockpitLayout = useSettingsStore((state) => state.updater.updateSection);
-  const setSidebarTab = useCallback(
-    (tab: 'intel' | 'chains' | 'forensics') => updateCockpitLayout('cockpitLayout', { sidebarTab: tab }),
-    [updateCockpitLayout]
-  );
-  const setIsDeckOpen = useCallback(
-    (open: boolean) => updateCockpitLayout('cockpitLayout', { deckOpen: open }),
-    [updateCockpitLayout]
-  );
-  const setScanMode = useCallback(
-    (mode: 'safe' | 'aggressive') => updateCockpitLayout('cockpitLayout', { scanMode: mode }),
-    [updateCockpitLayout]
-  );
-  const { sidebarTab, deckOpen: isDeckOpen, scanMode } = cockpitLayout;
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(id);
-  }, []);
-
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>([
-    'subdomain_enum',
-    'url_discovery',
-    'port_scan',
-    'httpx',
+    'subdomain_enum', 'url_discovery', 'port_scan', 'httpx',
   ]);
   const [launchingScan, setLaunchingScan] = useState(false);
   const [stoppingScan, setStoppingScan] = useState(false);
@@ -89,37 +60,29 @@ export function CockpitPage() {
 
   const [scanDepth, setScanDepth] = useState<number>(3);
   const [scanConcurrency, setScanConcurrency] = useState<number>(10);
-  const [scanRateLimit] = useState<number>(50);
-  const [excludedPaths] = useState<string>('');
-  const [selectedProject, setSelectedProject] = useState<import('@/api/projects').Project | null>(null);
+  const [scanRateLimit, setScanRateLimit] = useState<number>(50);
+  const [excludedPaths, setExcludedPaths] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string; scope: string; rewards?: string } | null>(null);
 
-  const { nodes, edges, chains, loading, applyGraph, notes, setNotes, exchanges, setExchanges, meshHealth, migrations, handleMeshHealth, handleMigrationEvent } =
+  const { nodes, edges, chains, loading, notes, setNotes, exchanges, meshHealth, migrations, handleMeshHealth, handleMigrationEvent } =
     useCockpitData({ target, run, jobId });
   const { activeJob, activeJobId, setActiveJobId } = useActiveJob(jobId);
 
-  useEffect(() => {
-    if (target) {
-      setInputTarget(target);
-    }
-  }, [target]);
+  useEffect(() => { if (target) setInputTarget(target); }, [target]);
 
-  const { requestGraphUpdate } = useCockpitGraph(applyGraph, target, run, jobId, activeJobId);
+  const { requestGraphUpdate } = useCockpitGraph(undefined, target, run, jobId, activeJobId);
 
   useEffect(() => {
     if (focusFindingId && nodes.length > 0) {
       const targetNode = nodes.find(
-        (n) =>
-          n.id === focusFindingId ||
-          n.id === `finding:${focusFindingId}` ||
-          n.metadata?.finding_id === focusFindingId
+        (n) => n.id === focusFindingId || n.id === `finding:${focusFindingId}` || n.metadata?.finding_id === focusFindingId,
       );
       if (targetNode) {
         setSelectedNodeId(targetNode.id);
         setSidebarOpen(true);
-        setSidebarTab('intel');
       }
     }
-  }, [focusFindingId, nodes, setSidebarTab]);
+  }, [focusFindingId, nodes]);
 
   const targetRef = useRef(target);
   const runRef = useRef(run);
@@ -131,6 +94,22 @@ export function CockpitPage() {
   useEffect(() => { jobIdRef.current = jobId; }, [jobId]);
   useEffect(() => { activeJobIdRef.current = activeJobId; }, [activeJobId]);
 
+  const cockpitLayout = useSettingsStore((state) => state.settings.cockpitLayout);
+  const updateCockpitLayout = useSettingsStore((state) => state.updater.updateSection);
+  const setSidebarTab = useCallback(
+    (tab: 'intel' | 'chains' | 'forensics') => updateCockpitLayout('cockpitLayout', { sidebarTab: tab }),
+    [updateCockpitLayout],
+  );
+  const setIsDeckOpen = useCallback(
+    (open: boolean) => updateCockpitLayout('cockpitLayout', { deckOpen: open }),
+    [updateCockpitLayout],
+  );
+  const setScanMode = useCallback(
+    (mode: 'safe' | 'aggressive') => updateCockpitLayout('cockpitLayout', { scanMode: mode }),
+    [updateCockpitLayout],
+  );
+  const { sidebarTab, deckOpen: isDeckOpen, scanMode } = cockpitLayout;
+
   useSSEProgress({
     jobId: activeJobId,
     enabled: Boolean(activeJobId),
@@ -139,8 +118,7 @@ export function CockpitPage() {
         handleMeshHealth(event.data as unknown as MeshHealth);
       } else if (event.event_type === 'migration_event') {
         const data = event.data as Record<string, unknown>;
-        const migration = handleMigrationEvent(event.id, data);
-        toast.info(`Agent Migration: ${sanitizeHtml(migration.actor_id)} to ${sanitizeHtml(migration.target_node)}`);
+        handleMigrationEvent(event.id, data);
         requestGraphUpdate(targetRef.current, runRef.current, activeJobIdRef.current || jobIdRef.current);
       } else if (
         event.event_type === 'finding_batch' ||
@@ -153,23 +131,25 @@ export function CockpitPage() {
     },
   });
 
-  const handleSelectNode = useCallback((id: string) => {
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleSelectNode = (id: string) => {
     setSelectedNodeId(id);
     setSelectedExchange(null);
     setSidebarOpen(true);
-    setSidebarTab('intel');
-  }, [setSidebarTab]);
+  };
 
-  const handleOpenForensic = useCallback(async (id: string) => {
+  const handleOpenForensic = async (id: string) => {
     try {
       const { data } = await cockpitApi.getForensicExchange(target, id);
       setSelectedExchange(data);
-    } catch {
-      toast.error('Failed to open forensic exchange');
-    }
-  }, [target, toast]);
+    } catch { toast.error('Failed to open forensic exchange'); }
+  };
 
-  const handleTriggerProbe = useCallback(async () => {
+  const handleTriggerProbe = async () => {
     const selectedNode = nodes.find((node) => node.id === selectedNodeId);
     const selectedNodeUrl = selectedNode ? metadataText(selectedNode.metadata, 'url') : '';
     if (!selectedNodeUrl) return;
@@ -177,14 +157,11 @@ export function CockpitPage() {
       setProbing(true);
       await cockpitApi.triggerProbe(target, selectedNodeUrl);
       toast.success('Forensic probe launched');
-    } catch {
-      toast.error('Probe sequence failed');
-    } finally {
-      setProbing(false);
-    }
-  }, [nodes, selectedNodeId, target, toast]);
+    } catch { toast.error('Probe sequence failed');
+    } finally { setProbing(false); }
+  };
 
-  const handleAddNote = useCallback(async () => {
+  const handleAddNote = async () => {
     if (!newNote.trim() || !selectedNodeId) return;
     try {
       const selectedNode = nodes.find((node) => node.id === selectedNodeId);
@@ -199,34 +176,27 @@ export function CockpitPage() {
       });
       setNewNote('');
       getNotes(target).then((res) => setNotes(res.notes));
-    } catch {
-      toast.error('Failed to add note');
-    }
-  }, [newNote, selectedNodeId, nodes, target, setNotes, toast]);
+    } catch { toast.error('Failed to add note'); }
+  };
 
-  const handleDeleteNote = useCallback(async (noteId: string) => {
+  const handleDeleteNote = async (noteId: string) => {
     if (!target) return;
     try {
       const { deleteNote } = await import('@/api/notes');
       await deleteNote(target, noteId);
       getNotes(target).then((res) => setNotes(res.notes));
       toast.success('Note removed');
-    } catch {
-      toast.error('Failed to remove note');
-    }
-  }, [target, setNotes, toast]);
+    } catch { toast.error('Failed to remove note'); }
+  };
 
-  const handleStartScan = useCallback(async () => {
+  const handleStartScan = async () => {
     if (!inputTarget.trim() && !selectedProject) {
       toast.error('Please enter a target URL/host or select a project');
       return;
     }
     if (inputTarget.trim()) {
       const validation = validateUrl(inputTarget);
-      if (!validation.valid) {
-        toast.error(validation.error!);
-        return;
-      }
+      if (!validation.valid) { toast.error(validation.error!); return; }
     }
     try {
       setLaunchingScan(true);
@@ -247,85 +217,53 @@ export function CockpitPage() {
       navigate({ search: params.toString() });
       toast.success(selectedProject ? `${selectedProject.name} scan launched` : 'Multi-stage cyber pipeline successfully launched');
     } catch (error) {
+      console.error(error);
       toast.error('Failed to initiate cyber pipeline');
-    } finally {
-      setLaunchingScan(false);
-    }
-  }, [inputTarget, selectedProject, scanMode, selectedModules, scanDepth, scanConcurrency, scanRateLimit, excludedPaths, setActiveJobId, navigate, toast]);
+    } finally { setLaunchingScan(false); }
+  };
 
-  const handleStopScan = useCallback(async () => {
+  const handleStopScan = async () => {
     if (!activeJobId) return;
-    try {
-      setStoppingScan(true);
-      await stopJob(activeJobId);
-      toast.success('Pipeline scan termination requested');
-    } catch {
-      toast.error('Termination request failed');
-    } finally {
-      setStoppingScan(false);
-    }
-  }, [activeJobId, toast]);
+    try { setStoppingScan(true); await stopJob(activeJobId); toast.success('Pipeline scan termination requested'); }
+    catch (error) { console.error(error); toast.error('Termination request failed'); }
+    finally { setStoppingScan(false); }
+  };
 
-  const handleRestartScan = useCallback(async () => {
+  const handleRestartScan = async () => {
     if (!activeJobId) return;
-    try {
-      setRestartingScan(true);
-      await restartJob(activeJobId);
-      toast.success('Safe restart initiated');
-    } catch {
-      toast.error('Safe restart failed');
-    } finally {
-      setRestartingScan(false);
-    }
-  }, [activeJobId, toast]);
+    try { setRestartingScan(true); await restartJob(activeJobId); toast.success('Safe restart initiated'); }
+    catch (error) { console.error(error); toast.error('Safe restart failed'); }
+    finally { setRestartingScan(false); }
+  };
 
-  const handlePauseScan = useCallback(async () => {
+  const handlePauseScan = async () => {
     if (!activeJobId) return;
-    try {
-      setPausingScan(true);
-      await pauseJob(activeJobId);
-      toast.success('Scan pause requested');
-    } catch {
-      toast.error('Pause request failed');
-    } finally {
-      setPausingScan(false);
-    }
-  }, [activeJobId, toast]);
+    try { setPausingScan(true); await pauseJob(activeJobId); toast.success('Scan pause requested'); }
+    catch (error) { console.error(error); toast.error('Pause request failed'); }
+    finally { setPausingScan(false); }
+  };
 
-  const handleResumeScan = useCallback(async () => {
+  const handleResumeScan = async () => {
     if (!activeJobId) return;
-    try {
-      setResumingScan(true);
-      await resumeJob(activeJobId);
-      toast.success('Scan resumed');
-    } catch {
-      toast.error('Resume failed');
-    } finally {
-      setResumingScan(false);
-    }
-  }, [activeJobId, toast]);
+    try { setResumingScan(true); await resumeJob(activeJobId); toast.success('Scan resumed'); }
+    catch (error) { console.error(error); toast.error('Resume failed'); }
+    finally { setResumingScan(false); }
+  };
 
-  const handleClearScan = useCallback(() => {
+  const handleClearScan = () => {
     setActiveJobId(undefined);
     const params = new URLSearchParams(window.location.search);
     params.delete('job_id');
     navigate({ search: params.toString() });
-  }, [setActiveJobId, navigate]);
+  };
 
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.id === selectedNodeId),
-    [nodes, selectedNodeId]
-  );
+  const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId), [nodes, selectedNodeId]);
+  const hoveredNode = useMemo(() => nodes.find((node) => node.id === hoveredNodeId), [nodes, hoveredNodeId]);
   const selectedNodeUrl = selectedNode ? metadataText(selectedNode.metadata, 'url') : '';
 
   const stats = useMemo(() => {
     const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-    nodes.forEach((n) => {
-      const sev = n.severity?.toLowerCase();
-      if (sev in counts) {
-        counts[sev as keyof typeof counts]++;
-      }
-    });
+    nodes.forEach((n) => { const sev = n.severity?.toLowerCase(); if (sev in counts) counts[sev as keyof typeof counts]++; });
     return counts;
   }, [nodes]);
 
@@ -338,6 +276,7 @@ export function CockpitPage() {
         setScanMode={setScanMode}
         onStartScan={handleStartScan}
         launchingScan={launchingScan}
+        selectedModules={selectedModules}
         setSelectedModules={setSelectedModules}
         selectedProject={selectedProject}
         setSelectedProject={setSelectedProject}
@@ -351,8 +290,6 @@ export function CockpitPage() {
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#030508] text-text font-sans">
-      <ScopeWarningBanner asset={inputTarget || target} />
-
       <CockpitHeader target={target} activeJob={activeJob} stats={stats} />
 
       <div className="flex-1 flex items-stretch overflow-hidden relative">
@@ -386,54 +323,64 @@ export function CockpitPage() {
             scanConcurrency={scanConcurrency}
             setScanConcurrency={setScanConcurrency}
             scanRateLimit={scanRateLimit}
-            setScanRateLimit={() => {}}
+            setScanRateLimit={setScanRateLimit}
             excludedPaths={excludedPaths}
-            setExcludedPaths={() => {}}
+            setExcludedPaths={setExcludedPaths}
             selectedProject={selectedProject}
             setSelectedProject={setSelectedProject}
             className="w-full bg-transparent p-6 shadow-none max-h-none h-full border-none relative left-0 top-0 overflow-y-visible"
           />
         </div>
 
-        <CockpitCenterViewport
-          activeCenterTab={activeCenterTab}
-          setActiveCenterTab={setActiveCenterTab}
-          nodes={nodes}
-          edges={edges}
-          chains={chains}
-          selectedNodeId={selectedNodeId}
-          hoveredNodeId={hoveredNodeId}
-          onSelectNode={handleSelectNode}
-          onHoverNode={setHoveredNodeId}
-          loading={loading}
-          onFindingSelect={(findingId: string) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
-        />
-
-        <div className="flex-shrink-0">
+        <div className="flex-1 flex flex-col items-stretch bg-[#020305] relative overflow-hidden">
+          <CockpitCenterViewport
+            activeCenterTab={activeCenterTab}
+            setActiveCenterTab={setActiveCenterTab}
+            nodes={nodes}
+            edges={edges}
+            chains={chains}
+            selectedNodeId={selectedNodeId}
+            hoveredNodeId={hoveredNodeId}
+            onSelectNode={handleSelectNode}
+            onHoverNode={setHoveredNodeId}
+            loading={loading}
+            onFindingSelect={(findingId) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
+          />
           <GraphLegend nodes={nodes} edges={edges} meshHealth={meshHealth} migrations={migrations} now={now} />
         </div>
 
-        <CockpitSidebar
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          sidebarTab={sidebarTab}
-          setSidebarTab={setSidebarTab}
-          selectedNode={selectedNode}
-          selectedNodeUrl={selectedNodeUrl}
-          notes={notes}
-          newNote={newNote}
-          setNewNote={setNewNote}
-          onAddNote={handleAddNote}
-          onTriggerProbe={handleTriggerProbe}
-          onDrillToFinding={(findingId: string) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
-          onDeleteNote={handleDeleteNote}
-          target={target}
-          probing={probing}
-          selectedExchange={selectedExchange}
-          setSelectedExchange={setSelectedExchange}
-          exchanges={exchanges}
-          onOpenForensic={handleOpenForensic}
-        />
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.aside
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              className="flex"
+            >
+              <CockpitSidebar
+                sidebarOpen={sidebarOpen}
+                setSidebarOpen={setSidebarOpen}
+                sidebarTab={sidebarTab}
+                setSidebarTab={setSidebarTab}
+                selectedNode={selectedNode}
+                selectedNodeUrl={selectedNodeUrl}
+                notes={notes}
+                newNote={newNote}
+                setNewNote={setNewNote}
+                onAddNote={handleAddNote}
+                onTriggerProbe={handleTriggerProbe}
+                onDrillToFinding={(findingId) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
+                onDeleteNote={handleDeleteNote}
+                target={target}
+                probing={probing}
+                selectedExchange={selectedExchange}
+                setSelectedExchange={setSelectedExchange}
+                exchanges={exchanges}
+                onOpenForensic={handleOpenForensic}
+              />
+            </motion.aside>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

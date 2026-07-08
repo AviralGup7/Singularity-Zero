@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from src.core.frontier.ghost_actor import ScanActor
+from src.infrastructure.frontier.ghost_actor import ScanActor
 from src.infrastructure.frontier.wal import FrontierWAL
 
 

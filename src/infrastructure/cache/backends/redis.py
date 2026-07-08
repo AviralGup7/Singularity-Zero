@@ -228,6 +228,7 @@ class RedisBackend:
                 "used_memory_bytes": info.get("used_memory", 0),
             }
         except Exception as exc:
+            logger.warning("RedisBackend: get_stats failed: %s", exc, exc_info=True)
             return {
                 "backend": "redis",
                 "url": self._url,
@@ -278,6 +279,7 @@ class RedisBackend:
         except CircuitBreakerOpenException:
             raise
         except Exception:
+            logger.warning("RedisBackend: Circuit breaker call failed", exc_info=True)
             self._client = None
             raise
 

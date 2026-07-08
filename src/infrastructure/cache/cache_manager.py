@@ -65,8 +65,23 @@ class CacheManager:
         self._bloom_filter: NeuralBloomFilter | None = None
         self._closed = False
 
+        self._register_with_lifecycle()
+
         if self._config.warm_on_init:
             self._warm_cache()
+
+    def _register_with_lifecycle(self) -> None:
+        """Register close() with the lifecycle manager for ordered shutdown."""
+        try:
+            from src.core.lifecycle import get_lifecycle_manager
+
+            get_lifecycle_manager().register_shutdown(
+                "cache_manager",
+                self.close,
+                after=[],
+            )
+        except ImportError:
+            pass
 
     def set_bloom_synchronizer(self, synchronizer: NeuralBloomMesh | BloomMeshSynchronizer) -> None:
         """Register the active Bloom mesh synchronizer."""

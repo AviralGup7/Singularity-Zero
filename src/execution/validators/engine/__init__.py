@@ -23,7 +23,7 @@ from src.execution.validators.engine_helpers import (
 )
 
 from ._base import BaseValidator, ValidationContext
-from ._http_client import ValidationHttpClient, ValidationHttpConfig
+from ._http_client import RetryPolicyProtocol, ValidationHttpClient, ValidationHttpConfig
 from ._runner import build_validator_registry, run_blackbox_validation_engine
 from ._validators import (
     CsrfValidator,
@@ -33,17 +33,18 @@ from ._validators import (
     SsrfValidator,
     SstiValidator,
     TokenReuseValidator,
-    XssValidator,
+    XSSValidator,
 )
 from ._validators_extra import (
     CachePoisoningValidator,
     CorsValidator,
     GraphqlValidator,
-    JwtValidator,
+    JWTValidator,
     RaceConditionValidator,
 )
 
 __all__ = [
+    "RetryPolicyProtocol",
     "ValidationHttpConfig",
     "ValidationHttpClient",
     "ValidationContext",
@@ -53,11 +54,11 @@ __all__ = [
     "TokenReuseValidator",
     "IdorValidator",
     "CsrfValidator",
-    "XssValidator",
+    "XSSValidator",
     "SstiValidator",
     "FileUploadValidator",
     "CorsValidator",
-    "JwtValidator",
+    "JWTValidator",
     "CachePoisoningValidator",
     "GraphqlValidator",
     "RaceConditionValidator",

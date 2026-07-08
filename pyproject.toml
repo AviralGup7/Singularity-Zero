@@ -35,7 +35,7 @@ dependencies = [
     "sqlalchemy==2.0.30",
     "alembic==1.14.0",
     "aiosqlite==0.20.0",
-    "numpy>=2.2.0,<3.0",
+    "numpy==2.2.0",
     "Pillow==12.2.0",
     "networkx==3.0.0",
     "beartype==0.20.1",
@@ -45,15 +45,18 @@ dependencies = [
     "msgpack==1.0.0",
     "cloudpickle==3.0.0",
     "watchfiles==1.0.4",
-    "scipy>=1.14.0",
+    "scipy==1.14.0",
     "pykka==4.0.0",
 ]
 
 [project.scripts]
 cstp = "src.cli:main"
 cyber-pipeline = "src.pipeline.runtime:main"
+cstp-pipeline = "src.pipeline.runtime:main"
 cyber-worker = "src.infrastructure.queue.worker_lite:main"
+cstp-worker = "src.infrastructure.queue.worker_lite:main"
 cyber-dashboard-fastapi = "src.dashboard.fastapi.main:main"
+cstp-dashboard = "src.dashboard.fastapi.main:main"
 
 [project.optional-dependencies]
 dev = [
@@ -160,22 +163,16 @@ extend-exclude = [
 select = ["E", "F", "I", "N", "W", "UP", "S601", "S603", "S607", "S608"]
 ignore = [
     "E501",
-    "BLE001",
     "S101",
     "S102",
     "S103",
     "S104",
-    "S105",
     "S106",
     "S107",
-    "S108",
-    "S110",
-    "S112",
     "S313",
     "S314",
     "S310",
     "S311",
-    "S324",
     "E701",
     "E402",
     "N806",

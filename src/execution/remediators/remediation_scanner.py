@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class RemediationScanner:
     """Orchestrates re-testing of remediated findings using AEVE proof bundles."""
 
-    def __init__(self, use_wasm_sandbox: bool = True):
+    def __init__(self, use_wasm_sandbox: bool = True) -> None:
         self.aeve = AEVE(use_wasm_sandbox=use_wasm_sandbox)
 
     async def verify_remediation(

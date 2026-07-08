@@ -2,7 +2,7 @@ import hashlib
 import time
 from typing import Any
 
-from src.pipeline.unified_cache import UnifiedCache
+from src.pipeline.unified_cache import UnifiedCache, get_unified_cache
 
 _TTL_SECONDS = 24 * 3600
 
@@ -11,7 +11,7 @@ class ScreenshotBaselineStore:
     """Baseline manager mapping targets, URLs, and viewports to prior screenshots and DOM states."""
 
     def __init__(self, cache: UnifiedCache | None = None) -> None:
-        self.cache = cache if cache is not None else UnifiedCache()
+        self.cache = cache if cache is not None else get_unified_cache()
 
     def _get_baseline_key(self, target: str, url: str, viewport: str) -> str:
         target_hash = hashlib.sha256(target.encode("utf-8")).hexdigest()

@@ -290,7 +290,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def query_{name}(domain: str, *, timeout: int = 30) -> set[str]:
+async def query_{name}(domain: str, *, timeout: int = 30) -> set[str]:  # noqa: F722
     """Return a set of discovered subdomains/URLs for ``domain``.
 
     Args:
@@ -301,7 +301,7 @@ async def query_{name}(domain: str, *, timeout: int = 30) -> set[str]:
         A ``set`` of subdomain/URL strings. Empty on error.
     """
     # TODO: Implement custom recon scanning logic
-    logger.info("{name}: noop recon source for %s", domain)
+    logger.info("%s: noop recon source for %s", name, domain)
     return set()
 '''
     elif category == "exploit":

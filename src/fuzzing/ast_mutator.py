@@ -12,7 +12,7 @@ import random
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 import defusedxml.ElementTree as ET  # noqa: N817
 
@@ -63,7 +63,7 @@ class BaseASTMutator(ABC):
 class JSONASTMutator(BaseASTMutator):
     """Mutates JSON payloads by traversing their AST and applying syntactic transformations."""
 
-    def __init__(self, strategies: list[Any] | None = None):
+    def __init__(self, strategies: list[Any] | None = None) -> None:
         super().__init__()
         self.strategies = (
             strategies
@@ -191,7 +191,7 @@ class XMLASTMutator(BaseASTMutator):
             return None
         idx1, idx2 = random.sample(range(len(children)), 2)
         root[idx1], root[idx2] = root[idx2], root[idx1]
-        return cast(str, ET.tostring(root, encoding="unicode"))
+        return ET.tostring(root, encoding="unicode")
 
     def _deeply_nest(self, xml_str: str) -> str | None:
         """Nest an element deeply to test parser stack limits."""
@@ -205,7 +205,7 @@ class XMLASTMutator(BaseASTMutator):
             wrapper = ET.Element("nested")
             wrapper.append(target)
             target = wrapper
-        return cast(str, ET.tostring(root, encoding="unicode"))
+        return ET.tostring(root, encoding="unicode")
 
     def _inject_entities(self, xml_str: str) -> str | None:
         """Inject XXE / entity-related payloads."""

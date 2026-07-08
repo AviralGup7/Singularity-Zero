@@ -98,12 +98,23 @@ export function AnimatedCounter({
   }, [value, isInView, motionVal]);
 
   return (
-    <motion.span
-      ref={spanRef}
-      className={cn('tabular-nums', className)}
-    >
-      {display}
-    </motion.span>
+    <>
+      <motion.span
+        ref={spanRef}
+        className={cn('tabular-nums', className)}
+        aria-hidden="true"
+      >
+        {display}
+      </motion.span>
+      <span
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {prefix}{formatValue(value, format, decimals)}{suffix}
+      </span>
+    </>
   );
 }
 

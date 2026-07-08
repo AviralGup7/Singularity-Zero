@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Command, CommandGroup, CommandList, CommandItem, CommandInput, CommandEmpty } from '@/components/ui-shadcn/command';
 import { Icon } from '../ui/Icon';
 import { globalSearch, type GlobalSearchResult } from '@/api/search';
 
@@ -117,22 +118,32 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     return [...localItems, ...uniqueBackend];
   }, [items, query, backendResults]);
 
+  const SECTION_MAP: Record<string, string> = {
+    page: 'Navigation',
+    action: 'Actions',
+    target: 'Recent',
+    job: 'Recent',
+    finding: 'Recent',
+  };
+
+  const SECTION_ORDER = ['Navigation', 'Actions', 'Recent'];
+
   const grouped = useMemo(() => {
     const result = new Map<string, SearchableItem[]>();
     for (const item of filtered) {
-      const existing = result.get(item.type);
+      const section = SECTION_MAP[item.type] ?? 'Recent';
+      const existing = result.get(section);
       if (existing) {
         existing.push(item);
       } else {
-   
-        result.set(item.type, [item]);
+        result.set(section, [item]);
       }
     }
     return result;
-   
+    
   }, [filtered]);
 
-   
+    
   const flatResults = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
 
   const typeLabels = new Map<string, string>([
@@ -213,6 +224,17 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
 
   if (!open) return null;
 
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = useCallback((section: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  }, []);
+
   let globalIndex = 0;
 
   return (
@@ -229,123 +251,95 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       tabIndex={0}
       aria-label="Close command palette"
     >
-      <div 
-        className="command-palette" 
-        role="combobox" 
-        aria-expanded={open} 
-        aria-haspopup="listbox" 
-        aria-controls="command-palette-listbox"
+      <Command className="command-palette"
         onClick={e => e.stopPropagation()}
         onKeyDown={e => e.stopPropagation()}
         tabIndex={0}
+        shouldFilter={false}
       >
-        <div className="command-palette-input">
-          <Icon name="search" size={18} className="command-palette-icon" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search targets, jobs, findings..."
-            value={query}
-            onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-            onKeyDown={handleKeyDown}
-            aria-label="Search"
-            aria-autocomplete="list"
-            aria-controls="command-palette-listbox"
-            aria-activedescendant={flatResults.at(clampedIndex) ? `item-${flatResults.at(clampedIndex)?.id}` : undefined}
-          />
-          <kbd className="command-palette-kbd">ESC</kbd>
-        </div>
+        <CommandInput
+          placeholder="Search targets, jobs, findings..."
+          value={query}
+          onValueChange={v => { setQuery(v); setSelectedIndex(0); }}
+          onKeyDown={handleKeyDown}
+        />
 
-        <div className="command-palette-body">
+        <CommandList>
           {query.length === 0 && recentSearches.length > 0 && (
-            <div className="command-palette-recent">
-              <h4>Recent Searches</h4>
-              <ul>
-                {recentSearches.slice(0, 5).map(r => (
-                  <li key={r}>
-                    <button
-                      onClick={() => setQuery(r)}
-                      onKeyDown={e => e.key === 'Enter' && setQuery(r)}
-                      className="command-palette-recent-btn"
-                    >
-                      <Icon name="clock" size={14} />
-                      {r}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            <div className="command-palette-empty">
+              <h4 className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Searches</h4>
+              {recentSearches.slice(0, 5).map(r => (
+                <CommandItem key={r} onSelect={() => setQuery(r)}>
+                  <Icon name="clock" size={14} />
+                  {r}
+                </CommandItem>
+              ))}
             </div>
           )}
 
           {query.length > 0 && flatResults.length === 0 && !isSearching && (
-            <div className="command-palette-empty">
-              <Icon name="search" size={24} />
-              <p>No results for "{query}"</p>
-            </div>
+            <CommandEmpty>No results found</CommandEmpty>
           )}
 
           {isSearching && (
-            <div className="command-palette-empty">
-              <Icon name="search" size={24} className="animate-pulse" />
+            <div className="command-palette-empty py-8 text-center text-sm text-muted-foreground">
+              <Icon name="search" size={24} className="animate-pulse mx-auto mb-2" />
               <p>Searching...</p>
             </div>
           )}
 
           {flatResults.length > 0 && (
-            <ul 
-              className="command-palette-results" 
-              ref={listRef} 
-              role="listbox" 
-              id="command-palette-listbox"
-            >
-              {Array.from(grouped.entries()).map(([type, groupItems]) => (
-                <li key={type} className="command-palette-group" role="presentation">
-                  <div className="command-palette-group-header">
-                    <Icon name={typeIcons.get(type) ?? 'file'} size={14} />
-                    {typeLabels.get(type) ?? type}
+            <>
+              {Array.from(grouped.entries()).map(([section, groupItems]) => {
+                const isCollapsed = collapsedSections.has(section);
+                return (
+                  <div key={section}>
+                    <button
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                      onClick={() => toggleSection(section)}
+                    >
+                      <Icon name="chevron-right" size={12} className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+                      {section}
+                      <span className="ml-auto text-[10px] text-muted-foreground/60">{groupItems.length}</span>
+                    </button>
+                    {!isCollapsed && (
+                      <CommandGroup>
+                        {groupItems.map(item => {
+                          const index = globalIndex++;
+                          return (
+                            <CommandItem
+                              key={item.id}
+                              value={item.id}
+                              onSelect={() => handleSelect(item)}
+                              onMouseEnter={() => setSelectedIndex(index)}
+                            >
+                              <div className="command-palette-item-content flex-1">
+                                <span className="command-palette-item-title">{item.title}</span>
+                                {item.subtitle && (
+                                  <span className="command-palette-item-subtitle text-xs text-muted-foreground ml-2">{item.subtitle}</span>
+                                )}
+                              </div>
+                              {item.meta && (
+                                <span className="command-palette-item-meta text-[10px] text-muted-foreground">{item.meta}</span>
+                              )}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    )}
                   </div>
-                  <ul role="presentation">
-                    {groupItems.map(item => {
-                      const index = globalIndex++;
-                      const selected = index === clampedIndex;
-                      return (
-                        <li
-                          key={item.id}
-                          id={`item-${item.id}`}
-                          role="option"
-                          aria-selected={selected}
-                          data-selected={selected}
-                          tabIndex={-1}
-                          className={`command-palette-item ${selected ? 'selected' : ''}`}
-                          onClick={() => handleSelect(item)}
-                          onKeyDown={e => e.key === 'Enter' && handleSelect(item)}
-                          onMouseEnter={() => setSelectedIndex(index)}
-                        >
-                          <div className="command-palette-item-content">
-                            <span className="command-palette-item-title">{item.title}</span>
-                            {item.subtitle && (
-                              <span className="command-palette-item-subtitle">{item.subtitle}</span>
-                            )}
-                          </div>
-                          {item.meta && (
-                            <span className="command-palette-item-meta">{item.meta}</span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </li>
-              ))}
-            </ul>
+                );
+              })}
+            </>
           )}
-        </div>
+        </CommandList>
 
-        <div className="command-palette-footer">
+        <div className="command-palette-footer border-t border-border px-3 py-2 flex gap-3 text-[10px] text-muted-foreground">
           <span><kbd className="command-palette-kbd-sm">↑↓</kbd> Navigate</span>
           <span><kbd className="command-palette-kbd-sm">↵</kbd> Select</span>
           <span><kbd className="command-palette-kbd-sm">ESC</kbd> Close</span>
         </div>
-      </div>
+      </Command>
     </div>
   );
 }

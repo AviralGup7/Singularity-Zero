@@ -1,21 +1,6 @@
 import { useState } from 'react';
 import { SettingsSectionCard, SettingToggle, SettingInput } from '../SettingsComponents';
 
-interface _WebhookConfig {
-  enabled: boolean;
-  url: string;
-  events: string[];
-  secret: string;
-}
-
-interface _SlackConfig {
-  enabled: boolean;
-  webhookUrl: string;
-  channel: string;
-  username: string;
-  iconEmoji: string;
-}
-
 interface NotificationsSectionProps {
   jobCompleteNotification: boolean;
   jobFailedNotification: boolean;

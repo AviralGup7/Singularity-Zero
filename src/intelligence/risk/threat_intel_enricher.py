@@ -124,7 +124,8 @@ class ThreatIntelEnricher:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
                 self._correlator = ThreatIntelCorrelator()
-            except Exception:  # noqa: BLE001
+            except Exception:
+                logger.warning("ThreatIntelEnricher: Failed to load correlator", exc_info=True)
                 self._correlator = None
         return self._correlator
 
@@ -138,13 +139,14 @@ class ThreatIntelEnricher:
         if self._network_enabled:
             try:
                 cves = self._extract_cves(finding)
-            except Exception:  # noqa: BLE001
+            except Exception:
+                logger.warning("ThreatIntelEnricher: Failed to extract CVEs from finding", exc_info=True)
                 cves = []
             for cve in cves:
                 try:
                     record = self._get_epss().lookup(cve)
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("ThreatIntelEnricher: EPSS lookup failed for %s: %s", cve, exc)
+                except Exception as exc:
+                    logger.warning("ThreatIntelEnricher: EPSS lookup failed for %s: %s", cve, exc, exc_info=True)
                     record = None
                 if record is None:
                     continue
@@ -164,8 +166,8 @@ class ThreatIntelEnricher:
             for cve in cves:
                 try:
                     record = self._get_kev().lookup(cve)
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("ThreatIntelEnricher: KEV lookup failed for %s: %s", cve, exc)
+                except Exception as exc:
+                    logger.warning("ThreatIntelEnricher: KEV lookup failed for %s: %s", cve, exc, exc_info=True)
                     record = None
                 if record is None:
                     continue
@@ -186,8 +188,8 @@ class ThreatIntelEnricher:
                         summary.ioc_correlation = ioc
                         summary.ioc_malicious = bool(ioc.get("malicious"))
                         summary.sources.append("ioc_correlator")
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("ThreatIntelEnricher: IOC correlator failed: %s", exc)
+            except Exception as exc:
+                logger.warning("ThreatIntelEnricher: IOC correlator failed: %s", exc, exc_info=True)
 
         return summary
 
@@ -225,8 +227,8 @@ class ThreatIntelEnricher:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                logger.warning("ThreatIntelEnricher: Failed to correlate CVEs from category", exc_info=True)
         return [c for c in cves if c]
 
     @staticmethod

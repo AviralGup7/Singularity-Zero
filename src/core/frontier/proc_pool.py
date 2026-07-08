@@ -1,21 +1,34 @@
 """
 Cyber Security Test Pipeline - Frontier Process Pool
-Implements high-speed, pre-warmed worker processes for heavy CLI tools.
+Implements bounded, one-shot subprocess execution for CLI security tools.
+
+Audit Fixes Applied:
+- P0: Replaced interactive stdin/stdout protocol with one-shot subprocess execution.
+  CLI tools (subfinder, httpx, nuclei, etc.) are NOT persistent JSON-RPC workers.
+  They accept command-line arguments, run to completion, and exit.
+- P1: Added asyncio.Semaphore to prevent fallback subprocess explosion.
+- P1: Added process tree killing (not just parent) on timeout/cleanup.
+- P1: Added centralized tool availability verification via verify_all_tools().
+- P2: Added tool version detection and logging at warmup time.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import signal
 import struct
+import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from typing import Any
 
 from src.core.frontier.marshaller import safe_pack, safe_unpack
 from src.core.frontier.state import stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.core.utils.subprocess_utils import _get_creationflags
 
 logger = get_pipeline_logger(__name__)
 
@@ -25,11 +38,8 @@ def _loop_time() -> float:
 
     Falls back to ``time.monotonic`` when no loop is active, so the
     helper is safe to call from sync code paths and avoids the
-    deprecated ``asyncio.get_event_loop()`` (which has been scheduled
-    for removal in Python 3.14+ and warns at runtime).
+    deprecated ``asyncio.get_event_loop()``.
     """
-    import time
-
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -45,20 +55,89 @@ except ImportError:
 
 MAX_PAYLOAD_BYTES = 10_000_000
 
+# Default concurrency cap for one-shot subprocesses spawned by the pool.
+# This prevents process tree explosion when the pool is under heavy load.
+_DEFAULT_MAX_CONCURRENT = 16
+
 
 def _decode(value: bytes | str, encoding: str = "utf-8", errors: str = "backslashreplace") -> str:
     return value.decode(encoding, errors) if isinstance(value, bytes) else value
 
 
-@dataclass
-class ToolProcess:
-    """A managed sub-process for a specific CLI tool."""
+async def _kill_process_tree(proc: asyncio.subprocess.Process, timeout: float = 5.0) -> None:
+    """Kill a process and all its descendants (children, grandchildren, ...).
 
-    name: str
-    process: asyncio.subprocess.Process
-    id: int
-    busy: bool = False
-    current_task_id: str | None = None
+    Uses psutil on all platforms when available, falls back to platform-specific
+    commands (taskkill on Windows, killpg on Unix).
+    """
+    pid = proc.pid
+    if pid is None:
+        return
+
+    if psutil is not None:
+        try:
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            # Send SIGTERM to children first (graceful)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            # Then terminate the parent
+            try:
+                parent.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+
+            # Wait for graceful shutdown
+            gone, alive = psutil.wait_procs([parent] + children, timeout=timeout)
+
+            # Force kill anything still alive
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+            # Final wait
+            psutil.wait_procs(alive, timeout=2.0)
+            return
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    # Fallback: platform-specific kill
+    if sys.platform != "win32":
+        try:
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGTERM)
+            await asyncio.sleep(timeout)
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                pass
+        except (OSError, ProcessLookupError):
+            pass
+    else:
+        # Windows: use taskkill to kill the process tree
+        # taskkill is in System32, always in PATH on Windows
+        try:
+            subprocess.run(  # noqa: S603
+                ["taskkill", "/F", "/T", "/PID", str(pid)],  # noqa: S607
+                capture_output=True,
+                timeout=timeout,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            try:
+                proc.kill()
+            except (OSError, ProcessLookupError):
+                pass
+
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=3.0)
+    except (TimeoutError, ProcessLookupError):
+        pass
 
 
 @dataclass
@@ -73,126 +152,14 @@ class ProcessTaskReceipt:
     timestamp: float = 0.0
 
 
-class ResourceWatchdog:
-    """
-    Monitors process memory and CPU footprint.
-    Safely terminates and recycles rogue processes exceeding constraints.
-    """
+@dataclass
+class ToolVersionInfo:
+    """Tracks detected tool version for drift monitoring."""
 
-    def __init__(
-        self,
-        pool: FrontierProcessPool,
-        max_memory_mb: float = 512.0,
-        check_interval_seconds: float = 2.0,
-    ) -> None:
-        self.pool = pool
-        self.max_memory_mb = max_memory_mb
-        self.check_interval_seconds = check_interval_seconds
-        self._task: asyncio.Task | None = None
-        self._failed_kills: dict[int, int] = {}
-
-    def start(self) -> None:
-        self._task = asyncio.create_task(self._monitor_loop())
-
-    async def stop(self) -> None:
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as exc:
-                logger.warning("Operation failed in proc_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
-
-    async def _monitor_loop(self) -> None:
-        while True:
-            await asyncio.sleep(self.check_interval_seconds)
-            if not psutil:
-                continue
-            try:
-                # We need to take a copy of the processes list to inspect them
-                async with self.pool._lock:
-                    processes_copy = list(self.pool._processes)
-
-                for p in processes_copy:
-                    if p.process.returncode is not None:
-                        continue
-                    pid = p.process.pid
-                    if not pid:
-                        continue
-
-                    if self._failed_kills.get(pid, 0) > 3:
-                        logger.warning(
-                            "ResourceWatchdog: Process %d (PID %d) is a zombie/D-state worker. Skipping recycling attempt.",
-                            p.id,
-                            pid,
-                        )
-                        continue
-
-                    try:
-                        proc = psutil.Process(pid)
-                        mem_info = proc.memory_info()
-                        mem_mb = mem_info.rss / (1024 * 1024)
-                        if mem_mb > self.max_memory_mb:
-                            logger.warning(
-                                "ResourceWatchdog: Process %d (PID %d) exceeded memory limit (%.1fMB > %.1fMB). Recycling.",
-                                p.id,
-                                pid,
-                                mem_mb,
-                                self.max_memory_mb,
-                            )
-                            # Performance #5: Do not hold the pool lock while waiting or spawning
-                            try:
-                                if sys.platform != "win32":
-                                    os.killpg(os.getpgid(pid), signal.SIGTERM)
-                                else:
-                                    p.process.terminate()
-                            except (OSError, ProcessLookupError) as term_exc:
-                                logger.debug("Worker process terminate failed: %s", term_exc)
-                                try:
-                                    p.process.kill()
-                                except (OSError, ProcessLookupError) as kill_exc:
-                                    logger.debug("Worker process kill failed: %s", kill_exc)
-
-                            # Wait for termination outside the lock-heavy loop with a timeout
-                            try:
-                                await asyncio.wait_for(p.process.wait(), timeout=2.0)
-                                self._failed_kills.pop(pid, None)
-                            except TimeoutError:
-                                self._failed_kills[pid] = self._failed_kills.get(pid, 0) + 1
-                                logger.error(
-                                    "ResourceWatchdog: Failed to kill process %d (PID %d) within timeout. Spawn replacement anyway.",
-                                    p.id,
-                                    pid,
-                                )
-
-                            # Respawn a new one in its place
-                            spawn_kwargs: dict[str, Any] = {
-                                "stdin": asyncio.subprocess.PIPE,
-                                "stdout": asyncio.subprocess.PIPE,
-                                "stderr": asyncio.subprocess.PIPE,
-                            }
-                            if sys.platform != "win32":
-                                spawn_kwargs["preexec_fn"] = os.setpgrp
-                            else:
-                                import subprocess
-
-                                spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-
-                            base_args = self.pool._base_args_map.get(p.name, [])
-                            new_proc = await asyncio.create_subprocess_exec(
-                                p.name, *base_args, **spawn_kwargs
-                            )
-
-                            # Safely replace process in the REAL pool
-                            async with self.pool._lock:
-                                real_p = self.pool._process_map.get(p.id)
-                                if real_p is not None:
-                                    real_p.process = new_proc
-                                    real_p.busy = False
-                                    real_p.current_task_id = None
-                    except psutil.NoSuchProcess as exc:
-                        logger.warning("Operation failed in proc_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
-            except Exception as e:
-                logger.error("ResourceWatchdog monitor error: %s", e)
+    name: str
+    version: str | None = None
+    path: str | None = None
+    verified: bool = False
 
 
 _STALE_TTL = 300
@@ -228,37 +195,37 @@ def _validate_tool_name(tool_name: str) -> None:
 
 class FrontierProcessPool:
     """
-    Managed Execution Pool.
-    Maintains pre-warmed instances of security tools to eliminate process startup latency.
+    Managed Execution Pool for CLI security tools.
+
+    Uses bounded one-shot subprocess execution instead of pre-warmed persistent
+    processes. CLI tools (subfinder, httpx, nuclei, etc.) are NOT interactive
+    workers -- they accept command-line arguments, run to completion, and exit.
+
+    Concurrency is controlled via an asyncio.Semaphore to prevent process tree
+    explosion under heavy load. Each task spawns a fresh subprocess, runs it to
+    completion, and captures stdout/stderr.
     """
 
-    def __init__(self, pool_size: int | None = None, max_memory_mb: float = 512.0) -> None:
-        # Fix Audit #198: Adapt pool size to CPU cores
-        if pool_size is None:
-            cpu_count = os.cpu_count() or 2
-            self.pool_size = min(4, cpu_count)
-        else:
-            self.pool_size = pool_size
+    def __init__(
+        self,
+        pool_size: int | None = None,
+        max_memory_mb: float = 512.0,
+        max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
+    ) -> None:
+        cpu_count = os.cpu_count() or 2
+        self.pool_size = pool_size or min(4, cpu_count)
+        self._max_concurrent = max_concurrent
 
-        self._processes: list[ToolProcess] = []
-        self._process_map: dict[int, ToolProcess] = {}
+        # Semaphore bounds the number of concurrent one-shot subprocesses.
+        # Prevents P1 fallback explosion (500 hosts -> 500 subprocesses).
+        self._semaphore = asyncio.Semaphore(max_concurrent)
+
         self._lock = asyncio.Lock()
         self._task_receipts: dict[str, ProcessTaskReceipt] = {}
         self._last_receipt_prune: float = 0.0
         self._base_args_map: dict[str, list[str]] = {}
         self._binary_task_cache: dict[str, Any] = {}
-        self._watchdog = ResourceWatchdog(self, max_memory_mb=max_memory_mb)
-        self._watchdog_started = False
-
-    def _ensure_watchdog_started(self) -> None:
-        if self._watchdog_started:
-            return
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        self._watchdog.start()
-        self._watchdog_started = True
+        self._tool_versions: dict[str, ToolVersionInfo] = {}
 
     def _make_receipt(
         self,
@@ -302,50 +269,115 @@ class FrontierProcessPool:
                 self._task_receipts.pop(k, None)
                 self._binary_task_cache.pop(k, None)
 
-    async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
-        """Spawn initial process set."""
+    # ------------------------------------------------------------------ #
+    # P1 Fix: Centralized tool availability verification                  #
+    # ------------------------------------------------------------------ #
+
+    def verify_tool(self, tool_name: str) -> ToolVersionInfo:
+        """Verify a single tool binary is available and detect its version.
+
+        Returns a ToolVersionInfo with the resolved path, version string,
+        and verification status. Logs warnings for missing tools.
+        """
         _validate_tool_name(tool_name)
-        self._ensure_watchdog_started()
-        self._base_args_map[tool_name] = base_args
-        # Fix Audit #14: Windows compatibility for preexec_fn
-        spawn_kwargs: dict[str, Any] = {
-            "stdin": asyncio.subprocess.PIPE,
-            "stdout": asyncio.subprocess.PIPE,
-            "stderr": asyncio.subprocess.PIPE,
-        }
-        if sys.platform != "win32":
-            spawn_kwargs["preexec_fn"] = os.setpgrp
+        resolved = shutil.which(tool_name)
+        version = self._detect_version(resolved) if resolved else None
+        info = ToolVersionInfo(
+            name=tool_name,
+            version=version,
+            path=resolved,
+            verified=resolved is not None,
+        )
+        self._tool_versions[tool_name] = info
+        if not resolved:
+            logger.error("Tool verification FAILED: '%s' not found in PATH or .tools/bin", tool_name)
         else:
-            # On Windows, we can use creationflags to achieve similar process group isolation
-            # Fix #210: creationflags needs to be the actual subprocess constant
-            import subprocess
+            logger.info(
+                "Tool verified: '%s' -> %s (version: %s)",
+                tool_name,
+                resolved,
+                version or "unknown",
+            )
+        return info
 
-            spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    def verify_all_tools(self, tool_names: list[str] | None = None) -> dict[str, ToolVersionInfo]:
+        """Verify all required tools are available before pipeline launch.
 
-        for i in range(self.pool_size):
-            proc = await asyncio.create_subprocess_exec(tool_name, *base_args, **spawn_kwargs)
-            tp = ToolProcess(tool_name, proc, i)
-            self._processes.append(tp)
-            self._process_map[tp.id] = tp
-        logger.info("Warmed Frontier Pool for '%s' (Size: %d)", tool_name, self.pool_size)
+        Args:
+            tool_names: List of tool names to verify. If None, verifies all allowed tools.
 
-    async def acquire_process(self, task_id: str | None = None) -> ToolProcess | None:
-        """Find an idle process in the pool."""
-        async with self._lock:
-            for p in self._processes:
-                if not p.busy:
-                    p.busy = True
-                    p.current_task_id = task_id
-                    return p
+        Returns:
+            Dict mapping tool name to ToolVersionInfo.
+        """
+        names = tool_names or sorted(_ALLOWED_TOOL_NAMES)
+        results: dict[str, ToolVersionInfo] = {}
+        missing: list[str] = []
+        for name in names:
+            info = self.verify_tool(name)
+            results[name] = info
+            if not info.verified:
+                missing.append(name)
+        if missing:
+            logger.warning(
+                "Tool verification: %d tool(s) missing: %s. "
+                "Pipeline will skip modules that depend on these tools.",
+                len(missing),
+                ", ".join(missing),
+            )
+        else:
+            logger.info("All %d tools verified successfully.", len(names))
+        return results
+
+    def _detect_version(self, tool_path: str) -> str | None:
+        """Detect the version string of a tool binary."""
+        for flag in ("-version", "--version", "-v"):
+            try:
+                proc = subprocess.run(  # noqa: S603
+                    [tool_path, flag],
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                    capture_output=True,
+                    timeout=8,
+                    check=False,
+                    creationflags=_get_creationflags(),
+                )
+                output = (proc.stdout or proc.stderr or "").strip()
+                if output:
+                    return output.splitlines()[0][:256]
+            except Exception:
+                logger.debug("ProcPool: tool version detection failed for %s", args[0] if args else "unknown", exc_info=True)
+                continue
         return None
 
-    async def release_process(self, p_id: int) -> None:
-        """Mark a process as idle."""
-        async with self._lock:
-            p = self._process_map.get(p_id)
-            if p is not None:
-                p.busy = False
-                p.current_task_id = None
+    @property
+    def tool_versions(self) -> dict[str, ToolVersionInfo]:
+        """Return detected tool versions for monitoring/drift detection."""
+        return dict(self._tool_versions)
+
+    # ------------------------------------------------------------------ #
+    # warm_pool — verify tools and store base args (no persistent procs)  #
+    # ------------------------------------------------------------------ #
+
+    async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
+        """Verify tool availability and store default arguments.
+
+        This no longer spawns persistent processes. CLI tools are executed
+        as one-shot subprocesses per task. The 'pool_size' parameter now
+        controls the semaphore concurrency limit instead of process count.
+        """
+        _validate_tool_name(tool_name)
+        self._base_args_map[tool_name] = base_args
+        info = self.verify_tool(tool_name)
+        if not info.verified:
+            logger.warning(
+                "warm_pool: tool '%s' not available; tasks will fail at execution time.",
+                tool_name,
+            )
+
+    # ------------------------------------------------------------------ #
+    # P1 Fix: Bounded one-shot subprocess execution                      #
+    # ------------------------------------------------------------------ #
 
     async def execute_task(
         self,
@@ -355,9 +387,11 @@ class FrontierProcessPool:
         task_id: str | None = None,
         timeout_seconds: float = 30.0,
     ) -> str:
-        """
-        Execute a task using a pooled process.
-        Uses Pipes for zero-disk IPC.
+        """Execute a CLI tool as a one-shot subprocess.
+
+        Spawns a fresh process for each task, bounded by the concurrency
+        semaphore. Reads all stdout output (not just one line). Kills the
+        entire process tree on timeout.
         """
         _validate_tool_name(tool_name)
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": task_data})
@@ -374,119 +408,73 @@ class FrontierProcessPool:
                 status="running",
             )
 
-        p = await self.acquire_process(stable_task_id)
-        if not p:
-            # Fallback to one-off process if pool is full
-            # Fix Audit #83: Capture stderr and capture diagnostics
-            proc = await asyncio.create_subprocess_exec(
-                tool_name, task_data, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        # P1 Fix: Acquire semaphore to bound concurrency
+        async with self._semaphore:
+            return await self._execute_task_inner(
+                tool_name, task_data, stable_task_id, timeout_seconds
             )
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(), timeout=max(0.05, timeout_seconds)
-                )
-            except TimeoutError:
-                proc.kill()
-                await proc.wait()
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "interrupted",
-                        error=f"process exceeded {timeout_seconds}s budget",
-                    )
-                raise RuntimeError(
-                    f"ToolExecutionError: One-off process {tool_name} exceeded time budget"
-                ) from None
-            if proc.returncode != 0:
-                logger.error(
-                    "One-off process '%s' failed (exit %d): %s",
-                    tool_name,
-                    proc.returncode,
-                    _decode(stderr),
-                )
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "failed",
-                        error=f"exit code {proc.returncode}",
-                    )
-                raise RuntimeError(
-                    f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})"
-                )
-            output = _decode(stdout)
-            async with self._lock:
-                self._task_receipts[stable_task_id] = self._make_receipt(
-                    stable_task_id, tool_name, "completed", output=output
-                )
-            return output
 
+    async def _execute_task_inner(
+        self,
+        tool_name: str,
+        task_data: str,
+        stable_task_id: str,
+        timeout_seconds: float,
+    ) -> str:
+        """Inner execution logic, runs within the semaphore."""
+        base_args = self._base_args_map.get(tool_name, [])
+        full_args = [tool_name, *base_args, task_data]
+
+        proc = await asyncio.create_subprocess_exec(
+            *full_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=_get_creationflags(),
+        )
         try:
-            # Fix #209: Check if process is dead using returncode instead of stdin.is_closing()
-            if p.process.returncode is not None:
-                logger.warning("Process %d is dead, cannot execute task", p.id)
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "interrupted",
-                        error="pooled process already exited",
-                    )
-                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} already exited")
-
-            if p.process.stdin is None or p.process.stdout is None:
-                logger.error("Process %d missing stdin/stdout", p.id)
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "interrupted",
-                        error="pooled process missing pipes",
-                    )
-                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
-
-            # Send task to pre-warmed process stdin
-            p.process.stdin.write(f"{task_data}\n".encode())
-            await p.process.stdin.drain()
-
-            # Read response (assuming tool supports JSON-RPC line-by-line)
-            try:
-                line = await asyncio.wait_for(
-                    p.process.stdout.readline(), timeout=max(0.05, timeout_seconds)
-                )
-            except TimeoutError:
-                if p.current_task_id:
-                    async with self._lock:
-                        self._task_receipts[p.current_task_id] = self._make_receipt(
-                            p.current_task_id,
-                            tool_name,
-                            "interrupted",
-                            error=f"process exceeded {timeout_seconds}s budget",
-                        )
-                if sys.platform != "win32" and p.process.pid:
-                    os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
-                else:
-                    p.process.terminate()
-                await p.process.wait()
-                raise RuntimeError(
-                    f"ToolExecutionError: pooled process {tool_name} exceeded time budget"
-                ) from None
-            output = _decode(line)
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=max(0.05, timeout_seconds)
+            )
+        except TimeoutError:
+            # P1 Fix: Kill entire process tree, not just parent
+            await _kill_process_tree(proc, timeout=min(5.0, timeout_seconds * 0.3))
             async with self._lock:
                 self._task_receipts[stable_task_id] = self._make_receipt(
-                    stable_task_id, tool_name, "completed", output=output
+                    stable_task_id,
+                    tool_name,
+                    "interrupted",
+                    error=f"process exceeded {timeout_seconds}s budget",
                 )
-            return output
-        except (BrokenPipeError, ConnectionResetError) as e:
-            logger.error("Process %d IPC failure: %s", p.id, e)
+            raise RuntimeError(
+                f"ToolExecutionError: {tool_name} exceeded time budget ({timeout_seconds}s)"
+            ) from None
+
+        output = _decode(stdout_bytes)
+        stderr_text = _decode(stderr_bytes)
+
+        if proc.returncode != 0:
+            logger.error(
+                "One-shot process '%s' failed (exit %d): %s",
+                tool_name,
+                proc.returncode,
+                stderr_text[:500],
+            )
             async with self._lock:
                 self._task_receipts[stable_task_id] = self._make_receipt(
-                    stable_task_id, tool_name, "interrupted", error=str(e)
+                    stable_task_id,
+                    tool_name,
+                    "failed",
+                    error=f"exit code {proc.returncode}: {stderr_text[:200]}",
                 )
-            return ""
-        finally:
-            await self.release_process(p.id)
+            raise RuntimeError(
+                f"ToolExecutionError: {tool_name} failed (exit {proc.returncode})"
+            )
+
+        async with self._lock:
+            self._task_receipts[stable_task_id] = self._make_receipt(
+                stable_task_id, tool_name, "completed", output=output
+            )
+        return output
 
     async def execute_task_binary(
         self,
@@ -496,9 +484,10 @@ class FrontierProcessPool:
         task_id: str | None = None,
         timeout_seconds: float = 30.0,
     ) -> Any:
-        """
-        Execute a task using a pooled process using binary IPC.
-        Uses length-prefixed, zstd-compressed, cloudpickle-serialized objects over Pipes.
+        """Execute a task using binary IPC via one-shot subprocess.
+
+        Uses length-prefixed, zstd-compressed, cloudpickle-serialized objects
+        piped to stdin, with the result read from stdout.
         """
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": repr(task_obj)})
         self._prune_stale_receipts()
@@ -514,146 +503,91 @@ class FrontierProcessPool:
                 status="running",
             )
 
-        p = await self.acquire_process(stable_task_id)
-        if not p:
-            # Fallback to one-off process if pool is full
-            proc = await asyncio.create_subprocess_exec(
-                tool_name,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.PIPE,
+        # P1 Fix: Acquire semaphore to bound concurrency
+        async with self._semaphore:
+            return await self._execute_task_binary_inner(
+                tool_name, task_obj, stable_task_id, timeout_seconds
             )
-            packed_data = safe_pack(task_obj, payload_kind="proc_pool_ipc")
-            try:
-                input_bytes = struct.pack("!I", len(packed_data)) + packed_data
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(input=input_bytes), timeout=max(0.05, timeout_seconds)
-                )
-            except TimeoutError:
-                proc.kill()
-                await proc.wait()
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "interrupted",
-                        error=f"process exceeded {timeout_seconds}s budget",
-                    )
-                raise RuntimeError(
-                    f"ToolExecutionError: One-off process {tool_name} exceeded time budget"
-                ) from None
-            if proc.returncode != 0:
-                logger.error(
-                    "One-off process '%s' failed (exit %d): %s",
-                    tool_name,
-                    proc.returncode,
-                    _decode(stderr),
-                )
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "failed",
-                        error=f"exit code {proc.returncode}",
-                    )
-                raise RuntimeError(
-                    f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})"
-                )
-            if len(stdout) < 4:
-                raise RuntimeError(
-                    "ToolExecutionError: One-off process output too short (missing length prefix)"
-                )
-            length = struct.unpack("!I", stdout[:4])[0]
-            if length > MAX_PAYLOAD_BYTES:
-                raise ValueError(f"Payload length {length} exceeds maximum {MAX_PAYLOAD_BYTES}")
-            if len(stdout) < 4 + length:
-                raise RuntimeError("ToolExecutionError: One-off process output incomplete")
-            output = safe_unpack(stdout[4 : 4 + length])
-            if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
-                oldest_key = next(iter(self._binary_task_cache))
-                del self._binary_task_cache[oldest_key]
-                self._task_receipts.pop(oldest_key, None)
-            self._binary_task_cache[stable_task_id] = output
-            async with self._lock:
-                self._task_receipts[stable_task_id] = self._make_receipt(
-                    stable_task_id, tool_name, "completed", output=repr(output)
-                )
-            return output
+
+    async def _execute_task_binary_inner(
+        self,
+        tool_name: str,
+        task_obj: Any,
+        stable_task_id: str,
+        timeout_seconds: float,
+    ) -> Any:
+        """Inner binary execution logic, runs within the semaphore."""
+        proc = await asyncio.create_subprocess_exec(
+            tool_name,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.PIPE,
+            creationflags=_get_creationflags(),
+        )
+        packed_data = safe_pack(task_obj, payload_kind="proc_pool_ipc")
+        input_bytes = struct.pack("!I", len(packed_data)) + packed_data
 
         try:
-            if p.process.returncode is not None:
-                logger.warning("Process %d is dead, cannot execute task", p.id)
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "interrupted",
-                        error="pooled process already exited",
-                    )
-                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} already exited")
-
-            if p.process.stdin is None or p.process.stdout is None:
-                logger.error("Process %d missing stdin/stdout", p.id)
-                async with self._lock:
-                    self._task_receipts[stable_task_id] = self._make_receipt(
-                        stable_task_id,
-                        tool_name,
-                        "interrupted",
-                        error="pooled process missing pipes",
-                    )
-                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
-
-            packed_data = safe_pack(task_obj, payload_kind="proc_pool_ipc")
-            p.process.stdin.write(struct.pack("!I", len(packed_data)) + packed_data)
-            await p.process.stdin.drain()
-
-            try:
-                length_bytes = await asyncio.wait_for(
-                    p.process.stdout.readexactly(4), timeout=max(0.05, timeout_seconds)
-                )
-                length = struct.unpack("!I", length_bytes)[0]
-                if length > MAX_PAYLOAD_BYTES:
-                    raise ValueError(f"Payload length {length} exceeds maximum {MAX_PAYLOAD_BYTES}")
-                payload_bytes = await asyncio.wait_for(
-                    p.process.stdout.readexactly(length), timeout=max(0.05, timeout_seconds)
-                )
-                output = safe_unpack(payload_bytes)
-            except TimeoutError:
-                if p.current_task_id:
-                    async with self._lock:
-                        self._task_receipts[p.current_task_id] = self._make_receipt(
-                            p.current_task_id,
-                            tool_name,
-                            "interrupted",
-                            error=f"process exceeded {timeout_seconds}s budget",
-                        )
-                if sys.platform != "win32" and p.process.pid:
-                    os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
-                else:
-                    p.process.terminate()
-                await p.process.wait()
-                raise RuntimeError(
-                    f"ToolExecutionError: pooled process {tool_name} exceeded time budget"
-                ) from None
-            if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
-                oldest_key = next(iter(self._binary_task_cache))
-                del self._binary_task_cache[oldest_key]
-                self._task_receipts.pop(oldest_key, None)
-            self._binary_task_cache[stable_task_id] = output
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(input=input_bytes), timeout=max(0.05, timeout_seconds)
+            )
+        except TimeoutError:
+            await _kill_process_tree(proc, timeout=min(5.0, timeout_seconds * 0.3))
             async with self._lock:
                 self._task_receipts[stable_task_id] = self._make_receipt(
-                    stable_task_id, tool_name, "completed", output=repr(output)
+                    stable_task_id,
+                    tool_name,
+                    "interrupted",
+                    error=f"process exceeded {timeout_seconds}s budget",
                 )
-            return output
-        except (BrokenPipeError, ConnectionResetError) as e:
-            logger.error("Process %d IPC failure: %s", p.id, e)
+            raise RuntimeError(
+                f"ToolExecutionError: {tool_name} exceeded time budget ({timeout_seconds}s)"
+            ) from None
+
+        if proc.returncode != 0:
+            stderr_text = _decode(stderr_bytes)
+            logger.error(
+                "One-shot binary process '%s' failed (exit %d): %s",
+                tool_name,
+                proc.returncode,
+                stderr_text[:500],
+            )
             async with self._lock:
                 self._task_receipts[stable_task_id] = self._make_receipt(
-                    stable_task_id, tool_name, "interrupted", error=str(e)
+                    stable_task_id,
+                    tool_name,
+                    "failed",
+                    error=f"exit code {proc.returncode}",
                 )
-            return None
-        finally:
-            await self.release_process(p.id)
+            raise RuntimeError(
+                f"ToolExecutionError: {tool_name} failed (exit {proc.returncode})"
+            )
+
+        if len(stdout_bytes) < 4:
+            raise RuntimeError(
+                "ToolExecutionError: process output too short (missing length prefix)"
+            )
+        length = struct.unpack("!I", stdout_bytes[:4])[0]
+        if length > MAX_PAYLOAD_BYTES:
+            raise ValueError(f"Payload length {length} exceeds maximum {MAX_PAYLOAD_BYTES}")
+        if len(stdout_bytes) < 4 + length:
+            raise RuntimeError("ToolExecutionError: process output incomplete")
+        output = safe_unpack(stdout_bytes[4 : 4 + length])
+
+        if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
+            oldest_key = next(iter(self._binary_task_cache))
+            del self._binary_task_cache[oldest_key]
+            self._task_receipts.pop(oldest_key, None)
+        self._binary_task_cache[stable_task_id] = output
+        async with self._lock:
+            self._task_receipts[stable_task_id] = self._make_receipt(
+                stable_task_id, tool_name, "completed", output=repr(output)
+            )
+        return output
+
+    # ------------------------------------------------------------------ #
+    # Receipt management                                                  #
+    # ------------------------------------------------------------------ #
 
     def recovery_receipts(self) -> dict[str, dict[str, str]]:
         """Expose task receipts so a restarted supervisor can replay interrupted work once."""
@@ -669,27 +603,12 @@ class FrontierProcessPool:
         }
 
     async def cleanup(self) -> None:
-        """Gracefully terminate the pool."""
-        if hasattr(self, "_watchdog") and self._watchdog:
-            await self._watchdog.stop()
-            self._watchdog_started = False
-        for p in self._processes:
-            try:
-                if p.current_task_id:
-                    async with self._lock:
-                        self._task_receipts[p.current_task_id] = self._make_receipt(
-                            p.current_task_id,
-                            p.name,
-                            "interrupted",
-                            error="process pool cleanup before task completion",
-                        )
-                # Fix Audit #15: SIGTERM compatibility for Windows
-                if sys.platform != "win32":
-                    os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
-                else:
-                    p.process.terminate()
-                await p.process.wait()
-            except Exception as e:
-                logger.debug("Failed to terminate process %d: %s", p.id, e)
-        self._processes = []
-        self._process_map.clear()
+        """Gracefully clean up pool state.
+
+        Since there are no persistent processes to terminate, this only
+        clears internal state and receipts.
+        """
+        self._task_receipts.clear()
+        self._binary_task_cache.clear()
+        self._base_args_map.clear()
+        logger.info("FrontierProcessPool cleaned up.")

@@ -91,7 +91,8 @@ async def verify_finding_remediation(
                             findings_list = findings
                             findings_file_path = findings_path
                             break
-                except Exception:  # noqa: S112
+                except Exception:
+                    logger.warning("Failed to read findings file %s", findings_path, exc_info=True)
                     continue
             if found:
                 break
@@ -116,7 +117,7 @@ async def verify_finding_remediation(
         )
 
         # Note: verify_remediation enforces tenant_id check internally!
-        result: dict[str, Any] = await scanner.verify_remediation(
+        result = await scanner.verify_remediation(
             finding,
             redis_client=redis_client,
             tenant_id=tenant_id,

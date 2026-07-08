@@ -1,7 +1,7 @@
 import pytest
 from tests.stress.test_mesh_failover import dummy_logic
 
-from src.core.frontier.ghost_actor import ScanActor
+from src.infrastructure.frontier.ghost_actor import ScanActor
 
 
 @pytest.mark.chaos

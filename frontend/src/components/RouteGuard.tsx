@@ -1,4 +1,5 @@
 import { Navigate, useLocation, Link, useParams } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { useAuth } from '@/hooks/useAuth';
 import type { UserRole } from '@/context/AuthContext';
 import type { ReactNode } from 'react';
@@ -17,7 +18,7 @@ export function RouteGuard({ children, requiredRole, requiredPermission }: Route
   const params = useParams();
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
   }
 
   // Tenant/Workspace context gating

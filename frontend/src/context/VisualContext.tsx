@@ -1,8 +1,15 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { VisualContext } from './visual-context';
+import { createContext, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_VISUAL_STATE, type VisualState } from '@/lib/visualState';
 
-export type { VisualContextValue } from './visual-context';
+export interface VisualContextValue {
+  state: VisualState;
+  setState: (state: VisualState) => void;
+}
+
+export const VisualContext = createContext<VisualContextValue>({
+  state: DEFAULT_VISUAL_STATE,
+  setState: () => {},
+});
 
 interface VisualProviderProps {
   children: ReactNode;
@@ -21,7 +28,6 @@ export function VisualProvider({ children, initialValue }: VisualProviderProps) 
         state.flow !== initialValue.flow ||
         state.confidence !== initialValue.confidence;
       if (stateChanged) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setState(initialValue);
       }
     }
@@ -35,4 +41,3 @@ export function VisualProvider({ children, initialValue }: VisualProviderProps) 
     </VisualContext.Provider>
   );
 }
-

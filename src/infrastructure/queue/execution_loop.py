@@ -44,7 +44,10 @@ class WorkerExecutionLoopMixin:
 
         await self._handle_stale_checkpoints()
 
-        heartbeat_task = asyncio.create_task(self._heartbeat())
+        from src.core.task_registry import get_task_registry
+        heartbeat_task = get_task_registry().create_task(
+            self._heartbeat(), owner="queue_worker", name="heartbeat"
+        )
         heartbeat_task.add_done_callback(self._log_task_exception)
 
         try:
@@ -71,8 +74,11 @@ class WorkerExecutionLoopMixin:
         """Main processing loop that claims jobs and respects concurrency."""
         while self._running and not self._shutdown_requested:
             try:
-                active_count = len(self._info.active_jobs)
-                if active_count >= self.concurrency:
+                active_count = len(self._active_tasks)
+                tracked_count = len(self._info.active_jobs)
+                effective_active = max(active_count, tracked_count)
+
+                if effective_active >= self.concurrency:
                     await asyncio.sleep(self.poll_interval)
                     continue
 
@@ -85,7 +91,10 @@ class WorkerExecutionLoopMixin:
                     await asyncio.sleep(self.poll_interval)
                     continue
 
-                task = asyncio.create_task(self._process_job(job))
+                from src.core.task_registry import get_task_registry
+                task = get_task_registry().create_task(
+                    self._process_job(job), owner="queue_worker", name=str(getattr(job, 'job_id', 'unknown'))
+                )
                 self._active_tasks.add(task)
                 task.add_done_callback(self._active_tasks.discard)
 
@@ -96,7 +105,13 @@ class WorkerExecutionLoopMixin:
                 await asyncio.sleep(self.poll_interval)
 
     async def _handle_stale_checkpoints(self) -> None:
-        """Check for checkpoints owned by dead workers and take them over."""
+        """Check for checkpoints owned by dead workers and take them over.
+
+        Uses a verify-after-take pattern: after acquiring ownership we
+        confirm we are still the recorded owner before proceeding, which
+        eliminates the window where two workers take ownership concurrently
+        and both execute the same checkpoint.
+        """
         if not self.distributed_store:
             return
 
@@ -119,13 +134,26 @@ class WorkerExecutionLoopMixin:
                     dead_worker_id,
                 )
                 success = await self.distributed_store.take_ownership(run_id, self.worker_id)
-                if success:
+                if not success:
+                    logger.warning("Failed to take ownership of checkpoint %s", run_id)
+                    continue
+
+                await asyncio.sleep(0.1)
+
+                current_owner = await self.distributed_store.get_owner(run_id)
+                if current_owner == self.worker_id:
                     logger.info(
-                        "Took ownership of checkpoint %s from dead worker %s",
+                        "Took ownership of checkpoint %s from dead worker %s (verified)",
                         run_id,
                         dead_worker_id,
                     )
                 else:
-                    logger.warning("Failed to take ownership of checkpoint %s", run_id)
+                    logger.warning(
+                        "Checkpoint %s ownership lost after take (current_owner=%s, expected=%s); "
+                        "another worker won the race",
+                        run_id,
+                        current_owner,
+                        self.worker_id,
+                    )
         except Exception as exc:
             logger.error("Error handling stale checkpoints: %s", exc)

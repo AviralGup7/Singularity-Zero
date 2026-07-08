@@ -66,7 +66,8 @@ def _load_incremental_baseline(checkpoint_mgr: Any) -> list[dict[str, Any]]:
         if not isinstance(findings, list):
             return []
         return [f for f in findings if isinstance(f, dict)]
-    except Exception:  # noqa: BLE001
+    except Exception:
+        logger.warning("Failed to load incremental baseline", exc_info=True)
         return []
 
 
@@ -143,8 +144,8 @@ def _resolve_policy(args: argparse.Namespace, config: Any) -> ExitConditionPolic
             policy_path = ci_cfg.get("policy")
     try:
         return load_policy(policy_path)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to load policy %r (%s); using DEFAULT_POLICY", policy_path, exc)
+    except Exception:
+        logger.warning("Failed to load policy %r; using DEFAULT_POLICY", policy_path, exc_info=True)
         return ExitConditionPolicy()
 
 
@@ -205,8 +206,8 @@ async def execute_remaining_stages(
                 for stage_name, status in state.stage_status.items():
                     if status == "completed":
                         completed_stages.add(stage_name)
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+                logger.warning("Suppressed exception", exc_info=True)
 
     # The recon validator is a post-completion hook on ``urls``.  It
     # sets ``recon_validation=FAILED`` in the context when the URL
@@ -315,8 +316,8 @@ def resolve_pipeline_exit_code(
                 on_failure=policy.on_failure,
                 ci=policy.ci,
             )
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+                logger.warning("Suppressed exception", exc_info=True)
     branch = _resolve_branch(args, config) if args is not None else ""
 
     evaluation: PolicyEvaluation
@@ -395,8 +396,8 @@ def resolve_pipeline_exit_code(
                             source="recon_validator",
                             data=payload,
                         )
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Failed to emit RECON_DEGRADED event: %s", exc)
+                except Exception:
+                    logger.warning("Failed to emit RECON_DEGRADED event", exc_info=True)
             else:
                 evaluation = PolicyEvaluation(
                     exit_code=EXIT_INFRA_FAILURE,
@@ -562,8 +563,8 @@ def _apply_recon_degradation(
     try:
         from src.core.events import EventType as _EventType
         from src.core.events import get_event_bus as _get_event_bus
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("EventBus unavailable for RECON_DEGRADED: %s", exc)
+    except Exception:
+        logger.warning("EventBus unavailable for RECON_DEGRADED", exc_info=True)
 
     for stage_name in policy.infra.degraded_stages:
         if ctx.result.stage_status.get(stage_name) != StageStatus.FAILED.value:
@@ -615,8 +616,8 @@ def _apply_recon_degradation(
                     get_event_bus_ref().emit(
                         event_type.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload
                     )
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Failed to emit RECON_DEGRADED event: %s", exc)
+            except Exception:
+                logger.warning("Failed to emit RECON_DEGRADED event", exc_info=True)
 
 
 def _recon_degraded_salvage_stage(ctx: PipelineContext, stage_name: str) -> str | None:
@@ -669,8 +670,8 @@ def _emit_policy_result(orchestrator: Any, evaluation: PolicyEvaluation) -> None
     """
     try:
         from src.core.events import EventType, get_event_bus
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("EventBus unavailable for INGRESS_POLICY_RESULT: %s", exc)
+    except Exception:
+        logger.warning("EventBus unavailable for INGRESS_POLICY_RESULT", exc_info=True)
         return
     payload = {"evaluation": evaluation.to_dict()}
     emit = getattr(orchestrator, "_emit_event", None) if orchestrator is not None else None
@@ -678,12 +679,12 @@ def _emit_policy_result(orchestrator: Any, evaluation: PolicyEvaluation) -> None
         try:
             emit(EventType.INGRESS_POLICY_RESULT, source="policy", data=payload)
             return
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Orchestrator emit failed: %s; falling back to bus.emit", exc)
+        except Exception:
+            logger.warning("Orchestrator emit failed; falling back to bus.emit", exc_info=True)
     try:
         get_event_bus().emit(EventType.INGRESS_POLICY_RESULT, source="policy", data=payload)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Failed to emit INGRESS_POLICY_RESULT: %s", exc)
+    except Exception:
+        logger.warning("Failed to emit INGRESS_POLICY_RESULT", exc_info=True)
 
 
 def _persist_policy_evaluation(ctx: PipelineContext, evaluation: PolicyEvaluation) -> None:

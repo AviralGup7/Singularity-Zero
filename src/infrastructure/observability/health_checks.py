@@ -1,3 +1,4 @@
+import logging
 """Health check system for the cyber security test pipeline.
 
 Provides component-level health checks, aggregate health status,
@@ -23,6 +24,8 @@ from typing import Any
 
 from src.core.contracts.health import HealthStatus
 from src.infrastructure.observability.config import get_config
+
+logger = logging.getLogger(__name__)
 
 # Re-export for backward compatibility
 __all__ = [
@@ -432,10 +435,9 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
             try:
                 from src.infrastructure.execution_engine.shared_pool import _pool
 
-                pool_alive = _pool is not None and not getattr(_pool, "_shutdown", False)
+                pool_alive = _pool is not None and not _pool.shutdown
             except Exception:
-                pass
-
+                logger.warning("Operation failed in health_checks.py", exc_info=True)
             if not pool_alive:
                 return ComponentHealth(
                     name="workers",
@@ -497,7 +499,7 @@ def register_default_health_checks(checker: HealthChecker | None = None) -> None
 
     async def check_queue() -> ComponentHealth:
         try:
-            q: asyncio.Queue[str] = asyncio.Queue(maxsize=10)
+            q = asyncio.Queue(maxsize=10)
             await q.put("health_check")
             item = await asyncio.wait_for(q.get(), timeout=1.0)
             if item != "health_check":

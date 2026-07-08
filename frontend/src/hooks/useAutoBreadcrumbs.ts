@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
+import { ROUTES } from '@/config/paths';
 import { getJob } from '@/api/client';
 import type { BreadcrumbItem } from '@/components/ui/Breadcrumbs';
 
@@ -26,7 +27,7 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
   const location = useLocation();
   const pathname = location.pathname;
 
-  const jobId = pathname.startsWith('/jobs/') ? pathname.replace('/jobs/', '') : undefined;
+  const jobId = pathname.startsWith(ROUTES.JOBS + '/') ? pathname.replace(ROUTES.JOBS + '/', '') : undefined;
   const jobName = useJobName(jobId);
 
   const crumbs = useMemo((): BreadcrumbItem[] => {
@@ -39,13 +40,13 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
     if (segments[0] === 'targets') {
       items.push({
         label: 'Targets',
-        href: '/targets',
+        href: ROUTES.TARGETS,
         isCurrent: segments.length === 1,
       });
     } else if (segments[0] === 'jobs') {
       items.push({
         label: 'Jobs',
-        href: '/jobs',
+        href: ROUTES.JOBS,
         isCurrent: segments.length === 1,
       });
       if (segments.length > 1 && jobName) {
@@ -57,43 +58,43 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
     } else if (segments[0] === 'replay') {
       items.push({
         label: 'Replay',
-        href: '/replay',
+        href: ROUTES.REPLAY,
         isCurrent: true,
       });
     } else if (segments[0] === 'settings') {
       items.push({
         label: 'Settings',
-        href: '/settings',
+        href: ROUTES.SETTINGS,
         isCurrent: true,
       });
     } else if (segments[0] === 'findings') {
       items.push({
         label: 'Findings',
-        href: '/findings',
+        href: ROUTES.FINDINGS,
         isCurrent: true,
       });
     } else if (segments[0] === 'pipeline') {
       items.push({
         label: 'Pipeline',
-        href: '/pipeline',
+        href: ROUTES.PIPELINE,
         isCurrent: true,
       });
     } else if (segments[0] === 'cockpit') {
       items.push({
         label: 'Cockpit',
-        href: '/cockpit',
+        href: ROUTES.COCKPIT,
         isCurrent: true,
       });
     } else if (segments[0] === 'risk-score') {
       items.push({
         label: 'Risk Score',
-        href: '/risk-score',
+        href: ROUTES.RISK_SCORE,
         isCurrent: true,
       });
     } else if (segments[0] === 'reports') {
       items.push({
         label: 'Reports',
-        href: '/reports',
+        href: ROUTES.REPORTS,
         isCurrent: segments.length === 1,
       });
       if (segments.length > 1) {
@@ -105,7 +106,7 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
     } else if (segments[0] === 'security') {
       items.push({
         label: 'Security',
-        href: '/security',
+        href: ROUTES.SECURITY,
         isCurrent: true,
       });
     }

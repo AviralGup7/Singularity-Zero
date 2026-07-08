@@ -39,9 +39,8 @@ def _find_finding_by_id(
                                 run_name=run_name,
                                 index=idx,
                             )
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("Operation failed in helpers.py", exc_info=True)
     index_data = {}
     result = None
     if Path(output_root).exists():
@@ -56,7 +55,8 @@ def _find_finding_by_id(
                     continue
                 try:
                     findings = json.loads(findings_path.read_text(encoding="utf-8"))
-                except Exception:  # noqa: S112
+                except Exception:
+                    logger.warning("Failed to parse findings at %s", findings_path, exc_info=True)
                     continue
                 if not isinstance(findings, list):
                     continue
@@ -89,9 +89,8 @@ def _find_finding_by_id(
 
         try:
             index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("Operation failed in helpers.py", exc_info=True)
     return result
 
 

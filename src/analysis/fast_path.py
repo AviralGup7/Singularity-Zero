@@ -193,7 +193,7 @@ class FastPathDispatcher:
             )
 
     def apply_waf_tuning(self, tuning: Any) -> None:
-        """Apply a :class:`WafTuningProfile` to the dispatcher.
+        """Apply a :class:`WAFTuningProfile` to the dispatcher.
 
         The tuning profile adjusts the connection pool size and the
         per-second rate limit so the dispatcher's outbound traffic

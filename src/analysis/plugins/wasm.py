@@ -5,12 +5,15 @@ Typed manifest and helper definitions for running isolated WASM detectors.
 
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import sys
 import threading
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def execute_sandboxed_plugin(
@@ -28,7 +31,7 @@ def execute_sandboxed_plugin(
     executor = get_wasm_executor()
     if executor is None:
         raise RuntimeError(
-            "WASM executor not registered. Ensure startup_registration.register_all_implementations() "
+            "WASM executor not registered. Ensure bootstrap.startup_registration.register_all_implementations() "
             "has been called."
         )
     return executor(wasm_path, stage_input, timeout_seconds=timeout_seconds)
@@ -87,8 +90,8 @@ def execute_isolated_scanner(
                 os.kill(pid, signal.SIGTERM)
             else:
                 os.kill(pid, signal.SIGKILL)
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.exception("Failed to kill sandbox process %s", pid)
 
     # Start the watchdog timer thread
     timer = threading.Timer(scanner.timeout_seconds, watchdog)

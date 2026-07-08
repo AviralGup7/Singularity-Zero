@@ -8,6 +8,7 @@ Unifies patterns from across the codebase into a single robust structure.
 """
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -149,8 +150,8 @@ def load_settings(path: Path | None = None) -> AppSettings:
             defaults = raw.get("defaults", {})
             section = raw.get(env, {})
             json_data = {**defaults, **section}
-        except Exception:  # noqa: S110
-            pass
+        except (OSError, ValueError, json.JSONDecodeError):
+            logging.getLogger(__name__).warning("Failed to load settings from %s", settings_path, exc_info=True)
 
     # Pydantic BaseSettings handles environment overrides automatically
     return AppSettings(**json_data)

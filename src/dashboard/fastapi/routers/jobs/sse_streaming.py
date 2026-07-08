@@ -1,6 +1,5 @@
 """SSE streaming endpoint for job log artifacts."""
 
-import asyncio
 import json
 import logging
 import time
@@ -28,6 +27,11 @@ try:
 except ImportError:
     STAGE_LABELS = {}  # type: ignore[assignment]
 
+from src.dashboard.fastapi.routers.jobs.notifications import (
+    deregister_job,
+    register_job,
+    wait_for_job_update,
+)
 from src.dashboard.fastapi.routers.sse_events import SSEEventEmitter, _global_tracker
 
 logger = logging.getLogger(__name__)
@@ -90,15 +94,21 @@ async def stream_job_logs(
 
             _tracker_key = f"{job_id}:logs"
             _global_tracker.register_client(_tracker_key)
+            register_job(job_id)
 
             last_heartbeat = time.time()
             last_telemetry_count = 0
             last_progress_data: dict[str, Any] = {}
+            last_state_version = 0
 
             try:
                 while True:
                     if await request.is_disconnected():
                         break
+
+                    # Wait for job state change notification (event-driven)
+                    # Falls back to heartbeat timeout (MAX_WAIT_SECONDS) for safety
+                    await wait_for_job_update(job_id)
 
                     try:
                         current_job = await get_cached_job(job_id, services)
@@ -110,7 +120,6 @@ async def stream_job_logs(
                             progress_percent=0,
                             recoverable=True,
                         )
-                        await asyncio.sleep(1.0)
                         continue
                     if not current_job:
                         yield emitter.error(
@@ -122,6 +131,12 @@ async def stream_job_logs(
                     stage = current_job.get("stage", "")
                     stage_label = STAGE_LABELS.get(stage, stage.replace("_", " ").title())
                     progress = int(current_job.get("progress_percent", 0) or 0)
+                    state_version = int(current_job.get("state_version", 0) or 0)
+
+                    # Bug #25 fix: Use state_version for consistency detection.
+                    # If the version changed, we must emit even if payload looks
+                    # identical (e.g. backend wrote same data with new version).
+                    version_changed = state_version != last_state_version
 
                     if stage != last_stage:
                         yield emitter.stage_change(
@@ -133,8 +148,15 @@ async def stream_job_logs(
                         last_stage = stage
                         emitter.last_stage = stage
 
+                    # Bug #26 fix: Handle log truncation gracefully.
+                    # If logs shrank (backend rotated/pruned), reset cursor
+                    # to current position instead of being permanently stuck.
                     logs = current_job.get("latest_logs", [])
-                    if len(logs) > last_count:
+                    if len(logs) < last_count:
+                        # Logs were truncated — resync cursor to current end
+                        last_count = len(logs)
+                        emitter.last_count = last_count
+                    elif len(logs) > last_count:
                         new_logs = logs[last_count:]
                         last_count = len(logs)
                         emitter.last_count = last_count
@@ -143,18 +165,24 @@ async def stream_job_logs(
 
                     job_snapshot = snapshot_job_api(current_job)
                     telemetry_events = job_snapshot.get("telemetry_events")
-                    if (
-                        isinstance(telemetry_events, list)
-                        and len(telemetry_events) > last_telemetry_count
-                    ):
-                        for telemetry in telemetry_events[last_telemetry_count:]:
+
+                    # Bug #28 fix: Cap telemetry to prevent unbounded growth.
+                    # Only send the most recent 25 events; track by sliced length.
+                    MAX_TELEMETRY_EVENTS = 25
+                    if isinstance(telemetry_events, list):
+                        capped_telemetry = telemetry_events[-MAX_TELEMETRY_EVENTS:]
+                    else:
+                        capped_telemetry = None
+
+                    if capped_telemetry is not None and len(capped_telemetry) > last_telemetry_count:
+                        for telemetry in capped_telemetry[last_telemetry_count:]:
                             if isinstance(telemetry, dict):
                                 yield emitter.telemetry_event(telemetry)
-                        last_telemetry_count = len(telemetry_events)
+                        last_telemetry_count = len(capped_telemetry)
+
                     stage_entry = current_stage_entry(job_snapshot)
                     processed = current_job.get("stage_processed")
                     total = current_job.get("stage_total")
-                    state_version = int(current_job.get("state_version", 0) or 0)
 
                     current_data = {
                         "stage": stage,
@@ -169,6 +197,8 @@ async def stream_job_logs(
                         "failure_reason_code": current_job.get("failure_reason_code") or None,
                         "failure_step": current_job.get("failure_step") or None,
                         "failure_reason": current_job.get("failure_reason") or None,
+                        # Bug #29 fix: Surface immutable first-failure snapshot
+                        "first_failure": current_job.get("first_failure"),
                         "stage_status": (stage_entry or {}).get("status")
                         if isinstance(stage_entry, dict)
                         else None,
@@ -187,12 +217,14 @@ async def stream_job_logs(
                         "progress_telemetry": job_snapshot.get("progress_telemetry")
                         if isinstance(job_snapshot.get("progress_telemetry"), dict)
                         else None,
-                        "telemetry_events": telemetry_events[-25:]
-                        if isinstance(telemetry_events, list)
-                        else None,
+                        "telemetry_events": capped_telemetry,
+                        # Bug #27 fix: Signal if this is a resume with cached stages
+                        "is_resume": bool(current_job.get("crash_recovery")),
                     }
 
-                    if current_data != last_progress_data:
+                    # Bug #25 fix: Emit on version change OR data change
+                    if version_changed or current_data != last_progress_data:
+                        last_state_version = state_version
                         yield emitter.progress_update(
                             stage=stage,
                             stage_label=stage_label,
@@ -282,9 +314,8 @@ async def stream_job_logs(
                             seconds_since_last_update=since_update,
                         )
                         last_heartbeat = now
-
-                    await asyncio.sleep(1.0)
             finally:
+                deregister_job(job_id)
                 _global_tracker.deregister_client(_tracker_key)
 
         return StreamingResponse(
@@ -302,24 +333,29 @@ async def stream_job_logs(
             nonlocal last_count
             _tracker_key = f"{job_id}:logs_legacy"
             _global_tracker.register_client(_tracker_key)
+            register_job(job_id)
             try:
                 while True:
                     if await request.is_disconnected():
                         break
+
+                    await wait_for_job_update(job_id)
 
                     try:
                         current_job = await get_cached_job(job_id, services)
                     except Exception as exc:  # noqa: BLE001
                         logger.debug("get_cached_job failed in legacy logs stream: %s", exc)
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to fetch job state'})}\n\n"
-                        await asyncio.sleep(1.0)
                         continue
                     if not current_job:
                         yield f"event: error\ndata: {json.dumps({'error': 'Job not found'})}\n\n"
                         break
 
                     logs = current_job.get("latest_logs", [])
-                    if len(logs) > last_count:
+                    # Bug #26 fix: Handle log truncation gracefully
+                    if len(logs) < last_count:
+                        last_count = len(logs)
+                    elif len(logs) > last_count:
                         new_logs = logs[last_count:]
                         last_count = len(logs)
                         for log_line in new_logs:
@@ -328,9 +364,8 @@ async def stream_job_logs(
                     if current_job.get("status") in ("completed", "failed", "stopped"):
                         yield f"event: done\ndata: {json.dumps({'status': current_job['status']})}\n\n"
                         break
-
-                    await asyncio.sleep(1.0)
             finally:
+                deregister_job(job_id)
                 _global_tracker.deregister_client(_tracker_key)
 
         return StreamingResponse(

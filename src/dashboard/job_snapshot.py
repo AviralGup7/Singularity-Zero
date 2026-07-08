@@ -15,6 +15,13 @@ from src.dashboard.job_state_helpers import (
 from src.dashboard.registry import STAGE_LABELS
 from src.dashboard.scope_utils import format_duration, format_epoch_ist
 
+_MAX_STAGE_PROGRESS_ENTRIES = 100
+_MAX_TELEMETRY_EVENTS = 500
+
+# Simple TTL cache for snapshot results to avoid O(stages×requests) rebuilds
+_snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_SNAPSHOT_CACHE_TTL = 1.0  # seconds
+
 
 def _snapshot_progress_telemetry(
     job: dict[str, Any],
@@ -36,17 +43,25 @@ def _snapshot_progress_telemetry(
             started = _coerce_epoch(payload.get("started_at"), now)
             running_stages.append((stage_name, payload, started))
 
+    # Always update bottleneck when stages are running (fix #38: setdefault
+    # only wrote once, leaving stale diagnostics).
     if running_stages:
         bottleneck_stage, _, bottleneck_started = max(
             running_stages,
             key=lambda item: now - item[2],
         )
-        telemetry.setdefault("bottleneck_stage", bottleneck_stage)
-        telemetry.setdefault("bottleneck_seconds", round(max(0.0, now - bottleneck_started), 1))
+        telemetry["bottleneck_stage"] = bottleneck_stage
+        telemetry["bottleneck_seconds"] = round(max(0.0, now - bottleneck_started), 1)
+    else:
+        # No running stages — clear stale bottleneck data
+        telemetry.pop("bottleneck_stage", None)
+        telemetry.pop("bottleneck_seconds", None)
 
+    # Use a single consistent count for running stages (fix #39)
+    running_count = _stage_running_count(job)
     telemetry["active_task_count"] = max(
         int(telemetry.get("active_task_count", 0) or 0),
-        _stage_running_count(job),
+        running_count,
     )
     telemetry["last_update_epoch"] = _coerce_epoch(job.get("updated_at"), now)
 
@@ -54,9 +69,26 @@ def _snapshot_progress_telemetry(
 
 
 def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
+    """Snapshot a job dict for API serialization.
+
+    Includes a TTL cache keyed on (job_id, state_version, updated_at) to
+    avoid rebuilding the snapshot on every poll (fix #37).
+    """
     now = time.time()
+
+    # Cache check — skip rebuild if the job hasn't changed
+    job_id = str(job.get("id", ""))
+    state_version = int(job.get("state_version", 0) or 0)
+    updated_at = _coerce_epoch(job.get("updated_at"), 0.0)
+    cache_key = f"{job_id}:{state_version}:{updated_at}"
+    cached = _snapshot_cache.get(job_id)
+    if cached is not None:
+        cached_ts, cached_data = cached
+        if (now - cached_ts) < _SNAPSHOT_CACHE_TTL and cached_data.get("_cache_key") == cache_key:
+            return cached_data
+
     started_at = _coerce_epoch(job.get("started_at"), now)
-    updated_at = _coerce_epoch(job.get("updated_at"), started_at)
+    updated_at_val = _coerce_epoch(job.get("updated_at"), started_at)
     finished_at_raw = job.get("finished_at")
     finished_at = _coerce_epoch(finished_at_raw, 0.0) if finished_at_raw else None
     elapsed_seconds = (finished_at or now) - started_at
@@ -75,7 +107,7 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
     else:
         remaining_seconds = 0
 
-    since_update = now - updated_at
+    since_update = now - updated_at_val
     stalled = status == "running" and since_update >= STALLED_AFTER_SECONDS
     stage_progress_label = _stage_progress_label(job)
 
@@ -103,6 +135,7 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
             "reporting",
             "completed",
         ]
+        seen_stages: set[str] = set()
         stage_progress_list = []
         for skey in stage_order_list:
             if skey in raw_stage_progress:
@@ -125,9 +158,12 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
                         "updated_at": sp.get("updated_at"),
                     }
                 )
-        # Include any stages not in the predefined order
+                seen_stages.add(skey)
+        # Include any stages not in the predefined order, up to the cap
         for skey, sp in raw_stage_progress.items():
-            if skey not in {s["stage"] for s in stage_progress_list}:
+            if skey not in seen_stages:
+                if len(stage_progress_list) >= _MAX_STAGE_PROGRESS_ENTRIES:
+                    break
                 stage_progress_list.append(
                     {
                         "stage": sp.get("stage", skey),
@@ -146,12 +182,22 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
                         "updated_at": sp.get("updated_at"),
                     }
                 )
+                seen_stages.add(skey)
 
     telemetry_events = job.get("telemetry_events")
     if not isinstance(telemetry_events, list):
         telemetry_events = []
 
-    return {
+    # Compute running count once for consistency (fix #39)
+    running_count = 0
+    if isinstance(raw_stage_progress, dict):
+        running_count = sum(
+            1
+            for s in raw_stage_progress.values()
+            if isinstance(s, dict) and _normalize_stage_status(s.get("status")) == "running"
+        )
+
+    result = {
         "id": str(job.get("id", "")),
         "base_url": str(job.get("base_url", "")),
         "hostname": str(job.get("hostname", "")),
@@ -161,14 +207,14 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         "target_name": str(job.get("target_name", "")),
         "status": status,
         "started_at": datetime.fromtimestamp(started_at, tz=UTC).isoformat(),
-        "updated_at": datetime.fromtimestamp(updated_at, tz=UTC).isoformat(),
+        "updated_at": datetime.fromtimestamp(updated_at_val, tz=UTC).isoformat(),
         "finished_at": (
             datetime.fromtimestamp(finished_at, tz=UTC).isoformat()
             if finished_at is not None
             else None
         ),
         "started_at_label": format_epoch_ist(started_at),
-        "updated_at_label": format_epoch_ist(updated_at),
+        "updated_at_label": format_epoch_ist(updated_at_val),
         "finished_at_label": format_epoch_ist(finished_at),
         "stage": stage,
         "stage_label": str(
@@ -208,16 +254,13 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         "stage_progress_label": stage_progress_label,
         "stage_progress": stage_progress_list,
         "progress_telemetry": _snapshot_progress_telemetry(job, now=now),
-        "telemetry_events": telemetry_events[-500:],
-        # Expose the count of concurrently running stages for the frontend
-        "concurrent_stage_count": len(
-            [
-                s
-                for s in (
-                    raw_stage_progress.values() if isinstance(raw_stage_progress, dict) else []
-                )
-                if isinstance(s, dict) and s.get("status") == "running"
-            ]
-        ),
+        "telemetry_events": telemetry_events[-_MAX_TELEMETRY_EVENTS:],
+        "concurrent_stage_count": running_count,
         "state_version": int(job.get("state_version", 0) or 0),
+        "_cache_key": cache_key,
     }
+
+    # Store in cache
+    _snapshot_cache[job_id] = (now, result)
+
+    return result

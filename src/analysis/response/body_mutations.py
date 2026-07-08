@@ -1,5 +1,3 @@
-import logging
-
 """POST body mutation helpers for response analysis.
 
 Contains functions for JSON type detection, field extraction, body field
@@ -7,6 +5,8 @@ inference, and POST body mutation generation including privilege escalation
 and nested object mutations.
 Extracted from response_analysis_mutations.py for better separation of concerns.
 """
+
+import logging
 
 import json
 from typing import Any

@@ -1,54 +1,26 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0C0F14;
-  --color-panel: #12161E;
-  --color-line: rgba(255, 255, 255, 0.08);
-  --color-text: #F0F2F5;
-  --color-muted: #94A3B8;
+  --color-bg: #080B12;
+  --color-panel: #0E121C;
+  --color-line: rgba(255, 255, 255, 0.06);
+  --color-text: #F2F4F8;
+  --color-muted: #8899B0;
 
-  --color-accent: #3B82F6;
-  --color-accent-dim: rgba(59, 130, 246, 0.12);
-  --color-bad: #EF4444;
-  --color-warn: #F59E0B;
-  --color-ok: #10B981;
+  --color-accent: #4A8EFF;
+  --color-accent-dim: rgba(74, 142, 255, 0.10);
+  --color-bad: #FF2D55;
+  --color-warn: #FFC107;
+  --color-ok: #10C478;
 
-  --color-critical: #DC2626;
-  --color-high: #EA580C;
-  --color-medium: #F59E0B;
-  --color-low: #3B82F6;
-  --color-info: #64748B;
+  --color-critical: #FF2D55;
+  --color-high: #FF6B35;
+  --color-medium: #FFC107;
+  --color-low: #4A8EFF;
+  --color-info: #5A6B85;
 
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
-}
-
-/* ── High-Performance Scrollbar ────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
-}
-
-[data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-}
-[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.22);
-}
-
-/* Base tailwind utility overrides */
-.glass-panel {
-  @apply bg-[#12161E]/90 border border-white/10 shadow-lg;
 }
 
 /* ── Toast Progress Drain ────────────────────────────────────── */
@@ -59,27 +31,23 @@
 
 /* ── Pulse Dot for Live Indicators ───────────────────────────── */
 .pulse-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--ok);
-  box-shadow: 0 0 6px var(--ok);
+  box-shadow: 0 0 8px var(--ok);
   animation: pulse-dot-glow 2s ease-in-out infinite;
 }
 
 @keyframes pulse-dot-glow {
   0%, 100% { box-shadow: 0 0 4px var(--ok); opacity: 1; }
-  50%      { box-shadow: 0 0 12px var(--ok); opacity: 0.7; }
+  50%      { box-shadow: 0 0 14px var(--ok); opacity: 0.6; }
 }
 
 /* ── Cyber Theme Premium Utility Styles ────────────────────────── */
 @keyframes radar-sweep {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 .radar-sweep-indicator {
@@ -87,41 +55,42 @@
   animation: radar-sweep 4s linear infinite;
 }
 
+/* ── Premium Card Glow Effects ────────────────────────────────── */
 .cyber-glow-card {
-  box-shadow: 0 0 15px rgba(59, 130, 246, 0.05);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 20px rgba(74, 142, 255, 0.04);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .cyber-glow-card:hover {
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
-  transform: translateY(-1px);
+  border-color: rgba(74, 142, 255, 0.25);
+  box-shadow: 0 0 30px rgba(74, 142, 255, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
 }
 
 .cyber-glow-card-ok:hover {
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 0 25px rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 196, 120, 0.25);
+  box-shadow: 0 0 30px rgba(16, 196, 120, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-glow-card-warn:hover {
-  border-color: rgba(245, 158, 11, 0.3);
-  box-shadow: 0 0 25px rgba(245, 158, 11, 0.15);
+  border-color: rgba(255, 193, 7, 0.25);
+  box-shadow: 0 0 30px rgba(255, 193, 7, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-glow-card-bad:hover {
-  border-color: rgba(239, 68, 68, 0.3);
-  box-shadow: 0 0 25px rgba(239, 68, 68, 0.15);
+  border-color: rgba(255, 45, 85, 0.25);
+  box-shadow: 0 0 30px rgba(255, 45, 85, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-text-glow {
-  text-shadow: 0 0 8px currentColor;
+  text-shadow: 0 0 12px currentColor;
 }
 
 .cyber-grid-overlay {
-  background-size: 16px 16px;
+  background-size: 20px 20px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
 }
 
 /* ── Shimmer Glow (for progress bars and loading states) ──── */
@@ -139,12 +108,12 @@
 /* ── Glow Pulse (for status indicators) ─────────────────────── */
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 8px currentColor; }
-  50%      { box-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+  50%      { box-shadow: 0 0 24px currentColor, 0 0 48px currentColor; }
 }
 
 /* ── Slide In Up (for section entrances) ────────────────────── */
 @keyframes slide-in-up {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -157,14 +126,14 @@
 /* ── Shake (for error feedback) ──────────────────────────────── */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-  20%, 40%, 60%, 80% { transform: translateX(4px); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
 }
 
 /* ── Scale Bounce In (for elements appearing) ────────────────── */
 @keyframes scale-bounce-in {
-  0% { opacity: 0; transform: scale(0.9); }
-  60% { opacity: 1; transform: scale(1.02); }
+  0% { opacity: 0; transform: scale(0.92); }
+  55% { opacity: 1; transform: scale(1.01); }
   100% { transform: scale(1); }
 }
 
@@ -174,13 +143,26 @@
   background-size: 200% 200%;
   animation: gradient-shift 6s ease infinite;
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all var(--motion-fast) var(--easing-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.cyber-gradient-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.06) 50%, transparent 60%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .cyber-gradient-btn:hover {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(139, 92, 246, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 24px rgba(74, 142, 255, 0.25), 0 0 48px rgba(160, 120, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
 /* ── Neon Border Animation ────────────────────────────────────── */
@@ -221,12 +203,24 @@
   box-shadow: var(--glass-shadow);
   padding: var(--inner-padding);
   transition: all var(--motion-fast) var(--easing-out);
+  position: relative;
+}
+
+.glass-stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+  pointer-events: none;
 }
 
 .glass-stat-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: var(--glass-shadow), 0 0 20px rgba(59, 130, 246, 0.06);
-  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: var(--glass-shadow), 0 0 24px rgba(74, 142, 255, 0.05);
+  transform: translateY(-2px);
 }
 
 /* ── Shimmer Loading Effect ──────────────────────────────────── */
@@ -242,9 +236,9 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.03) 50%, transparent 100%);
   background-size: 200% 100%;
-  animation: shimmer-glow 2s ease-in-out infinite;
+  animation: shimmer-glow 2.5s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -258,18 +252,20 @@
 }
 
 .animate-shake {
-  animation: shake 0.5s ease-in-out;
+  animation: shake 0.4s ease-in-out;
 }
 
 /* ── Stagger Delay Utilities (extended) ──────────────────────── */
-.stagger-delay-1 { animation-delay: 40ms; }
-.stagger-delay-2 { animation-delay: 80ms; }
-.stagger-delay-3 { animation-delay: 120ms; }
-.stagger-delay-4 { animation-delay: 160ms; }
-.stagger-delay-5 { animation-delay: 200ms; }
-.stagger-delay-6 { animation-delay: 240ms; }
-.stagger-delay-7 { animation-delay: 280ms; }
-.stagger-delay-8 { animation-delay: 320ms; }
+.stagger-delay-1 { animation-delay: 30ms; }
+.stagger-delay-2 { animation-delay: 60ms; }
+.stagger-delay-3 { animation-delay: 90ms; }
+.stagger-delay-4 { animation-delay: 120ms; }
+.stagger-delay-5 { animation-delay: 150ms; }
+.stagger-delay-6 { animation-delay: 180ms; }
+.stagger-delay-7 { animation-delay: 210ms; }
+.stagger-delay-8 { animation-delay: 240ms; }
+.stagger-delay-9 { animation-delay: 270ms; }
+.stagger-delay-10 { animation-delay: 300ms; }
 
 /* ── Scrollbar Cyber Style ───────────────────────────────────── */
 .scrollbar-cyber::-webkit-scrollbar {
@@ -284,4 +280,51 @@
 }
 .scrollbar-cyber::-webkit-scrollbar-thumb:hover {
   background: var(--accent-muted);
+}
+
+/* ── Focus Ring Enhancement ───────────────────────────────────── */
+.focus-ring {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--app-bg), 0 0 0 4px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* ── Data Transition ──────────────────────────────────────────── */
+.data-transition {
+  transition: all var(--motion-base) var(--easing-emphasized);
+}
+
+/* ── Subtle Inner Highlight ───────────────────────────────────── */
+.inner-highlight {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ── Fade In ──────────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in var(--motion-base) var(--easing-smooth) both;
+}
+
+/* ── Scale In ─────────────────────────────────────────────────── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation: scale-in var(--motion-base) var(--easing-spring) both;
+}
+
+/* ── Slide In Right ───────────────────────────────────────────── */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right var(--motion-base) var(--easing-out) both;
 }

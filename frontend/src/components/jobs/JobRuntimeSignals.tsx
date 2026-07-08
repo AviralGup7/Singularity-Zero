@@ -7,7 +7,7 @@ interface JobRuntimeSignalsProps {
   fatalSignalCount: number;
   degradedProviders: string[];
   timeoutEvents: string[];
-  effectiveTimeoutSeconds?: number | null;
+  effectiveTimeoutSeconds?: number;
   hasRuntimeSignals: boolean;
 }
 

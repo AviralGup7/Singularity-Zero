@@ -500,6 +500,7 @@ def cloud_metadata_active_probe(targets: list[str], limit: int = 25) -> list[dic
                     endpoint_base = endpoint_base_key(url)
                     endpoint_type = classify_endpoint(url)
                 except Exception:
+                    logger.warning("Endpoint classification failed for %s", url, exc_info=True)
                     endpoint_key = url
                     endpoint_base = url
                     endpoint_type = "GENERAL"

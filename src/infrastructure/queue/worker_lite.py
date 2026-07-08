@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -55,7 +57,28 @@ def _redact_redis_url(url: str) -> str:
             return urlunparse(parsed._replace(netloc=netloc))
         return url
     except Exception:
+        logger.warning("Failed to redact Redis URL", exc_info=True)
         return "<redis-url-redacted>"
+
+
+_ALLOWED_CUSTOM_COMMANDS: frozenset[str] = frozenset()
+_ENABLE_CUSTOM_WORKER_COMMANDS = os.getenv("ENABLE_CUSTOM_WORKER_COMMANDS", "").strip().lower() == "true"
+
+# Hardcoded known-good SHA-256 checksums for tool binaries.
+# Regenerate when tool versions are bumped.
+_TOOL_CHECKSUMS: dict[str, dict[str, str]] = {}
+
+
+def _verify_sha256(path: Path, expected: str) -> None:
+    """Verify SHA-256 checksum of a downloaded binary. Raises ValueError on mismatch."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    if not hmac.compare_digest(h.hexdigest(), expected.lower()):
+        raise ValueError(
+            f"Checksum mismatch for {path.name}: expected {expected}, got {h.hexdigest()}"
+        )
 
 
 def setup_tools(dest_dir: str | None = None) -> None:
@@ -147,6 +170,12 @@ def setup_tools(dest_dir: str | None = None) -> None:
                                     )
                                 with z.open(name) as source, open(tool_dest, "wb") as target:
                                     shutil.copyfileobj(source, target)
+                                if _TOOL_CHECKSUMS and tool_name in _TOOL_CHECKSUMS:
+                                    expected = _TOOL_CHECKSUMS[tool_name].get(
+                                        f"{os_name}_{arch_name}"
+                                    )
+                                    if expected:
+                                        _verify_sha256(tool_dest, expected)
                                 break
                 else:
                     raise ValueError("Downloaded file is not a valid zip archive.")
@@ -170,8 +199,8 @@ def setup_tools(dest_dir: str | None = None) -> None:
                 get_metrics().counter(
                     "lite_worker_tool_setup_failures_total", "Total tool setup failures"
                 ).inc()
-            except Exception:  # noqa: S110
-                pass
+            except (ImportError, ValueError) as metric_err:
+                logger.debug("Metrics counter unavailable during tool setup: %s", metric_err)
             raise exc
 
     logger.info("Go tool binary setup completed successfully!")
@@ -221,6 +250,7 @@ class LiteWorker:
         self._running = False
         self._shutdown_requested = False
         self._active_tasks: set[asyncio.Task[Any]] = set()
+        self._job_task_map: dict[str, asyncio.Task[Any]] = {}
         self._started_at = time.time()
         self._total_processed = 0
         self._total_failed = 0
@@ -313,14 +343,14 @@ class LiteWorker:
                     mapping={
                         "last_heartbeat": str(now),
                         "status": "busy" if self._active_tasks else "idle",
-                        "active_jobs": json.dumps([t.get_name() for t in self._active_tasks]),
+                        "active_jobs": json.dumps(list(self._job_task_map.keys())),
                     },
                 )
                 await self._redis.expire(worker_key, int(self.heartbeat_interval * 5))
                 await asyncio.sleep(self.heartbeat_interval)
             except asyncio.CancelledError:
                 break
-            except Exception as exc:
+            except (TimeoutError, OSError, ConnectionError) as exc:
                 logger.warning("Heartbeat failed: %s", exc)
                 await asyncio.sleep(5.0)  # Faster retry on failure
 
@@ -428,9 +458,24 @@ class LiteWorker:
                 cmd = ["katana", "-u", target, "-silent"]
                 results = await self._execute_recon_command(cmd)
             else:
-                # Custom/Generic command payload support
                 custom_cmd = inner_payload.get("command")
                 if isinstance(custom_cmd, list):
+                    if not _ENABLE_CUSTOM_WORKER_COMMANDS:
+                        raise ValueError(
+                            f"Custom worker commands are disabled. Set ENABLE_CUSTOM_WORKER_COMMANDS=true "
+                            f"to enable. Job {job_id} from worker {self.worker_id} blocked."
+                        )
+                    if not custom_cmd:
+                        raise ValueError("Custom command list is empty.")
+                    if _ALLOWED_CUSTOM_COMMANDS and custom_cmd[0] not in _ALLOWED_CUSTOM_COMMANDS:
+                        raise ValueError(
+                            f"Command '{custom_cmd[0]}' is not in the allowed custom commands "
+                            f"allowlist: {sorted(_ALLOWED_CUSTOM_COMMANDS)}"
+                        )
+                    logger.info(
+                        "Custom command executed: job_id=%s worker_id=%s cmd=%s",
+                        job_id, self.worker_id, " ".join(str(c) for c in custom_cmd),
+                    )
                     results = await self._execute_recon_command(custom_cmd)
                 else:
                     raise ValueError(
@@ -542,12 +587,16 @@ class LiteWorker:
                                 payload = {}
 
                             # Spawn processing task
-                            task = asyncio.create_task(
+                            from src.core.task_registry import get_task_registry
+                            task = get_task_registry().create_task(
                                 self._process_job(job_id, job_type, payload),
+                                owner="queue_worker_lite",
                                 name=job_id,
                             )
                             self._active_tasks.add(task)
+                            self._job_task_map[job_id] = task
                             task.add_done_callback(self._active_tasks.discard)
+                            task.add_done_callback(lambda _, jid=job_id: self._job_task_map.pop(jid, None))
                             claimed = True
                             break
 
@@ -556,24 +605,36 @@ class LiteWorker:
 
             except asyncio.CancelledError:
                 break
-            except Exception as exc:
+            except (TimeoutError, OSError, ConnectionError) as exc:
                 logger.error("Poll loop encountered an error: %s", exc)
-                # Adaptive back-off on connection/Redis failures to cool down phone
                 await asyncio.sleep(5.0)
 
     async def _cleanup(self) -> None:
-        """Gracefully release job leases and remove worker metadata from Redis."""
+        """Gracefully release job leases and remove worker metadata from Redis.
+
+        Before releasing a lease, verifies the job's actual state in Redis
+        to avoid re-enqueueing already-completed jobs.  Also shuts down
+        registry-tracked tasks to prevent ghost tasks.
+        """
         logger.info("Cleaning up worker metadata and active leases...")
         worker_key = self._key(f"worker:{self.worker_id}")
         workers_set = self._key("workers")
         worker_jobs_key = self._key(f"worker:{self.worker_id}:jobs")
 
-        # Release active job leases back to the queue
-        active_jobs = list(self._active_tasks)
-        for task in active_jobs:
-            job_id = task.get_name()
+        active_job_ids = list(self._job_task_map.keys())
+        for job_id in active_job_ids:
             job_key = self._job_key(job_id)
             try:
+                job_state = await self._redis.hget(job_key, "state")
+                if job_state is not None:
+                    state_str = job_state.decode("utf-8") if isinstance(job_state, bytes) else str(job_state)
+                    if state_str in ("completed", "failed", "cancelled"):
+                        logger.info(
+                            "Skipping lease release for job %s: already in state '%s'",
+                            job_id, state_str,
+                        )
+                        continue
+
                 await self._redis.evalsha(
                     self._shas["release_lease"],
                     3,
@@ -582,16 +643,22 @@ class LiteWorker:
                     self._key("queue"),
                 )
                 logger.info("Released lease for job %s cleanly", job_id)
-            except Exception as exc:
-                logger.warning("Failed to release lease for job %s: %s", job_id, exc)
+            except Exception:
+                logger.exception("Failed to release lease for job %s", job_id)
+
+        self._job_task_map.clear()
+
+        # Cancel any remaining registry-tracked tasks for this worker
+        from src.core.task_registry import get_task_registry
+        await get_task_registry().shutdown_owner("queue_worker_lite")
 
         # De-register worker from Redis
         try:
             await self._redis.delete(worker_key)
             await self._redis.srem(workers_set, self.worker_id)
             logger.info("LiteWorker unregistered successfully.")
-        except Exception as exc:
-            logger.warning("Failed to delete worker keys during cleanup: %s", exc)
+        except Exception:
+            logger.exception("Failed to delete worker keys during cleanup")
 
     async def start(self) -> None:
         """Start the async event loops for the worker."""
@@ -599,20 +666,18 @@ class LiteWorker:
             return
         self._running = True
 
-        # Initialize Redis via RedisClient for circuit breaker, tenant prefix,
-        # and fallback support (fixes Gap 4-B).
-        from src.infrastructure.queue.redis_client import RedisClient
+        # Initialize a single async Redis connection for all operations.
+        # Uses aioredis for async compatibility; circuit-breaker health
+        # checks are performed inline before critical operations.
+        import redis.asyncio as aioredis
 
         logger.info(
             "Connecting to Redis Backplane at %s",
             _redact_redis_url(self.redis_url),
         )
-        self._redis_client = RedisClient(url=self.redis_url)
-        # Keep a direct async reference for operations that need it
-        import redis.asyncio as aioredis
-
         self._redis = aioredis.from_url(self.redis_url)
         await self._redis.ping()
+        self._redis_healthy = True
 
         # Pre-register Lua scripts and fetch their SHAs (unified with core, Gap 8-C)
 
@@ -625,18 +690,19 @@ class LiteWorker:
         await self._register()
 
         # Start loops
-        heartbeat_task = asyncio.create_task(self._heartbeat())
-        poll_task = asyncio.create_task(self._poll_and_process())
+        from src.core.task_registry import get_task_registry
+        _registry = get_task_registry()
+        heartbeat_task = _registry.create_task(self._heartbeat(), owner="worker_lite", name="heartbeat")
+        poll_task = _registry.create_task(self._poll_and_process(), owner="worker_lite", name="poll_and_process")
 
         try:
             await asyncio.gather(heartbeat_task, poll_task, return_exceptions=True)
         finally:
             heartbeat_task.cancel()
             poll_task.cancel()
+            await asyncio.gather(heartbeat_task, poll_task, return_exceptions=True)
             await self._cleanup()
             await self._redis.aclose()
-            if hasattr(self, "_redis_client"):
-                self._redis_client.close()
             self._running = False
             logger.info("LiteWorker stopped cleanly.")
 

@@ -32,7 +32,7 @@ from typing import Any
 _ENABLED = os.environ.get("CYBER_HTTP_PROFILING", "0") == "1"
 
 _lock = threading.Lock()
-_profiles: list[HTTPProfileEntry] = []
+_profiles: list[dict[str, Any]] = []
 
 
 @dataclass
@@ -169,31 +169,41 @@ def _print_http_profile() -> None:
     """Print profiling summary to stdout."""
     summary = get_http_profile()
     if summary.total_requests == 0:
-        print("  No HTTP profiling data collected.")
+        logger.info("No HTTP profiling data collected.")
         return
 
-    print(f"  HTTP Profile ({summary.total_requests} requests)")
-    print("  " + "-" * 50)
-    print(f"  Total duration:  {summary.total_duration_ms:.1f}ms")
-    print(f"  Avg duration:    {summary.avg_duration_ms:.1f}ms")
-    print(f"  P50:             {summary.p50_duration_ms:.1f}ms")
-    print(f"  P95:             {summary.p95_duration_ms:.1f}ms")
-    print(f"  P99:             {summary.p99_duration_ms:.1f}ms")
-    print(f"  Max:             {summary.max_duration_ms:.1f}ms")
-    print(f"  Errors:          {summary.error_count} ({summary.error_rate}%)")
+    logger.info("HTTP Profile (%s requests)", summary.total_requests)
+    logger.info("  " + "-" * 50)
+    logger.info("  Total duration:  %.1fms", summary.total_duration_ms)
+    logger.info("  Avg duration:    %.1fms", summary.avg_duration_ms)
+    logger.info("  P50:             %.1fms", summary.p50_duration_ms)
+    logger.info("  P95:             %.1fms", summary.p95_duration_ms)
+    logger.info("  P99:             %.1fms", summary.p99_duration_ms)
+    logger.info("  Max:             %.1fms", summary.max_duration_ms)
+    logger.info("  Errors:          %s (%s%%)", summary.error_count, summary.error_rate)
     if summary.avg_dns_ms > 0:
-        print(f"  Avg DNS:         {summary.avg_dns_ms:.1f}ms")
+        logger.info("  Avg DNS:         %.1fms", summary.avg_dns_ms)
     if summary.avg_connect_ms > 0:
-        print(f"  Avg Connect:     {summary.avg_connect_ms:.1f}ms")
+        logger.info("  Avg Connect:     %.1fms", summary.avg_connect_ms)
     if summary.avg_ttfb_ms > 0:
-        print(f"  Avg TTFB:        {summary.avg_ttfb_ms:.1f}ms")
+        logger.info("  Avg TTFB:        %.1fms", summary.avg_ttfb_ms)
     if summary.slowest_requests:
         print("\n  Slowest requests:")
         for req in summary.slowest_requests[:5]:
-            print(f"    {req['label'][:50]:<50} {req['duration_ms']:.1f}ms")
+            logger.info("    %s %.1fms", req["label"][:50], req["duration_ms"])
 
 
-atexit.register(_print_http_profile)
+def _register_with_lifecycle() -> None:
+    """Register HTTP profile printing with the lifecycle manager."""
+    try:
+        from src.core.lifecycle import get_lifecycle_manager
+
+        get_lifecycle_manager().register_shutdown("http_profiler", _print_http_profile)
+    except ImportError:
+        atexit.register(_print_http_profile)
+
+
+_register_with_lifecycle()
 
 
 __all__ = [

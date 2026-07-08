@@ -30,6 +30,8 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
+_LAZY_CACHE: dict[str, Any] = {}
+
 _EXPORTS: dict[str, str] = {
     "TelemetryStore": "src.learning.telemetry_store",
     "LearningConfig": "src.learning.config",
@@ -81,5 +83,5 @@ def __getattr__(name: str) -> Any:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     module = import_module(module_path)
     value = getattr(module, name)
-    globals()[name] = value
+    _LAZY_CACHE[name] = value
     return value

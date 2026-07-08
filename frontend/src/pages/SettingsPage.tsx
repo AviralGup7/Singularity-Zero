@@ -9,12 +9,12 @@ import { useSettings } from '@/hooks/useSettings'; import type { AppSettings } f
 import { useDisplayStore } from '@/stores/displayStore';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { Breadcrumbs } from '../components/ui/Breadcrumbs';
-import { useAutoBreadcrumbs } from '../hooks/useAutoBreadcrumbs';
-import { SettingsSectionCard } from '../components/settings/SettingsComponents';
-import { UserProfileSection } from '../components/settings/UserProfileSection';
-import { PageHeader } from '../components/ui';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { useAutoBreadcrumbs } from '@/hooks/useAutoBreadcrumbs';
+import { SettingsSectionCard } from '@/components/settings/SettingsComponents';
+import { UserProfileSection } from '@/components/settings/UserProfileSection';
+import { PageHeader } from '@/components/ui';
 import {
   ThemeSection,
   DisplaySection,
@@ -34,7 +34,7 @@ import {
   AboutSection,
   LanguageSection,
   WorkflowModeSection,
-} from '../components/settings/sections';
+} from '@/components/settings/sections';
 
 type SettingsSection = 'theme' | 'display' | 'dashboard' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'logging' | 'rateLimiting' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language' | 'workflowMode';
 

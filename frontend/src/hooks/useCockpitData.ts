@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useToast } from '@/hooks/useToast';
 import type { CockpitNode, CockpitEdge, ForensicExchange } from '@/api/cockpit';
 import { cockpitApi } from '@/api/cockpit';
 import { getNotes } from '@/api/notes';
@@ -30,6 +31,7 @@ export function useCockpitData({
   const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
   const [migrations, setMigrations] = useState<MigrationEvent[]>([]);
 
+  const toast = useToast();
   const { mountedRef } = useMountedRef();
   const streamRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,13 +153,19 @@ export function useCockpitData({
       .then((res) => {
         if (mountedRef.current) setNotes(res.notes);
       })
-      .catch((err) => console.error('API Error:', err));
+      .catch((err) => {
+        console.error('API Error:', err);
+        toast.error('Failed to load notes');
+      });
     cockpitApi
       .listExchanges(target)
       .then((res) => {
         if (mountedRef.current) setExchanges(res.data.exchanges);
       })
-      .catch((err) => console.error('API Error:', err));
+      .catch((err) => {
+        console.error('API Error:', err);
+        toast.error('Failed to load exchanges');
+      });
     return () => controller.abort();
   }, [target, mountedRef]);
 

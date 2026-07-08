@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class HotReloadManager:
     """Manages active suspend flags and coordinates pipeline pauses."""
 
-    def __init__(self, output_dir: str | Path):
+    def __init__(self, output_dir: str | Path) -> None:
         self.output_dir = Path(output_dir)
         self.flags_dir = self.output_dir / ".suspend_flags"
         self.flags_dir.mkdir(parents=True, exist_ok=True)

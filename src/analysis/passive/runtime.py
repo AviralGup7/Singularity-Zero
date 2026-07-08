@@ -90,8 +90,8 @@ def _url_matches(url: str, pattern: str) -> bool:
             return True
         if pattern in url:
             return True
-    except Exception:  # noqa: S110
-        pass
+    except Exception:
+        logger.exception("Error matching URL pattern '%s' against '%s'", pattern, url)
     return False
 
 
@@ -351,8 +351,8 @@ class ResponseCache:
                             dt = email.utils.parsedate_to_datetime(str(ra))
                             if dt:
                                 retry_after = max(0.0, (dt - datetime.now(UTC)).total_seconds())
-                        except Exception:  # noqa: S110
-                            pass
+                        except Exception:
+                            logger.exception("Error parsing Retry-After header '%s'", ra)
 
             self.scheduler.observe(
                 successful=result.successful,

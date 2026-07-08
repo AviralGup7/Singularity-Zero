@@ -196,8 +196,8 @@ def generate_body_payloads(
                 endpoint_type = classify_endpoint(url)
                 if endpoint_type in ("api", "graphql", "rest"):
                     is_api = True
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Operation failed in payload_generator_http.py", exc_info=True)
         if not is_api:
             continue
 

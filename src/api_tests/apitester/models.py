@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class ApiTestContext:
+class APITestContext:
     title: str
     severity: str
     confidence: str

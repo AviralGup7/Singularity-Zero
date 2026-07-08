@@ -4,6 +4,20 @@
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--glass-bg);
+  position: relative;
+}
+
+/* Subtle inner top highlight */
+.table-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+  pointer-events: none;
+  z-index: 1;
 }
 
 table {
@@ -20,11 +34,11 @@ th, td {
 }
 
 th {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   font-weight: 500;
   font-size: var(--text-small);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border-strong);
   position: sticky;
@@ -71,15 +85,28 @@ tbody tr {
 }
 
 tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.01);
+  background: rgba(255, 255, 255, 0.008);
 }
 
 tbody tr:hover {
   background: var(--surface-hover);
-  box-shadow: inset 3px 0 0 var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent-soft);
 }
 
 tbody tr[aria-selected="true"] {
   background: var(--accent-muted);
   border-color: var(--accent);
+}
+
+/* First cell subtle indicator */
+td:first-child {
+  border-left: 2px solid transparent;
+}
+
+tbody tr:hover td:first-child {
+  border-left-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+tbody tr[aria-selected="true"] td:first-child {
+  border-left-color: var(--accent);
 }

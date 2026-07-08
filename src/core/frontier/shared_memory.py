@@ -11,6 +11,9 @@ from multiprocessing import shared_memory
 from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
+import logging
+logger = logging.getLogger(__name__)
+
 
 logger = get_pipeline_logger(__name__)
 
@@ -60,8 +63,8 @@ class SharedMemoryBuffer:
         if self._owner:
             try:
                 self.shm.unlink()
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                    logger.debug("Non-critical cleanup error", exc_info=True)
 
 
 class ZeroCopyRouter:

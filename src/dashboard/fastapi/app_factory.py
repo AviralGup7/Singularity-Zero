@@ -19,7 +19,7 @@ from src.core.exceptions import (
     ToolNotInstalledError,
 )
 from src.dashboard.fastapi.config import DashboardConfig
-from src.dashboard.fastapi.dependencies import require_admin
+from src.dashboard.fastapi.dependencies import require_admin, set_app_ref
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
@@ -60,6 +60,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     )
 
     app.state.config = config
+    set_app_ref(app)
     setup_security_store(app, config)
     setup_middleware(app, config)
     setup_routers(app, config)
@@ -285,7 +286,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                     if registry_metrics
                     else central_text.encode("utf-8")
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 combined = registry_metrics
                 logger.debug("Failed to merge cyber metrics with prometheus metrics")
             return Response(content=combined, media_type=CONTENT_TYPE_LATEST)

@@ -567,8 +567,8 @@ def _is_in_scope(url: str, scope_hosts: set[str]) -> bool:
     try:
         matched, _reason = scope_match(url, scope_hosts)
         return matched
-    except Exception:
-        logger.warning("Scope check failed for %s, defaulting to OUT-OF-SCOPE", url)
+    except (ValueError, TypeError, AttributeError) as exc:
+        logger.warning("Scope check failed for %s: %s, defaulting to OUT-OF-SCOPE", url, exc)
         return False
 
 

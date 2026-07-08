@@ -3,16 +3,16 @@ import struct
 
 import pytest
 
-from src.core.frontier.ghost_actor import ScanActor
 from src.core.frontier.proc_pool import FrontierProcessPool
 from src.core.frontier.state import (
     CRDTCompactionBudget,
     NeuralState,
     radix_sort_timestamps,
 )
-from src.infrastructure.frontier.wal import FrontierWAL
 from src.core.storage.bounded_compaction_store import BoundedCompactionStateStore
 from src.core.storage.local_backends import LocalCheckpointStore
+from src.infrastructure.frontier.ghost_actor import ScanActor
+from src.infrastructure.frontier.wal import FrontierWAL
 
 
 @pytest.mark.asyncio
@@ -130,72 +130,25 @@ def test_wal_dual_commit_and_integrity(tmp_path):
 async def test_proc_pool_execute_task_binary(monkeypatch):
     pool = FrontierProcessPool(pool_size=1)
 
-    class MockProcess:
-        pid = 9999
-        returncode = None
-
-        def __init__(self):
-            self.stdin = asyncio.Queue()
-            self.stdout = asyncio.Queue()
-
-        def terminate(self):
-            pass
-
-    mock_proc = MockProcess()
-    q_in = mock_proc.stdin
-    q_out = mock_proc.stdout
-
-    class MockStream:
-        def __init__(self, q_in, q_out):
-            self.q_in = q_in
-            self.q_out = q_out
-
-        def write(self, data):
-            for byte in data:
-                self.q_in.put_nowait(bytes([byte]))
-
-        async def drain(self):
-            pass
-
-        async def readexactly(self, n):
-            buf = b""
-            for _ in range(n):
-                buf += await self.q_out.get()
-            return buf
-
-    mock_proc.stdin = MockStream(q_in, q_out)
-    mock_proc.stdout = MockStream(q_out, q_in)
-
-    async def mock_create(*args, **kwargs):
-        return mock_proc
-
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_create)
-    monkeypatch.setattr("os.killpg", lambda *args: None, raising=False)
-    monkeypatch.setattr("os.getpgid", lambda *args: 1, raising=False)
-
-    monkeypatch.setattr("src.core.frontier.proc_pool._validate_tool_name", lambda _: None)
-    await pool.warm_pool("dummy_bin", [])
-
-    async def worker_echo():
-        # Read 4 bytes length
-        len_bytes = b""
-        for _ in range(4):
-            len_bytes += await q_in.get()
-        length = struct.unpack("!I", len_bytes)[0]
-        # Read payload
-        payload = b""
-        for _ in range(length):
-            payload += await q_in.get()
-        # Echo length-prefixed payload back
-        for b in len_bytes:
-            q_out.put_nowait(bytes([b]))
-        for b in payload:
-            q_out.put_nowait(bytes([b]))
-
-    loop = asyncio.get_running_loop()
-    loop.create_task(worker_echo())
+    from src.core.frontier.marshaller import safe_pack
 
     task_input = {"echo": "hello_world"}
+    packed = safe_pack(task_input, payload_kind="proc_pool_ipc")
+    response_bytes = struct.pack("!I", len(packed)) + packed
+
+    class MockProcess:
+        pid = 9999
+        returncode = 0
+
+        async def communicate(self, input=None):
+            return response_bytes, b""
+
+    async def mock_create(*args, **kwargs):
+        return MockProcess()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_create)
+    monkeypatch.setattr("src.core.frontier.proc_pool._validate_tool_name", lambda _: None)
+
     result = await pool.execute_task_binary("dummy_bin", task_input)
     assert result == task_input
 

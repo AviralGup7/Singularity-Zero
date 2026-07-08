@@ -24,7 +24,7 @@ def _ensure_scope_defaults(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-class FpPatternsRepo(BaseRepo):
+class FPPatternsRepo(BaseRepo):
     """Repository for fp_patterns table operations."""
 
     def __init__(self, db_path: Path, local: threading.local):

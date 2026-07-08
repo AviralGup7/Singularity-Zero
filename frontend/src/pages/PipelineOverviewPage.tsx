@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Activity } from 'lucide-react';
 import { useJobs } from '../hooks';
 import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { StageDurationHeatmap } from '../components/charts/StageDurationHeatmap';
+const StageDurationHeatmap = lazy(() =>
+  import('../components/charts/StageDurationHeatmap').then(m => ({ default: m.StageDurationHeatmap }))
+);
 import { PipelineStageTimeline } from '../components/PipelineStageTimeline';
 import { StageTheater } from '../components/ops/StageTheater';
 import { buildStageTheaterNodesFromJobs } from '../lib/stageTheaterUtils';
@@ -197,7 +199,9 @@ export function PipelineOverviewPage() {
         {recentJobs.length >= 2 && (
           <motion.div variants={itemVariants} className="card ops-card">
             <h3>Stage Duration Heatmap (Recent {recentJobs.length} jobs)</h3>
-            <StageDurationHeatmap jobs={recentJobs} />
+            <Suspense fallback={<div className="h-48 bg-white/5 rounded-lg animate-pulse" />}>
+              <StageDurationHeatmap jobs={recentJobs} />
+            </Suspense>
           </motion.div>
         )}
 

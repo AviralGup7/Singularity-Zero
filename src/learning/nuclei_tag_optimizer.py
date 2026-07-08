@@ -57,7 +57,7 @@ class TagPerformance:
 
 
 class NucleiTagOptimizer:
-    """Analyzes nuclei finding outcomes to optimise template tag selection.
+    """Analyzes nuclei finding outcomes to optimize template tag selection.
 
     Reads feedback events from the last ``lookback_runs`` scan runs and
     adjusts ``intensity_multiplier`` values inside ``current_adaptive_tags``
@@ -204,7 +204,7 @@ class NucleiTagOptimizer:
             for rid in run_ids:
                 all_events.extend(self.store.get_feedback_events_for_run(rid))
             return all_events
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "_get_recent_feedback: failed to read scan runs, falling back to all events",
                 exc_info=True,

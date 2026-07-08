@@ -115,8 +115,8 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "misp", "status": "success"},
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except (ImportError, AttributeError):
+                    logger.debug("Metrics tracking failed (MISP success)", exc_info=True)
             except Exception as e:
                 logger.warning("MISP lookup failed: %s", e)
                 try:
@@ -127,8 +127,8 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "misp", "status": "failed"},
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except (ImportError, AttributeError):
+                    logger.debug("Metrics tracking failed (MISP failure)", exc_info=True)
 
         # 2. Query AlienVault OTX
         otx_key = os.environ.get("OTX_API_KEY")
@@ -150,8 +150,8 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "otx", "status": "success"},
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except (ImportError, AttributeError):
+                    logger.debug("Metrics tracking failed (OTX success)", exc_info=True)
             except Exception as e:
                 logger.warning("OTX lookup failed: %s", e)
                 try:
@@ -162,8 +162,8 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "otx", "status": "failed"},
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except (ImportError, AttributeError):
+                    logger.debug("Metrics tracking failed (OTX failure)", exc_info=True)
 
         # 3. Query VirusTotal
         vt_key = os.environ.get("VIRUSTOTAL_API_KEY")
@@ -186,8 +186,8 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "virustotal", "status": "success"},
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except (ImportError, AttributeError):
+                    logger.debug("Metrics tracking failed (VT success)", exc_info=True)
             except Exception as e:
                 logger.warning("VirusTotal lookup failed: %s", e)
                 try:
@@ -198,8 +198,8 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "virustotal", "status": "failed"},
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except (ImportError, AttributeError):
+                    logger.debug("Metrics tracking failed (VT failure)", exc_info=True)
 
         # Local simulation fallback is *only* honoured when the
         # operator has explicitly enabled test mode. Otherwise a
@@ -337,11 +337,11 @@ class ThreatIntelCorrelator:
     def _attach_epss(finding: dict[str, Any], cve: str) -> None:
         try:
             from src.intelligence.risk.epss import get_default_epss_client
-        except Exception:  # noqa: BLE001
+        except (ImportError, AttributeError):
             return
         try:
             score = get_default_epss_client().lookup(cve)
-        except Exception as exc:  # noqa: BLE001
+        except (TypeError, ValueError, KeyError) as exc:
             logger.debug("EPSS lookup failed for %s: %s", cve, exc)
             return
         if score is None:
@@ -362,11 +362,11 @@ class ThreatIntelCorrelator:
     def _attach_cisa_kev(finding: dict[str, Any], cve: str) -> None:
         try:
             from src.intelligence.risk.cisa_kev import get_default_cisa_kev_client
-        except Exception:  # noqa: BLE001
+        except (ImportError, AttributeError):
             return
         try:
             record = get_default_cisa_kev_client().lookup(cve)
-        except Exception as exc:  # noqa: BLE001
+        except (TypeError, ValueError, KeyError) as exc:
             logger.debug("CISA KEV lookup failed for %s: %s", cve, exc)
             return
         if record is None:

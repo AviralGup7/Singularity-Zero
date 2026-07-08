@@ -20,6 +20,7 @@ import time, before the first call to
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -47,6 +48,86 @@ _DEFAULTS_REGISTERED = False
 _LAST_REFRESH_TIME = 0.0
 REFRESH_THROTTLE_SECONDS = 5.0
 
+# Lazy stage registration map: (kind, name) -> (module_path, attr_name)
+# Stages are only imported when actually resolved, not at catalog init time.
+_LAZY_STAGE_REGISTRY: dict[tuple[str, str], tuple[str, str]] = {
+    (RECON_PROVIDER, "subdomains"): (
+        ".pipeline_orchestrator.stages.recon", "run_subdomain_enumeration",
+    ),
+    (RECON_PROVIDER, "live_hosts"): (
+        ".pipeline_orchestrator.stages.recon", "run_live_hosts",
+    ),
+    (RECON_PROVIDER, "urls"): (
+        ".pipeline_orchestrator.stages.recon", "run_url_collection",
+    ),
+    (RECON_PROVIDER, "parameters"): (
+        ".pipeline_orchestrator.stages.recon", "run_parameter_extraction",
+    ),
+    (RECON_PROVIDER, "ranking"): (
+        ".pipeline_orchestrator.stages.recon", "run_priority_ranking",
+    ),
+    (RECON_PROVIDER, "subdomain_takeover"): (
+        ".pipeline_orchestrator.stages.adaptive_extra", "run_subdomain_takeover",
+    ),
+    (RECON_PROVIDER, "git_diff_crawl"): (
+        ".pipeline_orchestrator.stages.git_diff_crawl", "run_git_diff_crawl",
+    ),
+    (SCANNER, "passive_scan"): (
+        ".pipeline_orchestrator.stages.analysis", "run_passive_scanning",
+    ),
+    (SCANNER, "active_scan"): (
+        ".pipeline_orchestrator.stages.active_scan", "run_active_scanning",
+    ),
+    (SCANNER, "nuclei"): (
+        ".pipeline_orchestrator.stages.nuclei", "run_nuclei_stage",
+    ),
+    (SCANNER, "semgrep"): (
+        ".pipeline_orchestrator.stages.semgrep", "run_semgrep_stage",
+    ),
+    (SCANNER, "sca_scan"): (
+        ".pipeline_orchestrator.stages.sca_scan", "run_sca_scan_stage",
+    ),
+    (SCANNER, "container_scan"): (
+        ".pipeline_orchestrator.stages.container_scan", "run_container_scan_stage",
+    ),
+    (SCANNER, "iac_scan"): (
+        ".pipeline_orchestrator.stages.iac_scan", "run_iac_scan_stage",
+    ),
+    (SCANNER, "sbom_generate"): (
+        ".pipeline_orchestrator.stages.sbom_generate", "run_sbom_generate_stage",
+    ),
+    (SCANNER, "sbom_diff"): (
+        ".pipeline_orchestrator.stages.sbom_diff", "run_sbom_diff_stage",
+    ),
+    (SCANNER, "git_secret_scan"): (
+        ".pipeline_orchestrator.stages.git_secret_scan", "run_git_secret_scan_stage",
+    ),
+    (VALIDATOR, "access_control"): (
+        ".pipeline_orchestrator.stages.access_control", "run_access_control_testing",
+    ),
+    (VALIDATOR, "validation"): (
+        ".pipeline_orchestrator.stages.validation", "run_validation",
+    ),
+    (VALIDATOR, "finding_revalidation"): (
+        ".pipeline_orchestrator.stages.finding_revalidation", "run_finding_revalidation",
+    ),
+    (ENRICHMENT_PROVIDER, "intelligence"): (
+        ".pipeline_orchestrator.stages.enrichment", "run_post_analysis_enrichments",
+    ),
+    (ENRICHMENT_PROVIDER, "threat_modeling"): (
+        ".pipeline_orchestrator.stages.adaptive_extra", "run_threat_modeling",
+    ),
+    (EXPORTER, "reporting"): (
+        ".pipeline_orchestrator.stages.reporting", "run_reporting",
+    ),
+    (EXPORTER, "sarif_export"): (
+        ".pipeline_orchestrator.stages.sarif_export", "run_sarif_export",
+    ),
+    (EXPORTER, "report_distribution"): (
+        ".pipeline_orchestrator.stages.report_distribution", "run_report_distribution",
+    ),
+}
+
 
 def _throttled_refresh() -> None:
     global _LAST_REFRESH_TIME
@@ -60,85 +141,30 @@ def register_stage_definitions() -> None:
     _throttled_refresh()
 
 
+def _make_lazy_loader(module_path: str, attr_name: str) -> Callable[..., Any]:
+    """Return a callable that lazily imports and invokes the real stage runner."""
+    _resolved: list[Callable[..., Any] | None] = [None]
+
+    def _lazy_runner(*args: Any, **kwargs: Any) -> Any:
+        if _resolved[0] is None:
+            mod = importlib.import_module(module_path, package="src.pipeline.services")
+            _resolved[0] = getattr(mod, attr_name)
+        return _resolved[0](*args, **kwargs)
+
+    _lazy_runner.__name__ = attr_name
+    _lazy_runner.__qualname__ = attr_name
+    return _lazy_runner
+
+
 def _register_defaults() -> None:
     global _DEFAULTS_REGISTERED
     if _DEFAULTS_REGISTERED:
         return
 
-    from src.pipeline.services.pipeline_orchestrator.stages.access_control import (
-        run_access_control_testing,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.active_scan import run_active_scanning
-    from src.pipeline.services.pipeline_orchestrator.stages.adaptive_extra import (
-        run_subdomain_takeover,
-        run_threat_modeling,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.analysis import run_passive_scanning
-    from src.pipeline.services.pipeline_orchestrator.stages.container_scan import (
-        run_container_scan_stage,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.enrichment import (
-        run_post_analysis_enrichments,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.finding_revalidation import (
-        run_finding_revalidation,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.git_diff_crawl import (
-        run_git_diff_crawl,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.git_secret_scan import (
-        run_git_secret_scan_stage,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.iac_scan import run_iac_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.nuclei import run_nuclei_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.recon import (
-        run_live_hosts,
-        run_parameter_extraction,
-        run_priority_ranking,
-        run_subdomain_enumeration,
-        run_url_collection,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.report_distribution import (
-        run_report_distribution,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.reporting import run_reporting
-    from src.pipeline.services.pipeline_orchestrator.stages.sarif_export import run_sarif_export
-    from src.pipeline.services.pipeline_orchestrator.stages.sbom_diff import run_sbom_diff_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.sbom_generate import (
-        run_sbom_generate_stage,
-    )
-    from src.pipeline.services.pipeline_orchestrator.stages.sca_scan import run_sca_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.validation import run_validation
-
-    register_plugin(RECON_PROVIDER, "subdomains")(run_subdomain_enumeration)
-    register_plugin(RECON_PROVIDER, "live_hosts")(run_live_hosts)
-    register_plugin(RECON_PROVIDER, "urls")(run_url_collection)
-    register_plugin(RECON_PROVIDER, "parameters")(run_parameter_extraction)
-    register_plugin(RECON_PROVIDER, "ranking")(run_priority_ranking)
-    register_plugin(RECON_PROVIDER, "subdomain_takeover")(run_subdomain_takeover)
-    register_plugin(RECON_PROVIDER, "git_diff_crawl")(run_git_diff_crawl)
-
-    register_plugin(SCANNER, "passive_scan")(run_passive_scanning)
-    register_plugin(SCANNER, "active_scan")(run_active_scanning)
-    register_plugin(SCANNER, "nuclei")(run_nuclei_stage)
-    register_plugin(SCANNER, "semgrep")(run_semgrep_stage)
-    register_plugin(SCANNER, "sca_scan")(run_sca_scan_stage)
-    register_plugin(SCANNER, "container_scan")(run_container_scan_stage)
-    register_plugin(SCANNER, "iac_scan")(run_iac_scan_stage)
-    register_plugin(SCANNER, "sbom_generate")(run_sbom_generate_stage)
-    register_plugin(SCANNER, "sbom_diff")(run_sbom_diff_stage)
-    register_plugin(SCANNER, "git_secret_scan")(run_git_secret_scan_stage)
-
-    register_plugin(VALIDATOR, "access_control")(run_access_control_testing)
-    register_plugin(VALIDATOR, "validation")(run_validation)
-    register_plugin(VALIDATOR, "finding_revalidation")(run_finding_revalidation)
-
-    register_plugin(ENRICHMENT_PROVIDER, "intelligence")(run_post_analysis_enrichments)
-    register_plugin(ENRICHMENT_PROVIDER, "threat_modeling")(run_threat_modeling)
-    register_plugin(EXPORTER, "reporting")(run_reporting)
-    register_plugin(EXPORTER, "sarif_export")(run_sarif_export)
-    register_plugin(EXPORTER, "report_distribution")(run_report_distribution)
+    # Register lazy stage runners — the actual module imports happen
+    # only when the stage is first resolved and called.
+    for (kind, name), (module_path, attr_name) in _LAZY_STAGE_REGISTRY.items():
+        register_plugin(kind, name)(_make_lazy_loader(module_path, attr_name))
 
     from src.analysis.automation.ticket_creators import (
         BugcrowdTicketCreator,

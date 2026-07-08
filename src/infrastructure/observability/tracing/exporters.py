@@ -6,8 +6,11 @@ production-compatible trace collection.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from src.infrastructure.observability.tracing.models import Span, SpanStatus
 
@@ -125,6 +128,7 @@ class OTLPExporter:
 
             from opentelemetry.sdk.trace import ReadableSpan
             from opentelemetry.trace import SpanContext, Status, StatusCode, TraceFlags
+
         except ImportError:
             return []
 
@@ -179,8 +183,8 @@ class OTLPExporter:
         if self._exporter is not None:
             try:
                 self._exporter.shutdown()
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.debug("Non-critical cleanup error", exc_info=True)
 
     @property
     def is_available(self) -> bool:

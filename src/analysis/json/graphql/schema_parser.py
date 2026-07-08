@@ -117,7 +117,8 @@ def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, An
                     detected.append(detection)
                     seen_hosts.add(host_key)
                     break
-            except Exception:  # noqa: S112
+            except Exception:
+                logger.debug("Schema parser: host probe skipped for %s", host_key, exc_info=True)
                 continue
 
         if host_key not in seen_hosts:
@@ -137,7 +138,8 @@ def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, An
                             detected.append(detection)
                             seen_hosts.add(host_key)
                             break
-                except Exception:  # noqa: S112
+                except Exception:
+                    logger.debug("Schema parser: path probe skipped for %s", candidate, exc_info=True)
                     continue
 
     return detected

@@ -270,7 +270,7 @@ class CsrfValidator(BaseValidator):
 
 
 @register_plugin(VALIDATOR, "xss")
-class XssValidator(BaseValidator):
+class XSSValidator(BaseValidator):
     name = "xss"
     result_key = "xss_validation"
     category = "xss"

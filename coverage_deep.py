@@ -9,7 +9,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-ROOT = Path(r"D:\cyber security test pipeline - Copy")
+ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "src"
 TESTS = ROOT / "tests"
 

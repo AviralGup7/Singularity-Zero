@@ -1,0 +1,1 @@
+export { StageTheater } from './StageTheater';

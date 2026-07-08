@@ -65,8 +65,8 @@ class CredentialVault:
             parsed = urlparse(url)
             if parsed.hostname:
                 self._scan_host_netlocs.add(parsed.hostname.lower())
-        except Exception:  # noqa: S110
-            pass
+        except (ValueError, AttributeError):
+            logger.debug("Failed to parse scan host URL: %s", url)
 
     def capture_from_response(self, response: dict[str, Any]) -> list[CapturedCredential]:
         """Extract credentials from HTTP response headers (Set-Cookie, Authorization)."""
@@ -103,7 +103,7 @@ class CredentialVault:
         if "authorization" in headers:
             auth_value = headers["authorization"].strip()
             saw_auth = True
-            cred_type = "bearing" if auth_value.lower().startswith("bearer ") else "authorization"
+            cred_type = "bearer" if auth_value.lower().startswith("bearer ") else "authorization"
             captured.append(
                 self._store_credential(
                     name=headers.get("authorization", "authorization"),
@@ -136,7 +136,8 @@ class CredentialVault:
                 raw = match.group(1)
                 try:
                     decoded_value = base64.b64decode(raw).decode("utf-8", errors="replace")
-                except Exception:  # noqa: S110
+                except (ValueError, TypeError):
+                    logger.debug("Failed to base64-decode SAML response, using raw value")
                     decoded_value = raw
                 captured.append(
                     self._store_credential(
@@ -278,8 +279,8 @@ class CredentialVault:
             encoded = str(encoded)
         try:
             base64.b64decode(encoded).decode("utf-8", errors="replace")
-        except Exception:  # noqa: S110
-            pass
+        except (ValueError, TypeError):
+            logger.debug("Failed to validate SAML response encoding")
         pseudo_response = {
             "final_url": source_url,
             "url": source_url,
@@ -345,7 +346,7 @@ class CredentialVault:
             return "user"
         if lower_type in {"cookie"} and lower_name not in {"sessionid", "sid"}:
             return "user"
-        if lower_type in {"bearing", "authorization"}:
+        if lower_type in {"bearer", "authorization"}:
             return "user"
         return None
 
@@ -371,7 +372,8 @@ def _safe_netloc(url: str | None) -> str:
     try:
         hostname = urlparse(url).hostname
         return str(hostname) if hostname is not None else ""
-    except Exception:  # noqa: S110
+    except (ValueError, AttributeError):
+        logger.debug("Failed to parse URL netloc: %s", url)
         return ""
 
 
@@ -394,8 +396,8 @@ def _extract_access_token(response: requests.Response) -> str | None:
                 ).strip()
                 or None
             )
-    except Exception:  # noqa: S110
-        pass
+    except (ValueError, KeyError, TypeError):
+        logger.debug("Failed to extract access token from response")
     return None
 
 
@@ -404,6 +406,6 @@ def _parse_expires_at(response: requests.Response) -> datetime | None:
         payload = response.json()
         if isinstance(payload, dict) and "expires_in" in payload:
             return datetime.now(UTC) + timedelta(seconds=int(payload["expires_in"]))
-    except Exception:  # noqa: S110
-        pass
+    except (ValueError, KeyError, TypeError):
+        logger.debug("Failed to parse expires_at from response")
     return None

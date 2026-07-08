@@ -95,7 +95,7 @@ def test_websocket_frame_size_limit() -> None:
             try:
                 websocket.send_text(large_payload)
                 _ = websocket.receive_json()
-                assert False, "Should have disconnected due to large payload size limit"
+                pytest.fail("Should have disconnected due to large payload size limit")
             except (WebSocketDisconnect, RuntimeError):
                 pass
 

@@ -102,8 +102,8 @@ def has_avx512() -> bool:
             with open("/proc/cpuinfo", encoding="utf-8") as f:
                 content = f.read()
                 return "avx512" in content
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+            logging.getLogger(__name__).debug("Could not read /proc/cpuinfo for AVX-512 detection")
     elif system == "windows":
         # No reliable way to detect AVX-512 from user-mode on Windows without
         # a CPUID helper; fall through to False.

@@ -1,0 +1,67 @@
+import { motion } from 'framer-motion';
+import { ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
+import { InfoItem } from '@/components/jobs/JobInfoItem';
+import { RemediationSuggestions } from '@/features/findings/components/RemediationSuggestions';
+import { itemVariants } from './helpers';
+import type { Job, RemediationSuggestion } from '@/types/api';
+
+interface FailureSectionProps {
+  job: Job;
+  sseError: string | null;
+  remediation: RemediationSuggestion[];
+  remediationLoading: boolean;
+  traceLoading: boolean;
+  onOpenTrace: () => void;
+}
+
+export function FailureSection({ job, sseError, remediation, remediationLoading, traceLoading, onOpenTrace }: FailureSectionProps) {
+  return (
+    <>
+      <motion.div variants={itemVariants} className="card error-card" role="alert">
+        <h3>Job Failure Details</h3>
+        {job.failure_reason_code === 'circuit_breaker_open' ? (
+          <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'rgba(234, 179, 8, 0.08)' }}>
+            <span className="text-lg" aria-hidden="true">⚡</span>
+            <div>
+              <p className="font-medium text-sm" style={{ color: '#eab308' }}>
+                Stage Skipped: Circuit Breaker Open
+              </p>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                The <strong>{job.failed_stage || 'tool'}</strong> stage was skipped because its circuit breaker is open
+                due to repeated failures. The tool may be temporarily unavailable or misconfigured.
+              </p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-2">
+                Visit <Link to={ROUTES.SELF_HEALING} className="underline">Self-Healing</Link> to reset the circuit breaker
+                or check tool availability in Settings.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="info-grid">
+              {job.failed_stage && <InfoItem label="Stage" value={job.failed_stage} />}
+              {job.failure_reason_code && <InfoItem label="Reason Code" value={job.failure_reason_code} />}
+              {job.failure_step && <InfoItem label="Failure Step" value={job.failure_step} />}
+            </div>
+            {(job.failure_reason || job.error || sseError) && (
+              <pre className="error-text mt-4">{job.failure_reason || job.error || sseError}</pre>
+            )}
+          </>
+        )}
+      </motion.div>
+
+      <motion.div variants={itemVariants} className="card">
+        <div className="trace-actions-header flex items-center justify-between gap-4">
+          <h3>Debug Actions</h3>
+          <button className="btn btn-secondary btn-sm flex items-center gap-1.5" onClick={onOpenTrace} disabled={traceLoading}>
+            <ExternalLink size={14} aria-hidden="true" />
+            <span>{traceLoading ? 'Opening...' : 'Open Jaeger Trace'}</span>
+          </button>
+        </div>
+        <RemediationSuggestions suggestions={remediation} loading={remediationLoading} />
+      </motion.div>
+    </>
+  );
+}

@@ -358,7 +358,7 @@ class RedisRateLimiter:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Production-grade rate limiting middleware with adaptive throttling."""
 
-    def __init__(self, app: Any, config: RateLimitConfig):
+    def __init__(self, app: Any, config: RateLimitConfig) -> None:
         super().__init__(app)
         self._config = config
         self._adaptive = AdaptiveLimitController(config)

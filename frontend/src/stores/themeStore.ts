@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { EffectCapability, MotionIntensity } from '@/lib/motionPolicy';
 import { safeStorage } from '@/utils/storage';
-import type { ThemeMode, ThemeState, ThemeUpdater } from '@/context/theme-context';
+import type { ThemeMode, ThemeState, ThemeUpdater } from '@/context/ThemeContext';
 
 function detectSystemTheme(): ThemeMode {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -32,15 +32,25 @@ function getInitialTheme(): ThemeState {
 
 const applyThemeSideEffects = (theme: ThemeState) => {
   if (typeof window === 'undefined') return;
-  document.documentElement.setAttribute('data-theme', theme.mode);
-  if (theme.accentColor !== '#3B82F6') {
-    document.documentElement.style.setProperty('--accent', theme.accentColor);
+
+  // Use CSS View Transitions API for a smooth 200ms cross-fade when available
+  const doUpdate = () => {
+    document.documentElement.setAttribute('data-theme', theme.mode);
+    if (theme.accentColor !== '#3B82F6') {
+      document.documentElement.style.setProperty('--accent', theme.accentColor);
+    } else {
+      document.documentElement.style.removeProperty('--accent');
+    }
+    document.documentElement.setAttribute('data-motion-intensity', theme.motionIntensity);
+    document.documentElement.setAttribute('data-effect-capability', theme.effectCapability);
+    safeStorage.set('cyber-pipeline-theme', JSON.stringify({ theme }));
+  };
+
+  if (document.startViewTransition) {
+    document.startViewTransition(doUpdate);
   } else {
-    document.documentElement.style.removeProperty('--accent');
+    doUpdate();
   }
-  document.documentElement.setAttribute('data-motion-intensity', theme.motionIntensity);
-  document.documentElement.setAttribute('data-effect-capability', theme.effectCapability);
-  safeStorage.set('cyber-pipeline-theme', JSON.stringify({ theme }));
 };
 
 export interface ThemeStore {

@@ -45,7 +45,8 @@ def _locate_finding_on_disk(
                 continue
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: S112
+            except Exception:
+                logger.warning("Failed to read findings file %s", findings_path, exc_info=True)
                 continue
             for idx, f in enumerate(findings):
                 fid = (
@@ -109,6 +110,13 @@ async def update_finding(
 
 
 def _propagate_false_positive(finding_payload: dict[str, Any]) -> None:
+    """Propagate false-positive triage to the learning subsystem.
+
+    Bug #1: The background task for FP tracking is now created via the
+    TaskRegistry so it is properly tracked, cancelled on shutdown, and
+    its exceptions are logged.  Previously, ``loop.create_task()`` created
+    a fire-and-forget task that could silently fail or survive shutdown.
+    """
     is_fp_triage = (
         finding_payload.get("decision") == "DROP"
         or finding_payload.get("status") == "false_positive"
@@ -133,22 +141,29 @@ def _propagate_false_positive(finding_payload: dict[str, Any]) -> None:
         category = finding_payload.get("category", "general")
         import asyncio
 
+        async def _tracked_fp_update() -> None:
+            try:
+                await learning._fp_tracker.add_manual_fp(
+                    category=category,
+                    status_code=int(response_status) if response_status else None,
+                    body_indicator=body,
+                )
+            except Exception as exc:
+                logger.warning("FP tracker update failed: %s", exc)
+
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(
-                learning._fp_tracker.add_manual_fp(
-                    category=category,
-                    status_code=int(response_status) if response_status else None,
-                    body_indicator=body,
+            # Bug #1: Register with TaskRegistry for proper lifecycle tracking
+            try:
+                from src.core.task_registry import get_task_registry
+                get_task_registry().create_task(
+                    _tracked_fp_update(),
+                    owner="findings_crud",
+                    name="fp_propagation",
                 )
-            )
+            except ImportError:
+                loop.create_task(_tracked_fp_update())
         except RuntimeError:
-            asyncio.run(
-                learning._fp_tracker.add_manual_fp(
-                    category=category,
-                    status_code=int(response_status) if response_status else None,
-                    body_indicator=body,
-                )
-            )
+            asyncio.run(_tracked_fp_update())
     except Exception as e:
         logger.warning("Mesh FP Sync: Failed to propagate manual FP: %s", e)

@@ -182,8 +182,14 @@ async function bootstrap() {
     // Initialize utilities if available
     setupGlobalErrorTracking?.();
     registerServiceWorker?.();
-    initWebVitals?.();
-    initTimeSync?.();
+    // Defer non-critical telemetry to avoid competing with paint
+    if (typeof window.requestIdleCallback === 'function') {
+      requestIdleCallback(() => initWebVitals?.(), { timeout: 3000 });
+      requestIdleCallback(() => initTimeSync?.(), { timeout: 3000 });
+    } else {
+      initWebVitals?.();
+      initTimeSync?.();
+    }
 
     // Ensure i18n is at least attempted before mount
     try {
@@ -210,7 +216,7 @@ async function bootstrap() {
         performance.measure('app-mount-to-ready', 'app-mount');
         const measure = performance.getEntriesByName('app-mount-to-ready')[0];
         if (measure) {
-          console.info('[Performance] App mount-to-ready duration:', measure.duration.toFixed(2), 'ms');
+          if (import.meta.env.DEV) console.info('[Performance] App mount-to-ready duration:', measure.duration.toFixed(2), 'ms');
         }
         performance.clearMarks('app-mount');
         performance.clearMeasures('app-mount-to-ready');

@@ -100,7 +100,7 @@ class NoneAlgorithmAttack:
     testing if the server accepts unsigned tokens.
     """
 
-    def __init__(self, token: str):
+    def __init__(self, token: str) -> None:
         self.token = token
         self.attack_name = "alg_none_bypass"
 
@@ -177,7 +177,7 @@ class AlgorithmConfusionAttack:
     testing if the server uses the public key for HMAC verification.
     """
 
-    def __init__(self, token: str):
+    def __init__(self, token: str) -> None:
         self.token = token
         self.attack_name = "algorithm_confusion"
 
@@ -260,14 +260,14 @@ class AlgorithmConfusionAttack:
         return result
 
 
-class KidPathTraversalAttack:
+class KIDPathTraversalAttack:
     """Tests kid (Key ID) header injection for path traversal.
 
     Modifies the kid header to point to file system paths like /etc/passwd,
     testing if the server reads arbitrary files for key material.
     """
 
-    def __init__(self, token: str):
+    def __init__(self, token: str) -> None:
         self.token = token
         self.attack_name = "kid_path_traversal"
 
@@ -297,7 +297,7 @@ class KidPathTraversalAttack:
                 original_status = orig.status_code
             except requests.RequestException as e:
                 logger.debug(
-                    "Failed to fetch original baseline status in KidPathTraversalAttack for %s: %s",
+                    "Failed to fetch original baseline status in KIDPathTraversalAttack for %s: %s",
                     url,
                     e,
                 )

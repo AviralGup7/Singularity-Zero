@@ -31,7 +31,7 @@ import re
 import socket
 from collections.abc import Iterable
 
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.pipeline.tools import tool_available, try_command
 from src.recon.dnsx_wildcard import is_public_ip
 from src.recon.domain_validation import normalize_domain
@@ -232,7 +232,7 @@ def socket_port_scan(
         return set()
 
     open_ports: set[str] = set()
-    ex = get_shared_executor()
+    ex = get_recon_executor()
     futures = [ex.submit(_socket_scan_worker, host, port_list, timeout) for host in host_list]
     for fut in futures:
         try:
@@ -325,7 +325,7 @@ async def run_port_scan_async(
 ) -> set[str]:
     """Async wrapper around :func:`run_port_scan` (offloads to a thread)."""
     loop = asyncio.get_running_loop()
-    executor = get_shared_executor()
+    executor = get_recon_executor()
     return await loop.run_in_executor(
         executor,
         lambda: run_port_scan(

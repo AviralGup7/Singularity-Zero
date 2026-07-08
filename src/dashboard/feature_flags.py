@@ -21,6 +21,9 @@ _FLAG_BOOL_NAMES: tuple[str, ...] = (
     "ENABLE_FINDINGS_STREAM",
     "ENABLE_DAG_EXECUTION",
     "ENABLE_API_SECURITY",
+    "ENABLE_MESH",
+    "ENABLE_CONSENSUS",
+    "ENABLE_BLOOM_MESH",
 )
 
 
@@ -68,6 +71,18 @@ class FeatureFlags:
         return cls._bool_flag("ENABLE_API_SECURITY")
 
     @classmethod
+    def enable_mesh(cls) -> bool:
+        return cls._bool_flag("ENABLE_MESH")
+
+    @classmethod
+    def enable_consensus(cls) -> bool:
+        return cls._bool_flag("ENABLE_CONSENSUS")
+
+    @classmethod
+    def enable_bloom_mesh(cls) -> bool:
+        return cls._bool_flag("ENABLE_BLOOM_MESH")
+
+    @classmethod
     def sse_heartbeat_interval_seconds(cls) -> int:
         return max(15, min(30, int(os.getenv("SSE_HEARTBEAT_INTERVAL_SECONDS", "25"))))
 
@@ -100,6 +115,9 @@ class FeatureFlags:
     ENABLE_FINDINGS_STREAM = enable_findings_stream
     ENABLE_DAG_EXECUTION = enable_dag_execution
     ENABLE_API_SECURITY = enable_api_security
+    ENABLE_MESH = enable_mesh
+    ENABLE_CONSENSUS = enable_consensus
+    ENABLE_BLOOM_MESH = enable_bloom_mesh
     SSE_HEARTBEAT_INTERVAL_SECONDS = sse_heartbeat_interval_seconds
     ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS = eta_engine_background_interval_seconds
     ETA_HISTORICAL_DATA_PATH = eta_historical_data_path

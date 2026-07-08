@@ -154,6 +154,7 @@ def analyze_response(
         try:
             decoded = body.decode("utf-8", errors="replace")
         except Exception:  # pragma: no cover - defensive
+            logger.debug("AST detection: failed to decode body", exc_info=True)
             return []
     else:
         decoded = body

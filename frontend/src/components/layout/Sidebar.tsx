@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { ROUTES } from '@/config/paths';
 import { Icon } from '../ui/Icon';
-import { prefetchRoute } from '@/App';
+import { prefetchRoute } from '@/PrefetchRegistry';
 
 interface SidebarProps {
   sidebarRef: React.RefObject<HTMLElement | null>;
@@ -61,7 +62,7 @@ export function Sidebar({
           <button
             type="button"
             className="sidebar-brand flex items-center gap-2 group transition-all duration-300"
-            onClick={() => navigate('/')}
+            onClick={() => navigate(ROUTES.DASHBOARD)}
             aria-label="Navigate to dashboard"
           >
             <Icon

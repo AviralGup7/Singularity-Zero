@@ -1,4 +1,4 @@
-"""URL weighting and prioritisation for the URL cap stage.
+"""URL weighting and prioritization for the URL cap stage.
 
 The previous recon stage truncated the URL set with a single
 ``filter_similar`` call that kept ``max_results`` entries from the

@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import logging
 import reprlib
+
+logger = logging.getLogger(__name__)
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -39,14 +41,14 @@ def _freeze_value(value: Any) -> Any:
 
     try:
         return copy.deepcopy(value)
-    except Exception:  # noqa: S110
+    except (TypeError, AttributeError, RecursionError):
         if hasattr(value, "__dict__"):
             try:
                 return MappingProxyType(
                     {key: _freeze_value(item) for key, item in vars(value).items()}
                 )
-            except Exception:  # noqa: S110
-                pass
+            except (TypeError, AttributeError):
+                logger.debug("Failed to freeze value with __dict__ fallback")
         return reprlib.repr(value)
 
 

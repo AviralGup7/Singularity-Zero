@@ -4,8 +4,6 @@ Provides functions for applying progress updates, managing job state
 transitions, and persisting job snapshots with progress history.
 """
 
-import time  # noqa: F401
-
 from src.dashboard.job_snapshot import (
     _snapshot_progress_telemetry,
     snapshot_job,

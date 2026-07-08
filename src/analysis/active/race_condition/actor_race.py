@@ -9,12 +9,14 @@ Part B implementation:
 
 import asyncio
 import dataclasses
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 try:
     import httpx
 except Exception:  # pragma: no cover - optional dependency guard
+    logging.getLogger(__name__).warning("Failed to import httpx", exc_info=True)
     httpx = None  # type: ignore[assignment]
 
 

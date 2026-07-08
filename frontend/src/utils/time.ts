@@ -9,7 +9,7 @@ let serverTimeOffset = 0; // offset in milliseconds: serverTime - clientTime
 export async function synchronizeTime(): Promise<number> {
   // Playwright E2E bypass: do not sync time to avoid making real API calls to offline backend
   if (typeof window !== 'undefined' && window.navigator.userAgent.includes('Playwright')) {
-    console.info('[TimeSync] Bypassing time synchronization in Playwright environment');
+    if (import.meta.env.DEV) console.info('[TimeSync] Bypassing time synchronization in Playwright environment');
     return serverTimeOffset;
   }
 
@@ -23,7 +23,7 @@ export async function synchronizeTime(): Promise<number> {
       const latency = (endTime - startTime) / 2;
       serverTimeOffset = (serverTime + latency) - endTime;
 
-      console.info(`[TimeSync] Network Latency: ${latency}ms, Server Time Offset: ${serverTimeOffset}ms`);
+      if (import.meta.env.DEV) console.info(`[TimeSync] Network Latency: ${latency}ms, Server Time Offset: ${serverTimeOffset}ms`);
     }
   } catch (error) {
     console.warn('[TimeSync] Synchronization sequence aborted, default to client time:', error);
@@ -51,4 +51,25 @@ export function getNormalizedTime(clientTime = Date.now()): number {
 export function normalizeTimestamp(timestamp: string | number): number {
   const tsMs = typeof timestamp === 'number' ? timestamp * 1000 : Date.parse(timestamp);
   return tsMs + serverTimeOffset;
+}
+
+/**
+ * Returns a human-readable relative time string (e.g. "2 min ago", "about 1 hour ago").
+ * Falls back to the locale time string if the date is more than 24 hours old.
+ */
+export function formatDistanceToNow(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffSec = Math.round(diffMs / 1000);
+
+  if (diffSec < 5) return 'just now';
+  if (diffSec < 60) return `${diffSec} sec ago`;
+
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `about ${diffHr} hr ago`;
+
+  return date.toLocaleTimeString();
 }

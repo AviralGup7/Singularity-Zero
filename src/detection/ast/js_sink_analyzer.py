@@ -230,6 +230,7 @@ def decode_inline_source_map(data_url: str) -> str | None:
 
         return unquote(payload)
     except Exception:
+        logger.debug("JS sink analyzer: failed to unquote payload", exc_info=True)
         return None
 
 

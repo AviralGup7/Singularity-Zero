@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from src.core.frontier.ghost_actor import ActorState, GhostMeshCoordinator, ScanActor
+from src.infrastructure.frontier.ghost_actor import ActorState, GhostMeshCoordinator, ScanActor
 from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 
 

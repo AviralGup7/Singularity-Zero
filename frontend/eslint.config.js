@@ -8,7 +8,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import jsxAlly from 'eslint-plugin-jsx-a11y'
 import security from 'eslint-plugin-security'
+import importX from 'eslint-plugin-import-x'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import requireMotionPolicy from './eslint-rules/require-motion-policy.js'
 
 export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/components/ui-shadcn', 'src/pages/CockpitPage.tsx']), {
   files: ['**/*.{ts,tsx}'],
@@ -19,12 +21,34 @@ export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/compone
     reactRefresh.configs.vite,
     jsxAlly.flatConfigs.recommended,
     security.configs.recommended,
+    importX.flatConfigs.recommended,
+    importX.flatConfigs.typescript,
   ],
+  settings: {
+    'import-x/resolver': {
+      typescript: {
+        alwaysTryTypes: true,
+        project: './tsconfig.json',
+      },
+      alias: {
+        map: [['@', './src']],
+        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+      },
+    },
+  },
   languageOptions: {
     ecmaVersion: 2020,
     globals: globals.browser,
   },
+  plugins: {
+    'custom-motion': { rules: { 'require-motion-policy': requireMotionPolicy } },
+  },
   rules: {
+    'custom-motion/require-motion-policy': 'warn',
+    'import-x/first': 'error',
+    'import-x/no-duplicates': 'error',
+    'import-x/no-cycle': ['warn', { maxDepth: 8, ignoreExternal: true }],
+    'import-x/consistent-type-specifier-style': ['error', 'prefer-top-level'],
     '@typescript-eslint/no-unused-vars': ['error', {
       argsIgnorePattern: '^_',
       caughtErrorsIgnorePattern: '^_',
@@ -73,6 +97,12 @@ export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/compone
         {
           name: '@react-three/fiber',
           message: 'React Three Fiber is reserved for 3D pipeline graph modules only.',
+        },
+      ],
+      patterns: [
+        {
+          group: ['../../../*', '../../../../*', '../../../../../*'],
+          message: 'Use @/ absolute imports instead of deep relative imports beyond ../../.',
         },
       ],
     }],

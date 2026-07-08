@@ -94,7 +94,7 @@ class EPSSClient:
 
     def lookup(self, cve: str) -> EPSSScore | None:
         """Return an EPSS score for a single CVE, fetching as needed."""
-        cve_id = self._normalise_cve(cve)
+        cve_id = self._normalize_cve(cve)
         if not cve_id:
             return None
 
@@ -125,7 +125,7 @@ class EPSSClient:
         return fetched
 
     def lookup_many(self, cves: Iterable[str]) -> dict[str, EPSSScore | None]:
-        normalised = {self._normalise_cve(cve) for cve in cves if cve}
+        normalised = {self._normalize_cve(cve) for cve in cves if cve}
         return {cve: self.lookup(cve) for cve in normalised}
 
     def enrich_finding(self, finding: dict[str, Any]) -> dict[str, Any]:
@@ -157,7 +157,7 @@ class EPSSClient:
     # -- internals -----------------------------------------------------
 
     @staticmethod
-    def _normalise_cve(cve: str) -> str:
+    def _normalize_cve(cve: str) -> str:
         text = str(cve or "").strip().upper()
         if not text:
             return ""
@@ -174,7 +174,7 @@ class EPSSClient:
             if not source:
                 continue
             for item in source:
-                norm = self._normalise_cve(item)
+                norm = self._normalize_cve(item)
                 if norm and norm not in cves:
                     cves.append(norm)
         # Fall back to category-based CVE hints from the threat intel
@@ -185,8 +185,8 @@ class EPSSClient:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                logger.warning("EPSSClient: Failed to correlate CVEs from category", exc_info=True)
         return [c for c in cves if c]
 
     def _fetch_remote(self, cve: str) -> EPSSScore | None:

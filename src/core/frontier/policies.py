@@ -10,7 +10,7 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.infrastructure.frontier.ghost_vfs import GhostVFS
+    from src.core.contracts.protocols import GhostVFSProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class PolicyEngine:
         self.max_file_count = max_file_count
         self.max_total_bytes = max_total_bytes
 
-    def enforce_retention(self, vfs: GhostVFS) -> None:
+    def enforce_retention(self, vfs: GhostVFSProtocol) -> None:
         """
         Scan virtual file system, evaluate retention rules, and prune files that violate
         the metrics.
@@ -57,6 +57,7 @@ class PolicyEngine:
                 # We can check size by looking at the encrypted file length
                 size = len(vfs._files.get(path, b""))
             except Exception:
+                logger.debug("PolicyEngine: failed to check file size for %s", path, exc_info=True)
                 size = 0
 
             file_metrics.append((created_at, size, path))

@@ -5,9 +5,12 @@ attempts DNS resolution, checks for dangling CNAMEs pointing to
 unclaimed cloud services, and detects CDN/WAF provider domains.
 """
 
+import logging
 import re
 import socket
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from src.analysis.helpers import (
     classify_endpoint,
@@ -15,7 +18,7 @@ from src.analysis.helpers import (
     endpoint_signature,
     normalize_headers,
 )
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
 
 DNS_RECORD_ANALYZER_SPEC = AnalysisPluginSpec(
@@ -139,6 +142,7 @@ def _resolve_domain(domain: str) -> dict[str, Any]:
     except socket.herror as exc:
         result["error"] = str(exc)
     except Exception as exc:
+        logger.warning("DNS resolution failed for %s: %s", domain, exc)
         result["error"] = str(exc)
     return result
 
@@ -290,7 +294,8 @@ def dns_record_analyzer(
             host = urlparse(url).netloc.lower()
             if host:
                 target_domains.add(host.lstrip("www."))
-        except Exception:  # noqa: S112
+        except Exception:
+            logger.warning("Failed to parse URL for target domain extraction", exc_info=True)
             continue
 
     primary_target = min(target_domains, key=len) if target_domains else ""
@@ -439,7 +444,8 @@ def dns_record_analyzer(
             from urllib.parse import urlparse
 
             host = urlparse(url).netloc.lower()
-        except Exception:  # noqa: S112
+        except Exception:
+            logger.warning("Failed to parse URL for DNS resolution", exc_info=True)
             continue
         if not host:
             continue

@@ -17,13 +17,15 @@ from src.analysis.plugin_runtime_models import (
     DetectionGraphContext,
 )
 from src.core.utils import normalize_url
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
-
-from ._bindings import ANALYZER_BINDINGS
 
 logger = logging.getLogger(__name__)
 
 _ANALYZER_TIMING_PATH = None
+
+# Bug #8: Cache metrics lookup to avoid repeated import + counter resolution
+# per analyzer execution. This is on the hottest path in the analysis runtime.
+_cached_metrics: dict[str, Any] | None = None
+_metrics_cache_valid = False
 
 
 def _get_analyzer_timing_path() -> Path:
@@ -50,23 +52,45 @@ def _persist_analyzer_timing(analyzer_key: str, elapsed: float, status: str) -> 
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=True) + "\n")
     except Exception:
-        pass
+        logger.warning("Operation failed in _runner.py", exc_info=True)
+def _get_analyzer_metrics():
+    """Lazily resolve and cache analyzer metrics.
 
+    Bug #8: Previously imported src.infrastructure.observability.metrics and
+    created counter/histogram/gauge objects on every single analyzer execution.
+    For 100+ analyzers this meant 100+ import lookups and 300+ metric object
+    creations per pipeline run. Now cached after first successful resolution.
+    """
+    global _cached_metrics, _metrics_cache_valid
+    if _metrics_cache_valid and _cached_metrics is not None:
+        return _cached_metrics
+    if _metrics_cache_valid and _cached_metrics is None:
+        return None
 
-def _get_analyzer_metrics() -> Any:
-    """Lazily resolve analyzer metrics to avoid circular imports."""
     try:
         from src.infrastructure.observability.metrics import get_metrics
 
         m = get_metrics()
-        return {
+        _cached_metrics = {
             "execution_count": m.counter("analyzer_execution_count", "Total analyzer invocations"),
             "failure_count": m.counter("analyzer_failure_count", "Total analyzer failures"),
             "duration": m.histogram("analyzer_duration_seconds", "Per-analyzer execution duration"),
             "active": m.gauge("analyzer_active_count", "Analyzers currently executing"),
         }
+        _metrics_cache_valid = True
+        return _cached_metrics
     except Exception:
+        logger.debug("Failed to resolve analyzer metrics", exc_info=True)
+        _metrics_cache_valid = True
+        _cached_metrics = None
         return None
+
+
+def _invalidate_metrics_cache() -> None:
+    """Reset the metrics cache (e.g. after MetricsRegistry restart)."""
+    global _cached_metrics, _metrics_cache_valid
+    _cached_metrics = None
+    _metrics_cache_valid = False
 
 
 _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
@@ -206,7 +230,7 @@ def _binding_contract_issues(binding_key: str, binding: AnalyzerBinding) -> list
 
 def _collect_binding_contract_issues() -> dict[str, list[str]]:
     issues_by_key: dict[str, list[str]] = {}
-    for key, binding in ANALYZER_BINDINGS.items():
+    for key, binding in _get_bindings().items():
         issues = _binding_contract_issues(key, binding)
         if issues:
             issues_by_key[key] = issues
@@ -484,11 +508,81 @@ def run_registered_analyzer(
         _persist_analyzer_timing(analyzer_key, elapsed, _status)
 
 
+def _get_bindings() -> dict[str, AnalyzerBinding]:
+    """Bug #4: Dynamic binding lookup instead of frozen snapshot.
+
+    Returns the current bindings from the registry every time, so plugins
+    registered after the initial import are still visible.
+    """
+    from src.analysis.plugin_runtime.registry import _get_bindings as _registry_get_bindings
+
+    return _registry_get_bindings()
+
+
+# Bug #2: Dedicated analyzer pool to prevent starvation of the shared executor.
+# The shared pool (16 workers) is used by dashboard, background tasks, etc.
+# Analyzers can be slow/blocking — isolating them prevents cascade failures.
+_ANALYZER_POOL: concurrent.futures.ThreadPoolExecutor | None = None
+_ANALYZER_POOL_LOCK = __import__("threading").Lock()
+
+_ANALYZER_POOL_DEFAULT_WORKERS = 24
+
+
+def _get_analyzer_executor() -> concurrent.futures.ThreadPoolExecutor:
+    """Return a dedicated thread pool for analyzer execution.
+
+    Bug #2: Isolates analyzer I/O from the shared pipeline executor.
+    The shared pool (16 workers) serves dashboard, background tasks, and
+    other subsystems. Analyzers that block on network I/O, subprocesses,
+    or internal deadlocks would starve those subsystems. A dedicated pool
+    prevents this cascade.
+    """
+    global _ANALYZER_POOL
+    if _ANALYZER_POOL is not None:
+        return _ANALYZER_POOL
+
+    with _ANALYZER_POOL_LOCK:
+        if _ANALYZER_POOL is not None:
+            return _ANALYZER_POOL
+        import os
+
+        try:
+            max_workers = max(4, int(os.environ.get("ANALYZER_POOL_SIZE", str(_ANALYZER_POOL_DEFAULT_WORKERS))))
+        except (TypeError, ValueError):
+            max_workers = _ANALYZER_POOL_DEFAULT_WORKERS
+        _ANALYZER_POOL = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="analyzer-pool",
+        )
+        logger.debug("Created dedicated analyzer ThreadPoolExecutor with %d workers", max_workers)
+        return _ANALYZER_POOL
+
+
+def _cleanup_analyzer_pool() -> None:
+    """Shut down the dedicated analyzer pool."""
+    global _ANALYZER_POOL
+    with _ANALYZER_POOL_LOCK:
+        if _ANALYZER_POOL is not None:
+            _ANALYZER_POOL.shutdown(wait=True)
+            _ANALYZER_POOL = None
+
+
 def run_analysis_plugins(
     context: AnalysisExecutionContext, max_workers: int = 10, timeout_seconds: int = 60
 ) -> dict[str, list[dict[str, Any]]]:
-    """Run all registered analysis plugins and return results by key."""
+    """Run all registered analysis plugins and return results by key.
+
+    Bug #1: Fixed timeout enforcement. Previously used as_completed() + result(timeout)
+    which could never enforce a real timeout because as_completed() only yields
+    futures that have already completed. Now uses concurrent.futures.wait() with
+    TIMEOUT箴 which properly blocks and enforces the timeout on running futures.
+
+    Bug #2: Uses dedicated analyzer pool instead of shared executor to prevent
+    starvation cascade when analyzers block on I/O.
+    """
     results: dict[str, list[dict[str, Any]]] = {}
+
+    bindings = _get_bindings()
 
     contract_issues = _collect_binding_contract_issues()
     for key, issues in contract_issues.items():
@@ -497,10 +591,11 @@ def run_analysis_plugins(
         results[key] = []
 
     progress_callback = context.analysis_config.get("progress_callback")
-    total_plugins = len([k for k in ANALYZER_BINDINGS if k not in contract_issues])
+    total_plugins = len([k for k in bindings if k not in contract_issues])
     completed_plugins = 0
 
-    executor = get_shared_executor()
+    # Bug #2: Use dedicated analyzer pool instead of shared executor
+    executor = _get_analyzer_executor()
     future_to_key = {
         executor.submit(
             run_registered_analyzer,
@@ -509,37 +604,58 @@ def run_analysis_plugins(
             timeout_seconds,
             analyzer_key=key,
         ): key
-        for key, binding in ANALYZER_BINDINGS.items()
+        for key, binding in bindings.items()
         if key not in contract_issues
     }
-    for future in concurrent.futures.as_completed(future_to_key):
-        key = future_to_key[future]
-        try:
-            results[key] = future.result(timeout=timeout_seconds)
-        except concurrent.futures.TimeoutError:
-            logger.warning("Plugin %s timed out after %ds", key, timeout_seconds)
-            results[key] = []
-        except Exception as exc:
-            logger.warning("Plugin %s failed: %s", key, exc)
-            results[key] = []
 
-        completed_plugins += 1
-        if progress_callback and callable(progress_callback):
-            pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)
+    # Bug #1: Use concurrent.futures.wait() with timeout instead of
+    # as_completed() + result(timeout). The old code could never enforce
+    # a timeout because as_completed() only yields already-done futures.
+    pending = set(future_to_key.keys())
+    while pending:
+        done, pending = concurrent.futures.wait(
+            pending,
+            timeout=timeout_seconds,
+            return_when=concurrent.futures.FIRST_COMPLETED,
+        )
+
+        for future in done:
+            key = future_to_key[future]
             try:
-                progress_callback(
-                    {
-                        "group": "passive_analysis",
-                        "status": f"running_scanners ({key})",
-                        "processed": completed_plugins,
-                        "total": total_plugins,
-                        "stage_percent": pct,
-                        "plugin": key,
-                    }
-                )
-            except Exception as p_exc:
-                logger.debug("Progress callback failed: %s", p_exc)
+                results[key] = future.result(timeout=0)
+            except Exception as exc:
+                logger.warning("Plugin %s failed: %s", key, exc)
+                results[key] = []
 
-    for key in ANALYZER_BINDINGS:
+            completed_plugins += 1
+            if progress_callback and callable(progress_callback):
+                pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)
+                try:
+                    progress_callback(
+                        {
+                            "group": "passive_analysis",
+                            "status": f"running_scanners ({key})",
+                            "processed": completed_plugins,
+                            "total": total_plugins,
+                            "stage_percent": pct,
+                            "plugin": key,
+                        }
+                    )
+                except Exception as p_exc:
+                    logger.debug("Progress callback failed: %s", p_exc)
+
+        # If we timed out with no done futures, log the still-pending ones
+        if not done and pending:
+            for future in pending:
+                key = future_to_key[future]
+                logger.warning(
+                    "Plugin %s still running after %ds timeout — worker thread may be stuck",
+                    key,
+                    timeout_seconds,
+                )
+            # Don't infinite-loop: break and return what we have
+            break
+
+    for key in bindings:
         results.setdefault(key, [])
     return results

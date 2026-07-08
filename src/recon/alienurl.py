@@ -107,7 +107,8 @@ def run_aggregated_archive(
         ``duration_seconds``, ``new_urls``, ``providers``.
     """
     import time
-    from concurrent.futures import ThreadPoolExecutor
+
+    from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 
     hosts_list = sorted({h for h in hosts if h and h.strip()})
     if not hosts_list:
@@ -134,9 +135,8 @@ def run_aggregated_archive(
         if progress_callback is not None and urls:
             try:
                 progress_callback(provider, len(discovered) - before)
-            except Exception:  # noqa: BLE001, S110
-                pass
-
+            except Exception:
+                logger.warning("Operation failed in alienurl.py", exc_info=True)
     providers = (
         ("wayback", _wayback.collect_for_hosts),
         ("commoncrawl", _commoncrawl.collect_for_hosts),
@@ -144,10 +144,10 @@ def run_aggregated_archive(
         ("otx", _otx.collect_for_hosts),
     )
 
-    with ThreadPoolExecutor(max_workers=len(providers)) as ex:
-        futures = [ex.submit(_run, name, fn) for name, fn in providers]
-        for fut in futures:
-            fut.result()
+    executor = get_recon_executor()
+    futures = [executor.submit(_run, name, fn) for name, fn in providers]
+    for fut in futures:
+        fut.result()
 
     duration = round(time.monotonic() - started, 1)
     return discovered, {

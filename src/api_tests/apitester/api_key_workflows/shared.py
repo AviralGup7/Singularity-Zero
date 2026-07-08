@@ -1,4 +1,7 @@
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from ..client import (
     build_base_headers,
@@ -48,7 +51,8 @@ def placement_request_parts(base: StrMap, placement: dict[str, object]) -> tuple
 def safe_json_keys(response: Any) -> list[str]:
     try:
         data = response.json()
-    except Exception:  # noqa: BLE001
+    except Exception:
+        logger.warning("Failed to parse JSON response", exc_info=True)
         return []
     if isinstance(data, dict):
         return [str(key) for key in list(data.keys())[:8]]

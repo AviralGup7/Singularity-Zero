@@ -188,8 +188,8 @@ class TLSAnalyzer:
                                 details=f"Disable {name} and use TLS 1.2 or higher",
                             )
                         )
-            except Exception:  # noqa: S110
-                pass  # Protocol not supported - good
+            except Exception:
+                logger.warning("Operation failed in tls_analyzer.py", exc_info=True)
 
         return findings
 

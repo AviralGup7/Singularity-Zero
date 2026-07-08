@@ -438,9 +438,9 @@ async def run_url_collection(
             os.replace(tmp_path, bucket_path)
 
             # 2. Automatic API Schema Reconstruction
-            from src.recon.api_reconstructor import ApiSchemaReconstructor
+            from src.recon.api_reconstructor import APISchemaReconstructor
 
-            reconstructor = ApiSchemaReconstructor(target_root)
+            reconstructor = APISchemaReconstructor(target_root)
             reconstructor.reconstruct_spec(target_name, urls)
             logger.info("OpenAPI 3.0 specification successfully compiled inside %s", target_root)
 

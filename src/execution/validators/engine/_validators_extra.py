@@ -79,7 +79,7 @@ class CorsValidator(BaseValidator):
 
 
 @register_plugin(VALIDATOR, "jwt_weakness")
-class JwtValidator(BaseValidator):
+class JWTValidator(BaseValidator):
     name = "jwt_weakness"
     result_key = "jwt_validation"
     category = "jwt_weakness"

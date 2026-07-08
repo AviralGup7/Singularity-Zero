@@ -8,11 +8,24 @@
   padding: var(--space-5);
   box-shadow: var(--shadow-card);
   transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out);
+  position: relative;
+}
+
+/* Subtle inner top highlight for depth */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+  pointer-events: none;
 }
 
 .card:hover, .ops-card:hover, .job-card:hover, .job-stage-card:hover, .pipeline-stat-card:hover, .info-item:hover, .fix-command-item:hover, .finding-min-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
-  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), 0 0 20px -4px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.55), 0 0 24px -4px color-mix(in srgb, var(--accent) 15%, transparent);
   transform: translateY(-2px);
 }
 
@@ -25,25 +38,25 @@
 
 .error-card {
   border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 5%, var(--surface));
+  background: color-mix(in srgb, var(--bad) 4%, var(--surface));
   box-shadow: var(--glow-bad);
 }
 
 .warning-card {
   border-color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 5%, var(--surface));
+  background: color-mix(in srgb, var(--warn) 4%, var(--surface));
   box-shadow: var(--glow-warn);
 }
 
 .success-card {
   border-color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 5%, var(--surface));
+  background: color-mix(in srgb, var(--ok) 4%, var(--surface));
   box-shadow: var(--glow-ok);
 }
 
 .info-card {
   border-color: var(--info);
-  background: color-mix(in srgb, var(--info) 5%, var(--surface));
+  background: color-mix(in srgb, var(--info) 4%, var(--surface));
   box-shadow: var(--glow-accent);
 }
 
@@ -62,6 +75,7 @@
   height: 2px;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
   pointer-events: none;
+  z-index: 1;
 }
 
 .card--interactive {
@@ -70,7 +84,7 @@
 }
 
 .card--interactive:hover {
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--glass-border));
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--glass-border));
   box-shadow: var(--glow-subtle), var(--shadow-card);
   transform: translateY(-1px);
   background: var(--glass-bg-elevated);

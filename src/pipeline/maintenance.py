@@ -536,7 +536,10 @@ def register_scheduler_task(
                 )
                 return ret.returncode == 0
             finally:
-                os.unlink(temp_cron.name)
+                try:
+                    os.unlink(temp_cron.name)
+                except OSError:
+                    pass
         except Exception as e:
             logger.error("Failed to register cron job: %s", e)
             return False

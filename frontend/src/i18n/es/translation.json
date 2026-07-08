@@ -57,5 +57,15 @@
     "title": "Ajustes",
     "language": "Idioma",
     "languageSelector": "Selector de idioma"
+  },
+  "errors": {
+    "unexpectedError": "Ocurrió un error inesperado",
+    "internalSystemError": "Error interno del sistema. Reintentando...",
+    "meshOffline": "Mesh fuera de línea - verifique la conexión.",
+    "responseTooLarge": "Respuesta demasiado grande",
+    "schemaViolation": "La respuesta de la API no coincide con el esquema esperado",
+    "invalidRequestUrl": "URL de solicitud no válida",
+    "sessionExpired": "Sesión expirada.",
+    "rateLimitReached": "Límite de velocidad alcanzado."
   }
 }

@@ -42,8 +42,12 @@ from src.core.contracts.cross_package_protocols import (
     ValidationRuntimeProtocol,
     WASMExecutorProtocol,
 )
+from src.core.contracts.tool_execution import ToolExecutionServiceProtocol
 
 logger = logging.getLogger(__name__)
+
+# Track which missing registrations we've already warned about (to avoid log spam)
+_warned_missing: set[str] = set()
 
 # ---------------------------------------------------------------------------
 # Private storage for registered implementations
@@ -72,6 +76,7 @@ _auth_flow_runner_cls: type[AuthFlowRunnerProtocol] | None = None
 _retry_policy_cls: type[RetryPolicyProtocol] | None = None
 _launcher_manifest: LauncherReplayManifestProtocol | None = None
 _tenant_isolation_check: TenantIsolationCheckProtocol | None = None
+_tool_execution_service_cls: type[ToolExecutionServiceProtocol] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -217,18 +222,39 @@ def register_tenant_isolation_check(check: TenantIsolationCheckProtocol) -> None
     _tenant_isolation_check = check
 
 
+def register_tool_execution_service_cls(cls: type[ToolExecutionServiceProtocol]) -> None:
+    """Register the ToolExecutionService class."""
+    global _tool_execution_service_cls
+    _tool_execution_service_cls = cls
+
+
 # ---------------------------------------------------------------------------
 # Getter functions (return None if not registered)
 # ---------------------------------------------------------------------------
 
 
+def _warn_if_missing(name: str) -> None:
+    """Log a warning once for a missing critical dependency registration."""
+    if name not in _warned_missing:
+        _warned_missing.add(name)
+        logger.warning(
+            "Protocol registry: '%s' is not registered. "
+            "The feature requiring this dependency will be partially disabled.",
+            name,
+        )
+
+
 def get_ast_mutator() -> ASTMutatorProtocol | None:
     """Get the registered AST mutator."""
+    if _ast_mutator is None:
+        _warn_if_missing("ast_mutator")
     return _ast_mutator
 
 
 def get_wasm_executor() -> WASMExecutorProtocol | None:
     """Get the registered WASM executor."""
+    if _wasm_executor is None:
+        _warn_if_missing("wasm_executor")
     return _wasm_executor
 
 
@@ -239,6 +265,8 @@ def get_analysis_check_options() -> Any:
 
 def get_lateral_graph_cls() -> type[LateralGraphProtocol] | None:
     """Get the registered LateralGraph class."""
+    if _lateral_graph_cls is None:
+        _warn_if_missing("lateral_graph_cls")
     return _lateral_graph_cls
 
 
@@ -274,16 +302,22 @@ def get_exploit_replay() -> ExploitReplayProtocol | None:
 
 def get_remediation_scanner_cls() -> type[RemediationScannerProtocol] | None:
     """Get the registered RemediationScanner class."""
+    if _remediation_scanner_cls is None:
+        _warn_if_missing("remediation_scanner_cls")
     return _remediation_scanner_cls
 
 
 def get_self_healing_controller_cls() -> type[SelfHealingControllerProtocol] | None:
     """Get the registered SelfHealingController class."""
+    if _self_healing_controller_cls is None:
+        _warn_if_missing("self_healing_controller_cls")
     return _self_healing_controller_cls
 
 
 def get_corrective_action_registry_cls() -> type[CorrectiveActionRegistryProtocol] | None:
     """Get the registered CorrectiveActionRegistry class."""
+    if _corrective_action_registry_cls is None:
+        _warn_if_missing("corrective_action_registry_cls")
     return _corrective_action_registry_cls
 
 
@@ -304,21 +338,29 @@ def get_active_manifest_registry() -> ActiveManifestRegistryProtocol | None:
 
 def get_validation_runtime() -> ValidationRuntimeProtocol | None:
     """Get the registered validation runtime callable."""
+    if _validation_runtime is None:
+        _warn_if_missing("validation_runtime")
     return _validation_runtime
 
 
 def get_isolated_execution() -> IsolatedExecutionProtocol | None:
     """Get the registered isolated execution callable."""
+    if _isolated_execution is None:
+        _warn_if_missing("isolated_execution")
     return _isolated_execution
 
 
 def get_oauth_authenticator_cls() -> type[OAuthAuthenticatorProtocol] | None:
     """Get the registered OAuthAuthenticator class."""
+    if _oauth_authenticator_cls is None:
+        _warn_if_missing("oauth_authenticator_cls")
     return _oauth_authenticator_cls
 
 
 def get_auth_flow_runner_cls() -> type[AuthFlowRunnerProtocol] | None:
     """Get the registered AuthFlowRunner class."""
+    if _auth_flow_runner_cls is None:
+        _warn_if_missing("auth_flow_runner_cls")
     return _auth_flow_runner_cls
 
 
@@ -334,4 +376,13 @@ def get_launcher_manifest() -> LauncherReplayManifestProtocol | None:
 
 def get_tenant_isolation_check() -> TenantIsolationCheckProtocol | None:
     """Get the registered tenant isolation check callable."""
+    if _tenant_isolation_check is None:
+        _warn_if_missing("tenant_isolation_check")
     return _tenant_isolation_check
+
+
+def get_tool_execution_service_cls() -> type[ToolExecutionServiceProtocol] | None:
+    """Get the registered ToolExecutionService class."""
+    if _tool_execution_service_cls is None:
+        _warn_if_missing("tool_execution_service_cls")
+    return _tool_execution_service_cls

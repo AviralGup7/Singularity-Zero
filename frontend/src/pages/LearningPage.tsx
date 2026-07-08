@@ -14,6 +14,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -31,7 +32,6 @@ import type {
   FeedbackEventEntry,
 } from '@/api/client';
 import { Button } from '@/components/ui/Button';
-import { SafeResponsiveContainer } from '@/components/ui/SafeResponsiveContainer';
 
 export function LearningPage() {
   const [kpis, setKpis] = useState<LearningKPIs | null>(null);
@@ -158,7 +158,7 @@ export function LearningPage() {
             )}
           </div>
           <div className="h-[300px] w-full">
-            <SafeResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2D5676" opacity={0.3} />
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="var(--muted)" />
@@ -172,7 +172,7 @@ export function LearningPage() {
                 <Line type="monotone" dataKey="low" stroke="#10b981" strokeWidth={2} dot={false} name="Low Mark" />
                 <Line type="step" dataKey="fp_rate" stroke="#2FD8F8" strokeWidth={1} strokeDasharray="5 5" name="FP Rate (x10)" />
               </LineChart>
-            </SafeResponsiveContainer>
+            </ResponsiveContainer>
           </div>
         </div>
 

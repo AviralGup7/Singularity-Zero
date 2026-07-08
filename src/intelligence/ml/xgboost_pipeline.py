@@ -124,9 +124,8 @@ class XGBoostSeverityPipeline:
             try:
                 # scikit-learn / xgboost both accept ``sample_weight``.
                 fit_kwargs["sample_weight"] = weights
-            except Exception:  # noqa: BLE001, S110
-                pass
-
+            except Exception:
+                logger.warning("XGBoostSeverityPipeline: Failed to set sample_weight", exc_info=True)
             if hasattr(self.model, "fit"):
                 try:
                     self.model.fit(x, y, **fit_kwargs)

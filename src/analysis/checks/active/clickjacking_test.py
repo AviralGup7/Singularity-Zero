@@ -16,9 +16,12 @@ from src.analysis.helpers import (
     endpoint_signature,
     normalize_headers,
 )
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
 from src.core.utils.url_validation import is_safe_url
+import logging
+logger = logging.getLogger(__name__)
+
 
 CLICKJACKING_TEST_SPEC = AnalysisPluginSpec(
     key="clickjacking_test",
@@ -138,8 +141,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Suppressed exception", exc_info=True)
         return {
             "status": status,
             "headers": headers,

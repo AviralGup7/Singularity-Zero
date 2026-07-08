@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { ArrowLeftRight, TrendingUp, TrendingDown, DollarSign, Filter, Check, X } from 'lucide-react';
 import type { Finding, Target } from '@/types/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 import { useApi } from '@/hooks/useApi';
-import { useTargetFilters, hasActiveFilters } from '@/hooks/useTargetFilters';
-import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
 import { bulkUpdateFindings } from '@/api/findings';
 import { useToast } from '@/hooks/useToast';
 
@@ -189,11 +188,6 @@ export function ScanDiffPage() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const ready = runA && runB;
-  const { setFilter: setDebouncedFilter, debouncedFilter } = useDebouncedFilter();
-  const { filters } = useTargetFilters();
-  void hasActiveFilters(filters); // keep import in scope to satisfy lint
-  void setDebouncedFilter; void debouncedFilter; // unused in this page
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -370,7 +364,7 @@ export function ScanDiffPage() {
                     </td>
                     <td className="text-xs">
                       {typeof row.finding.bounty_value === 'number' && row.finding.bounty_value > 0 ? (
-                        <span className="bounty-pill">${row.finding.bounty_value.toLocaleString()}</span>
+                        <span className="bounty-pill">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(row.finding.bounty_value)}</span>
                       ) : '—'}
                     </td>
                     <td className="text-xs">
@@ -416,7 +410,7 @@ export function ScanDiffPage() {
 
       {ready && (
         <p className="text-xs text-muted">
-          Need more diff tooling? <Link to="/target-comparison" className="text-accent hover:underline">Compare full target posture</Link>.
+          Need more diff tooling? <Link to={ROUTES.TARGET_COMPARISON} className="text-accent hover:underline">Compare full target posture</Link>.
         </p>
       )}
     </div>

@@ -16,7 +16,7 @@ from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats
 class PeerTracker:
     """Mutable view of mesh membership and peer health."""
 
-    def __init__(self, local_node: MeshNode):
+    def __init__(self, local_node: MeshNode) -> None:
         self.local_node = local_node
         self.peers: dict[str, MeshNode] = {}
         self.leader_id: str = local_node.id

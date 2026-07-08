@@ -1,8 +1,8 @@
 import pytest
 
-from src.core.frontier.ghost_actor import ScanActor
-from src.infrastructure.frontier.ghost_vfs import GhostVFS
 from src.execution.frontier.chameleon_evasion import ChameleonEvasionEngine, HMMEvasionModel
+from src.infrastructure.frontier.ghost_actor import ScanActor
+from src.infrastructure.frontier.ghost_vfs import GhostVFS
 
 
 def test_scan_actor_deep_merge():

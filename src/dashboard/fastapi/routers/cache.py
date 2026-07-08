@@ -264,10 +264,19 @@ def _sample_cache_performance(config: DashboardConfig, cache_manager: Any) -> di
 
 
 async def cache_analytics_loop(app: Any) -> None:
-    """Sample cache hit/miss rates once per minute for the rolling history API."""
+    """Sample cache hit/miss rates once per minute for the rolling history API.
+
+    Bug #13: Uses the shared ThreadPoolExecutor instead of the default
+    executor (asyncio.to_thread) to prevent deadlock amplification when
+    the default executor is saturated by other subsystems (queue workers,
+    recon, DNS resolution, etc.).  The shared pool is purpose-built for
+    this kind of I/O work and is tracked by the lifecycle manager.
+    """
     while True:
         try:
-            await asyncio.to_thread(
+            from src.infrastructure.execution_engine.shared_pool import run_in_shared_executor
+
+            await run_in_shared_executor(
                 _sample_cache_performance,
                 app.state.config,
                 app.state.cache_manager,
@@ -280,8 +289,23 @@ async def cache_analytics_loop(app: Any) -> None:
 
 
 def start_cache_analytics(app: Any) -> asyncio.Task[None]:
-    """Start the background cache analytics sampler."""
-    task = asyncio.create_task(cache_analytics_loop(app), name="cache-analytics")
+    """Start the background cache analytics sampler.
+
+    Bug #2: Uses TaskRegistry instead of bare asyncio.create_task() so the
+    task is properly tracked, cancelled on shutdown, and its exceptions are
+    logged.  Previously this task bypassed both TaskRegistry and
+    LifecycleManager, creating an orphan-task risk during hot reload or
+    partial shutdown.
+    """
+    try:
+        from src.core.task_registry import get_task_registry
+        task = get_task_registry().create_task(
+            cache_analytics_loop(app),
+            owner="cache_analytics",
+            name="analytics_loop",
+        )
+    except ImportError:
+        task = asyncio.create_task(cache_analytics_loop(app), name="cache-analytics")
     app.state._cache_analytics_task = task
     return task
 

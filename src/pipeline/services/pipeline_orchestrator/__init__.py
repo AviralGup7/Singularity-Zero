@@ -7,6 +7,9 @@ This package modularizes the pipeline orchestrator into separate files
 for better maintainability and AI-agent editability.
 """
 
+import importlib
+from typing import Any
+
 from ..pipeline_helpers import (
     extract_feedback_urls,
     finding_identity,
@@ -18,18 +21,32 @@ from .learning_hooks import (
     run_learning_update,
 )
 from .orchestrator import FindingDict, PipelineOrchestrator
-from .stages.analysis import run_passive_scanning
-from .stages.enrichment import run_post_analysis_enrichments
-from .stages.nuclei import run_nuclei_stage
-from .stages.recon import (
-    run_live_hosts,
-    run_parameter_extraction,
-    run_priority_ranking,
-    run_subdomain_enumeration,
-    run_url_collection,
-)
-from .stages.reporting import run_reporting
-from .stages.semgrep import run_semgrep_stage
+
+# Lazy imports for stage runners to avoid eagerly pulling in all stage
+# dependencies (reporting, validators, etc.) at package import time.
+_LAZY_STAGE_IMPORTS: dict[str, tuple[str, str]] = {
+    "run_passive_scanning": (".stages.analysis", "run_passive_scanning"),
+    "run_post_analysis_enrichments": (".stages.enrichment", "run_post_analysis_enrichments"),
+    "run_nuclei_stage": (".stages.nuclei", "run_nuclei_stage"),
+    "run_subdomain_enumeration": (".stages.recon", "run_subdomain_enumeration"),
+    "run_live_hosts": (".stages.recon", "run_live_hosts"),
+    "run_url_collection": (".stages.recon", "run_url_collection"),
+    "run_parameter_extraction": (".stages.recon", "run_parameter_extraction"),
+    "run_priority_ranking": (".stages.recon", "run_priority_ranking"),
+    "run_reporting": (".stages.reporting", "run_reporting"),
+    "run_semgrep_stage": (".stages.semgrep", "run_semgrep_stage"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_STAGE_IMPORTS:
+        module_path, attr_name = _LAZY_STAGE_IMPORTS[name]
+        module = importlib.import_module(module_path, package=__name__)
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "PipelineOrchestrator",

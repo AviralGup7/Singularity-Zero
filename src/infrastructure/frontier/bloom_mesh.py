@@ -92,6 +92,7 @@ class NeuralBloomMesh:
         self._idempotency_cache: OrderedDict[str, float] = OrderedDict()
         self._idempotency_lock = threading.RLock()
         self._idempotency_max = BLOOM_SNAPSHOT_IDEMPOTENCY_CACHE
+        self._gossip_peer_checker: Any = None
 
     @staticmethod
     def _resolve_sync_interval(sync_interval_seconds: float | None) -> float:
@@ -118,6 +119,57 @@ class NeuralBloomMesh:
             return DEFAULT_SYNC_INTERVAL_SECONDS
         return interval
 
+    def set_gossip_peer_checker(self, checker: Any) -> None:
+        """Register a callable that returns the set of alive gossip peer IDs.
+
+        The checker should be a zero-argument callable returning a set of
+        peer ID strings (e.g. ``lambda: set(gossip_engine.peers.keys())``).
+        When set, ``reconcile_with_gossip`` uses it to detect split-brain
+        between the Bloom mesh (Redis) and the Gossip mesh (UDP).
+        """
+        self._gossip_peer_checker = checker
+
+    def reconcile_with_gossip(self) -> dict[str, Any]:
+        """Compare Bloom mesh remote nodes against Gossip mesh peer list.
+
+        Returns a dict describing any split-brain divergence.  Remote nodes
+        that are NOT present in the gossip peer list are marked stale so
+        that ``health_snapshot`` surfaces the discrepancy.
+        """
+        if self._gossip_peer_checker is None:
+            return {"reconciled": False, "reason": "no_gossip_checker_registered"}
+
+        try:
+            gossip_peer_ids: set[str] = set(self._gossip_peer_checker())
+        except Exception:
+            logger.exception("Gossip peer checker failed")
+            return {"reconciled": False, "reason": "checker_error"}
+
+        divergence: list[str] = []
+        now = time.time()
+        stale_threshold = self.sync_interval_seconds * 3
+
+        with self._sync_lock:
+            for node_id, health in list(self.remote_health.items()):
+                in_gossip = node_id in gossip_peer_ids
+                bloom_stale = (now - health.last_sync_time) > stale_threshold if health.last_sync_time else True
+
+                if not in_gossip and not bloom_stale:
+                    health.stale = True
+                    divergence.append(node_id)
+                    logger.warning(
+                        "Split-brain detected: node %s is in Bloom mesh but NOT in Gossip mesh",
+                        node_id,
+                    )
+
+        return {
+            "reconciled": True,
+            "gossip_peer_count": len(gossip_peer_ids),
+            "bloom_remote_count": len(self.remote_health),
+            "divergent_nodes": divergence,
+            "divergent_count": len(divergence),
+        }
+
     async def start(self) -> None:
         """Start background pub/sub if Redis is configured."""
         if self._running:
@@ -142,15 +194,17 @@ class NeuralBloomMesh:
                 retry_on_timeout=True,
             )
             await asyncio.wait_for(self._redis.ping(), timeout=REDIS_TIMEOUT_SECONDS)
-        except Exception as exc:
-            logger.warning("Bloom mesh Redis initialization failed: %s", exc)
+        except Exception:
+            logger.exception("Bloom mesh Redis initialization failed")
             await self._close_redis()
             self._running = False
             return
 
+        from src.core.task_registry import get_task_registry
+        _registry = get_task_registry()
         self._tasks = [
-            asyncio.create_task(self._publish_loop(), name="bloom-mesh-publisher"),
-            asyncio.create_task(self._subscribe_loop(), name="bloom-mesh-subscriber"),
+            _registry.create_task(self._publish_loop(), owner="bloom_mesh", name="publisher"),
+            _registry.create_task(self._subscribe_loop(), owner="bloom_mesh", name="subscriber"),
         ]
 
     async def stop(self) -> None:
@@ -264,6 +318,7 @@ class NeuralBloomMesh:
                 "bloom_mesh_sync_failures_total",
                 "Total Bloom mesh snapshot publish failures",
             )
+            logger.warning("Bloom mesh publish failed: %s", exc, exc_info=True)
             await self._record_redis_failure("publish", exc)
             return False
         return True
@@ -287,7 +342,7 @@ class NeuralBloomMesh:
                 "bloom_mesh_snapshot_apply_failures_total",
                 "Total Bloom mesh snapshot apply failures",
             )
-            logger.warning("Ignoring malformed Bloom snapshot: %s", exc)
+            logger.warning("Ignoring malformed Bloom snapshot: %s", exc, exc_info=True)
             return False
 
         schema_raw = data.get("schema")
@@ -425,6 +480,7 @@ class NeuralBloomMesh:
             self._snapshot_apply_failures_total,
             "Current Bloom mesh snapshot apply failures",
         )
+        reconciliation = self.reconcile_with_gossip()
         return {
             "nodes": node_dicts,
             "node_count": len(node_dicts),
@@ -438,6 +494,7 @@ class NeuralBloomMesh:
             "sync_interval_seconds": self.sync_interval_seconds,
             "redis_enabled": self._redis is not None,
             "channel": self.channel,
+            "reconciliation": reconciliation,
         }
 
     def _encode_snapshot(self, *, reason: str, timestamp: float) -> bytes:
@@ -463,11 +520,12 @@ class NeuralBloomMesh:
         while self._running:
             try:
                 await self._ensure_redis()
+                self.reconcile_with_gossip()
                 await self.publish_snapshot()
             except asyncio.CancelledError:
                 raise
-            except Exception as exc:
-                logger.debug("Bloom snapshot publish failed: %s", exc)
+            except Exception:
+                logger.debug("Bloom snapshot publish failed", exc_info=True)
             await asyncio.sleep(self.sync_interval_seconds)
 
     async def _subscribe_loop(self) -> None:
@@ -494,11 +552,12 @@ class NeuralBloomMesh:
                         try:
                             await self.apply_snapshot(data)
                             self._record_redis_success()
-                        except Exception as exc:
-                            logger.debug("Bloom snapshot apply failed: %s", exc)
+                        except Exception:
+                            logger.debug("Bloom snapshot apply failed", exc_info=True)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                logger.warning("Bloom mesh subscribe loop error: %s", exc, exc_info=True)
                 await self._record_redis_failure("subscribe", exc)
                 await asyncio.sleep(min(self.sync_interval_seconds, 5.0))
             finally:
@@ -506,8 +565,8 @@ class NeuralBloomMesh:
                     try:
                         # Fix: Always aclose pubsub to prevent connection leaks
                         await pubsub.aclose()
-                    except Exception as exc:
-                        logger.debug("Bloom mesh pubsub close failed: %s", exc)
+                    except Exception:
+                        logger.debug("Bloom mesh pubsub close failed", exc_info=True)
 
     def _observe_idempotency(self, key: str) -> bool:
         """Return ``True`` if the snapshot ``key`` was already seen recently."""
@@ -567,8 +626,8 @@ class NeuralBloomMesh:
             )
             await asyncio.wait_for(self._redis.ping(), timeout=REDIS_TIMEOUT_SECONDS)
             self._record_redis_success()
-        except Exception as exc:
-            logger.warning("Bloom mesh Redis reconnect failed: %s", exc)
+        except Exception:
+            logger.exception("Bloom mesh Redis reconnect failed")
             await self._close_redis()
             self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
 
@@ -577,8 +636,8 @@ class NeuralBloomMesh:
             return
         try:
             await self._redis.aclose()
-        except Exception as exc:
-            logger.debug("Bloom mesh Redis close failed: %s", exc)
+        except Exception:
+            logger.debug("Bloom mesh Redis close failed", exc_info=True)
         finally:
             self._redis = None
 

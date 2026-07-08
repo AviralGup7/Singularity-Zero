@@ -13,13 +13,13 @@ class TestPoolHealth(unittest.TestCase):
         assert health.total_errors == 0
         assert health.avg_wait_time_seconds == 0.0
 
-    def test_utilisation_pct(self) -> None:
+    def test_utilization_pct(self) -> None:
         health = PoolHealth(pool_name="test", max_concurrent=10, current_usage=5, available=5)
-        assert health.utilisation_pct == 50.0
+        assert health.utilization_pct == 50.0
 
     def test_utilisation_zero_max(self) -> None:
         health = PoolHealth(pool_name="test", max_concurrent=0, current_usage=0, available=0)
-        assert health.utilisation_pct == 0.0
+        assert health.utilization_pct == 0.0
 
     def test_is_healthy_no_activity(self) -> None:
         health = PoolHealth(pool_name="test", max_concurrent=10, current_usage=0, available=10)

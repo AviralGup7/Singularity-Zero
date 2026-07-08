@@ -23,7 +23,8 @@ def _extract_saml_response_body(text: str) -> str | None:
         return None
     try:
         return base64.b64decode(match.group(1)).decode("utf-8", errors="replace")
-    except Exception:  # noqa: S110
+    except Exception as exc:
+        logger.warning("Failed to decode SAML response: %s", exc, exc_info=True)
         return None
 
 
@@ -59,7 +60,8 @@ def _endpoint_key(url: str) -> str:
     try:
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.hostname}{parsed.path or '/'}"
-    except Exception:  # noqa: S110
+    except Exception as exc:
+        logger.warning("Failed to parse endpoint URL %s: %s", url, exc, exc_info=True)
         return url
 
 
@@ -79,7 +81,8 @@ def _build_replay_targets(source_url: str, scan_hosts: set[str]) -> list[str]:
 def _safe_netloc(url: str) -> str:
     try:
         return urlparse(url).hostname or ""
-    except Exception:  # noqa: S110
+    except Exception as exc:
+        logger.warning("Failed to parse netloc from %s: %s", url, exc, exc_info=True)
         return ""
 
 

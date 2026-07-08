@@ -13,7 +13,7 @@ import secrets
 class RateLimiter:
     """Exponential back-off with +/-25% jitter."""
 
-    def __init__(self, base_ms: int = 100, max_ms: int = 2000, max_attempts: int = 5):
+    def __init__(self, base_ms: int = 100, max_ms: int = 2000, max_attempts: int = 5) -> None:
         self.base_ms = base_ms
         self.max_ms = max_ms
         self.max_attempts = max_attempts

@@ -12,7 +12,7 @@ from src.analysis.helpers import (
     build_endpoint_meta,
     endpoint_signature,
 )
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 from src.analysis.json.graphql_introspection import (
     DANGEROUS_MUTATION_NAMES,
     detect_graphql_endpoints,

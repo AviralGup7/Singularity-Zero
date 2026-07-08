@@ -16,11 +16,14 @@ Usage:
     findings = email_header_injection_probe(priority_urls, response_cache, limit=10)
 """
 
+import logging
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url
@@ -187,8 +190,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except (TypeError, ValueError, AttributeError):
+                logger.debug("Failed to extract response from RequestException")
         return {
             "status": status,
             "headers": headers,
@@ -358,7 +361,8 @@ def email_header_injection_probe(
                         url,
                         headers={"Cache-Control": "no-cache", "X-Email-Probe": "baseline"},
                     )
-                except Exception:  # noqa: S110
+                except (TypeError, ValueError, KeyError):
+                    logger.debug("Failed to get baseline response from cache")
                     baseline_resp = None
             if baseline_resp is None:
                 baseline_resp = _safe_request(url)
@@ -382,7 +386,8 @@ def email_header_injection_probe(
                             test_url,
                             headers={"Cache-Control": "no-cache", "X-Email-Probe": payload_name},
                         )
-                    except Exception:  # noqa: S110
+                    except (TypeError, ValueError, KeyError):
+                        logger.debug("Failed to get probe response from cache")
                         probe_resp = None
                 if probe_resp is None:
                     probe_resp = _safe_request(test_url)
@@ -465,7 +470,8 @@ def email_header_injection_probe(
                                 "X-Email-Probe": "reflection-test",
                             },
                         )
-                    except Exception:  # noqa: S110
+                    except (TypeError, ValueError, KeyError):
+                        logger.debug("Failed to get reflection probe response from cache")
                         probe_resp = None
                 if probe_resp is None:
                     probe_resp = _safe_request(test_url)

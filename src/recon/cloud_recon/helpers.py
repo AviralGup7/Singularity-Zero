@@ -92,5 +92,5 @@ async def _generic_object_storage_check(
                         "permissions": {"read": False},
                     }
         except Exception:
-            pass
+            logger.warning("Operation failed in helpers.py", exc_info=True)
     return None

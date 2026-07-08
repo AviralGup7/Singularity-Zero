@@ -2,14 +2,22 @@
 
 Provides durable storage of job records so they survive dashboard restarts.
 Jobs are written to SQLite on state transitions and loaded back on startup.
+
+Bug #33: Uses canonical src.core.lifecycle import instead of
+src.infrastructure.lifecycle re-export to prevent split-brain if the
+re-export path is ever removed.
+
+Bug #34: Connection cleanup uses explicit close() instead of relying
+on __del__ GC timing. A weakref.finalize callback provides a safety
+net, but the primary cleanup path is the lifecycle-registered close().
 """
 
-import atexit
 import json
 import logging
 import sqlite3
 import threading
 import time
+import weakref
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -77,21 +85,41 @@ def _prepare_job_for_storage(job: dict[str, Any]) -> dict[str, Any]:
 
 
 class _ConnWrapper:
+    """Bug #34: Wrapper uses weakref.finalize instead of __del__ for
+    deterministic connection cleanup when the wrapper is GC'd.
+
+    The __del__ method is unreliable — Python does not guarantee when
+    (or even if) __del__ runs, especially under reference cycles or
+    interpreter shutdown. weakref.finalize provides a more deterministic
+    cleanup path.
+    """
+
     def __init__(
         self, conn: sqlite3.Connection, on_close: Callable[[sqlite3.Connection], None]
     ) -> None:
         self.conn = conn
         self.on_close = on_close
+        # Bug #34: weakref.finalize runs when this object is garbage collected,
+        # providing a safety net beyond the explicit close() path.
+        self._finalizer = weakref.finalize(self, _ConnWrapper._cleanup, conn, on_close)
 
-    def __del__(self) -> None:
+    @staticmethod
+    def _cleanup(conn: sqlite3.Connection, on_close: Callable[[sqlite3.Connection], None]) -> None:
         try:
-            self.on_close(self.conn)
-        except Exception:  # noqa: S110
-            pass
-
-
+            on_close(conn)
+        except Exception:
+            logger.warning("Operation failed in job_store.py", exc_info=True)
+    def close(self) -> None:
+        """Explicitly close the connection — preferred over relying on GC."""
+        if self._finalizer.detach():
+            try:
+                self.on_close(self.conn)
+            except Exception:
+                logger.warning("Operation failed in job_store.py", exc_info=True)
 class JobStore:
     """SQLite-backed persistent store for job records."""
+
+    _MAX_CONNECTION_LIFETIME_SECONDS = 300.0  # 5 minutes
 
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -99,12 +127,31 @@ class JobStore:
         self._lock = threading.RLock()
         self._local = threading.local()
         self._all_connections: list[sqlite3.Connection] = []  # Track all created connections
+        self._conn_created_at: dict[int, float] = {}  # conn id -> monotonic time
         self._init_db()
-        # Register cleanup for thread-local connections when threads exit
-        atexit.register(self.close)
+        self._register_with_lifecycle()
 
+    def _register_with_lifecycle(self) -> None:
+        """Bug #33: Uses canonical core.lifecycle import."""
+        try:
+            from src.core.lifecycle import get_lifecycle_manager
+
+            get_lifecycle_manager().register_shutdown(
+                f"job_store_{id(self)}",
+                self.close,
+                after=["http_safety_session"],
+            )
+        except ImportError:
+            logger.warning("Operation failed in job_store.py", exc_info=True)
     def _get_conn(self) -> sqlite3.Connection:
         wrapper = getattr(self._local, "wrapper", None)
+        # Check if existing connection is too old (fix #42: max lifetime)
+        if wrapper is not None and wrapper.conn is not None:
+            conn_id = id(wrapper.conn)
+            created = self._conn_created_at.get(conn_id, 0.0)
+            if (time.monotonic() - created) > self._MAX_CONNECTION_LIFETIME_SECONDS:
+                self._drop_thread_conn()
+                wrapper = None
         if wrapper is None or wrapper.conn is None:
             conn = sqlite3.connect(
                 str(self.db_path),
@@ -127,16 +174,18 @@ class JobStore:
             def _remove_conn(c: sqlite3.Connection) -> None:
                 try:
                     c.close()
-                except Exception:  # noqa: S110
-                    pass
+                except Exception:
+                    logger.warning("Operation failed in job_store.py", exc_info=True)
                 with self._lock:
                     if c in self._all_connections:
                         self._all_connections.remove(c)
+                    self._conn_created_at.pop(id(c), None)
 
             self._local.wrapper = _ConnWrapper(conn, _remove_conn)
             self._local._conn = conn
             with self._lock:
                 self._all_connections.append(conn)
+                self._conn_created_at[id(conn)] = time.monotonic()
         return cast(sqlite3.Connection, self._local.wrapper.conn)
 
     @staticmethod
@@ -161,11 +210,20 @@ class JobStore:
             with self._lock:
                 if conn in self._all_connections:
                     self._all_connections.remove(conn)
+                self._conn_created_at.pop(id(conn), None)
             self._local.wrapper = None
             self._local._conn = None
 
     def _with_retry(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
+        """Execute *operation* with retry on SQLite lock errors.
+
+        Includes a max total retry time to prevent indefinite blocking of
+        the caller thread (fix #41).  If the total time exceeds the limit,
+        the last error is raised immediately.
+        """
+        _MAX_TOTAL_RETRY_SECONDS = 2.0
         last_exc: sqlite3.OperationalError | None = None
+        total_start = time.monotonic()
         for attempt in range(_LOCK_RETRY_ATTEMPTS):
             conn = self._get_conn()
             try:
@@ -180,6 +238,13 @@ class JobStore:
                     )  # noqa: BLE001
                 self._drop_thread_conn()
                 if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
+                    raise
+                elapsed = time.monotonic() - total_start
+                if elapsed >= _MAX_TOTAL_RETRY_SECONDS:
+                    logger.warning(
+                        "JobStore retry: exceeded %.1fs total retry time, giving up",
+                        _MAX_TOTAL_RETRY_SECONDS,
+                    )
                     raise
                 time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
             except Exception:
@@ -210,6 +275,7 @@ class JobStore:
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Failed to close SQLite connection cleanly: %s", exc)
             self._all_connections.clear()
+            self._conn_created_at.clear()
             self._local.wrapper = None
             self._local._conn = None
 
@@ -254,7 +320,7 @@ class JobStore:
                     logger.debug("Failed to decode job data from row: %s", exc)
                     continue
             return result
-        except Exception:  # noqa: S110
+        except Exception:
             logger.exception("Failed to load jobs")
             return {}
 
@@ -276,7 +342,7 @@ class JobStore:
                     logger.debug("Failed to decode job data from row: %s", exc)
                     continue
             return result
-        except Exception:  # noqa: S110
+        except Exception:
             logger.exception("Failed to load active jobs")
             return {}
 
@@ -320,7 +386,7 @@ class JobStore:
                 conn.commit()
 
             self._with_retry(_op)
-        except Exception:  # noqa: S110
+        except Exception:
             logger.exception("Failed to mark stale jobs")
         return len(stale_ids)
 
@@ -338,6 +404,6 @@ class JobStore:
                 return int(cursor.rowcount)
 
             return int(self._with_retry(_op))
-        except Exception:  # noqa: S110
+        except Exception:
             logger.exception("Failed to clean up old jobs")
             return 0

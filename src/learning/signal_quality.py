@@ -1,14 +1,19 @@
 """Signal-quality filtering for findings emitted by pipeline stages.
 
+import logging
+logger = logging.getLogger(__name__)
 The filter combines the calibrated severity model with evidence-quality
 features and learned false-positive patterns. It is dependency-free, but shaped
 like a tiny logistic model so it can be tuned from golden-set evaluations and
 telemetry without changing every detector.
 """
 
+import logging
 from __future__ import annotations
 
 import json
+
+logger = logging.getLogger(__name__)
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -79,8 +84,8 @@ class SignalQualityMLPipeline:
         if HAS_ML_LIBS and self.model is not None:
             try:
                 return cast(np.ndarray, self.model.predict_proba(X))
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Suppressed exception", exc_info=True)
 
         # Elegant matrix multiplication fallback
         scores = np.dot(X, self.coef_.T) + self.intercept_
@@ -100,8 +105,8 @@ class SignalQualityMLPipeline:
                     self.classes_ = (
                         np.array(self.model.classes_) if hasattr(self.model, "classes_") else None
                     )
-                except Exception:  # noqa: S110
-                    pass
+                except Exception:
+                    logger.warning("Suppressed exception", exc_info=True)
 
 
 _ml_pipeline: SignalQualityMLPipeline | None = None
@@ -421,9 +426,10 @@ def score_signal_quality(
         try:
             from src.infrastructure.observability.metrics import get_metrics
 
+
             get_metrics().counter("fp_reduction_total").inc()
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.debug("Metrics tracking error", exc_info=True)
 
     return SignalQualityResult(
         quality_score=round(tp_probability * 100.0, 2),

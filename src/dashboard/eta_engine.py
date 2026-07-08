@@ -134,7 +134,10 @@ class ETAEngine:
         if self._running:
             return
         self._running = True
-        self._task = asyncio.create_task(self._background_loop())
+        from src.core.task_registry import get_task_registry
+        self._task = get_task_registry().create_task(
+            self._background_loop(), owner="eta_engine", name="background_loop"
+        )
         logger.info("ETA engine started (interval=%ds)", self._background_interval)
 
     async def stop(self) -> None:

@@ -113,10 +113,11 @@ class SQLiteBackend:
                     raise
                 time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
             except Exception:
+                logger.warning("SQLiteBackend: Operation failed, rolling back", exc_info=True)
                 try:
                     conn.rollback()
                 except sqlite3.Error as exc:
-                    logger.warning("Operation failed in sqlite.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    logger.warning("SQLiteBackend: Rollback failed: %s", exc, exc_info=True)
                 self._close_conn()
                 raise
         if last_exc is not None:
@@ -719,7 +720,7 @@ class SQLiteBackend:
                     "healthy": True,
                 }
             except Exception as exc:
-                logger.warning("Cache health check failed: %s", exc)
+                logger.warning("Cache health check failed: %s", exc, exc_info=True)
                 return {
                     "backend": "sqlite",
                     "db_path": self._db_path,

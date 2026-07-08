@@ -87,6 +87,10 @@ class ActiveLearningController:
 
                                     ts = datetime.datetime.fromisoformat(str(ts_str)).timestamp()
                             except Exception:
+                                logger.warning(
+                                    "ActiveLearning: Failed to parse timestamp for FP burst detection, using current time",
+                                    exc_info=True,
+                                )
                                 ts = time.time()
                             anomalous_runs_ts.setdefault(rid, []).append(ts)
                     # Compute anomalous_runs *first* by checking burst windows, then
@@ -135,6 +139,10 @@ class ActiveLearningController:
 
                                     ts = datetime.datetime.fromisoformat(str(ts_str)).timestamp()
                             except Exception:
+                                logger.warning(
+                                    "ActiveLearning: Failed to parse timestamp for FP timeframes, using current time",
+                                    exc_info=True,
+                                )
                                 ts = time.time()
                             fp_timeframes.setdefault(rid, []).append(ts)
 

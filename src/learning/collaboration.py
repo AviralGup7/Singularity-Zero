@@ -256,7 +256,8 @@ class AssignmentStore:
             self._init_db()
 
     def _init_db(self) -> None:
-        assert self._db_path is not None
+        if self._db_path is None:
+            raise RuntimeError("Database path is not set; cannot initialize collaboration DB")
         conn = sqlite3.connect(self._db_path, check_same_thread=False, timeout=5.0)
         conn.row_factory = sqlite3.Row
         try:

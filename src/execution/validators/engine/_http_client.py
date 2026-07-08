@@ -7,11 +7,25 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
-if TYPE_CHECKING:
-    from src.pipeline.retry import RetryPolicy
+
+@runtime_checkable
+class RetryPolicyProtocol(Protocol):
+    """Minimal interface required by :class:`ValidationHttpConfig`.
+
+    Decouples the validators engine from the concrete
+    ``src.pipeline.retry.RetryPolicy`` so that importing
+    ``execution.validators.engine`` does not force-load the
+    pipeline retry subsystem.
+    """
+
+    @property
+    def max_attempts(self) -> int: ...
+
+    def delay_for_attempt(self, attempt: int) -> float: ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +48,7 @@ _AUTH_HEADERS: frozenset[str] = frozenset(
 class ValidationHttpConfig:
     timeout_seconds: int
     max_response_bytes: int
-    retry_policy: RetryPolicy
+    retry_policy: RetryPolicyProtocol
 
 
 def _cache_key_for(method: str, url: str, headers: dict[str, str] | None, body: Any) -> str:

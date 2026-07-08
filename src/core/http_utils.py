@@ -8,10 +8,8 @@ and standardized response normalization.
 from __future__ import annotations
 
 import asyncio
-import atexit
 import threading
 import time
-import weakref
 from typing import Any
 
 import httpx
@@ -19,6 +17,12 @@ import requests
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.pid_limiter import PIDRateLimiter
+from src.core.utils.shared_sessions import (
+    get_async_client as _get_async_client,
+)
+from src.core.utils.shared_sessions import (
+    get_shared_sync_session,
+)
 from src.core.utils.url_validation import is_safe_url
 
 
@@ -55,93 +59,17 @@ _PID_LIMITERS_LOCK = threading.Lock()
 
 DEFAULT_TIMEOUT = 10.0
 MAX_BODY_LENGTH = 120_000
-_sync_session_local = threading.local()
-
-
-def _get_sync_session() -> requests.Session:
-    """Return a thread-local requests.Session instance with connection pooling."""
-    session = getattr(_sync_session_local, "session", None)
-    if session is None:
-        session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=10,
-            pool_maxsize=20,
-            max_retries=3,
-        )
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        _sync_session_local.session = session
-        atexit.register(session.close)
-    return session
-
-
-_ASYNC_CLIENTS: dict[tuple[bool, bool], httpx.AsyncClient] = {}
-
-_ASYNC_CLIENTS_WEAKSET: weakref.WeakSet[httpx.AsyncClient] = weakref.WeakSet()
-
-
-def _cleanup_async_clients() -> None:
-    """Synchronously close all cached async clients at process exit."""
-    for client in list(_ASYNC_CLIENTS.values()):
-        try:
-            if not client.is_closed:
-                try:
-                    coro = client.aclose()
-                except (AttributeError, TypeError):
-                    client.close()  # type: ignore[attr-defined]
-                else:
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if not loop.is_closed():
-                            loop.run_until_complete(coro)
-                    except RuntimeError:
-                        pass
-        except Exception as exc:
-            logger.debug("Failed to close httpx client during atexit: %s", exc)
-    _ASYNC_CLIENTS.clear()
-
-
-atexit.register(_cleanup_async_clients)
-
-# Hook httpx.AsyncClient creation to track all instances process-wide
-_original_async_client_init = httpx.AsyncClient.__init__
-
-
-def _patched_async_client_init(self: httpx.AsyncClient, *args: Any, **kwargs: Any) -> None:
-    _original_async_client_init(self, *args, **kwargs)
-    _ASYNC_CLIENTS_WEAKSET.add(self)
-
-
-httpx.AsyncClient.__init__ = _patched_async_client_init  # type: ignore[method-assign]
-
-
-def _get_async_client(verify_ssl: bool, follow_redirects: bool) -> httpx.AsyncClient:
-    client_key = (verify_ssl, follow_redirects)
-    client = _ASYNC_CLIENTS.get(client_key)
-    if client is None or client.is_closed:
-        client = httpx.AsyncClient(
-            verify=verify_ssl,
-            follow_redirects=follow_redirects,
-            limits=httpx.Limits(
-                max_connections=100,
-                max_keepalive_connections=20,
-                keepalive_expiry=30.0,
-            ),
-        )
-        _ASYNC_CLIENTS[client_key] = client
-    return client
 
 
 async def close_all_clients() -> None:
-    """Acquire all tracked HTTP clients process-wide and cleanly close them."""
-    for client in list(_ASYNC_CLIENTS_WEAKSET):
-        try:
-            if not client.is_closed:
-                await client.aclose()
-        except Exception as e:
-            logger.debug("Failed to close tracked httpx client during shutdown: %s", e)
-    _ASYNC_CLIENTS.clear()
-    _ASYNC_CLIENTS_WEAKSET.clear()
+    """Close all tracked HTTP clients process-wide.
+
+    Delegates to shared_sessions.async_close_all_clients() for canonical
+    client management. Use this during FastAPI lifespan shutdown.
+    """
+    from src.core.utils.shared_sessions import async_close_all_clients
+
+    await async_close_all_clients()
 
 
 def safe_request(
@@ -208,7 +136,7 @@ def safe_request(
 
     try:
         start_time = time.monotonic()
-        resp = _get_sync_session().request(
+        resp = get_shared_sync_session().request(
             method=method,
             url=url,
             headers=req_headers,
@@ -438,15 +366,14 @@ async def async_safe_request(
         limiter.update(0.0, is_blocked=is_blocked)
 
         try:
-            response = getattr(e, "response", None)
             err_body = ""
-            if response is not None:
-                err_body = getattr(response, "text", "")
+            if hasattr(e, "response") and e.response is not None:
+                err_body = getattr(e.response, "text", "")
 
             _chameleon_hook.update_observation(
                 response_status=err_status or 403,
                 body=err_body,
-                headers=dict(getattr(response, "headers", {}) or {}),
+                headers=dict(getattr(e.response, "headers", {}) or {}),
                 cookies=None,
                 session_id=session_id,
                 target=target,

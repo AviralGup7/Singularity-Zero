@@ -1,4 +1,6 @@
 """
+import logging
+logger = logging.getLogger(__name__)
 RESEARCH PROTOTYPE — not wired into the active scan pipeline. See docs/architecture.md Implementation Status table for current state.
 
 Chameleon Evasion Subsystem - Advanced WAF Evasion Engine
@@ -325,8 +327,8 @@ class HMMEvasionModel:
                 if probs[max_idx] > 0.0:
                     self._current_state = max_idx
                 return
-            except Exception:  # noqa: S110
-                pass  # Fallback to pure-Python dictionary loop on any anomaly
+            except Exception:
+                    logger.debug("Metrics tracking error", exc_info=True)  # Fallback to pure-Python dictionary loop on any anomaly
 
         # 2. Pure-Python fallback loop
         max_prob = 0.0
@@ -494,6 +496,7 @@ class ChameleonEvasionEngine:
         """Thread-safe getter for evasion metrics."""
         with self._lock:
             import copy
+
 
             return copy.deepcopy(self.metrics)
 

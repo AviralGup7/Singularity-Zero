@@ -257,7 +257,15 @@
     "fullStackTrace": "Full Stack Trace",
     "offline": "You are offline. Data may be stale.",
     "pageNotFound": "Page not found",
-    "somethingWentWrong": "Something went wrong"
+    "somethingWentWrong": "Something went wrong",
+    "unexpectedError": "An unexpected error occurred",
+    "internalSystemError": "Internal System Error. Retrying...",
+    "meshOffline": "Mesh offline - check connection.",
+    "responseTooLarge": "Response too large",
+    "schemaViolation": "API response does not match expected schema",
+    "invalidRequestUrl": "Invalid request URL",
+    "sessionExpired": "Session expired.",
+    "rateLimitReached": "Rate limit reached."
   },
   "keyboardShortcuts": {
     "title": "Keyboard Shortcuts",

@@ -10,15 +10,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from concurrent.futures import as_completed
 from typing import Any
 from urllib.parse import urlparse
 
 from src.core.models import Config
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.pipeline.tools import build_retry_policy, execute_command, projectdiscovery_httpx_available
-from src.pipeline.unified_cache import UnifiedCache
+from src.pipeline.unified_cache import get_unified_cache
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import normalize_url
 
@@ -28,9 +29,15 @@ PROBE_CACHE_DEFAULT_TTL_SECONDS = 1200
 _PROBE_CACHE_MAX_SIZE = int(os.environ.get("RECON_PROBE_CACHE_MAX_SIZE", 10000))
 PROBE_CACHE_KEY_PREFIX = "probe:"
 
-_probe_cache = UnifiedCache()
+_probe_cache = get_unified_cache()
 
 logger = logging.getLogger(__name__)
+
+# Cooldown: prevent cleanup from running on every write under heavy load.
+# Cleanup runs at most once per _PROBE_CACHE_CLEANUP_COOLDOWN_SECONDS.
+_LAST_CACHE_CLEANUP: float = 0.0
+_PROBE_CACHE_CLEANUP_COOLDOWN_SECONDS: float = 30.0
+_cleanup_in_progress = threading.Lock()
 
 
 def _probe_cache_key(target_name: str, host: str) -> str:
@@ -57,6 +64,45 @@ def _normalized_probe_hosts(subdomains: set[str]) -> list[str]:
 def _probe_cache_ttl_seconds(config: Config) -> int:
     raw = int(config.httpx.get("probe_cache_ttl_seconds", PROBE_CACHE_DEFAULT_TTL_SECONDS))
     return max(PROBE_CACHE_MIN_TTL_SECONDS, min(PROBE_CACHE_MAX_TTL_SECONDS, raw))
+
+
+def _maybe_schedule_cache_cleanup() -> None:
+    """Schedule non-blocking cache cleanup if size exceeds threshold.
+
+    Uses a lock to ensure only one cleanup runs at a time. The actual
+    cleanup work runs in a background thread so it doesn't block scanning.
+    """
+    global _LAST_CACHE_CLEANUP
+    now = time.time()
+    if now - _LAST_CACHE_CLEANUP < _PROBE_CACHE_CLEANUP_COOLDOWN_SECONDS:
+        return
+    try:
+        size = _probe_cache.size()
+    except Exception:
+        return
+    if not _PROBE_CACHE_MAX_SIZE or size <= _PROBE_CACHE_MAX_SIZE:
+        return
+    if not _cleanup_in_progress.acquire(blocking=False):
+        return
+    _LAST_CACHE_CLEANUP = now
+
+    def _do_cleanup() -> None:
+        try:
+            deleted = _probe_cache.cleanup_expired()
+            new_size = size - deleted
+            if new_size > _PROBE_CACHE_MAX_SIZE:
+                prune_count = int(_PROBE_CACHE_MAX_SIZE * 0.1)
+                _probe_cache.prune_oldest(prune_count)
+                logger.info("Hard-pruned %d oldest entries from probe cache", prune_count)
+        except Exception as exc:
+            logger.debug("Background probe cache cleanup failed: %s", exc)
+        finally:
+            _cleanup_in_progress.release()
+
+    try:
+        get_recon_executor().submit(_do_cleanup)
+    except Exception:
+        _cleanup_in_progress.release()
 
 
 def _host_from_url(value: str) -> str:
@@ -134,22 +180,7 @@ def _cache_update(
         },
         ttl=ttl,
     )
-    try:
-        size = _probe_cache.size()
-        if _PROBE_CACHE_MAX_SIZE and size > _PROBE_CACHE_MAX_SIZE:
-            logger.warning(
-                "Probe cache size %d exceeded max %d, running expired cleanup",
-                size,
-                _PROBE_CACHE_MAX_SIZE,
-            )
-            deleted = _probe_cache.cleanup_expired()
-            new_size = size - deleted
-            if new_size > _PROBE_CACHE_MAX_SIZE:
-                prune_count = int(_PROBE_CACHE_MAX_SIZE * 0.1)
-                _probe_cache.prune_oldest(prune_count)
-                logger.info("Hard-pruned %d oldest entries from probe cache", prune_count)
-    except Exception as exc:
-        logger.debug("Failed to perform final probe cache cleanup: %s", exc)
+    _maybe_schedule_cache_cleanup()
 
 
 def _cache_update_from_batch(
@@ -379,7 +410,7 @@ def probe_live_hosts(
             probe_timeout_seconds=probe_timeout_seconds,
             batch_timeout_seconds=batch_timeout_seconds,
         )
-        executor = get_shared_executor()
+        executor = get_recon_executor()
         future_to_batch: dict[Any, tuple[int, list[str], int]] = {}
         for batch_index, batch_hosts in enumerate(batches, 1):
             resolved_batch_timeout = _resolve_httpx_batch_timeout_seconds(

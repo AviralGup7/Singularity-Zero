@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { ShieldCheck, ShieldAlert, RefreshCw, Fingerprint } from 'lucide-react';
 import { getBackendAuditEntries, verifyAuditIntegrity, type BackendAuditEntry } from '@/api/audit';
 import { useToast } from '@/hooks/useToast';
+import { useLogFetcher, LogTableShell } from '@/components/common/TelemetryLogTable';
 
 interface AuditLogViewerProps {
   className?: string;
@@ -9,38 +10,24 @@ interface AuditLogViewerProps {
 
 export function AuditLogViewer({ className }: AuditLogViewerProps) {
   const toast = useToast();
-   
-  const [entries, setEntries] = useState<BackendAuditEntry[]>([]);
-   
-  const [loading, setLoading] = useState(true);
-   
+
   const [verifying, setVerifying] = useState(false);
-   
   const [integrity, setIntegrity] = useState<{ is_valid: boolean; compromised_ids: number[] } | null>(null);
-   
   const [filter, setFilter] = useState('');
-   
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const fetchEntries = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    try {
-      const data = await getBackendAuditEntries({ limit: 200, signal });
-      setEntries(data);
-    } catch (err) {
-       if (!(err instanceof Error && err.name === 'AbortError')) {
-         toast.error('Failed to sync audit telemetry');
-       }
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchEntries(controller.signal);
-    return () => controller.abort();
-  }, [fetchEntries]);
+  const { data: entries, loading, refetch } = useLogFetcher(
+    useCallback(async (signal: AbortSignal) => {
+      try {
+        return await getBackendAuditEntries({ limit: 200, signal });
+      } catch (err) {
+        if (!(err instanceof Error && err.name === 'AbortError')) {
+          toast.error('Failed to sync audit telemetry');
+        }
+        return [];
+      }
+    }, [toast])
+  );
 
   const handleVerify = async () => {
     setVerifying(true);
@@ -84,7 +71,7 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
             placeholder="FILTER EVENTS..."
             className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-mono uppercase focus:border-accent/40 outline-none"
           />
-          <button onClick={() => fetchEntries()} className="btn-secondary btn-small p-2" title="Refresh">
+          <button onClick={() => refetch()} className="btn-secondary btn-small p-2" title="Refresh">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
           <button 
@@ -133,11 +120,7 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
            <span className="text-right">Timestamp</span>
         </div>
         
-        {loading && entries.length === 0 ? (
-            <div className="p-12 text-center text-muted animate-pulse">Synchronizing ledger...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-muted">No matching audit entries.</div>
-        ) : (
+        <LogTableShell loading={loading && entries.length === 0} isEmpty={filtered.length === 0} loadingLabel="Synchronizing ledger..." emptyLabel="No matching audit entries.">
           <div className="max-h-[600px] overflow-auto">
             {filtered.map(entry => (
               <div
@@ -194,7 +177,7 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
               </div>
             ))}
           </div>
-        )}
+        </LogTableShell>
       </div>
     </div>
   );

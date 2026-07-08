@@ -6,6 +6,7 @@ import os
 import secrets
 import time
 import uuid
+from contextlib import contextmanager
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -17,6 +18,26 @@ logger = logging.getLogger(__name__)
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
+
+
+@contextmanager
+def propagate_request_context(request_id: str):
+    """Copy the request_id contextvar into a new task or thread context.
+
+    Use this when dispatching work across async task boundaries where
+    contextvars would otherwise be lost (e.g. ``ThreadPoolExecutor``,
+    background task spawns).
+
+    Usage::
+
+        with propagate_request_context(request_id):
+            await some_async_boundary()
+    """
+    token = request_id_var.set(request_id)
+    try:
+        yield
+    finally:
+        request_id_var.reset(token)
 
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _CSRF_HEADER_NAME = "X-CSRF-Token"

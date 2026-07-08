@@ -28,6 +28,7 @@ from src.core.contracts.cross_package_protocols import (  # noqa: F401
     WASMExecutorProtocol,
 )
 from src.core.contracts.finding_lifecycle import apply_lifecycle  # noqa: F401
+from src.core.contracts.param_categories import ParamCategory  # noqa: F401
 from src.core.contracts.pipeline import (  # noqa: F401
     CONFIG_DEFAULTS,
     REQUIRED_CONFIG_FIELDS,
@@ -67,6 +68,7 @@ from src.core.contracts.protocol_registry import (  # noqa: F401
     get_self_healing_controller_cls,
     get_stage_baseline,
     get_tenant_isolation_check,
+    get_tool_execution_service_cls,
     get_validation_runtime,
     get_wasm_executor,
 )

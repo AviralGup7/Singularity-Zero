@@ -85,7 +85,8 @@ async def get_findings_summary(
 
                             if len(all_findings_list) < 50:
                                 all_findings_list.append(f)
-                except Exception:  # noqa: S112
+                except Exception:
+                    logger.warning("Failed to parse findings at %s", findings_path, exc_info=True)
                     continue
 
         if target_finding_count > 0:

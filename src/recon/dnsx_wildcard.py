@@ -138,11 +138,9 @@ def detect_wildcard_sync(
         loop = None
     coro = detect_wildcard_async(domain, probe_count=probe_count, timeout=timeout)
     if loop is not None and loop.is_running():
-        # We're inside a running loop; fall back to a thread.
-        import concurrent.futures
+        from src.core.utils.async_bridge import run_async_in_sync_context
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            return ex.submit(lambda: asyncio.run(coro)).result()  # type: ignore[return-value]
+        return run_async_in_sync_context(coro)
     return asyncio.run(coro)
 
 
@@ -189,7 +187,8 @@ async def detect_wildcard_async(
                 dns.exception.Timeout,
             ):
                 return set()
-            except Exception:  # noqa: BLE001
+            except Exception:
+                logger.warning("Wildcard DNS probe failed", exc_info=True)
                 return set()
 
     results = await asyncio.gather(*(_probe() for _ in range(probe_count)))
@@ -234,10 +233,9 @@ def filter_subdomains_sync(
         subdomains, domain, timeout=timeout, max_concurrency=max_concurrency
     )
     if loop is not None and loop.is_running():
-        import concurrent.futures
+        from src.core.utils.async_bridge import run_async_in_sync_context
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            return ex.submit(lambda: asyncio.run(coro)).result()  # type: ignore[return-value]
+        return run_async_in_sync_context(coro)
     return asyncio.run(coro)
 
 
@@ -312,7 +310,8 @@ async def filter_subdomains_async(
                 dns.exception.Timeout,
             ):
                 ips = set()
-            except Exception:  # noqa: BLE001
+            except Exception:
+                logger.warning("DNS resolution failed for host %s", host, exc_info=True)
                 ips = set()
         return host, ips
 

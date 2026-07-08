@@ -47,7 +47,7 @@ class WASMExecutorProtocol(Protocol):
     Used by: src.analysis.plugins.wasm
     """
 
-    def __call__(
+    def execute_sandboxed_plugin(
         self,
         wasm_path: str,
         stage_input: dict[str, Any],
@@ -86,7 +86,7 @@ class LateralGraphProtocol(Protocol):
 
     def __init__(self, db_path: str) -> None: ...
 
-    def find_attack_chains(self) -> list[list[str]]:
+    def find_attack_chains(self) -> list[dict[str, Any]]:
         """Return identified attack chains."""
         ...
 
@@ -160,12 +160,8 @@ class ChameleonEvasionProtocol(Protocol):
     Used by: src.dashboard.fastapi.routers.evasion
     """
 
-    def get_metrics(self) -> dict[str, Any]:
-        """Return the metrics dictionary."""
-        ...
-
-    def reset_metrics(self) -> None:
-        """Reset the metrics."""
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Apply chameleon evasion strategy."""
         ...
 
 
@@ -190,9 +186,7 @@ class RemediationScannerProtocol(Protocol):
     Used by: src.dashboard.fastapi.routers.remediated
     """
 
-    def __init__(self, use_wasm_sandbox: bool = True) -> None: ...
-
-    async def verify_remediation(
+    def verify_remediation(
         self,
         finding: dict[str, Any],
         redis_client: Any = None,
@@ -253,7 +247,7 @@ class AnalystNotesProtocol(Protocol):
     Used by: src.dashboard.fastapi.routers.notes, src.dashboard.fastapi.routers.cockpit.notes
     """
 
-    def get_all_notes(self, target_name: str, output_dir: Any = None) -> list[Any]:
+    def get_all_notes(self, target_name: str, output_dir: str = "") -> list[Any]:
         """Return all notes for a target."""
         ...
 
@@ -261,13 +255,12 @@ class AnalystNotesProtocol(Protocol):
         self,
         target_name: str,
         finding_id: str,
-        note: str,
+        note: str = "",
         tags: list[str] | None = None,
-        author: str = "anonymous",
         graph_node_id: str | None = None,
         graph_edge_id: str | None = None,
         exchange_id: str | None = None,
-        output_dir: Any = None,
+        output_dir: str = "",
     ) -> Any:
         """Create a new analyst note."""
         ...
@@ -277,12 +270,12 @@ class AnalystNotesProtocol(Protocol):
         target_name: str,
         finding_id: str,
         note_id: str,
-        note: str | None = None,
+        note: str = "",
         tags: list[str] | None = None,
         graph_node_id: str | None = None,
         graph_edge_id: str | None = None,
         exchange_id: str | None = None,
-        output_dir: Any = None,
+        output_dir: str = "",
     ) -> Any:
         """Update an existing note."""
         ...
@@ -290,9 +283,9 @@ class AnalystNotesProtocol(Protocol):
     def delete_note(
         self,
         target_name: str,
-        finding_id: str,
         note_id: str,
-        output_dir: Any = None,
+        finding_id: str,
+        output_dir: str = "",
     ) -> bool:
         """Delete a note."""
         ...
@@ -451,4 +444,29 @@ class TenantIsolationCheckProtocol(Protocol):
 
     def __call__(self, target_name: str, tenant_id: str) -> bool:
         """Return True if the target is owned by the specified tenant."""
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Execution → Analysis protocol (fixes Execution → Analysis violation)
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class ProbeDispatcherProtocol(Protocol):
+    """Protocol for HTTP probe dispatchers.
+
+    Implemented by: src.analysis.fast_path.FastPathDispatcher
+    Used by: src.execution.waf_probe_adapter.WAFAwareProbeAdapter
+    """
+
+    async def dispatch(
+        self,
+        url: str,
+        *,
+        method: str = ...,
+        headers: dict[str, str] | None = ...,
+        cache_key: str | None = ...,
+    ) -> Any:
+        """Dispatch an HTTP probe and return the response."""
         ...

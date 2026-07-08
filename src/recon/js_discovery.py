@@ -17,7 +17,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 from src.core.models import Config
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.js_fetcher import _fetch_text_content
 from src.recon.js_parsers import (
@@ -319,7 +319,7 @@ def _collect_js_discovery_urls(
         65,
     )
     max_workers = min(workers, len(scoped_hosts))
-    executor = get_shared_executor()
+    executor = get_recon_executor()
     pending: dict[Any, str] = {}
     submitted = 0
 

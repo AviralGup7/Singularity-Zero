@@ -8,59 +8,27 @@ so existing import paths continue to work.
 from __future__ import annotations
 
 import asyncio
-import atexit
 import concurrent.futures
 import functools
 import os
-import re
 import subprocess
-import sys
 import threading
 import time
 
 from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import classify_stderr_lines
+from src.core.utils.subprocess_utils import (
+    _clean_env,
+    _coerce_output_text,
+    _get_creationflags,
+)
 from src.pipeline.services.circuit_breaker import (
     CircuitBreaker,
 )
-from src.pipeline.services.tool_execution.contracts import CompletedToolRun, ToolInvocation
+from src.pipeline.services.tool_execution.contracts import CompletedToolRun
 
 logger = get_pipeline_logger(__name__)
-
-SHELL_META = re.compile(r"[;|&\$\`\n\r]")
-
-
-def _clean_env(env: dict[str, str] | None) -> dict[str, str]:
-    if env is None:
-        return {}
-    clean = {}
-    for k, v in env.items():
-        try:
-            k_str = str(k)
-            v_str = str(v)
-            k_str.encode("utf-8")
-            v_str.encode("utf-8")
-            clean[k_str] = v_str
-        except (UnicodeEncodeError, UnicodeDecodeError) as exc:
-            logger.warning("Dropped environment variable %r due to encoding error: %s", k, exc)
-            continue
-    return clean
-
-
-def _get_creationflags() -> int:
-    if sys.platform.startswith("win"):
-        return subprocess.CREATE_NO_WINDOW
-    return 0
-
-
-def _coerce_output_text(value: str | bytes | None) -> str:
-    """Coerce subprocess output to string."""
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="ignore")
-    return value
 
 
 # --------------------------------------------------------------------------- #
@@ -113,6 +81,20 @@ def _prune_stale_circuit_breakers(now: float) -> None:
 _TOOL_EXECUTOR: concurrent.futures.ThreadPoolExecutor | None = None
 _TOOL_EXECUTOR_LOCK = threading.Lock()
 
+_DEFAULT_TOOL_WORKERS = 32
+
+
+def _resolve_tool_workers() -> int:
+    """Resolve tool executor pool size from environment or default.
+
+    Configurable via TOOL_EXECUTOR_SIZE env var.
+    Default: min(64, cpu_count * 4) capped at 32 for backward compatibility.
+    """
+    try:
+        return max(4, int(os.environ.get("TOOL_EXECUTOR_SIZE", str(_DEFAULT_TOOL_WORKERS))))
+    except (TypeError, ValueError):
+        return _DEFAULT_TOOL_WORKERS
+
 
 def _get_tool_executor() -> concurrent.futures.ThreadPoolExecutor:
     global _TOOL_EXECUTOR
@@ -120,7 +102,7 @@ def _get_tool_executor() -> concurrent.futures.ThreadPoolExecutor:
         with _TOOL_EXECUTOR_LOCK:
             if _TOOL_EXECUTOR is None:
                 _TOOL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-                    max_workers=200, thread_name_prefix="tool_exec"
+                    max_workers=_resolve_tool_workers(), thread_name_prefix="tool_exec"
                 )
     return _TOOL_EXECUTOR
 
@@ -132,7 +114,35 @@ def _shutdown_tool_executor() -> None:
         _TOOL_EXECUTOR = None
 
 
-atexit.register(_shutdown_tool_executor)
+def _register_with_lifecycle() -> None:
+    try:
+        from src.core.lifecycle import get_lifecycle_manager
+
+        get_lifecycle_manager().register_shutdown(
+            "tool_executor",
+            _shutdown_tool_executor,
+            after=["cache_refresh"],
+        )
+    except ImportError:
+        pass
+
+
+_register_with_lifecycle()
+
+
+def _register_executor_factory() -> None:
+    """Register the tool executor factory with ExecutionService (no circular import)."""
+    try:
+        from src.infrastructure.execution_engine.execution_service import (
+            register_tool_executor_factory,
+        )
+
+        register_tool_executor_factory(_get_tool_executor)
+    except ImportError:
+        pass
+
+
+_register_executor_factory()
 
 
 # --------------------------------------------------------------------------- #
@@ -140,7 +150,7 @@ atexit.register(_shutdown_tool_executor)
 # --------------------------------------------------------------------------- #
 
 
-async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
+async def run_external_tool(invocation) -> CompletedToolRun:
     """Run an external binary and return a structured CompletedToolRun.
 
     This is the single entry point for ALL external binary execution in the

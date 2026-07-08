@@ -71,11 +71,10 @@ class VFSMountsMixin:
                             os.close(fd)
                         except OSError as exc:
                             logger.warning("Ghost-VFS: fd close error: %s", exc)
-                        if os.path.exists(temp_file_path):
-                            try:
-                                os.remove(temp_file_path)
-                            except Exception as ex:
-                                logger.debug("Ghost-VFS: temp remove error: %s", ex)
+                        try:
+                            os.remove(temp_file_path)
+                        except OSError as ex:
+                            logger.debug("Ghost-VFS: temp remove error: %s", ex)
                         raise
 
                 count += 1
@@ -167,11 +166,10 @@ class VFSMountsMixin:
                     os.close(fd)
                 except OSError as exc:
                     logger.warning("Ghost-VFS: fd close error after bundle write: %s", exc)
-                if os.path.exists(temp_file_path):
-                    try:
-                        os.remove(temp_file_path)
-                    except Exception as ex:
-                        logger.debug("Ghost-VFS: temp remove error: %s", ex)
+                try:
+                    os.remove(temp_file_path)
+                except OSError as ex:
+                    logger.debug("Ghost-VFS: temp remove error: %s", ex)
                 raise
 
         logger.info(

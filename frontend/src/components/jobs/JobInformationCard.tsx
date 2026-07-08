@@ -1,10 +1,19 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { InfoItem } from '@/components/jobs/JobInfoItem';
-import type { Job } from '@/types/api';
 
 interface JobInformationCardProps {
-  job: Job;
+  job: {
+    base_url?: string;
+    hostname?: string;
+    mode?: string;
+    stage_label?: string;
+    started_at?: string;
+    status_message?: string;
+    scope_entries?: string[];
+    returncode?: number | null;
+    finished_at_label?: string;
+  };
 }
 
 function JobInformationCardBase({ job }: JobInformationCardProps) {

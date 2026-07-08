@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useFindingsTimeline } from '@/hooks/useFindingsTimeline';
+import { useFindingsTimeline } from '@/features/findings/hooks/useFindingsTimeline';
 
 const mocks = vi.hoisted(() => ({
   useApi: vi.fn(),

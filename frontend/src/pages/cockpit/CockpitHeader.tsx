@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { Icon } from '@/components/ui/Icon';
-import type { Job } from '@/types/api';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'text-red-500 border-red-500/30 bg-red-500/5',
@@ -12,20 +11,13 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 interface CockpitHeaderProps {
   target: string;
-  activeJob: Job | null;
-  stats: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-    info: number;
-  };
+  activeJob: { status?: string; stage_label?: string; progress_percent?: number } | null;
+  stats: Record<string, number>;
 }
 
 function CockpitHeaderBase({ target, activeJob, stats }: CockpitHeaderProps) {
   return (
     <div className="flex-shrink-0 z-20 flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-white/10 bg-[#080b11]/80 backdrop-blur-md px-6 py-4 gap-4">
-      {/* Left Telemetry Title */}
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/20 bg-accent/5">
           <Icon name="shield" size={18} className="text-accent" />
@@ -43,7 +35,6 @@ function CockpitHeaderBase({ target, activeJob, stats }: CockpitHeaderProps) {
         </div>
       </div>
 
-      {/* Global Progress telemetry */}
       {activeJob && (
         <div className="flex-1 max-w-sm mx-4 space-y-1">
           <div className="flex items-center justify-between font-mono text-[9px]">
@@ -59,7 +50,6 @@ function CockpitHeaderBase({ target, activeJob, stats }: CockpitHeaderProps) {
         </div>
       )}
 
-      {/* Right HUD metrics */}
       <div className="flex items-center gap-2.5">
         {(['critical', 'high', 'medium', 'low'] as const).map((sev) => (
           <div

@@ -17,7 +17,7 @@ from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats
 class FailureDetector:
     """Stateful heartbeat failure detector."""
 
-    def __init__(self, heartbeat_fail_threshold: int = 3):
+    def __init__(self, heartbeat_fail_threshold: int = 3) -> None:
         self.heartbeat_fail_threshold = heartbeat_fail_threshold
         self._confirming: set[str] = set()
         self._confirming_lock = threading.Lock()

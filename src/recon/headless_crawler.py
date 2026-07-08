@@ -36,7 +36,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.url_validation import is_safe_url
 
@@ -88,8 +88,8 @@ def _extract_shadow_links(page: Any) -> list[str]:
         }""")
         if isinstance(links, list):
             return [link for link in links if isinstance(link, str)]
-    except Exception:  # noqa: BLE001, S110
-        pass
+        except Exception:
+            logger.warning("Operation failed in headless_crawler.py", exc_info=True)
     return []
 
 
@@ -123,8 +123,8 @@ def _extract_api_tokens(
                         "page_url": page.url,
                     }
                 )
-    except Exception:  # noqa: BLE001, S110
-        pass
+    except Exception:
+        logger.warning("Operation failed in headless_crawler.py", exc_info=True)
     try:
         storage = page.evaluate("""() => {
             const out = [];
@@ -150,8 +150,8 @@ def _extract_api_tokens(
                             "page_url": page.url,
                         }
                     )
-    except Exception:  # noqa: BLE001, S110
-        pass
+    except Exception:
+        logger.warning("Operation failed in headless_crawler.py", exc_info=True)
     return tokens, service_workers
 
 
@@ -187,7 +187,8 @@ def headless_crawl_host(
                 def _on_request(request: Any) -> None:
                     try:
                         url = request.url
-                    except Exception:  # noqa: BLE001
+                    except Exception:
+                        logger.debug("Headless crawl: failed to get request URL", exc_info=True)
                         return
                     if not url or not is_safe_url(url):
                         return
@@ -206,8 +207,8 @@ def headless_crawl_host(
                     anchors = page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
                     if isinstance(anchors, list):
                         hrefs = [h for h in anchors if isinstance(h, str)]
-                except Exception:  # noqa: BLE001, S110
-                    pass
+                except Exception:
+                    logger.warning("Operation failed in headless_crawler.py", exc_info=True)
                 hrefs.extend(_extract_shadow_links(page))
 
                 visited: set[str] = {base}
@@ -280,7 +281,7 @@ def headless_crawl_hosts(
         f"Headless SPA crawl: scanning {len(hosts_list)} hosts",
         65,
     )
-    ex = get_shared_executor()
+    ex = get_recon_executor()
     futures = [
         ex.submit(
             headless_crawl_host,

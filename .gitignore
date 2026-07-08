@@ -16,10 +16,13 @@ build/
 env/
 venv/
 ENV/
+frontend/.venv/
+frontend/venv/
 
 # Caches
 .mypy_cache/
 .pytest_cache/
+.benchmarks/
 .pytest-temp.ini
 .ruff_cache/
 .hypothesis/
@@ -39,6 +42,7 @@ screenshots/
 
 # Output artifacts
 output/
+output_test/
 
 # OS
 .DS_Store
@@ -162,8 +166,7 @@ configs/api_keys.json
 configs/scope.txt
 configs/settings.json
 configs/pipeline_resume.cfg
-!configs/*.example.json
-!configs/scope.example.txt
+
 
 # Kubernetes/Helm (runtime configs only)
 helm/**/values.local.yaml

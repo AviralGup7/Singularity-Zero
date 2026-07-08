@@ -3,16 +3,16 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from src.api_tests.apitester.models import (
-    ApiTestContext,
+    APITestContext,
     ComparisonSummary,
     RequestSummary,
 )
 
 
 @pytest.mark.unit
-class TestApiTestContext:
+class TestAPITestContext:
     def test_all_fields_populated(self) -> None:
-        ctx = ApiTestContext(
+        ctx = APITestContext(
             title="Test Title",
             severity="HIGH",
             confidence="MEDIUM",
@@ -43,7 +43,7 @@ class TestApiTestContext:
         assert ctx.next_step == "Compare responses"
 
     def test_frozen_dataclass_is_immutable(self) -> None:
-        ctx = ApiTestContext(
+        ctx = APITestContext(
             title="Immutable",
             severity="INFO",
             confidence="",
@@ -64,7 +64,7 @@ class TestApiTestContext:
             ctx.title = "changed"
 
     def test_empty_string_fields(self) -> None:
-        ctx = ApiTestContext(
+        ctx = APITestContext(
             title="",
             severity="",
             confidence="",
@@ -103,12 +103,12 @@ class TestApiTestContext:
             "combined_signal": "none",
             "next_step": "done",
         }
-        ctx1 = ApiTestContext(**kwargs)
-        ctx2 = ApiTestContext(**kwargs)
+        ctx1 = APITestContext(**kwargs)
+        ctx2 = APITestContext(**kwargs)
         assert ctx1 == ctx2
 
     def test_inequality_different_values(self) -> None:
-        ctx1 = ApiTestContext(
+        ctx1 = APITestContext(
             title="A",
             severity="HIGH",
             confidence="MEDIUM",
@@ -125,7 +125,7 @@ class TestApiTestContext:
             combined_signal="s",
             next_step="n",
         )
-        ctx2 = ApiTestContext(
+        ctx2 = APITestContext(
             title="B",
             severity="HIGH",
             confidence="MEDIUM",
@@ -145,7 +145,7 @@ class TestApiTestContext:
         assert ctx1 != ctx2
 
     def test_repr_contains_title(self) -> None:
-        ctx = ApiTestContext(
+        ctx = APITestContext(
             title="ReprTest",
             severity="INFO",
             confidence="",

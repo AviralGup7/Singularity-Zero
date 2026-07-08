@@ -8,10 +8,11 @@ export { DataTable, type DataTableProps, type Column } from './DataTable';
 export { Skeleton, SkeletonCard, SkeletonStat, SkeletonText, SkeletonTable, DashboardSkeleton, PageSkeleton, TableSkeleton, type SkeletonProps } from './Skeleton';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Breadcrumbs, type BreadcrumbsProps, type BreadcrumbItem } from './Breadcrumbs';
-export { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent, LegacyTooltip } from './Tooltip';
-export { Dropdown, DropdownItem, DropdownDivider } from './Dropdown';
-export { Tabs, TabList, Tab, TabPanel } from './Tabs';
-export { Select, Option } from './Select';
+// Re-export shadcn primitives in place of deleted legacy wrappers
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui-shadcn/tooltip';
+export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectLabel, SelectItem, SelectSeparator } from '@/components/ui-shadcn/select';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui-shadcn/tabs';
+export { DropdownMenu as Dropdown, DropdownMenuTrigger as DropdownTrigger, DropdownMenuContent as DropdownContent, DropdownMenuItem as DropdownItem, DropdownMenuSeparator as DropdownDivider } from '@/components/ui-shadcn/dropdown-menu';
 
 // ── Data Display Components ────────────────────────────────
 export { Progress, type ProgressProps } from './Progress';
@@ -31,8 +32,5 @@ export * from './CopyButton';
 export * from './AccessibleEmoji';
 export * from './Icon';
 export * from './FocusTrap';
-export * from './RouteFocus';
-export * from './RouteFocusManager';
 export * from './ErrorBoundary';
 export * from './ErrorOverlayView';
-export { SafeResponsiveContainer } from './SafeResponsiveContainer';

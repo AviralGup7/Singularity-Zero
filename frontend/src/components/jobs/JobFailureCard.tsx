@@ -1,10 +1,10 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
 import { InfoItem } from '@/components/jobs/JobInfoItem';
-import { RemediationSuggestions } from '@/components/findings/RemediationSuggestions';
-import type { RemediationSuggestion } from '@/types/api';
+import { RemediationSuggestions } from '@/features/findings/components/RemediationSuggestions';
 
 interface JobFailureCardProps {
   job: {
@@ -13,10 +13,10 @@ interface JobFailureCardProps {
     failure_reason_code?: string;
     failure_step?: string;
     failure_reason?: string;
-    error?: string | null;
+    error?: string;
   };
   sseError: string | null;
-  remediation: RemediationSuggestion[];
+  remediation: Array<{ id: string; title: string; command: string; description?: string }>;
   remediationLoading: boolean;
   onOpenTrace: () => void;
   traceLoading: boolean;
@@ -46,7 +46,7 @@ function JobFailureCardBase({ job, sseError, remediation, remediationLoading, on
                 due to repeated failures. The tool may be temporarily unavailable or misconfigured.
               </p>
               <p className="text-xs text-[var(--text-tertiary)] mt-2">
-                Visit <Link to="/self-healing" className="underline">Self-Healing</Link> to reset the circuit breaker
+                Visit <Link to={ROUTES.SELF_HEALING} className="underline">Self-Healing</Link> to reset the circuit breaker
                 or check tool availability in Settings.
               </p>
             </div>

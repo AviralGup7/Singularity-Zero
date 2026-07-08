@@ -152,7 +152,8 @@ async def run_git_diff_crawl(
         if hasattr(ctx, "scope_entries"):
             try:
                 stage_input = build_stage_input_from_context("git_diff_crawl", config, ctx)
-            except Exception:  # noqa: BLE001
+            except Exception:
+                logger.warning("Failed to build stage input for git_diff_crawl", exc_info=True)
                 stage_input = None
 
     base_ref = getattr(args, "base_ref", None)

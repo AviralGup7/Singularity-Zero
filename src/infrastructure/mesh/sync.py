@@ -236,7 +236,7 @@ class MeshSync:
                 "mesh_sync_publish_failures_total",
                 "Total Redis mesh sync publish failures",
             )
-            logger.debug("MeshSync: Failed to publish message on %s: %s", self.channel_scoped, e)
+            logger.exception("MeshSync: Failed to publish message on %s", self.channel_scoped)
 
     async def start_listening(self, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
         """Start a background loop to listen for messages and invoke the callback."""
@@ -245,8 +245,9 @@ class MeshSync:
 
         self._running = True
         await self._pubsub.subscribe(self.channel_scoped)
-        self._task = asyncio.create_task(
-            self._listen_loop(callback), name=f"mesh-sync-listener-{self.channel_scoped}"
+        from src.core.task_registry import get_task_registry
+        self._task = get_task_registry().create_task(
+            self._listen_loop(callback), owner="mesh_sync", name=f"listener-{self.channel_scoped}"
         )
         logger.info("MeshSync: Subscribed to channel '%s'", self.channel_scoped)
 
@@ -292,7 +293,7 @@ class MeshSync:
                     "mesh_sync_listen_failures_total",
                     "Total Redis mesh sync listen failures",
                 )
-                logger.debug("MeshSync: Listen loop error on %s: %s", self.channel_scoped, e)
+                logger.exception("MeshSync: Listen loop error on %s", self.channel_scoped)
                 await asyncio.sleep(1.0)
 
     def health_snapshot(self) -> dict[str, Any]:
@@ -350,7 +351,7 @@ class MeshSync:
             await self._client.close()
             logger.info("MeshSync: Disconnected from channel '%s'", self.channel_scoped)
         except Exception as e:
-            logger.debug("MeshSync: Shutdown error: %s", e)
+            logger.warning("MeshSync: Shutdown error", exc_info=True)
 
 
 def _inc_metric(name: str, description: str) -> None:

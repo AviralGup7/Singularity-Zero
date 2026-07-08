@@ -1,10 +1,23 @@
-import { type ReactNode } from 'react';
-import { AuthContext } from './auth-context';
+import { createContext, type ReactNode } from 'react';
+import type { UserRole, Permission } from '@/types/auth';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/hooks/useAuth';
 
-import type { UserRole, Permission, AuthContextType } from './auth-context';
-export type { UserRole, Permission, AuthContextType };
+export interface AuthContextType {
+  user: { id: string; name: string; role: UserRole; unlockPassword?: string; tenantId?: string; organizationId?: string } | null;
+  permissions: Permission;
+  login: (name: string, role: UserRole, unlockPassword?: string) => void;
+  loginWithApiKey: (apiKey: string) => Promise<void>;
+  loginWithGuestToken: () => Promise<void>;
+  logout: () => void;
+  hasPermission: (permission: keyof Permission) => boolean;
+  hasRole: (role: UserRole) => boolean;
+  verifyUnlockPassword: (password: string) => boolean;
+  hydrateAuth: () => Promise<void>;
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export type { UserRole, Permission };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const store = useAuthStore();
@@ -43,4 +56,3 @@ export function RequireRole({
   if (!user || !roles.includes(user.role)) return <>{fallback}</>;
   return <>{children}</>;
 }
-

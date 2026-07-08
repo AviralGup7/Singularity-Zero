@@ -76,8 +76,8 @@ def request_shutdown() -> None:
     for evt in _shutdown_events.values():
         try:
             evt.set()
-        except Exception:  # noqa: S110
-            pass
+        except (RuntimeError, asyncio.InvalidStateError) as exc:
+            logger.debug("Non-critical shutdown event set skipped: %s", exc)
 
 
 # Backwards-compatible alias used by tests / external callers that
@@ -189,7 +189,7 @@ def _preflight_checks(args: argparse.Namespace) -> bool:
         all_ok, report = validate_config(config.to_dict(), scope_entries, str(config.output_dir))
         if not all_ok:
             emit_error("Pre-flight configuration validation failed:")
-            print(format_validation_report(report))
+            logger.info(format_validation_report(report))
             return False
     except Exception as exc:
         emit_error(f"Pre-flight configuration parsing/validation failed: {exc}")
@@ -212,8 +212,6 @@ def execute_pipeline(args: argparse.Namespace) -> int:
 
 async def _run_continuous(args: argparse.Namespace) -> int:
     """Run continuous monitoring mode."""
-    import os
-
     from src.core.checkpoint import create_checkpoint_manager, generate_run_id
     from src.core.monitoring.asset_inventory import AssetInventoryManager
     from src.core.monitoring.continuous_scan import ContinuousScanMode
@@ -413,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
             all_ok, report = validate_config(
                 config.to_dict(), scope_entries, str(config.output_dir)
             )
-            print(format_validation_report(report))
+            logger.info(format_validation_report(report))
             return 0 if all_ok else 1
 
         if not _preflight_checks(args):

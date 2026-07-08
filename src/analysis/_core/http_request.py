@@ -1,8 +1,11 @@
 """Shared HTTP request utilities for active probes."""
 
+import logging
 from typing import Any
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 from src.core.utils.url_validation import is_safe_url
 
@@ -50,7 +53,7 @@ def _safe_request(
     try:
         parsed = urlparse(url)
         target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
-    except Exception:
+    except (ValueError, TypeError):
         target = "unknown"
 
     session_id = req_headers.get("X-Session-Token") or req_headers.get("X-Trace-ID") or "default"
@@ -77,7 +80,8 @@ def _safe_request(
                 else:
                     try:
                         cookies = {str(c.name): str(c.value) for c in resp.cookies}
-                    except Exception:  # noqa: S110
+                    except (TypeError, AttributeError):
+                        logger.debug("Failed to parse response cookies", exc_info=True)
                         cookies = {}
             detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
             _chameleon._evasion_engine.update_observation(
@@ -87,8 +91,8 @@ def _safe_request(
                 target=target,
                 detected_waf=detected_waf,
             )
-        except Exception:  # noqa: S110
-            pass
+        except (TypeError, AttributeError, KeyError):
+            logger.debug("WAF detection / telemetry update failed", exc_info=True)
 
         return {
             "status": getattr(resp, "status_code", 0),
@@ -108,8 +112,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 resp_headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except (TypeError, AttributeError, KeyError):
+                logger.debug("Failed to extract response object from exception", exc_info=True)
         return {
             "status": status,
             "headers": resp_headers,

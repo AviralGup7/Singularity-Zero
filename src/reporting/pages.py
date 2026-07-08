@@ -352,13 +352,21 @@ def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
     rows = []
     library_reports = []
     for run_dir in reversed(run_dirs):
-        summary = json.loads((run_dir / "run_summary.json").read_text(encoding="utf-8"))
+        summary_path = run_dir / "run_summary.json"
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            summary = {}
         generated_at = str(summary.get("generated_at_ist", "")).strip() or format_iso_to_ist(
             str(summary.get("generated_at_utc", "")).strip()
         )
         diff = None
-        if (run_dir / "diff_summary.json").exists():
-            diff = json.loads((run_dir / "diff_summary.json").read_text(encoding="utf-8"))
+        diff_path = run_dir / "diff_summary.json"
+        if diff_path.exists():
+            try:
+                diff = json.loads(diff_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                diff = None
         counts = "".join(
             f"<span class='chip'>{html.escape(key.replace('_', ' '))}: {value}</span>"
             for key, value in summary["counts"].items()

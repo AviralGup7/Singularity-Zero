@@ -28,5 +28,12 @@ const i18nPromise = i18n.use(initReactI18next).init({
   console.error('[i18n] Failed to initialize:', err);
 });
 
+// Sync <html lang> attribute so screen readers use correct pronunciation
+function syncHtmlLang(lng: string) {
+  document.documentElement.lang = lng;
+}
+i18n.on('initialized', (options) => syncHtmlLang(options.lng ?? defaultLanguage));
+i18n.on('languageChanged', syncHtmlLang);
+
 export { i18nPromise };
 export default i18n;

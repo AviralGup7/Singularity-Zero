@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { AppSettingsSchema } from '@/api/schemas';
-import type { AppSettings, SettingsUpdater } from '@/context/settings-context';
+import type { AppSettings, SettingsUpdater } from '@/context/SettingsContext';
 import { tenantSafeStorage } from '@/utils/tenantStorage';
 import { apiClient } from '@/api/core';
 import { useAuthStore } from './authStore';

@@ -32,7 +32,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.dnsx_wildcard import is_public_ip
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ def _run_tlsx(
             import json as _json
 
             data = _json.loads(line)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Skipping unparseable tlsx JSON line: %s", line)
             continue
         if isinstance(data, dict):
@@ -185,7 +185,7 @@ def scan_targets_for_origin_leak(
         return []
 
     results: list[dict[str, Any]] = []
-    ex = get_shared_executor()
+    ex = get_recon_executor()
     futures = {
         ex.submit(extract_ja3_from_session, h, p, timeout_seconds=timeout_seconds): (h, p)
         for h, p in target_list

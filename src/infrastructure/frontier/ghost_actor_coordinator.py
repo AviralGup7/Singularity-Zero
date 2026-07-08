@@ -64,6 +64,7 @@ class GhostMeshCoordinator:
             try:
                 actor_id = str(cast(Any, actor_ref.proxy()).actor_id.get(timeout=0.5))
             except Exception:
+                logger.debug("Ghost-Coordinator: failed to get actor proxy ID", exc_info=True)
                 actor_id = f"actor:{task_metadata.get('actor_id', 'unknown')}"
             logger.info(
                 "Ghost-Coordinator: Initiating proactive migration for [%s] due to node pressure",
@@ -124,31 +125,29 @@ class GhostMeshCoordinator:
                             "migration state was not durably visible to the target node"
                         )
                     committed = True
-                except Exception as exc:
-                    logger.error(
-                        "Ghost-Coordinator: Migration failed for [%s] at step (committed=%s): %s",
+                except Exception:
+                    logger.exception(
+                        "Ghost-Coordinator: Migration failed for [%s] at step (committed=%s)",
                         actor_id,
                         committed,
-                        exc,
                     )
                     if not committed:
                         try:
                             await self.registry.register_actor(actor_id, current_node_id)
                             await self.registry.clear_actor_state(actor_id)
                             await self.registry.clear_migration(actor_id)
-                        except Exception as rollback_exc:  # pylint: disable=broad-exception-caught
-                            logger.warning(
-                                "Ghost-Coordinator: Failed to roll back registry for [%s]: %s",
+                        except Exception:
+                            logger.exception(
+                                "Ghost-Coordinator: Failed to roll back registry for [%s]",
                                 actor_id,
-                                rollback_exc,
                             )
                         try:
                             actor_ref.ask({"command": "abort_migration"}, timeout=0.5)
-                        except Exception as abort_exc:  # pylint: disable=broad-exception-caught
+                        except Exception:
                             logger.debug(
-                                "Ghost-Coordinator: Failed to abort migration for [%s]: %s",
+                                "Ghost-Coordinator: Failed to abort migration for [%s]",
                                 actor_id,
-                                abort_exc,
+                                exc_info=True,
                             )
                     raise
 
@@ -171,11 +170,10 @@ class GhostMeshCoordinator:
                             "state_digest": unpacked.state_digest,
                         },
                     )
-                except Exception as obs_exc:  # pylint: disable=broad-exception-caught
-                    logger.debug(
-                        "Ghost-Coordinator: Migration event emission failed for [%s]: %s",
+                except Exception:
+                    logger.exception(
+                        "Ghost-Coordinator: Migration event emission failed for [%s]",
                         actor_id,
-                        obs_exc,
                     )
 
                 # 6. Live Actor Migration Handoff (Network Handoff)
@@ -201,18 +199,18 @@ class GhostMeshCoordinator:
                                     "state_digest": unpacked.state_digest,
                                 },
                             )
-                except Exception as handoff_exc:  # pylint: disable=broad-exception-caught
+                except Exception:
                     logger.debug(
-                        "Ghost-Coordinator: Live handoff failed for [%s]: %s",
+                        "Ghost-Coordinator: Live handoff failed for [%s]",
                         actor_id,
-                        handoff_exc,
+                        exc_info=True,
                     )
 
                 return True
 
             return False
-        except Exception as e:  # pylint: disable=W0718
-            logger.error("Ghost-Coordinator: Migration failed: %s", e)
+        except Exception:
+            logger.exception("Ghost-Coordinator: Migration failed")
             return False
 
     async def health_metrics(
@@ -253,7 +251,8 @@ class GhostMeshCoordinator:
                         labels={"actor_id": health.get("actor_id", "unknown")},
                     )
                 )
-            except Exception as exc:  # pylint: disable=broad-exception-caught
+            except Exception as exc:
+                logger.debug("Ghost-Coordinator: health probe failed", exc_info=True)
                 metrics.append(
                     HealthMetric(
                         component=HealthComponent.GHOST_ACTOR,
@@ -334,11 +333,10 @@ class GhostMeshCoordinator:
                         envelope.type,
                         job_id,
                     )
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to enqueue work item '%s': %s",
+                except Exception:
+                    logger.exception(
+                        "Failed to enqueue work item '%s'",
                         envelope.type,
-                        exc,
                     )
 
             if enqueued_jobs:
@@ -346,8 +344,8 @@ class GhostMeshCoordinator:
                     "Handed off %d work items from actor to queue",
                     len(enqueued_jobs),
                 )
-        except Exception as exc:
-            logger.debug("Failed to query/hand off pending work from actor: %s", exc)
+        except Exception:
+            logger.debug("Failed to query/hand off pending work from actor", exc_info=True)
 
         return enqueued_jobs
 
@@ -378,11 +376,10 @@ class GhostMeshCoordinator:
                 # 4. Clean up state from registry to save storage footprint
                 await self.registry.clear_actor_state(actor_id)
                 await self.registry.clear_migration(actor_id)
-            except Exception as e:
-                logger.error(
-                    "Ghost-Coordinator: Failed to re-hydrate actor [%s] from state: %s",
+            except Exception:
+                logger.exception(
+                    "Ghost-Coordinator: Failed to re-hydrate actor [%s] from state",
                     actor_id,
-                    e,
                 )
 
         return cast(pykka.ActorRef, actor_ref)

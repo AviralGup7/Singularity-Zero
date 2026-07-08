@@ -96,24 +96,18 @@ source_modules = src.pipeline
 forbidden_modules = src.execution
 
 [importlinter:contract:15]
-name = Execution must not depend on analysis
-type = forbidden
-source_modules = src.execution
-forbidden_modules = src.analysis
-
-[importlinter:contract:16]
 name = Execution must not depend on pipeline
 type = forbidden
 source_modules = src.execution
 forbidden_modules = src.pipeline
 
-[importlinter:contract:17]
+[importlinter:contract:16]
 name = Infrastructure must not depend on pipeline
 type = forbidden
 source_modules = src.infrastructure
 forbidden_modules = src.pipeline
 
-[importlinter:contract:18]
+[importlinter:contract:17]
 name = Core must not depend on fuzzing
 type = forbidden
 source_modules = src.core

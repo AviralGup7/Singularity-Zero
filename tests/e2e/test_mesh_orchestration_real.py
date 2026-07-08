@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pykka
 import pytest
 
-from src.core.frontier.ghost_actor import (
+from src.infrastructure.frontier.ghost_actor import (
     GhostMeshCoordinator,
     ScanActor,
 )
@@ -331,7 +331,7 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
 
         protocol = GossipProtocol(gossip_receiver, secret=gossip_receiver._secret)
 
-        from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
+        from src.infrastructure.frontier.ghost_actor import _LOGIC_REGISTRY
 
         assert "udp_logic" in _LOGIC_REGISTRY
 

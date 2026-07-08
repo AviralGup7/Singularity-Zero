@@ -69,6 +69,7 @@ class _DecryptingChunkIterator:
             try:
                 decrypted_chunk = self._aesgcm.decrypt(nonce, ciphertext, aad)
             except Exception as exc:
+                logger.debug("Ghost-VFS decrypt chunk %d failed", self._idx - 1, exc_info=True)
                 raise ValueError("Ghost-VFS: chunk decryption failed") from exc
 
             self._idx += 1
@@ -76,6 +77,7 @@ class _DecryptingChunkIterator:
         except StopIteration:
             raise
         except Exception:
+            logger.debug("GhostVFS: decryption read error, closing", exc_info=True)
             self.close()
             raise
 
@@ -126,7 +128,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                 eBPFHookManager.pin_memory(id(self))
                 self._memory_pinned = True
             except Exception as exc:
-                logger.warning("Ghost-VFS eBPF hook failure during initialization: %s", exc)
+                logger.warning("Ghost-VFS eBPF hook failure during initialization: %s", exc, exc_info=True)
 
         if rotation_interval_hours is not None:
             self._rotation_interval = rotation_interval_hours * 3600
@@ -253,7 +255,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                 try:
                     self._wipe_raw_buffer(raw)
                 except Exception as e:
-                    logger.debug("Failed to wipe raw encrypted buffer: %s", e)
+                    logger.debug("Failed to wipe raw encrypted buffer: %s", e, exc_info=True)
                 del self._files[cleaned_path]
             if cleaned_path in self._file_metadata:
                 del self._file_metadata[cleaned_path]
@@ -336,7 +338,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                         secure_wipe(old_file_key)
                         secure_wipe(new_file_key)
             except Exception as e:
-                logger.error("Ghost-VFS: Key rotation failed: %s", e)
+                logger.error("Ghost-VFS: Key rotation failed: %s", e, exc_info=True)
                 for buf in new_files.values():
                     self._wipe_raw_buffer(buf)
                 secure_wipe(new_key)
@@ -366,7 +368,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
             try:
                 del b
             except Exception as e:
-                logger.warning("Ghost-VFS: Diagnostic warning in secure wipe bytes: %s", e)
+                logger.warning("Ghost-VFS: Diagnostic warning in secure wipe bytes: %s", e, exc_info=True)
 
     def _wipe_raw_buffer(self, raw: bytearray | bytes | None) -> None:
         if raw is None:
@@ -398,7 +400,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                 try:
                     eBPFHookManager.unpin_memory(id(self))
                 except Exception as exc:
-                    logger.warning("Ghost-VFS eBPF hook failure during self-destruct: %s", exc)
+                    logger.warning("Ghost-VFS eBPF hook failure during self-destruct: %s", exc, exc_info=True)
                 finally:
                     self._memory_pinned = False
         logger.warning("Ghost-VFS: Data plane PURGED")

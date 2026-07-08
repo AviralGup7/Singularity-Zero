@@ -383,7 +383,7 @@ class NeuralState:
                     self.applied_wal_ids,
                     key=self._wal_id_sort_key,
                 )
-            except Exception:
+            except TypeError:
                 sorted_ids = sorted(self.applied_wal_ids)
 
             to_keep = sorted_ids[-500:]
@@ -600,7 +600,7 @@ def _stable_json(value: Any) -> str:
 def _clone_value[T](value: T) -> T:
     try:
         return copy.deepcopy(value)
-    except Exception:
+    except (TypeError, AttributeError):
         return value
 
 

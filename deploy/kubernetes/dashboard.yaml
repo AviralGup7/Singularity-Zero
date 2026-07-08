@@ -28,7 +28,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cyber-pipeline
     app.kubernetes.io/component: dashboard
-    app.kubernetes.io/version: "2.0.0"
+    app.kubernetes.io/version: "3.1.0"
   annotations:
     # CKV_K8S_35: Secrets are injected via env vars from a K8s Secret resource.
     # readOnlyRootFilesystem is enabled; compensating control: secrets never appear in logs.
@@ -51,7 +51,7 @@ spec:
       labels:
         app.kubernetes.io/name: cyber-pipeline
         app.kubernetes.io/component: dashboard
-        app.kubernetes.io/version: "2.0.0"
+        app.kubernetes.io/version: "3.1.0"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8000"
@@ -67,7 +67,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: dashboard
-          image: ghcr.io/AviralGup7/singularity-zero:2.0.0
+          image: ghcr.io/AviralGup7/singularity-zero:3.1.0
           imagePullPolicy: Always
           securityContext:
             readOnlyRootFilesystem: true

@@ -4,8 +4,8 @@ Auto-detects JWT tokens in requests/responses and runs the full
 JWT attack suite against discovered tokens.
 
 Modules:
-    attacks: NoneAlgorithmAttack, AlgorithmConfusionAttack, KidPathTraversalAttack
-    token_manipulation: WeakSecretAttack, JkuInjectionAttack
+    attacks: NoneAlgorithmAttack, AlgorithmConfusionAttack, KIDPathTraversalAttack
+    token_manipulation: WeakSecretAttack, JKUInjectionAttack
     expiry: LifetimeManipulationAttack
     validator: finding collectors and severity determiners
     jwt_check: Main jwt_security_analyzer() function
@@ -13,7 +13,7 @@ Modules:
 
 from .attacks import (
     AlgorithmConfusionAttack,
-    KidPathTraversalAttack,
+    KIDPathTraversalAttack,
     NoneAlgorithmAttack,
     b64url_decode,
     b64url_encode,
@@ -31,7 +31,7 @@ from .jwt_check import (
 )
 from .token_manipulation import (
     WEAK_SECRETS,
-    JkuInjectionAttack,
+    JKUInjectionAttack,
     WeakSecretAttack,
 )
 from .validator import (
@@ -51,9 +51,9 @@ __all__ = [
     "JWT_PARAM_NAMES",
     "NoneAlgorithmAttack",
     "AlgorithmConfusionAttack",
-    "KidPathTraversalAttack",
+    "KIDPathTraversalAttack",
     "WeakSecretAttack",
-    "JkuInjectionAttack",
+    "JKUInjectionAttack",
     "LifetimeManipulationAttack",
     "collect_findings",
     "determine_severity",

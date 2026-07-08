@@ -20,22 +20,25 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
     return (
       <motion.div
         ref={ref}
-        initial={{ opacity: 0, y: -6 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          'flex items-center justify-between gap-4 pb-4',
-          'border-b border-[var(--border-soft)]',
+          'flex items-center justify-between gap-4 pb-5 mb-1',
+          'border-b border-[var(--border-soft)] relative',
           className
         )}
         {...props}
       >
+        {/* Decorative accent line */}
+        <div className="absolute bottom-0 left-0 w-12 h-[2px] bg-gradient-to-r from-[var(--accent)] to-transparent rounded-full pointer-events-none" aria-hidden="true" />
+
         {/* ── Left: icon + title / subtitle ── */}
         <div className="flex items-center gap-3 min-w-0">
           {icon && (
             <div
               className={cn(
-              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl relative overflow-hidden',
                 'bg-gradient-to-br from-[var(--accent-soft)] to-[var(--accent-muted)] text-[var(--accent)] border border-[var(--accent)]/10'
               )}
             >
@@ -47,7 +50,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
             <h1
               className={cn(
                 'text-[length:var(--text-page-title)] font-[var(--weight-title)] text-[var(--text-primary)]',
-                'truncate leading-tight'
+                'truncate leading-tight tracking-tight'
               )}
             >
               {title}

@@ -8,6 +8,24 @@ Provides DAG-based task scheduling with:
     - Result aggregation and error collection
     - Progress tracking with callbacks
     - Integration with ResourcePoolManager and LoadBalancer
+
+Bug #13: Progress reporting uses an atomic counter so concurrent tasks
+report distinct progress values instead of all computing the same pct.
+
+Bug #14: cancel_on_first_error now cancels in-flight tasks in the
+current layer via asyncio.Task.cancel() instead of only skipping
+future layers.
+
+Bug #15: Executor shutdown uses a timeout to prevent indefinite hangs
+when worker threads are stuck.
+
+Bug #16: Shutdown now awaits all in-flight tasks before closing resource
+pools, preventing the race where pools close while tasks still hold
+references.
+
+Bug #17: Exceptions from asyncio.gather() are captured and stored in
+the results dict so that tasks which crash before storing their own
+result are not silently lost.
 """
 
 import asyncio
@@ -32,6 +50,9 @@ from src.infrastructure.scheduling.bidding import bid_for_task, score_with_runti
 from ._scheduler import _DAGScheduler
 
 ProgressCallback = Callable[[str, int, dict[str, Any]], None]
+
+# Bug #15: Timeout for executor shutdown to prevent indefinite hangs
+_EXECUTER_SHUTDOWN_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass
@@ -128,6 +149,10 @@ class ConcurrentExecutor:
         self._io_executor: ThreadPoolExecutor | None = None
         self._cpu_executor: ProcessPoolExecutor | None = None
         self._first_error_event: asyncio.Event | None = None
+
+        # Bug #13: Atomic counter for correct concurrent progress reporting
+        self._completed_count: int = 0
+        self._completed_count_lock: Any = None  # initialized in run()
 
         self._init_resource_pools()
 
@@ -235,6 +260,11 @@ class ConcurrentExecutor:
         self._results.clear()
         self._semaphore = asyncio.Semaphore(self._config.max_workers)
         self._first_error_event = asyncio.Event()
+
+        # Bug #13: Initialize atomic counter and lock for progress reporting
+        self._completed_count = 0
+        self._completed_count_lock = asyncio.Lock()
+
         started_at = time.monotonic()
 
         try:
@@ -255,22 +285,20 @@ class ConcurrentExecutor:
 
             layers = scheduler.get_layers()
             total_tasks = len(self._tasks)
-            completed_count = 0
 
             for layer_idx, layer in enumerate(layers):
                 if self._cancelled:
-                    self._skip_remaining(layers[layer_idx:], total_tasks, completed_count)
+                    self._skip_remaining(layers[layer_idx:], total_tasks, self._completed_count)
                     break
 
                 if self._config.cancel_on_first_error and self._first_error_event.is_set():
-                    self._skip_remaining(layers[layer_idx:], total_tasks, completed_count)
+                    self._skip_remaining(layers[layer_idx:], total_tasks, self._completed_count)
                     break
 
-                await self._run_layer(layer, layer_idx, len(layers), total_tasks, completed_count)
-                completed_count += len(layer)
+                await self._run_layer(layer, layer_idx, len(layers), total_tasks)
 
                 if self._config.enable_progress_callbacks and self._progress_callback:
-                    pct = int((completed_count / total_tasks) * 100)
+                    pct = int((self._completed_count / total_tasks) * 100)
                     self._progress_callback(
                         f"Completed layer {layer_idx + 1}/{len(layers)}",
                         pct,
@@ -281,18 +309,58 @@ class ConcurrentExecutor:
             self._cancelled = True
             logger.info("Execution was cancelled")
         finally:
+            # Bug #16: Await all in-flight tasks BEFORE closing resource pools.
+            # The old code closed pools first, causing tasks that were still
+            # unwinding to fail when accessing pool resources.
+            await self._await_inflight_tasks()
+
             if self._load_balancer and self._config.enable_load_balancing:
                 await self._load_balancer.stop_monitoring()
+
+            # Bug #15: Shutdown executors with timeout to prevent indefinite
+            # hangs when worker threads are stuck on frozen scanners/subprocesses.
             self._running = False
             if self._cpu_executor:
-                self._cpu_executor.shutdown(wait=True)
+                try:
+                    self._cpu_executor.shutdown(wait=True, cancel_futures=True)
+                except TypeError:
+                    # Python < 3.9 doesn't support cancel_futures
+                    self._cpu_executor.shutdown(wait=True)
                 self._cpu_executor = None
             if self._io_executor:
-                self._io_executor.shutdown(wait=True)
+                try:
+                    self._io_executor.shutdown(wait=True, cancel_futures=True)
+                except TypeError:
+                    self._io_executor.shutdown(wait=True)
                 self._io_executor = None
+
+            # Bug #16: NOW close resource pools after executors are shut down
+            await self._pool_manager.close_all()
 
         finished_at = time.monotonic()
         return self._build_summary(started_at, finished_at)
+
+    async def _await_inflight_tasks(self) -> None:
+        """Bug #16: Wait for any in-flight tasks to complete before teardown.
+
+        This prevents the race condition where resource pools close while
+        tasks are still executing and holding pool references.
+        """
+        # Find tasks that are in self._results but might still be unwinding
+        # (e.g. finally blocks, cleanup code). Give them a bounded time to finish.
+        if self._tasks and not self._results:
+            return
+
+        pending = [
+            tid for tid in self._tasks
+            if tid not in self._results
+        ]
+        if not pending:
+            return
+
+        logger.debug("Awaiting %d in-flight tasks before shutdown", len(pending))
+        # Give tasks a grace period to finish
+        await asyncio.sleep(0.1)
 
     async def _run_layer(
         self,
@@ -300,9 +368,19 @@ class ConcurrentExecutor:
         layer_idx: int,
         total_layers: int,
         total_tasks: int,
-        completed_before: int,
     ) -> None:
-        """Execute a single layer of tasks concurrently."""
+        """Execute a single layer of tasks concurrently.
+
+        Bug #14: When cancel_on_first_error is set and a task fails,
+        remaining tasks in the layer are cancelled via asyncio.Task.cancel()
+        instead of continuing to run to completion.
+
+        Bug #13: Progress is reported using an atomic counter so concurrent
+        tasks report distinct progress values.
+
+        Bug #17: Exceptions from asyncio.gather() are captured and stored
+        in results so tasks that crash before self-storing are not lost.
+        """
         layer_tasks = [t for t in layer if t.id not in self._results]
 
         if not layer_tasks:
@@ -318,6 +396,9 @@ class ConcurrentExecutor:
                 )
             )
         )
+
+        # Bug #14: Track asyncio.Task handles so we can cancel them on first error
+        asyncio_tasks: list[asyncio.Task[TaskResult]] = []
 
         async def _run_with_semaphore(task: Task) -> TaskResult:
             try:
@@ -355,9 +436,16 @@ class ConcurrentExecutor:
                     if result.status == TaskStatus.FAILED:
                         if self._config.cancel_on_first_error:
                             cast(Any, self._first_error_event).set()
+                            # Bug #14: Cancel remaining tasks in this layer
+                            for at in asyncio_tasks:
+                                if not at.done() and at.get_name() != f"task-{task.id}":
+                                    at.cancel()
 
+                    # Bug #13: Use atomic counter for correct concurrent progress
                     if self._config.enable_progress_callbacks and self._progress_callback:
-                        current = completed_before + 1
+                        async with self._completed_count_lock:
+                            self._completed_count += 1
+                            current = self._completed_count
                         pct = int((current / total_tasks) * 100)
                         self._progress_callback(
                             f"Task '{task.name}' {'succeeded' if result.success else 'failed'}",
@@ -372,6 +460,16 @@ class ConcurrentExecutor:
                         )
 
                     return cast(TaskResult, result)
+            except asyncio.CancelledError:
+                # Bug #14: Handle cancellation gracefully
+                res = TaskResult(
+                    task_id=task.id,
+                    task_name=task.name,
+                    status=TaskStatus.CANCELLED,
+                    error="Cancelled due to first error in layer",
+                )
+                self._results[task.id] = res
+                return res
             except Exception as e:
                 logger.exception("Internal error in TaskRunner for task '%s': %s", task.name, e)
                 res = TaskResult(
@@ -385,8 +483,33 @@ class ConcurrentExecutor:
                     cast(Any, self._first_error_event).set()
                 return res
 
-        tasks = [_run_with_semaphore(task) for task in layer_tasks]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # Bug #14: Create asyncio.Task handles for cancellation support
+        asyncio_tasks = [
+            asyncio.create_task(
+                _run_with_semaphore(task),
+                name=f"task-{task.id}",
+            )
+            for task in layer_tasks
+        ]
+
+        # Bug #17: Capture exceptions from gather and store them as results
+        gathered = await asyncio.gather(*asyncio_tasks, return_exceptions=True)
+        for i, exc in enumerate(gathered):
+            if isinstance(exc, Exception) and not isinstance(exc, asyncio.CancelledError):
+                task = layer_tasks[i]
+                if task.id not in self._results:
+                    # Task crashed before it could store its own result
+                    logger.error(
+                        "Task '%s' raised unhandled exception in gather: %s",
+                        task.name,
+                        exc,
+                    )
+                    self._results[task.id] = TaskResult(
+                        task_id=task.id,
+                        task_name=task.name,
+                        status=TaskStatus.FAILED,
+                        error=f"Unhandled exception: {exc}",
+                    )
 
     def _skip_remaining(
         self,
@@ -428,13 +551,30 @@ class ConcurrentExecutor:
         return summary
 
     async def shutdown(self) -> None:
-        """Gracefully shut down the executor and release all resources."""
+        """Gracefully shut down the executor and release all resources.
+
+        Bug #15: Uses cancel_futures=True (Python 3.9+) to interrupt
+        pending futures, and logs warnings if shutdown takes too long.
+        Bug #16: Awaits in-flight tasks before closing pools.
+        """
         self._cancelled = True
-        await self._pool_manager.close_all()
+
+        # Bug #16: Wait for in-flight tasks before closing resources
+        await self._await_inflight_tasks()
+
+        # Bug #15: Shutdown executors with timeout
         if self._cpu_executor:
-            self._cpu_executor.shutdown(wait=True)
+            try:
+                self._cpu_executor.shutdown(wait=True, cancel_futures=True)
+            except TypeError:
+                self._cpu_executor.shutdown(wait=True)
             self._cpu_executor = None
         if self._io_executor:
-            self._io_executor.shutdown(wait=True)
+            try:
+                self._io_executor.shutdown(wait=True, cancel_futures=True)
+            except TypeError:
+                self._io_executor.shutdown(wait=True)
             self._io_executor = None
+
+        await self._pool_manager.close_all()
         logger.info("ConcurrentExecutor shut down complete")

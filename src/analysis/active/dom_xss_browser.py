@@ -29,7 +29,7 @@ def _load_playwright() -> bool:
 _PLAYWRIGHT_AVAILABLE = _load_playwright()
 
 
-class DomXssBrowserProbe:
+class DOMXSSBrowserProbe:
     """Probe a URL for DOM-based XSS using a headless browser when Playwright is available."""
 
     def __init__(self) -> None:
@@ -56,7 +56,8 @@ class DomXssBrowserProbe:
 
                 try:
                     await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Failed to navigate to %s: %s", url, exc, exc_info=True)
                     await browser.close()
                     return findings
 
@@ -97,7 +98,7 @@ class DomXssBrowserProbe:
 
                 await browser.close()
         except Exception as exc:
-            logger.debug("DomXssBrowserProbe.probe failed: %s", exc)
+            logger.debug("DOMXSSBrowserProbe.probe failed: %s", exc)
 
         return findings
 
@@ -123,7 +124,8 @@ class DomXssBrowserProbe:
 
                 try:
                     await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Failed to navigate to %s in postMessage probe: %s", url, exc, exc_info=True)
                     await browser.close()
                     return findings
 
@@ -148,6 +150,6 @@ class DomXssBrowserProbe:
 
                 await browser.close()
         except Exception as exc:
-            logger.debug("DomXssBrowserProbe.probe_postmessage failed: %s", exc)
+            logger.debug("DOMXSSBrowserProbe.probe_postmessage failed: %s", exc)
 
         return findings

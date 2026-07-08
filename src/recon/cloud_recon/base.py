@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, cast
+from typing import Any
 from urllib.parse import urlparse
 
 import aiohttp
@@ -28,20 +28,6 @@ class CloudBucketScannerBase:
     """Base class that owns AWS bucket handling, S3 resilient probes,
     Azure checks, S3-compatible object-store checks, and service probes
     that belong to non-GCP providers."""
-
-    timeout_seconds: int
-    concurrency: int
-    enable_write_probes: bool
-    s3_website_regions: tuple[str, ...]
-    s3_object_paths: tuple[str, ...]
-    enable_cloud_run_enum: bool
-    aws_regions: tuple[str, ...]
-    gcp_regions: tuple[str, ...]
-    azure_function_regions: tuple[str, ...]
-    backblaze_regions: tuple[str, ...]
-    wasabi_regions: tuple[str, ...]
-    do_regions: tuple[str, ...]
-    oci_regions: tuple[str, ...]
 
     async def scan_bucket(
         self, session: aiohttp.ClientSession, bucket: str
@@ -110,9 +96,8 @@ class CloudBucketScannerBase:
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
                             finding["details"] += " ACL is publicly readable."
-                except Exception:  # noqa: S110
-                    pass
-
+                except Exception:
+                    logger.warning("Operation failed in base.py", exc_info=True)
                 if self.enable_write_probes:
                     try:
                         async with session.put(
@@ -126,9 +111,8 @@ class CloudBucketScannerBase:
                                 finding["details"] += (
                                     " Bucket allows unauthenticated file uploads (Public Write)!"
                                 )
-                    except Exception:  # noqa: S110
-                        pass
-
+                    except Exception:
+                        logger.warning("Operation failed in base.py", exc_info=True)
                 website_findings = await self._probe_s3_website(session, bucket)
                 if website_findings:
                     finding["permissions"]["static_website"] = True
@@ -155,13 +139,12 @@ class CloudBucketScannerBase:
                             if finding["severity"] not in ("high", "critical"):
                                 finding["severity"] = "medium"
                             finding["details"] += " Bucket policy document is publicly readable."
-                except Exception:  # noqa: S110
-                    pass
-
+                except Exception:
+                    logger.warning("Operation failed in base.py", exc_info=True)
                 return finding
 
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Operation failed in base.py", exc_info=True)
         return None
 
     async def _probe_s3_website(
@@ -187,7 +170,7 @@ class CloudBucketScannerBase:
     ) -> dict[str, Any] | None:
         from src.recon.cloud_recon.gcp import GCPCloudRecon
 
-        return await GCPCloudRecon.check_gcp_bucket(cast(Any, self), session, bucket)
+        return await GCPCloudRecon.check_gcp_bucket(self, session, bucket)
 
     async def check_azure_bucket(
         self,
@@ -222,8 +205,8 @@ class CloudBucketScannerBase:
                         "severity": "high",
                         "details": "Storage container endpoint is accessible without authorization.",
                     }
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Operation failed in base.py", exc_info=True)
         return None
 
     async def check_alibaba_bucket(
@@ -353,7 +336,7 @@ class CloudBucketScannerBase:
         return await probe_multi_region_s3(self, session, bucket)
 
     def _extract_region_from_url(self, url: str) -> str:
-        from src.recon.cloud_recon.services import _extract_region_from_url
+        from src.recon.cloud_recon.helpers import _extract_region_from_url
 
         return _extract_region_from_url(self, url)
 
@@ -394,7 +377,11 @@ class CloudBucketScannerBase:
         return await probe_oci_object_storage(self, session, project_id)
 
     async def scan_all_candidates(self, target: str) -> list[dict[str, Any]]:
-        """Generate and scan all bucket candidates concurrently."""
+        """Generate and scan all bucket candidates concurrently.
+
+        Tasks are bounded by a semaphore matching ``self.concurrency`` to
+        prevent socket exhaustion and DNS storms.
+        """
 
         from src.recon.cloud_recon.gcp import GCPCloudRecon
 
@@ -404,35 +391,42 @@ class CloudBucketScannerBase:
         project_id = core_name
 
         connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=True)
+        sem = asyncio.Semaphore(self.concurrency)
         async with aiohttp.ClientSession(connector=connector) as session:
-            tasks: list[asyncio.Task[Any]] = []
+            tasks: set[asyncio.Task[Any]] = set()
             candidates = self.generate_candidates(target)
+
+            async def _bounded(coro: Any) -> Any:
+                async with sem:
+                    return await coro
+
             if candidates:
                 for bucket in candidates:
-                    tasks.append(asyncio.create_task(self.scan_bucket(session, bucket)))
+                    t = asyncio.create_task(_bounded(self.scan_bucket(session, bucket)))
+                    tasks.add(t)
+                    t.add_done_callback(tasks.discard)
 
-            tasks.append(asyncio.create_task(GCPCloudRecon.probe_cloud_run(cast(Any, self), session, target)))
-            tasks.append(
-                asyncio.create_task(
-                    GCPCloudRecon.probe_gcp_cloud_functions(cast(Any, self), session, project_id)
-                )
-            )
-            tasks.append(
-                asyncio.create_task(GCPCloudRecon.probe_gcp_app_engine(cast(Any, self), session, project_id))
-            )
-            tasks.append(asyncio.create_task(self.probe_aws_lambda_urls(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_api_gateway(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_aws_amplify(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_firebase_hosting(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_azure_functions(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_azure_logic_apps(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_azure_static_web_apps(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_s3_access_points(session, core_name)))
-            tasks.append(asyncio.create_task(self.probe_multi_region_s3(session, core_name)))
-            tasks.append(asyncio.create_task(self.probe_digitalocean_spaces(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_backblaze_b2(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_wasabi(session, project_id)))
-            tasks.append(asyncio.create_task(self.probe_oci_object_storage(session, project_id)))
+            for coro in (
+                GCPCloudRecon.probe_cloud_run(self, session, target),
+                GCPCloudRecon.probe_gcp_cloud_functions(self, session, project_id),
+                GCPCloudRecon.probe_gcp_app_engine(self, session, project_id),
+                self.probe_aws_lambda_urls(session, project_id),
+                self.probe_api_gateway(session, project_id),
+                self.probe_aws_amplify(session, project_id),
+                self.probe_firebase_hosting(session, project_id),
+                self.probe_azure_functions(session, project_id),
+                self.probe_azure_logic_apps(session, project_id),
+                self.probe_azure_static_web_apps(session, project_id),
+                self.probe_s3_access_points(session, core_name),
+                self.probe_multi_region_s3(session, core_name),
+                self.probe_digitalocean_spaces(session, project_id),
+                self.probe_backblaze_b2(session, project_id),
+                self.probe_wasabi(session, project_id),
+                self.probe_oci_object_storage(session, project_id),
+            ):
+                t = asyncio.create_task(_bounded(coro))
+                tasks.add(t)
+                t.add_done_callback(tasks.discard)
 
             completed = await asyncio.gather(*tasks, return_exceptions=True)
             findings: list[dict[str, Any]] = []
@@ -449,7 +443,7 @@ class CloudBucketScannerBase:
     def run_scan_sync(self, target: str) -> list[dict[str, Any]]:
         from src.recon.common import run_async_in_sync_context
 
-        return cast(list[dict[str, Any]], run_async_in_sync_context(self.scan_all_candidates(target)))
+        return run_async_in_sync_context(self.scan_all_candidates(target))
 
     def generate_candidates(self, target: str) -> list[str]:
         """Generate smart storage bucket candidates based on target domain.

@@ -92,29 +92,92 @@ async def _run_layer_with_work_stealing(
     bounded_slot = asyncio.BoundedSemaphore(pool_size)
     results: dict[str, AnalyzerResult] = {}
     results_lock = asyncio.Lock()
+    # Bug #11: Track how many workers are running in bypass mode (slot
+    # acquisition timed out) so we can warn if the safety valve is being
+    # triggered excessively, which indicates a real resource risk.
+    _bypass_count = 0
+    _BYPASS_WARN_THRESHOLD = max(2, pool_size // 2)
 
     async def _worker(worker_id: int) -> None:
+        nonlocal _bypass_count
         while True:
             try:
                 name = await queue.get()
             except asyncio.CancelledError:
                 return
+            acquired = False
+            bypassed = False
             try:
                 fn = analyzer_map.get(name)
                 if fn is None:
                     continue
-                async with bounded_slot:
-                    result = await _run_single_analyzer(name, fn, context, timeout, duration_cache)
+                # Use a timeout on slot acquisition to prevent self-deadlock.
+                # If an analyzer itself creates nested parallel work that
+                # requests the same bounded subsystem, all slots could be
+                # held by parent-layer workers, causing permanent deadlock.
+                # The timeout lets us fall through with a warning rather
+                # than hang forever.
+                try:
+                    await asyncio.wait_for(bounded_slot.acquire(), timeout=30.0)
+                    acquired = True
+                except TimeoutError:
+                    bypassed = True
+                    _bypass_count += 1
+                    if _bypass_count >= _BYPASS_WARN_THRESHOLD:
+                        logger.warning(
+                            "Parallel analyzer '%s' slot bypass active (%d "
+                            "workers bypassing limits). This indicates "
+                            "possible self-deadlock or pool exhaustion.",
+                            name, _bypass_count,
+                        )
+                result = await _run_single_analyzer(name, fn, context, timeout, duration_cache)
                 async with results_lock:
                     results[name] = result
             finally:
+                if acquired:
+                    bounded_slot.release()
+                if bypassed:
+                    _bypass_count = max(0, _bypass_count - 1)
                 queue.task_done()
 
     effective_pool = max(1, min(pool_size, len(layer_names)))
-    workers = [
-        asyncio.create_task(_worker(idx), name=f"parallel-analyzer-{idx}")
-        for idx in range(effective_pool)
-    ]
+    workers: list[asyncio.Task[None]] = []
+    # Bug #7: Track how many governor slots were acquired so we always
+    # release exactly the right number, even if create_task() fails.
+    governor_acquired = 0
+    try:
+        from src.core.concurrency_governor import get_governor
+        governor = get_governor()
+        governor_available = True
+    except ImportError:
+        governor = None  # type: ignore[assignment]
+        governor_available = False
+
+    for idx in range(effective_pool):
+        # Global governor check: each worker counts toward system-wide
+        # concurrency.  If the system is overloaded, reduce the worker
+        # count rather than adding more pressure.
+        if governor_available and governor is not None:
+            if not governor.allow("parallel_analyzers"):
+                logger.warning(
+                    "Parallel analyzer: global governor limit reached, "
+                    "reducing workers from %d to %d",
+                    effective_pool,
+                    len(workers),
+                )
+                break
+            governor_acquired += 1
+        try:
+            workers.append(
+                asyncio.create_task(_worker(idx), name=f"parallel-analyzer-{idx}")
+            )
+        except Exception:
+            # Bug #7: If create_task fails, immediately release the
+            # governor slot we just acquired to prevent accounting drift.
+            if governor_available and governor is not None:
+                governor.release("parallel_analyzers")
+                governor_acquired -= 1
+            raise
     try:
         await queue.join()
     finally:
@@ -122,6 +185,10 @@ async def _run_layer_with_work_stealing(
             if not w.done():
                 w.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
+        # Release governor slots for all workers that were created.
+        if governor_available and governor is not None:
+            for _ in range(governor_acquired):
+                governor.release("parallel_analyzers")
 
     return results
 

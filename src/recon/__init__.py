@@ -9,6 +9,8 @@ through the pipeline/tools chain at module load time.
 
 from typing import Any
 
+_LAZY_CACHE: dict[str, Any] = {}
+
 _LAZY_IMPORT_MAP: dict[str, tuple[str, str]] = {
     "AzureReconResult": ("src.recon.azure_sas", "AzureReconResult"),
     "AzureSasUrlPattern": ("src.recon.azure_sas", "AzureSasUrlPattern"),
@@ -113,7 +115,7 @@ def __getattr__(name: str) -> Any:
 
         module = importlib.import_module(module_path)
         value = getattr(module, attr)
-        globals()[name] = value
+        _LAZY_CACHE[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

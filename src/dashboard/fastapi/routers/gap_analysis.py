@@ -138,7 +138,7 @@ async def get_gap_analysis(
         "open_redirect": [
             "Protocol-relative URL redirection check (//evil.com)",
             "URL path nesting parameter tampering",
-            "Domain whitelist boundary collision (e.g. company.com.evil.com)",
+            "Domain allowlist boundary collision (e.g. company.com.evil.com)",
         ],
         "token_leak": [
             "Static OAuth / API token scanning in response body and scripts",

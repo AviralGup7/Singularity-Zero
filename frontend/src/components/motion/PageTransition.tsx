@@ -15,11 +15,12 @@ export function PageTransition({ children }: PageTransitionProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: strategy.distance }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -Math.min(10, strategy.distance) }}
-      transition={{ duration: strategy.duration, ease: 'easeOut' }}
+      initial={{ opacity: 0, y: strategy.distance, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -Math.min(8, strategy.distance), scale: 0.99 }}
+      transition={{ duration: strategy.duration, ease: [0.16, 1, 0.3, 1] }}
       className="page-transition"
+      style={{ transformOrigin: 'top center' }}
     >
       {children}
     </motion.div>

@@ -204,8 +204,8 @@ class ReportDistributor:
                 NotificationPriority,
             )
             from src.infrastructure.notifications.email import EmailConfig, EmailNotifier
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Email infrastructure unavailable: %s", exc)
+        except Exception:
+            logger.warning("Email infrastructure unavailable", exc_info=True)
             return [
                 DistributionRecord(
                     recipient=addr,
@@ -258,8 +258,8 @@ class ReportDistributor:
         finally:
             try:
                 await notifier.close()
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                    logger.debug("Non-critical cleanup error", exc_info=True)
 
         return [
             DistributionRecord(

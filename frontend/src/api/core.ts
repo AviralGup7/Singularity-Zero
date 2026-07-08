@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { z } from 'zod';
 import { apiCache } from './cache';
+import i18n from '../i18n';
 import { dispatchToast } from '../lib/toastDispatcher';
 import { captureException } from '../utils/errorTracker';
 import { withRetry } from './retry';
@@ -124,7 +125,7 @@ apiClient.interceptors.request.use(
     config.metadata = { startTime: Date.now() };
 
     if (config.url && !validateUrl(config.url, config.baseURL)) {
-      return Promise.reject(new Error('Invalid request URL'));
+      return Promise.reject(new Error(i18n.t('errors.invalidRequestUrl')));
     }
 
     const user = useAuthStore.getState().user;
@@ -172,7 +173,7 @@ apiClient.interceptors.response.use(
           component: 'apiClient',
           action: 'response_size',
         });
-        return Promise.reject(new Error('Response too large'));
+        return Promise.reject(new Error(i18n.t('errors.responseTooLarge')));
       }
     }
 
@@ -196,7 +197,7 @@ apiClient.interceptors.response.use(
             new Error(`API contract violation: ${response.config.method?.toUpperCase()} ${response.config.url}`),
             { component: 'apiClient', action: 'schema_validation', metadata: { errors: result.error.format() } }
           );
-          return Promise.reject(new Error('API response does not match expected schema'));
+          return Promise.reject(new Error(i18n.t('errors.schemaViolation')));
         }
         return response;
       }
@@ -241,16 +242,16 @@ apiClient.interceptors.response.use(
       console.debug(`[API] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${responseTime}ms (error)`);
     }
 
-    let message = 'An unexpected error occurred';
+    let message = i18n.t('errors.unexpectedError');
     const status = error.response?.status;
     const serverDetail = error.response?.data?.detail;
 
     if (status && status < 500) {
-      message = serverDetail || error.message || 'An unexpected error occurred';
+      message = serverDetail || error.message || i18n.t('errors.unexpectedError');
     } else if (status && status >= 500) {
-      message = 'Internal System Error. Retrying...';
+      message = i18n.t('errors.internalSystemError');
     } else if (!error.response) {
-      message = 'Mesh offline - check connection.';
+      message = i18n.t('errors.meshOffline');
     }
 
     // Auto-Toast for critical failures is opt-in. The `__apiAutoToast`
@@ -260,9 +261,9 @@ apiClient.interceptors.response.use(
     // to surface a custom message in its own UI.
     if (error.config?.__apiAutoToast) {
       if (status === 401) {
-        dispatchToast('Session expired.', 'error');
+        dispatchToast(i18n.t('errors.sessionExpired'), 'error');
       } else if (status === 429) {
-        dispatchToast('Rate limit reached.', 'warning');
+        dispatchToast(i18n.t('errors.rateLimitReached'), 'warning');
       }
     }
 
@@ -293,6 +294,24 @@ export async function cachedGet<T>(url: string, options?: CachedRequestOptions):
   if (!shouldBypass) {
     const cached = apiCache.get<T>(key);
     if (cached !== null && !apiCache.isStale(key)) {
+      return cached;
+    }
+    // Stale-while-revalidate: return stale data immediately, refetch in background
+    if (cached !== null && apiCache.isStale(key)) {
+      withRetry(() =>
+        apiClient.get<T>(url, { 
+          signal: options?.signal, 
+          params: options?.params, 
+          timeout: options?.timeout,
+          schema: options?.schema,
+          ...(options?.ttl ? { metadata: { ttl: options.ttl } } : {})
+        } as AxiosRequestConfig).then((res) => {
+          apiCache.set(key, res.data, options?.ttl);
+          return res.data;
+        })
+      ).catch(() => {
+        // Background revalidation failed — stale data remains in cache
+      });
       return cached;
     }
   }

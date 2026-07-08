@@ -78,10 +78,27 @@ def _merge_finding_context(target: dict[str, Any], source: dict[str, Any]) -> No
         .strip()
         .lower()
     )
-    if _validation_state_rank(source_validation_state) > _validation_state_rank(
-        target_validation_state
-    ):
+
+    # Bug #40: Allow downgrade when source explicitly contradicts target's
+    # validation state and brings new evidence.
+    target_rank = _validation_state_rank(target_validation_state)
+    source_rank = _validation_state_rank(source_validation_state)
+    if source_rank > target_rank:
         target_validation_state = source_validation_state
+    elif source_rank < target_rank and source_validation_state:
+        source_signals = set(
+            str(s).lower() for s in source_evidence.get("signals", [])
+        )
+        target_signals = set(
+            str(s).lower() for s in target_evidence.get("signals", [])
+        )
+        has_new_evidence = bool(source_signals - target_signals)
+        explicit_contradiction = source_validation_state in (
+            "false_positive", "heuristic_candidate", ""
+        )
+        if has_new_evidence and explicit_contradiction:
+            target_validation_state = source_validation_state
+
     if target_validation_state:
         target["validation_state"] = target_validation_state
         target_evidence["validation_state"] = target_validation_state
@@ -138,6 +155,8 @@ def dedup_cross_module(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Groups findings by (category, endpoint_base_key, title) and merges evidence from
     multiple modules into a single finding with a source_modules list.
+
+    Bug #39: Correlation bonus now accounts for signal overlap between modules.
     """
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for item in findings:
@@ -164,16 +183,42 @@ def dedup_cross_module(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         source_modules = [item.get("module", "unknown") for item in group]
         max_confidence = 0.0
         max_score = base.get("score", 0)
+        module_signal_sets: list[set[str]] = []
         for item in group:
             max_confidence = max(max_confidence, float(item.get("confidence", 0)))
             max_score = max(max_score, item.get("score", 0))
             _merge_finding_context(base, item)
+            item_signals = set(
+                str(s).lower()
+                for s in ((item.get("evidence") or {}).get("signals") or [])
+            )
+            module_signal_sets.append(item_signals)
 
         deduped_source_modules = list(dict.fromkeys(source_modules))
         base["source_modules"] = deduped_source_modules
         base["module_count"] = len(deduped_source_modules)
         base["score"] = max_score
-        correlation_bonus = min(0.1 * (len(deduped_source_modules) - 1), 0.25)
+
+        # Bug #39: Compute average pairwise signal overlap
+        n = len(deduped_source_modules)
+        raw_bonus = 0.1 * (n - 1)
+        if n >= 2 and all(sigs for sigs in module_signal_sets):
+            overlap_sum = 0.0
+            pair_count = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    sig_a = module_signal_sets[i]
+                    sig_b = module_signal_sets[j]
+                    if sig_a or sig_b:
+                        overlap = len(sig_a & sig_b) / max(len(sig_a | sig_b), 1)
+                        overlap_sum += overlap
+                        pair_count += 1
+            avg_overlap = overlap_sum / max(pair_count, 1)
+            independence = max(0.0, 1.0 - avg_overlap)
+            correlation_bonus = min(raw_bonus * independence, 0.25)
+        else:
+            correlation_bonus = min(raw_bonus, 0.25)
+
         base["confidence"] = round(min(max_confidence + correlation_bonus, 1.0), 2)
         base["correlated_sources"] = (
             deduped_source_modules if len(deduped_source_modules) > 1 else []
@@ -430,6 +475,9 @@ def deduplicate_findings(
 ) -> list[dict[str, Any]]:
     """Apply multi-strategy deduplication to findings.
 
+    Bug #44: Category fields are repaired before dedup so that grouping
+    decisions use complete metadata.
+
     Args:
         findings: List of finding dicts to deduplicate.
         strategy: Deduplication strategy. Currently supports "evidence_url_severity"
@@ -441,6 +489,18 @@ def deduplicate_findings(
     """
     if not findings:
         return findings
+
+    # Bug #44: Ensure category before dedup
+    from src.detection.finding import infer_category_from_indicator
+
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        cat = f.get("category")
+        if not cat or cat == "unknown":
+            indicator = f.get("indicator", "")
+            if indicator:
+                f["category"] = infer_category_from_indicator(indicator)
 
     result = dedup_cross_module(findings)
     if strategy == "evidence_url_severity":

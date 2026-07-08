@@ -1,4 +1,5 @@
 ﻿import { Link } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { Icon } from '../ui/Icon';
 import { StatePulse } from '../motion/StatePulse';
 import type { Job } from '../../types/api';
@@ -38,7 +39,7 @@ export function JobStatusHeader({
   return (
     <div className="page-header page-header--job-detail">
       <div className="job-header-main">
-        <Link to="/jobs" className="back-link">Back to Jobs</Link>
+        <Link to={ROUTES.JOBS} className="back-link">Back to Jobs</Link>
         <h2 data-focus-heading className="job-header-title">
           <span className={`status-badge status-${statusClass}`}>{job.status}</span>
           <span>Job {job.id}</span>

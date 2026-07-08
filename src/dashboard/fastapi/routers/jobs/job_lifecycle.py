@@ -93,6 +93,57 @@ async def stream_job_progress(
         last_telemetry_count = 0
         last_progress_data: dict[str, Any] = {}
 
+        # Finding 7: Emit completion immediately on reconnect if the job
+        # is already in a terminal state, preventing the "spinner forever"
+        # race where the client reconnects milliseconds after the event.
+        if job_dict.get("status") in ("completed", "failed", "stopped"):
+            initial_status = job_dict["status"]
+            initial_stage = job_dict.get("stage", "")
+            initial_progress = int(job_dict.get("progress_percent", 0) or 0)
+            from src.dashboard.job_state import _coerce_epoch
+
+            started_at = _coerce_epoch(job_dict.get("started_at"), 0)
+            finished_at = job_dict.get("finished_at")
+            now_init = time.time()
+            finished_or_now = _coerce_epoch(finished_at, now_init)
+            elapsed = finished_or_now - started_at
+            yield emitter.completed(
+                status=initial_status,
+                progress_percent=100 if initial_status == "completed" else initial_progress,
+                stage=initial_stage,
+                stage_label=STAGE_LABELS.get(initial_stage, initial_stage.replace("_", " ").title()),
+                total_duration_seconds=round(elapsed, 1),
+                total_findings=job_dict.get("total_findings", 0),
+                failed_stage=job_dict.get("failed_stage") or None,
+                failure_reason_code=job_dict.get("failure_reason_code") or None,
+                failure_step=job_dict.get("failure_step") or None,
+                failure_reason=job_dict.get("failure_reason") or None,
+                stage_progress=job_dict.get("stage_progress")
+                if isinstance(job_dict.get("stage_progress"), list)
+                else None,
+                progress_telemetry=job_dict.get("progress_telemetry")
+                if isinstance(job_dict.get("progress_telemetry"), dict)
+                else None,
+            )
+            # Finding 2: After emitting the completion event, send a
+            # bounded number of heartbeats then close.  Prevents
+            # indefinite connection leak from forgotten browser tabs.
+            _POST_COMPLETION_HEARTBEATS = 30  # ~30 seconds
+            for _hb in range(_POST_COMPLETION_HEARTBEATS):
+                await asyncio.sleep(heartbeat_interval_seconds())
+                if await request.is_disconnected():
+                    return
+                yield emitter.heartbeat(
+                    progress_percent=initial_progress,
+                    stage=initial_stage,
+                    stage_label=STAGE_LABELS.get(initial_stage, initial_stage.replace("_", " ").title()),
+                    stalled=False,
+                    seconds_since_last_update=0,
+                )
+            # Client hasn't disconnected after bounded heartbeats;
+            # close to prevent resource leak.
+            return
+
         event_chan: asyncio.Queue[str] = asyncio.Queue()
 
         from src.core.events import EventType, get_event_bus
@@ -286,11 +337,11 @@ async def stream_job_progress(
                         if isinstance(job_snapshot.get("progress_telemetry"), dict)
                         else None,
                     )
-                    # Keep the connection alive so the client can cleanly
-                    # close it. The browser EventSource auto-reconnects
-                    # if the server closes first, causing a reconnect storm.
-                    # Send heartbeats until the client disconnects.
-                    while True:
+                    # Finding 2: Bounded post-completion heartbeats.
+                    # Previously ran indefinitely, causing connection leak
+                    # from forgotten browser tabs.
+                    _POST_COMPLETION_HEARTBEATS = 30  # ~30 seconds
+                    for _hb in range(_POST_COMPLETION_HEARTBEATS):
                         await asyncio.sleep(heartbeat_interval_seconds())
                         if await request.is_disconnected():
                             break
@@ -301,6 +352,9 @@ async def stream_job_progress(
                             stalled=False,
                             seconds_since_last_update=0,
                         )
+                    # Close connection after bounded heartbeats to
+                    # prevent resource leak.
+                    return
 
                 if now - last_heartbeat >= heartbeat_interval_seconds():
                     from src.dashboard.job_state import _coerce_epoch

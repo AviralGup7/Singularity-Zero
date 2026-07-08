@@ -143,7 +143,7 @@ class MeshConsensus:
                     await self._maybe_takeover()
 
                 self._publish_leader_to_gossip()
-            except Exception:  # noqa: BLE001 - tick must never die silently
+            except Exception:
                 logger.exception("MeshConsensus maintenance tick failed")
             await self._sleep(self._maintenance_interval_sec)
 
@@ -300,7 +300,7 @@ class MeshConsensus:
         if self.leader_id and hasattr(engine, "leader_id"):
             try:
                 engine.leader_id = self.leader_id
-            except Exception:  # noqa: BLE001 - gossip is best-effort
+            except Exception:
                 logger.debug("Failed to push leader_id into gossip engine", exc_info=True)
 
     async def _ensure_redis(self) -> Any | None:
@@ -321,9 +321,9 @@ class MeshConsensus:
             self._redis = client
             self._last_redis_error = None
             return client
-        except Exception as exc:  # noqa: BLE001 - any failure is non-fatal
+        except Exception as exc:
             self._last_redis_error = repr(exc)
-            logger.warning("MeshConsensus Redis unavailable: %s", exc)
+            logger.warning("MeshConsensus Redis unavailable: %s", exc, exc_info=True)
             self._redis = None
             return None
 
@@ -338,9 +338,9 @@ class MeshConsensus:
 
         try:
             raw = await redis_retry_async(_op, label="read_lease")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._last_redis_error = repr(exc)
-            logger.warning("Failed to read leader lease: %s", exc)
+            logger.warning("Failed to read leader lease: %s", exc, exc_info=True)
             return None
         if raw is None:
             return None
@@ -356,7 +356,8 @@ class MeshConsensus:
 
         try:
             return await redis_retry_async(_op, label="lease_ttl")
-        except Exception:  # noqa: BLE001
+        except Exception:
+            logger.warning("Failed to read lease TTL", exc_info=True)
             return None
 
     async def _set_lease(
@@ -374,9 +375,9 @@ class MeshConsensus:
 
         try:
             return await redis_retry_async(_op, label="set_lease")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._last_redis_error = repr(exc)
-            logger.warning("Failed to write leader lease: %s", exc)
+            logger.warning("Failed to write leader lease: %s", exc, exc_info=True)
             return False
 
     async def _sleep(self, seconds: float) -> None:

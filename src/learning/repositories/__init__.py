@@ -5,7 +5,7 @@ from .base import BaseRepo
 from .confidence_repo import ConfidenceRepo
 from .feedback_repo import FeedbackRepo
 from .findings_repo import FindingsRepo
-from .fp_patterns_repo import FpPatternsRepo
+from .fp_patterns_repo import FPPatternsRepo
 from .graph_repo import GraphRepo
 from .metrics_repo import MetricsRepo
 from .scan_runs_repo import ScanRunsRepo
@@ -20,7 +20,7 @@ __all__ = [
     "ScanRunsRepo",
     "FindingsRepo",
     "FeedbackRepo",
-    "FpPatternsRepo",
+    "FPPatternsRepo",
     "GraphRepo",
     "ThresholdsRepo",
     "MetricsRepo",

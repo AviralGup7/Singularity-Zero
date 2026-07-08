@@ -37,7 +37,7 @@ const hoverGlowMap: Record<GlassCardVariant, string> = {
 /* ── Variant-specific hover border tints ───────────────────────── */
 
 const hoverBorderMap: Record<GlassCardVariant, string> = {
-  default: 'hover:border-[rgba(255,255,255,0.12)]',
+  default: 'hover:border-[rgba(255,255,255,0.10)]',
   glow:    'hover:border-[var(--accent)]',
   error:   'hover:border-[var(--bad)]',
   success: 'hover:border-[var(--ok)]',
@@ -61,43 +61,32 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps & Omit<Compon
     },
     ref,
   ) => {
-    // Build the motion component from the polymorphic tag
     const MotionComponent = motion.create(_as) as typeof motion.div;
 
     return (
       <MotionComponent
         ref={ref}
-        /* ── Entrance animation ──────────────────────────────── */
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: 0.45,
+          duration: 0.5,
           delay,
           ease: [0.16, 1, 0.3, 1],
         }}
-        /* ── Classes ─────────────────────────────────────────── */
         className={cn(
-          // Glass base
           'relative rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)]',
           'backdrop-blur-[var(--glass-blur)]',
           'shadow-[var(--glass-shadow)]',
-
-          // Transition
-          'transition-all duration-300 ease-out',
-
-          // Padding
+          'transition-all duration-350 ease-out',
           padding && 'p-5',
-
-          // Hover micro-interactions
           hoverable && [
-            'hover:-translate-y-0.5',
+            'hover:-translate-y-1',
+            'hover:border-[rgba(255,255,255,0.10)]',
+            'hover:shadow-[var(--glass-shadow),0_0_24px_-4px_color-mix(in_srgb,var(--accent),15%)]',
             hoverGlowMap[variant as GlassCardVariant],
             hoverBorderMap[variant as GlassCardVariant],
           ],
-
-          // Accent-top modifier
           variant === 'accent-top' && 'card--accent-top',
-
           className,
         )}
         {...motionProps}

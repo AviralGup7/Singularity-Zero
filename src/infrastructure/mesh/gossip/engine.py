@@ -32,6 +32,14 @@ def _env_int(name: str, default: int, minimum: int = 1) -> int:
         return default
 
 
+def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
+    try:
+        return max(minimum, float(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s value; using %s", name, default)
+        return default
+
+
 def _canonical_json(data: dict[str, Any]) -> bytes:
     return json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
@@ -69,6 +77,8 @@ class GossipEngine:
         self.retry_max_attempts = _env_int("MESH_RETRY_MAX_ATTEMPTS", 5)
         self.heartbeat_interval_sec = _env_int("HEARTBEAT_INTERVAL_SEC", 2)
         self.heartbeat_fail_threshold = _env_int("HEARTBEAT_FAIL_THRESHOLD", 3)
+        self.max_pending_acks = _env_int("MESH_MAX_PENDING_ACKS", 256)
+        self.retry_backoff_threshold = _env_int("MESH_RETRY_BACKOFF_THRESHOLD", 128)
         # UDP hardening: fragmentation for oversized envelopes and
         # msg_id dedup for at-least-once semantics.  Per-peer rate
         # limiting lives on the receive path (see GossipProtocol).
@@ -132,12 +142,24 @@ class GossipEngine:
 
         logger.info("Neural-Mesh Gossip active on UDP %d [Authenticated]", self._udp_port)
 
+        from src.core.task_registry import get_task_registry
+        _registry = get_task_registry()
         self._tasks = [
-            asyncio.create_task(self._gossip_loop(), name="mesh-gossip-loop"),
-            asyncio.create_task(self._heartbeat_loop(), name="mesh-heartbeat-loop"),
-            asyncio.create_task(self._dead_node_gc_loop(), name="mesh-dead-node-gc-loop"),
-            asyncio.create_task(self._telemetry_loop(), name="mesh-telemetry-loop"),
+            _registry.create_task(self._gossip_loop(), owner="mesh_gossip", name="gossip_loop"),
+            _registry.create_task(self._heartbeat_loop(), owner="mesh_gossip", name="heartbeat_loop"),
+            _registry.create_task(self._dead_node_gc_loop(), owner="mesh_gossip", name="dead_node_gc"),
+            _registry.create_task(self._telemetry_loop(), owner="mesh_gossip", name="telemetry_loop"),
+            _registry.create_task(self._port_reconciliation_loop(), owner="mesh_gossip", name="port_reconciliation"),
         ]
+
+        original_port = self.local_node.port + 1000
+        if self._udp_port != original_port:
+            logger.warning(
+                "Gossip port drifted: requested=%d, actual=%d; broadcasting update to peers",
+                original_port,
+                self._udp_port,
+            )
+            await self._broadcast_port_update()
 
     async def stop(self) -> None:
         """Stop all mesh background work and close the UDP socket."""
@@ -156,6 +178,103 @@ class GossipEngine:
         if self._transport is not None:
             self._transport.close()
             self._transport = None
+
+    async def _broadcast_port_update(self) -> None:
+        """Broadcast the actual gossip port to all known peers.
+
+        When a node restarts and binds to a different UDP port, peers
+        still cache the old port.  This method sends a ``port_update``
+        message so peers can update their routing tables immediately
+        rather than waiting for the next gossip round.
+        """
+        if not self.peers:
+            return
+
+        payload = {
+            "node_id": self.local_node.id,
+            "new_gossip_port": self._udp_port,
+            "host": self.local_node.host,
+        }
+        peers = list(self.peers.values())
+        await asyncio.gather(
+            *[
+                self._send_best_effort(peer, "port_update", payload)
+                for peer in peers
+            ],
+            return_exceptions=True,
+        )
+        logger.info(
+            "Broadcast port update to %d peers: port=%d", len(peers), self._udp_port
+        )
+
+    async def _port_reconciliation_loop(self) -> None:
+        """Bug #14: Periodically reconcile gossip port with peers.
+
+        The initial port_update broadcast is best-effort — peers that were
+        unreachable during the broadcast retain stale port information,
+        causing partial cluster partitions.  This loop re-broadcasts the
+        port on a longer interval so eventually every live peer learns
+        the correct gossip port.
+        """
+        # Wait before first reconciliation to let initial gossip rounds settle
+        await asyncio.sleep(30.0)
+        while self._running:
+            # Only reconcile if we actually drifted from the expected port
+            original_port = self.local_node.port + 1000
+            if self._udp_port != original_port:
+                # Check if any peer still has the old port
+                stale_peers = []
+                with self._mesh_lock:
+                    for peer in self.peers.values():
+                        peer_port = getattr(peer, "gossip_port", 0)
+                        if peer_port and peer_port != self._udp_port:
+                            stale_peers.append(peer)
+                if stale_peers:
+                    logger.info(
+                        "Port reconciliation: %d peers still have stale gossip port, "
+                        "re-broadcasting",
+                        len(stale_peers),
+                    )
+                    payload = {
+                        "node_id": self.local_node.id,
+                        "new_gossip_port": self._udp_port,
+                        "host": self.local_node.host,
+                    }
+                    await asyncio.gather(
+                        *[
+                            self._send_best_effort(peer, "port_update", payload)
+                            for peer in stale_peers
+                        ],
+                        return_exceptions=True,
+                    )
+            await asyncio.sleep(60.0)
+
+    def _handle_port_update(self, payload: dict[str, Any]) -> None:
+        """Handle an incoming port_update message from a peer."""
+        node_id = str(payload.get("node_id", ""))
+        new_port = int(payload.get("new_gossip_port", 0))
+        host = str(payload.get("host", ""))
+
+        if not node_id or not new_port or node_id == self.local_node.id:
+            return
+
+        with self._mesh_lock:
+            peer = self.peers.get(node_id)
+            if peer is not None:
+                old_port = getattr(peer, "gossip_port", 0)
+                peer.gossip_port = new_port
+                if host:
+                    peer.host = host
+                logger.info(
+                    "Updated gossip port for peer '%s': %d -> %d",
+                    node_id,
+                    old_port,
+                    new_port,
+                )
+            else:
+                logger.debug(
+                    "Received port_update for unknown peer '%s'; ignoring", node_id
+                )
 
     def _stats_for(self, peer_id: str) -> PeerHealthStats:
         with self._mesh_lock:
@@ -210,6 +329,15 @@ class GossipEngine:
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict[str, Any]] = loop.create_future()
         with self._mesh_lock:
+            if len(self._pending_acks) >= self.max_pending_acks:
+                evict_ids = list(self._pending_acks.keys())[: max(1, len(self._pending_acks) // 4)]
+                for eid in evict_ids:
+                    old = self._pending_acks.pop(eid, None)
+                    if old and not old.done():
+                        old.cancel()
+                logger.warning(
+                    "Evicted %d oldest pending ACKs (limit=%d)", len(evict_ids), self.max_pending_acks
+                )
             self._pending_acks[msg_id] = future
             stats = self._peer_stats.setdefault(peer.id, PeerHealthStats())
         started = time.monotonic()
@@ -296,6 +424,20 @@ class GossipEngine:
         while self._running:
             await asyncio.sleep(2.0)
             if not self.peers:
+                continue
+
+            with self._mesh_lock:
+                pending_count = len(self._pending_acks)
+
+            if pending_count >= self.retry_backoff_threshold:
+                backoff = min(30.0, 2.0 * (pending_count / self.retry_backoff_threshold))
+                logger.warning(
+                    "Gossip backpressure: %d pending ACKs (threshold=%d), backing off %.1fs",
+                    pending_count,
+                    self.retry_backoff_threshold,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
                 continue
 
             peers = list(self.peers.values())
@@ -617,6 +759,7 @@ class GossipEngine:
         heartbeat_misses_total = sum(stats.heartbeat_misses for stats in self._peer_stats.values())
         partition_signal = unhealthy_node_count > 0
         split_brain_signal = unhealthy_node_count > healthy_node_count
+        pending_acks_count = len(self._pending_acks)
 
         from src.infrastructure.observability.metrics import get_metrics
 
@@ -664,6 +807,9 @@ class GossipEngine:
             "heartbeat_misses_total": heartbeat_misses_total,
             "partition_signal": partition_signal,
             "split_brain_signal": split_brain_signal,
+            "pending_acks_count": pending_acks_count,
+            "pending_acks_limit": self.max_pending_acks,
+            "retry_backoff_threshold": self.retry_backoff_threshold,
             "hardening": {
                 "fragmented_envelopes_total": self.fragmented_envelopes_total,
                 "fragmented_fragments_total": self.fragmented_fragments_total,

@@ -19,7 +19,7 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
 
 
-def _normalise_token(value: object) -> str:
+def _normalize_token(value: object) -> str:
     return str(value or "").strip().lower().replace(" ", "_") or "unknown"
 
 
@@ -36,18 +36,18 @@ def _tokens_from_finding(finding: dict[str, Any]) -> list[str]:
     parsed = urlparse(url)
     path_parts = [part for part in parsed.path.lower().split("/") if part][:4]
     tokens = [
-        f"category={_normalise_token(finding.get('category') or finding.get('finding_category'))}",
-        f"plugin={_normalise_token(finding.get('plugin_name') or finding.get('module'))}",
-        f"endpoint_type={_normalise_token(finding.get('endpoint_type'))}",
-        f"parameter_type={_normalise_token(finding.get('parameter_type'))}",
-        f"decision={_normalise_token(finding.get('decision') or finding.get('finding_decision'))}",
-        f"host={_normalise_token(parsed.netloc or finding.get('host') or finding.get('target_host'))}",
+        f"category={_normalize_token(finding.get('category') or finding.get('finding_category'))}",
+        f"plugin={_normalize_token(finding.get('plugin_name') or finding.get('module'))}",
+        f"endpoint_type={_normalize_token(finding.get('endpoint_type'))}",
+        f"parameter_type={_normalize_token(finding.get('parameter_type'))}",
+        f"decision={_normalize_token(finding.get('decision') or finding.get('finding_decision'))}",
+        f"host={_normalize_token(parsed.netloc or finding.get('host') or finding.get('target_host'))}",
     ]
     tokens.extend(f"path={part}" for part in path_parts)
-    tokens.extend(f"signal={_normalise_token(signal)}" for signal in signals[:8])
+    tokens.extend(f"signal={_normalize_token(signal)}" for signal in signals[:8])
     combined = str(finding.get("combined_signal") or "")
     tokens.extend(
-        f"combined={_normalise_token(part)}" for part in combined.split("+") if part.strip()
+        f"combined={_normalize_token(part)}" for part in combined.split("+") if part.strip()
     )
     return tokens
 

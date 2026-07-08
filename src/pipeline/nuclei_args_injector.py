@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from src.pipeline.waf_profile import WafProfile, WafTuningProfile
+from src.pipeline.waf_profile import WAFProfile, WAFTuningProfile
 
 
 def build_nuclei_args(
     existing_args: list[str],
-    waf_profile: WafProfile | str | None = None,
-    override: WafTuningProfile | None = None,
+    waf_profile: WAFProfile | str | None = None,
+    override: WAFTuningProfile | None = None,
 ) -> list[str]:
     """Return augmented Nuclei argument list with WAF-aware rate-limit flags.
 
     If ``-rl``, ``-timeout``, or ``-retries`` are already present in
     ``existing_args`` they take precedence and are not duplicated.
     """
-    profile = override or WafTuningProfile.for_profile(waf_profile or WafProfile.NONE)
+    profile = override or WAFTuningProfile.for_profile(waf_profile or WAFProfile.NONE)
     args = list(existing_args)
 
     def _has(flag: str) -> bool:

@@ -113,7 +113,7 @@ _DYNAMIC_IMPORT_RE = re.compile(
 
 
 @dataclass(frozen=True)
-class DomXssFinding:
+class DOMXSSFinding:
     """A single DOM-based XSS finding."""
 
     url: str
@@ -131,7 +131,7 @@ class DomXssFinding:
 
 
 @dataclass
-class DomXssReport:
+class DOMXSSReport:
     """Aggregated DOM XSS scan report."""
 
     url: str
@@ -252,7 +252,7 @@ def _scan_content(
     *,
     is_external_js: bool = False,
     html_body: str = "",
-) -> list[DomXssFinding]:
+) -> list[DOMXSSFinding]:
     """Scan code content for DOM XSS sources and sinks.
 
     Args:
@@ -262,9 +262,9 @@ def _scan_content(
         html_body: Optional full HTML body for reflection efficiency scoring.
 
     Returns:
-        List of DomXssFinding objects.
+        List of DOMXSSFinding objects.
     """
-    findings: list[DomXssFinding] = []
+    findings: list[DOMXSSFinding] = []
 
     if not content:
         return findings
@@ -285,7 +285,7 @@ def _scan_content(
                     pattern_type, pattern_name, html_body=html_body
                 )
                 findings.append(
-                    DomXssFinding(
+                    DOMXSSFinding(
                         url=url,
                         line=line_num,
                         pattern_type=pattern_type,
@@ -308,7 +308,7 @@ def _scan_content(
                     pattern_type, pattern_name, html_body=html_body
                 )
                 findings.append(
-                    DomXssFinding(
+                    DOMXSSFinding(
                         url=url,
                         line=line_num,
                         pattern_type=pattern_type,
@@ -387,7 +387,7 @@ def scan_dom_xss(
     url: str,
     html_body: str,
     fetch_js_callback: Callable[[str], str | None] | None = None,
-) -> list[DomXssFinding]:
+) -> list[DOMXSSFinding]:
     """Scan an HTML page and its linked JS files for DOM-based XSS patterns.
 
     This function:
@@ -404,9 +404,9 @@ def scan_dom_xss(
             Signature: (js_url: str) -> str | None
 
     Returns:
-        List of DomXssFinding objects sorted by severity (critical first).
+        List of DOMXSSFinding objects sorted by severity (critical first).
     """
-    all_findings: list[DomXssFinding] = []
+    all_findings: list[DOMXSSFinding] = []
 
     if not html_body:
         logger.debug("Empty HTML body for %s, skipping DOM XSS scan", url)
@@ -521,7 +521,7 @@ def _get_tainted_sink_re(var_name: str, sink_pattern: str) -> re.Pattern[str]:
     )
 
 
-def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:
+def _scan_dom_xss_chain(content: str, url: str) -> list[DOMXSSFinding]:
     """Scan a single script block for DOM XSS source-to-sink chains.
 
     Learned from XSStrike's dom.py:
@@ -538,7 +538,7 @@ def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:
     - Identifies the actual data flow, not just pattern presence
     - Assigns realistic confidence scores based on chain complexity
     """
-    findings: list[DomXssFinding] = []
+    findings: list[DOMXSSFinding] = []
     if not content:
         return findings
 
@@ -567,7 +567,7 @@ def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:
                 for sink_re, sink_name in _DOM_SINK_PATTERNS_COMPILED:
                     if sink_re.search(line_text):
                         findings.append(
-                            DomXssFinding(
+                            DOMXSSFinding(
                                 url=url,
                                 line=line_num,
                                 pattern_type="source+sink_chain",
@@ -587,7 +587,7 @@ def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:
                 combined_re = _get_tainted_sink_re(var_name, sink_re.pattern)
                 if combined_re.search(line_text):
                     findings.append(
-                        DomXssFinding(
+                        DOMXSSFinding(
                             url=url,
                             line=line_num,
                             pattern_type="tainted_sink",
@@ -610,7 +610,7 @@ def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:
                 )
                 if not line_has_tainted:
                     findings.append(
-                        DomXssFinding(
+                        DOMXSSFinding(
                             url=url,
                             line=line_num,
                             pattern_type="sink",
@@ -628,7 +628,7 @@ def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:
 
 
 def build_dom_xss_report(
-    findings: list[DomXssFinding],
+    findings: list[DOMXSSFinding],
     url: str,
     *,
     files_scanned: int = 1,
@@ -636,7 +636,7 @@ def build_dom_xss_report(
     """Build a structured DOM XSS scan report from findings.
 
     Args:
-        findings: List of DomXssFinding objects from scan_dom_xss().
+        findings: List of DOMXSSFinding objects from scan_dom_xss().
         url: The URL that was scanned.
         files_scanned: Number of files (HTML + JS) that were scanned.
 
@@ -698,7 +698,7 @@ def build_dom_xss_report(
         if findings_with_sanitizer:
             summary += f" {findings_with_sanitizer} finding(s) have sanitizer mitigation present."
 
-    report = DomXssReport(
+    report = DOMXSSReport(
         url=url,
         total_findings=total,
         severity_counts=severity_counts,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { ROUTES } from '@/config/paths';
 import { Link } from 'react-router-dom';
 import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus, Sparkles, TrendingUp } from 'lucide-react';
 
@@ -84,7 +85,7 @@ export function ReportLibraryPage() {
         subtitle="Signed compliance artefacts"
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/reports/builder" className="btn btn-primary btn-sm inline-flex items-center gap-1">
+            <Link to={ROUTES.REPORTS_BUILDER} className="btn btn-primary btn-sm inline-flex items-center gap-1">
               <Plus size={14} aria-hidden="true" />
               Build report
             </Link>

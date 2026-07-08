@@ -170,6 +170,8 @@ class ActorScheduler:
         self._skipped: set[str] = set()
         self._failed_critical: str | None = None
         self._outcome = SchedulerOutcome()
+        self._deferral_count: dict[str, int] = {}
+        self._max_deferrals: int = 5
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -233,7 +235,11 @@ class ActorScheduler:
                 try:
                     from src.infrastructure.resource_guard import ResourceGuard
 
-                    error_detail = ResourceGuard().check_and_halt_on_oom()
+                    # Bug #19: Check OOM before dispatching the batch, not just
+                    # once for the whole loop. This prevents burst scheduling
+                    # from overwhelming memory.
+                    guard = ResourceGuard()
+                    error_detail = guard.check_and_halt_on_oom()
                     if error_detail:
                         logger.error("System resource check failed: %s", error_detail)
                         self._error_emitter(
@@ -242,9 +248,56 @@ class ActorScheduler:
                         self._failed_critical = "resource_guard"
                         self._outcome.exit_code = 1
                         break
-                except Exception as exc:  # noqa: BLE001 — broad catch intentional, ResourceGuard may raise arbitrary errors
+                except Exception as exc:  # noqa: BLE001
                     logger.debug("ResourceGuard early check failed (%s).", exc)
+
+                # Bug #25: Use unified CapacityManager for all dispatch decisions.
+                try:
+                    from src.core.capacity_manager import get_capacity_manager
+                    capacity_mgr = get_capacity_manager()
+                except ImportError:
+                    capacity_mgr = None
+
                 for node in ready:
+                    if capacity_mgr is not None:
+                        # Estimate RAM for this task and check unified capacity
+                        try:
+                            from src.infrastructure.resource_guard import ResourceGuard
+
+                            task_ram = ResourceGuard().estimate_stage_ram(
+                                node.name,
+                                target_count=len(self._graph.nodes),
+                                url_count=0,
+                            )
+                        except Exception:
+                            task_ram = 0
+
+                        ok, reason = capacity_mgr.can_dispatch(
+                            subsystem="actor_scheduler",
+                            estimated_ram_mb=task_ram,
+                            stage_name=node.name,
+                        )
+                        if not ok:
+                            logger.debug(
+                                "CapacityManager denied dispatch for '%s': %s",
+                                node.name,
+                                reason,
+                            )
+                            continue
+                    else:
+                        # Fallback: legacy ConcurrencyGovernor check
+                        try:
+                            from src.core.concurrency_governor import get_governor
+                            governor = get_governor()
+                            if not governor.allow("actor_scheduler"):
+                                logger.debug(
+                                    "Concurrency governor denied dispatch for '%s' — deferring",
+                                    node.name,
+                                )
+                                continue
+                        except ImportError:
+                            pass
+
                     self._dispatch(node)
                 if self._in_flight:
                     await self._await_any_completion()
@@ -284,6 +337,9 @@ class ActorScheduler:
         This means the longest expected stage on the critical path
         gets the worker pool first when multiple stages unblock
         simultaneously — the classic critical-path heuristic.
+
+        Nodes that have been deferred more than ``_max_deferrals`` times
+        are forced through regardless of debt status to prevent starvation.
         """
         ready: list[tuple[int, int, StageNode]] = []
         for index, node in enumerate(self._graph.nodes):
@@ -297,6 +353,17 @@ class ActorScheduler:
                 continue
             if not self._condition_holds(node):
                 continue
+            # Allow forced dispatch after too many deferrals (starvation guard)
+            if self._is_large_debt_node(node):
+                deferrals = self._deferral_count.get(node.name, 0)
+                if deferrals < self._max_deferrals:
+                    self._deferral_count[node.name] = deferrals + 1
+                    continue
+                logger.info(
+                    "Stage '%s' forced after %d deferrals (starvation guard)",
+                    node.name,
+                    self._max_deferrals,
+                )
             ready.append((node.weight * -1, index, node))
 
         ready.sort(key=lambda triple: (triple[0], triple[1]))
@@ -351,10 +418,16 @@ class ActorScheduler:
         try:
             return bool(node.when.is_satisfied(self._ctx, self._runtime_flags))
         except Exception as exc:  # noqa: BLE001 — broad catch intentional, condition predicates may raise arbitrary errors
-            logger.warning(
-                "Condition evaluation failed for stage '%s' (%s); treating as deferred",
+            # A condition predicate that raises is almost certainly a bug,
+            # not a legitimate "condition not met".  Log at error level so
+            # it surfaces in diagnostics, and treat the node as deferred
+            # (not skipped) so it is retried on the next tick.
+            logger.error(
+                "BUG: Condition evaluation raised for stage '%s' (%s); "
+                "treating as deferred — this is NOT a normal skip",
                 node.name,
                 exc,
+                exc_info=True,
             )
             return False
 
@@ -388,8 +461,10 @@ class ActorScheduler:
 
         import time as _time
 
-        task = asyncio.create_task(
+        from src.core.task_registry import get_task_registry
+        task = get_task_registry().create_task(
             self._execute_node(node, method),
+            owner="actor_scheduler",
             name=f"actor.{node.name}",
         )
         self._in_flight[task] = _ScheduledTask(node=node, task=task, started_at=_time.time())
@@ -428,10 +503,30 @@ class ActorScheduler:
             return
         tasks = list(self._in_flight.keys())
         done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+
+        # Bug #25: Release via unified CapacityManager instead of ConcurrencyGovernor
+        try:
+            from src.core.capacity_manager import get_capacity_manager
+            capacity_mgr = get_capacity_manager()
+        except ImportError:
+            capacity_mgr = None
+
         for task in done:
             scheduled = self._in_flight.pop(task, None)
             if scheduled is None:
                 continue
+            if capacity_mgr is not None:
+                capacity_mgr.release("actor_scheduler")
+            else:
+                # Bug #10: Legacy fallback — release governor slot directly
+                # when CapacityManager is unavailable.  Without this,
+                # every dispatch in the legacy path leaks one governor
+                # slot permanently, eventually exhausting the global limit.
+                try:
+                    from src.core.concurrency_governor import get_governor
+                    get_governor().release("actor_scheduler")
+                except (ImportError, Exception):
+                    pass
             try:
                 result = task.result()
             except asyncio.CancelledError:

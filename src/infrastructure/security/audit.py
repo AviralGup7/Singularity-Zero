@@ -286,11 +286,20 @@ class AuditLogger:
         self._current_size = 0
         self._db: sqlite3.Connection | None = None
 
-        import atexit
-
-        atexit.register(self.close)
+        self._register_with_lifecycle()
 
         self._ensure_log_file()
+
+    def _register_with_lifecycle(self) -> None:
+        """Register close() with the lifecycle manager for ordered shutdown."""
+        try:
+            from src.core.lifecycle import get_lifecycle_manager
+
+            get_lifecycle_manager().register_shutdown("audit_logger", self.close)
+        except ImportError:
+            import atexit
+
+            atexit.register(self.close)
 
     def _ensure_log_file(self) -> None:
         """Ensure the audit log file exists and is open."""
@@ -516,7 +525,8 @@ class AuditLogger:
             except (OSError, AttributeError) as close_exc:
                 logger.debug("Audit DB close failed: %s", close_exc)
             self._db = None
-            assert self._db is None
+            if self._db is not None:
+                raise RuntimeError("Audit database reference was not properly cleared")
 
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         archive_name = f"{log_path.stem}_{timestamp}{log_path.suffix}"

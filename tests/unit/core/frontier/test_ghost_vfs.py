@@ -4,7 +4,8 @@ import time
 
 import pytest
 
-from src.infrastructure.frontier.ghost_vfs import GhostVFS, eBPFHookManager
+from src.core.frontier.vfs_isolation import eBPFHookManager
+from src.infrastructure.frontier.ghost_vfs import GhostVFS
 
 
 def _envelope_salt(raw: bytes) -> str:

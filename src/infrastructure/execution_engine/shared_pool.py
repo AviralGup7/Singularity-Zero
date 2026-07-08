@@ -21,7 +21,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import atexit
 import logging
 import os
 import threading
@@ -36,6 +35,11 @@ _DEFAULT_MAX_WORKERS = 16
 _pool: ThreadPoolExecutor | None = None
 _pool_lock = threading.Lock()
 
+# Dedicated recon pool — isolates recon I/O from general pipeline work
+_recon_pool: ThreadPoolExecutor | None = None
+_recon_pool_lock = threading.Lock()
+_DEFAULT_RECON_WORKERS = 12
+
 
 def _resolve_max_workers() -> int:
     """Resolve shared pool size from environment or default."""
@@ -43,6 +47,14 @@ def _resolve_max_workers() -> int:
         return max(4, int(os.environ.get("SHARED_THREAD_POOL_SIZE", str(_DEFAULT_MAX_WORKERS))))
     except (TypeError, ValueError):
         return _DEFAULT_MAX_WORKERS
+
+
+def _resolve_recon_workers() -> int:
+    """Resolve dedicated recon pool size from environment or default."""
+    try:
+        return max(4, int(os.environ.get("RECON_THREAD_POOL_SIZE", str(_DEFAULT_RECON_WORKERS))))
+    except (TypeError, ValueError):
+        return _DEFAULT_RECON_WORKERS
 
 
 def get_shared_executor() -> ThreadPoolExecutor:
@@ -67,6 +79,28 @@ def get_shared_executor() -> ThreadPoolExecutor:
         return _pool
 
 
+def get_recon_executor() -> ThreadPoolExecutor:
+    """Return a dedicated ThreadPoolExecutor for recon I/O work.
+
+    Isolates recon tool execution (subfinder, httpx, katana, wayback, etc.)
+    from general pipeline I/O to prevent starvation and resource contention.
+    """
+    global _recon_pool
+    if _recon_pool is not None:
+        return _recon_pool
+
+    with _recon_pool_lock:
+        if _recon_pool is not None:
+            return _recon_pool
+        max_workers = _resolve_recon_workers()
+        _recon_pool = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="recon-pool",
+        )
+        logger.debug("Created dedicated recon ThreadPoolExecutor with %d workers", max_workers)
+        return _recon_pool
+
+
 def _cleanup_shared_executor() -> None:
     """Gracefully shut down the shared pool at process exit."""
     global _pool
@@ -76,7 +110,35 @@ def _cleanup_shared_executor() -> None:
             _pool = None
 
 
-atexit.register(_cleanup_shared_executor)
+def _cleanup_recon_executor() -> None:
+    """Gracefully shut down the recon pool at process exit."""
+    global _recon_pool
+    with _recon_pool_lock:
+        if _recon_pool is not None:
+            _recon_pool.shutdown(wait=True)
+            _recon_pool = None
+
+
+def _register_with_lifecycle() -> None:
+    try:
+        from src.core.lifecycle import get_lifecycle_manager
+
+        mgr = get_lifecycle_manager()
+        mgr.register_shutdown(
+            "shared_pool",
+            _cleanup_shared_executor,
+            after=["tool_executor"],
+        )
+        mgr.register_shutdown(
+            "recon_pool",
+            _cleanup_recon_executor,
+            after=["tool_executor"],
+        )
+    except ImportError:
+        pass
+
+
+_register_with_lifecycle()
 
 
 def run_in_shared_executor(fn: Any, *args: Any, **kwargs: Any) -> Any:
@@ -102,11 +164,14 @@ def shared_pool_stats() -> dict[str, Any]:
     return {
         "max_workers": executor._max_workers,
         "pool_exists": _pool is not None,
+        "recon_pool_exists": _recon_pool is not None,
+        "recon_max_workers": _recon_pool._max_workers if _recon_pool else None,
     }
 
 
 __all__ = [
     "get_shared_executor",
+    "get_recon_executor",
     "run_in_shared_executor",
     "submit_to_shared",
     "shared_pool_stats",

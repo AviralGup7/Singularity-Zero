@@ -15,7 +15,7 @@ from src.analysis.checks.active.deserialization_probe import (
 )
 from src.analysis.checks.active.email_header_injection import email_header_injection_probe
 from src.analysis.checks.active.graphql_check import graphql_introspection_check
-from src.analysis.checks.active.jwt_check import jwt_security_analyzer
+from src.analysis.checks.active.jwt import jwt_security_analyzer
 from src.analysis.checks.active.mass_assignment import mass_assignment_detector
 from src.analysis.checks.active.ssrf_oob_validator import ssrf_oob_validator
 from src.analysis.checks.active.tenant_isolation_check import tenant_isolation_check

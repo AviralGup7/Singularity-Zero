@@ -25,7 +25,7 @@ def __getattr__(name: str) -> Any:
 
             return business_logic_probes
         except ImportError as exc:
-            logging.warning("Operation failed in __init__.py: %s", exc, exc_info=True)
+            logging.warning("Failed to load business_logic_probes: %s", exc, exc_info=True)
             raise AttributeError(name) from exc
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

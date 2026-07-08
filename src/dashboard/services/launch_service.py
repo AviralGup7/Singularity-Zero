@@ -53,6 +53,7 @@ class DashboardLaunchService:
         runtime_overrides: dict[str, str] | None = None,
         execution_options: dict[str, bool] | None = None,
         project_config: dict[str, Any] | None = None,
+        config_fingerprint: str | None = None,
     ) -> dict[str, Any]:
         pasted_scope = scope_text.strip()
         normalized_url = ""
@@ -131,6 +132,9 @@ class DashboardLaunchService:
             selected_mode,
             execution_options=execution_options,
         )
+        # Bug #38: Store config fingerprint for resume drift detection
+        if config_fingerprint is not None:
+            job["config_fingerprint"] = config_fingerprint
         with self.lock:
             self.jobs[job_id] = job
 

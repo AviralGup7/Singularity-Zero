@@ -287,8 +287,7 @@ class CorrelationPriorityQueue:
         self._total_findings: int = 0
         self._retraining_failures_count: int = 0
         self._budget_enforcer: HuntBudgetEnforcer | None = budget_enforcer
-        if self._budget_enforcer is not None:
-            self._budget_enforcer.bind_to_priority_queue(self)
+        self._budget_enforcer_hook: HuntBudgetEnforcer | None = budget_enforcer
 
         if targets:
             for i, t in enumerate(targets):
@@ -554,9 +553,10 @@ class CorrelationPriorityQueue:
     ) -> bool:
         """Check if scanning should terminate early.
 
-        If all remaining targets have priorities below the threshold_ratio
-        of the highest initial priority, it means we've probably scanned
-        everything important.
+        Checks the budget enforcer first (if bound), then falls through
+        to the heuristic: if all remaining targets have priorities below
+        the threshold_ratio of the highest initial priority, it means
+        we've probably scanned everything important.
 
         Args:
             min_items: Minimum items remaining before considering termination.
@@ -567,6 +567,11 @@ class CorrelationPriorityQueue:
         """
         if self._pop_count == 0:
             return False
+
+        hook = getattr(self, "_budget_enforcer_hook", None)
+        if hook is not None and hook.is_exhausted():
+            hook.mark_terminated("budget_exhausted")
+            return True
 
         # Bug #19 fix: previously this method returned ``True`` whenever
         # ``remaining < min_items`` regardless of whether we had *scanned*
@@ -644,18 +649,10 @@ class CorrelationPriorityQueue:
             raise TypeError(
                 f"enforcer must be a HuntBudgetEnforcer instance, got {type(enforcer).__name__}"
             )
-        previous = self._budget_enforcer
         self._budget_enforcer = enforcer
+        self._budget_enforcer_hook = enforcer
         if enforcer is not None:
             enforcer.bind_to_priority_queue(self)
-        elif previous is not None and hasattr(previous, "bind_to_priority_queue"):
-            # Rebind with a no-op so the prior wrapper is no longer
-            # pinning the closure of the previous enforcer.
-            try:
-                previous.bind_to_priority_queue(self)
-            except Exception:  # pragma: no cover - defensive
-                logger.debug("Rebind to priority queue failed for %s", previous, exc_info=True)
-                pass
 
     def budget_snapshot(self) -> dict[str, Any] | None:
         if self._budget_enforcer is None:

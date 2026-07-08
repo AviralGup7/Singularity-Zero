@@ -5,12 +5,12 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from src.recon.api_reconstructor import ApiSchemaReconstructor
+from src.recon.api_reconstructor import APISchemaReconstructor
 
 
 def test_parameterize_path():
     """Verify that numerical and UUID path segments are properly parameterized."""
-    reconstructor = ApiSchemaReconstructor(".")
+    reconstructor = APISchemaReconstructor(".")
 
     # Test 1: Simple numerical ID parameterization
     path1, params1 = reconstructor.parameterize_path("/api/v1/users/123/profile")
@@ -35,7 +35,7 @@ def test_parameterize_path():
 def test_openapi_specification_generation():
     """Verify that raw endpoints compile into a compliant OpenAPI 3.0 spec."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        reconstructor = ApiSchemaReconstructor(tmpdir)
+        reconstructor = APISchemaReconstructor(tmpdir)
         target = "api.example.com"
 
         urls = [

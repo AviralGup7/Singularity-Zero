@@ -1,4 +1,4 @@
-import { lazy, Suspense, memo } from 'react';
+import { memo, lazy, Suspense, useCallback } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
 import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
@@ -50,44 +50,28 @@ function CockpitCenterViewportBase({
   loading,
   onFindingSelect,
 }: CockpitCenterViewportProps) {
+  const handleHoverNode = useCallback((id: string | null) => onHoverNode(id), [onHoverNode]);
+
   return (
     <div className="flex-1 flex flex-col items-stretch bg-[#020305] relative overflow-hidden">
-      {/* Center View Switched Controls */}
       <div className="flex-shrink-0 flex items-center justify-between border-b border-white/5 px-6 py-3 bg-[#080a0e]/40 z-10">
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveCenterTab('3d')}
-            className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
-              activeCenterTab === '3d'
-                ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                : 'border-transparent text-muted hover:text-white'
-            }`}
-          >
-            [ 3D Threat Topology ]
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCenterTab('2d')}
-            className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
-              activeCenterTab === '2d'
-                ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                : 'border-transparent text-muted hover:text-white'
-            }`}
-          >
-            [ 2D Node Grid ]
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCenterTab('chains')}
-            className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
-              activeCenterTab === 'chains'
-                ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                : 'border-transparent text-muted hover:text-white'
-            }`}
-          >
-            [ Attack Kill-Chains ({chains.length}) ]
-          </button>
+          {(['3d', '2d', 'chains'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveCenterTab(tab)}
+              className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                activeCenterTab === tab
+                  ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
+                  : 'border-transparent text-muted hover:text-white'
+              }`}
+            >
+              {tab === '3d' && '[ 3D Threat Topology ]'}
+              {tab === '2d' && '[ 2D Node Grid ]'}
+              {tab === 'chains' && `[ Attack Kill-Chains (${chains.length}) ]`}
+            </button>
+          ))}
         </div>
         {activeCenterTab === '3d' && (
           <div className="text-[10px] font-mono text-muted uppercase tracking-widest flex items-center gap-1.5">
@@ -96,7 +80,6 @@ function CockpitCenterViewportBase({
         )}
       </div>
 
-      {/* Actual View render */}
       <div className="flex-1 relative overflow-hidden">
         {loading ? (
           <div className="flex h-full items-center justify-center animate-pulse font-mono text-xs uppercase tracking-widest text-accent/40">
@@ -111,8 +94,8 @@ function CockpitCenterViewportBase({
         ) : activeCenterTab === '3d' ? (
           <Suspense
             fallback={
-              <div className="flex h-full items-center justify-center animate-pulse font-mono text-xs uppercase tracking-widest text-accent/40">
-                Loading 3D Visualizer Engine...
+              <div className="flex h-full items-center justify-center font-mono text-[10px] uppercase tracking-widest text-accent/40 animate-pulse">
+                Loading 3D renderer...
               </div>
             }
           >
@@ -122,20 +105,22 @@ function CockpitCenterViewportBase({
               selectedNodeId={selectedNodeId}
               hoveredNodeId={hoveredNodeId}
               onSelectNode={onSelectNode}
-              onHoverNode={onHoverNode}
+              onHoverNode={handleHoverNode}
               className="h-full w-full"
             />
           </Suspense>
         ) : activeCenterTab === '2d' ? (
           <div className="absolute inset-0 overflow-y-auto p-6 scrollbar-cyber space-y-2">
             {nodes.map((node) => {
-              const healthVal =
-                typeof node.metadata?.health === 'number' ? Math.round(node.metadata.health * 100) : 82;
+              const healthVal = typeof node.metadata?.health === 'number' ? Math.round(node.metadata.health * 100) : 82;
               const isFocused = selectedNodeId === node.id || hoveredNodeId === node.id;
               return (
                 <div
                   key={node.id}
                   onClick={() => onSelectNode(node.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onSelectNode(node.id); }}
+                  role="button"
+                  tabIndex={0}
                   className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
                     isFocused
                       ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(59,130,246,0.12)]'
@@ -143,11 +128,7 @@ function CockpitCenterViewportBase({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`rounded-lg border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${
-                        SEVERITY_COLORS[node.severity || 'info']
-                      }`}
-                    >
+                    <div className={`rounded-lg border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${SEVERITY_COLORS[node.severity]}`}>
                       {node.severity}
                     </div>
                     <div>
@@ -173,7 +154,10 @@ function CockpitCenterViewportBase({
           </div>
         ) : (
           <div className="absolute inset-0 overflow-y-auto p-6 scrollbar-cyber">
-            <AttackChainVisualizer chains={chains} onFindingSelect={onFindingSelect} />
+            <AttackChainVisualizer
+              chains={chains}
+              onFindingSelect={onFindingSelect}
+            />
           </div>
         )}
       </div>

@@ -5,11 +5,11 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from src.execution.validators.api_test_integration import build_api_test_result
-
 
 def observed_result_grid(item: dict[str, Any]) -> str:
     """Build observed API replay results grid."""
+    from src.execution.validators.api_test_integration import build_api_test_result
+
     result = build_api_test_result(item)
     metric_specs = [
         ("Baseline", result.get("baseline_url", "") or "n/a"),

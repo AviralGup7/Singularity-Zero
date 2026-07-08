@@ -416,9 +416,8 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
             result = await _run_nslookup(domain, record_type)
             if result and hasattr(result, "stdout") and result.stdout:
                 return _parse_nslookup_output(result.stdout, record_type)
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("Operation failed in dns_enumerator.py", exc_info=True)
     actual_domain = domain
     actual_type = record_type
     if record_type == "MTA-STS":
@@ -437,8 +436,8 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
             result = await _run_nslookup(domain, record_type)
             if result and hasattr(result, "stdout") and result.stdout:
                 return _parse_nslookup_output(result.stdout, record_type)
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Operation failed in dns_enumerator.py", exc_info=True)
         return []
 
     dnssec_types = {"RRSIG", "DNSKEY", "DS", "NSEC", "NSEC3"}
@@ -489,7 +488,8 @@ async def _check_axfr(domain: str, timeout: float) -> list[str]:
             )
             if result:
                 discovered.append(f"AXFR_SUCCESSFUL_VIA_{ns.rstrip('.')}")
-        except Exception:  # noqa: S112
+        except Exception:
+            logger.warning("AXFR probe failed for nameserver %s", ns, exc_info=True)
             continue
 
     return discovered
@@ -507,7 +507,8 @@ def _axfr_attempt(domain: str, nameserver: str, timeout: float) -> bool:
             xfr_gen = dns.query.xfr(ip, domain, timeout=timeout)
             dns.zone.from_xfr(xfr_gen)
             return True
-        except Exception:  # noqa: S112
+        except Exception:
+            logger.warning("AXFR socket attempt failed for %s", ip, exc_info=True)
             continue
     return False
 

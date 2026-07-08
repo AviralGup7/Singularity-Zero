@@ -87,8 +87,10 @@ class ForkServer:
                 "payload_len": len(payload),
             }
         finally:
-            if os.path.exists(tmp_path):
+            try:
                 os.remove(tmp_path)
+            except OSError:
+                pass
 
     def _update_coverage(
         self,

@@ -59,7 +59,8 @@ def fingerprint_response(
     if isinstance(body, bytes):
         try:
             body_text = body.decode("utf-8", errors="ignore").lower()
-        except Exception:  # pragma: no cover
+        except Exception:
+            logger.warning("Failed to decode body bytes in fingerprint_response", exc_info=True)
             body_text = ""
     elif isinstance(body, str):
         body_text = body.lower()

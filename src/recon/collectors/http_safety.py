@@ -187,9 +187,20 @@ def reset_default_session() -> None:
         _DEFAULT_SESSION = None
 
 
-import atexit as _atexit
+def _register_with_lifecycle() -> None:
+    try:
+        from src.infrastructure.lifecycle import get_lifecycle_manager
 
-_atexit.register(reset_default_session)
+        get_lifecycle_manager().register_shutdown(
+            "http_safety_session",
+            reset_default_session,
+            after=["http_check_client"],
+        )
+    except ImportError:
+        pass
+
+
+_register_with_lifecycle()
 
 
 # ---------------------------------------------------------------------------

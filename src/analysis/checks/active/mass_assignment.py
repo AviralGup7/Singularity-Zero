@@ -17,7 +17,7 @@ from src.analysis.helpers import (
     endpoint_base_key,
     normalize_headers,
 )
-from src.analysis.helpers.scoring import normalized_confidence
+from src.core.utils.scoring import normalized_confidence
 from src.core.utils.url_validation import is_safe_url
 
 logger = logging.getLogger(__name__)
@@ -175,8 +175,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:
+                logger.warning("Failed to extract response details: %s", exc, exc_info=True)
         return {
             "status": status,
             "headers": headers,
@@ -186,6 +186,7 @@ def _safe_request(
             "error": str(e),
         }
     except Exception as e:
+        logger.warning("Unexpected error in _safe_request: %s", e, exc_info=True)
         return {
             "status": 0,
             "headers": {},
@@ -283,8 +284,8 @@ def mass_assignment_detector(
         if response_cache is not None:
             try:
                 resp = response_cache.get(url)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:
+                logger.warning("Failed to get cached response for %s: %s", url, exc, exc_info=True)
         if not _is_json_endpoint(url, resp):
             continue
         endpoints_to_test.append({"url": url, "response": resp})

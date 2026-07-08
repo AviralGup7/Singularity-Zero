@@ -18,7 +18,7 @@ class BaseRepo:
 
     _lock = threading.Lock()
 
-    def __init__(self, db_path: Path, local: threading.local):
+    def __init__(self, db_path: Path, local: threading.local) -> None:
         self.db_path = db_path
         self._local = local
 

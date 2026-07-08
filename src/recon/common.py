@@ -4,13 +4,12 @@ Provides run_recon_commands_parallel for executing external recon tools concurre
 with retry support, and normalization helpers from src.core.utils.
 """
 
-import os
-from typing import Any, cast
+from __future__ import annotations
 
-from src.core.tools.types import ToolExecutionOutcome
+import os
+from typing import Any
+
 from src.core.utils import normalize_scope_entry, normalize_url, parse_plain_lines
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
-from src.pipeline.tools import RetryPolicy, execute_command, try_command
 
 __all__ = [
     "run_commands_parallel",
@@ -23,11 +22,16 @@ __all__ = [
 ]
 
 
+def _get_executor():
+    from src.infrastructure.execution_engine.shared_pool import get_recon_executor
+    return get_recon_executor()
+
+
 def run_recon_commands_parallel(
     jobs: list[
         tuple[list[str], str | None]
         | tuple[list[str], str | None, int | None]
-        | tuple[list[str], str | None, int | None, RetryPolicy | None]
+        | tuple[list[str], str | None, int | None, Any | None]
     ],
 ) -> list[str]:
     """Run multiple shell commands in parallel using a thread pool.
@@ -42,7 +46,9 @@ def run_recon_commands_parallel(
     if not jobs:
         return []
 
-    normalized_jobs: list[tuple[list[str], str | None, int | None, RetryPolicy | None]] = []
+    from src.pipeline.tools import try_command
+
+    normalized_jobs: list[tuple[list[str], str | None, int | None, Any | None]] = []
     for job in jobs:
         if len(job) == 2:
             command, stdin_text = job
@@ -54,7 +60,7 @@ def run_recon_commands_parallel(
             command, stdin_text, timeout, retry_policy = job
             normalized_jobs.append((command, stdin_text, timeout, retry_policy))
 
-    executor = get_shared_executor()
+    executor = _get_executor()
     futures = [
         executor.submit(try_command, list(command), timeout, stdin_text, retry_policy)
         for command, stdin_text, timeout, retry_policy in normalized_jobs
@@ -84,13 +90,15 @@ def run_commands_parallel_outcomes(
     jobs: list[
         tuple[list[str], str | None]
         | tuple[list[str], str | None, int | None]
-        | tuple[list[str], str | None, int | None, RetryPolicy | None]
+        | tuple[list[str], str | None, int | None, Any | None]
     ],
-) -> list[ToolExecutionOutcome]:
+) -> list[Any]:
     if not jobs:
         return []
 
-    normalized_jobs: list[tuple[list[str], str | None, int | None, RetryPolicy | None]] = []
+    from src.pipeline.tools import execute_command
+
+    normalized_jobs: list[tuple[list[str], str | None, int | None, Any | None]] = []
     for job in jobs:
         if len(job) == 2:
             command, stdin_text = job
@@ -102,39 +110,18 @@ def run_commands_parallel_outcomes(
             command, stdin_text, timeout, retry_policy = job
             normalized_jobs.append((command, stdin_text, timeout, retry_policy))
 
-    executor = get_shared_executor()
+    executor = _get_executor()
     futures = [
         executor.submit(execute_command, list(command), timeout, stdin_text, retry_policy)
         for command, stdin_text, timeout, retry_policy in normalized_jobs
     ]
-    return cast(list[ToolExecutionOutcome], [future.result() for future in futures])
+    return [future.result() for future in futures]
 
 
 def run_async_in_sync_context(coro: Any) -> Any:
-    """Run an async coroutine from a synchronous context, safely handling nested event loops."""
-    import asyncio
+    """Run an async coroutine from a synchronous context, safely handling nested event loops.
 
-    try:
-        running_loop = asyncio.get_running_loop()
-    except RuntimeError:
-        running_loop = None
-
-    if running_loop is not None and running_loop.is_running():
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-
-            def _run_in_thread() -> Any:
-                new_loop = asyncio.new_event_loop()
-                try:
-                    return new_loop.run_until_complete(coro)
-                finally:
-                    new_loop.close()
-
-            return executor.submit(_run_in_thread).result()
-    else:
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
+    Routes through the shared async bridge to avoid thread/event-loop churn.
+    """
+    from src.core.utils.async_bridge import run_async_in_sync_context as _bridge_run
+    return _bridge_run(coro)

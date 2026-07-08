@@ -500,8 +500,10 @@ async def run_post_analysis_enrichments(
             CVESyncClient(cve_config) as cve_feed,
             MitreAttackMapper(MitreConfig()) as mitre_feed,
         ):
-            assert isinstance(cve_feed, CVESyncClient)
-            assert isinstance(mitre_feed, MitreAttackMapper)
+            if not isinstance(cve_feed, CVESyncClient):
+                raise TypeError(f"Expected CVESyncClient, got {type(cve_feed).__name__}")
+            if not isinstance(mitre_feed, MitreAttackMapper):
+                raise TypeError(f"Expected MitreAttackMapper, got {type(mitre_feed).__name__}")
             semaphore = asyncio.Semaphore(max_concurrency)
 
             async def _enrich_single(finding: dict[str, Any]) -> int:

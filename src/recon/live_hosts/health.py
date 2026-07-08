@@ -16,7 +16,7 @@ import urllib3
 from src.core.models import DEFAULT_USER_AGENT, Config
 from src.core.utils.http_pool import get_pooled_connection
 from src.core.utils.url_validation import is_safe_url
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ def probe_live_hosts_fallback(
         concurrency=executor_workers,
     )
 
-    executor = get_shared_executor()
+    executor = get_recon_executor()
     future_to_host = {
         executor.submit(probe_host_without_httpx, host, timeout_seconds): host for host in to_probe
     }

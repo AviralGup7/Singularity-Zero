@@ -81,7 +81,7 @@ def test_wal_log_delta_exception(monkeypatch):
     def mock_stable_digest(*args, **kwargs):
         raise Exception("digest fail")
 
-    monkeypatch.setattr("src.core.frontier.wal.stable_digest", mock_stable_digest)
+    monkeypatch.setattr("src.infrastructure.frontier.wal.stable_digest", mock_stable_digest)
     assert wal.log_delta("stage", {}) is None
     wal.cleanup()
 
@@ -217,7 +217,7 @@ def test_wal_recovery_aof_failed_or_corrupt(tmp_path):
 
 def test_wal_aof_recovery_complete_failure(monkeypatch):
     wal = FrontierWAL(None, "test_run_aof_rec_fail")
-    # Mock open inside src.core.frontier.wal to raise Exception
+    # Mock open inside src.infrastructure.frontier.wal to raise Exception
     import builtins
 
     original_open = builtins.open
@@ -590,7 +590,7 @@ def test_wal_recover_state_non_dict_delta(monkeypatch):
         "snapshot": {"findings": []},
     }
     # Create the stable digest
-    from src.core.frontier.wal import stable_digest
+    from src.infrastructure.frontier.wal import stable_digest
 
     envelope["digest"] = stable_digest(envelope["snapshot"])
     mock_redis.get.return_value = msgpack.packb(envelope, use_bin_type=True)

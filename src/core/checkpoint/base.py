@@ -64,6 +64,33 @@ class CheckpointState:
     previous_findings: list[dict[str, Any]] = field(default_factory=list)
     """Findings from the previous monitoring cycle for diff/alerting."""
 
+    first_failure: dict[str, Any] | None = None
+    """Immutable snapshot of the first failure event.
+
+    Preserved across retries so operators can always see the original
+    root cause even after subsequent retries overwrite the live failure
+    fields. Contains keys: failed_stage, failure_reason, failure_step,
+    failure_reason_code, timestamp.
+    """
+
+    source_node: str = ""
+    """Node identifier that wrote this checkpoint.
+
+    Used by distributed recovery (Bug #31) to detect split-brain: if
+    the best checkpoint came from a different node, recovery can prefer
+    a local checkpoint to avoid replaying stale state from a remote node
+    that may have been behind at crash time.
+    """
+
+    artifact_hashes: dict[str, dict[str, str]] = field(default_factory=dict)
+    """Per-stage mapping of artifact file paths to their SHA-256 hashes.
+
+    Used by ``CheckpointManager.record_artifact_hashes`` and
+    ``validate_artifacts_integrity`` to detect when cached artifacts have
+    been corrupted or replaced since the checkpoint was saved
+    (Chain Bug #23).
+    """
+
     def to_dict(self) -> dict[str, Any]:
         """Convert state to a JSON-serializable dictionary."""
         raw = asdict(self)

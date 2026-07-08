@@ -1,5 +1,7 @@
 """HTTP request metrics middleware for per-endpoint latency tracking.
 
+import logging
+logger = logging.getLogger(__name__)
 Provides Prometheus histograms for request latency decomposed by
 method, route template, and status code. Includes cardinality controls
 to prevent label explosion from high-cardinality path parameters.
@@ -132,6 +134,7 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
             try:
                 from src.infrastructure.observability.metrics import get_metrics
 
+
                 metrics = get_metrics()
 
                 # Per-endpoint latency histogram
@@ -164,4 +167,4 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
                     labels={"method": method},
                 )
             except Exception:
-                pass
+                    logger.debug("Metrics tracking error", exc_info=True)

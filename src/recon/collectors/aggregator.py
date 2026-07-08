@@ -35,6 +35,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.core.models.config import Config
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.health import (
     HEALTH_REGISTRY,
@@ -215,91 +216,86 @@ def collect_urls(
     if not providers:
         return set()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
-        future_to_spec: dict[concurrent.futures.Future, ProviderSpec] = {}
-        for spec in providers:
-            if is_circuit_open(spec.name):
-                meta = _skipped_circuit_open_meta(spec)
-                stage_meta[spec.name] = meta
-                emit_collection_progress(
-                    progress_callback,
-                    f"{spec.name} skipped (circuit open)",
-                    50,
-                )
-                continue
-            future = executor.submit(_invoke_provider, spec, hostnames, progress_callback)
-            future_to_spec[future] = spec
-
-        pending = set(future_to_spec.keys())
-        deadline_at = agg_start + sum(
-            int(_resolve_provider_timeout(spec)) for spec in future_to_spec.values()
-        )
-
-        while pending:
-            remaining = max(0.0, deadline_at - time.monotonic())
-            if not pending:
-                break
-            done, pending = concurrent.futures.wait(
-                pending,
-                timeout=min(remaining, 1.0) if remaining > 0 else 0.001,
-                return_when=concurrent.futures.FIRST_COMPLETED,
+    executor = get_recon_executor()
+    future_to_spec: dict[concurrent.futures.Future, ProviderSpec] = {}
+    for spec in providers:
+        if is_circuit_open(spec.name):
+            meta = _skipped_circuit_open_meta(spec)
+            stage_meta[spec.name] = meta
+            emit_collection_progress(
+                progress_callback,
+                f"{spec.name} skipped (circuit open)",
+                50,
             )
-            for fut in done:
-                spec = future_to_spec.pop(fut, None)  # type: ignore[arg-type]
-                if spec is None:
-                    continue
-                try:
-                    meta = fut.result()
-                except concurrent.futures.TimeoutError:  # pragma: no cover
-                    meta = CollectorMeta(
-                        status=CollectorStatus.TIMEOUT,
-                        new_urls=0,
-                        errors=1,
-                        provider_name=spec.name,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("%s collection failed: %s", spec.name, exc, exc_info=True)
-                    meta = CollectorMeta(
-                        status=CollectorStatus.ERROR,
-                        duration_seconds=0.0,
-                        new_urls=0,
-                        errors=1,
-                        provider_name=spec.name,
-                    )
+            continue
+        future = executor.submit(_invoke_provider, spec, hostnames, progress_callback)
+        future_to_spec[future] = spec
 
-                # Per-future timeout: if the future is still pending past its
-                # budget, surface a TIMEOUT meta and record a failure.
-                budget = _resolve_provider_timeout(spec)
-                if spec.timeout_seconds and budget > 0:
-                    # NOTE: best-effort detection – we can't read the
-                    # future's start time precisely, so we just trust the
-                    # provider's own duration_seconds for health.
-                    if meta.duration_seconds and meta.duration_seconds > spec.timeout_seconds:
-                        import dataclasses
-                        warning_msg = f"Provider exceeded timeout ({meta.duration_seconds:.1f}s > {spec.timeout_seconds}s)"
-                        meta = dataclasses.replace(
-                            meta,
-                            status=CollectorStatus.TIMEOUT,
-                            warnings=meta.warnings + (warning_msg,),
-                        )
+    pending = set(future_to_spec.keys())
+    deadline_at = agg_start + sum(
+        int(_resolve_provider_timeout(spec)) for spec in future_to_spec.values()
+    )
 
-                # Health accounting.
-                if meta.status in (CollectorStatus.OK, CollectorStatus.EMPTY):
-                    record_success(spec.name, duration_seconds=meta.duration_seconds)
-                elif meta.status == CollectorStatus.SKIPPED_CIRCUIT_OPEN:
-                    pass  # already accounted for above
-                else:
-                    record_failure(spec.name, error=str(meta.status))
+    while pending:
+        remaining = max(0.0, deadline_at - time.monotonic())
+        if not pending:
+            break
+        done, pending = concurrent.futures.wait(
+            pending,
+            timeout=min(remaining, 1.0) if remaining > 0 else 0.001,
+            return_when=concurrent.futures.FIRST_COMPLETED,
+        )
+        for fut in done:
+            spec = future_to_spec.pop(fut, None)  # type: ignore[arg-type]
+            if spec is None:
+                continue
+            try:
+                meta = fut.result()
+            except concurrent.futures.TimeoutError:  # pragma: no cover
+                meta = CollectorMeta(
+                    status=CollectorStatus.TIMEOUT,
+                    new_urls=0,
+                    errors=1,
+                    provider_name=spec.name,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("%s collection failed: %s", spec.name, exc, exc_info=True)
+                meta = CollectorMeta(
+                    status=CollectorStatus.ERROR,
+                    duration_seconds=0.0,
+                    new_urls=0,
+                    errors=1,
+                    provider_name=spec.name,
+                )
 
-                stage_meta[spec.name] = meta
-                # The provider's URLs were already merged by the provider
-                # (the aggregator's job is metadata + dedup).  We don't
-                # have a URL stream from the future, so we rely on the
-                # provider's bookkeeping for ``new_urls``.  Real URL
-                # dedup happens in ``collect_urls_stream`` /
-                # ``collect_for_hosts`` callers.
-                collector_metrics.increment_urls(spec.name, int(meta.new_urls))
-                collector_metrics.observe_duration(spec.name, float(meta.duration_seconds))
+            # Per-future timeout: if the future is still pending past its
+            # budget, surface a TIMEOUT meta and record a failure.
+            budget = _resolve_provider_timeout(spec)
+            if spec.timeout_seconds and budget > 0:
+                # NOTE: best-effort detection – we can't read the
+                # future's start time precisely, so we just trust the
+                # provider's own duration_seconds for health.
+                if meta.duration_seconds and meta.duration_seconds > spec.timeout_seconds:
+                    meta.status = CollectorStatus.TIMEOUT
+                    meta.error = f"Provider exceeded timeout ({meta.duration_seconds:.1f}s > {spec.timeout_seconds}s)"
+
+            # Health accounting.
+            if meta.status in (CollectorStatus.OK, CollectorStatus.EMPTY):
+                record_success(spec.name, duration_seconds=meta.duration_seconds)
+            elif meta.status == CollectorStatus.SKIPPED_CIRCUIT_OPEN:
+                pass  # already accounted for above
+            else:
+                record_failure(spec.name, error=str(meta.status))
+
+            stage_meta[spec.name] = meta
+            # The provider's URLs were already merged by the provider
+            # (the aggregator's job is metadata + dedup).  We don't
+            # have a URL stream from the future, so we rely on the
+            # provider's bookkeeping for ``new_urls``.  Real URL
+            # dedup happens in ``collect_urls_stream`` /
+            # ``collect_for_hosts`` callers.
+            collector_metrics.increment_urls(spec.name, int(meta.new_urls))
+            collector_metrics.observe_duration(spec.name, float(meta.duration_seconds))
 
     emit_collection_progress(
         progress_callback, f"In-house collection complete: {len(urls)} urls", 68

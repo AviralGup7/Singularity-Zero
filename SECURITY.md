@@ -12,8 +12,8 @@ Only the latest active version of the Cyber Security Test Pipeline is supported 
 
 | Version | Supported |
 | ------- | --------- |
-| 2.0.x   | Yes       |
-| < 2.0.0 | No        |
+| 3.1.x   | Yes       |
+| < 3.1.0 | No        |
 
 ## Reporting a Vulnerability
 

@@ -10,8 +10,8 @@ from .detail import get_job as get_job
 from .detail import router as detail_router
 from .historical_durations import get_historical_durations as get_historical_durations
 from .historical_durations import router as durations_router
-from .list import list_jobs as list_jobs
-from .list import router as list_router
+from .job_list import list_jobs as list_jobs
+from .job_list import router as list_router
 from .logs import get_job_logs as get_job_logs
 from .logs import router as logs_router
 from .remediation import get_job_remediation as get_job_remediation

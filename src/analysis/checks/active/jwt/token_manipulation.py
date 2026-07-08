@@ -73,7 +73,8 @@ class WeakSecretAttack:
             try:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to get original response for %s: %s", url, exc, exc_info=True)
                 original_status = 0
 
             for secret in WEAK_SECRETS:
@@ -126,11 +127,11 @@ class WeakSecretAttack:
 
             logger.info("Weak secret test on %s: vulnerable=%s", url, result["vulnerable"])
         except Exception as e:
-            logger.error("Weak secret test error on %s: %s", url, e)
+            logger.error("Weak secret test error on %s: %s", url, e, exc_info=True)
         return result
 
 
-class JkuInjectionAttack:
+class JKUInjectionAttack:
     """Tests JKU (JWK Set URL) header injection.
 
     Injects attacker-controlled JKU URLs into the JWT header,
@@ -164,7 +165,8 @@ class JkuInjectionAttack:
             try:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to get original response for JKU test on %s: %s", url, exc, exc_info=True)
                 original_status = 0
 
             for jku_url in jku_urls:
@@ -201,5 +203,5 @@ class JkuInjectionAttack:
 
             logger.info("JKU injection test on %s: vulnerable=%s", url, result["vulnerable"])
         except Exception as e:
-            logger.error("JKU injection test error on %s: %s", url, e)
+            logger.error("JKU injection test error on %s: %s", url, e, exc_info=True)
         return result

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { Icon } from '../ui/Icon';
 import type { AppNotification, NotificationType } from '@/types/notifications';
 import { SEVERITY_COLORS, TYPE_ICONS, TYPE_LABELS } from '@/types/notifications';
@@ -40,9 +41,9 @@ function getHref(notification: AppNotification): string | null {
   if (notification.href) return notification.href;
   if (notification.entity_type && notification.entity_id) {
     switch (notification.entity_type) {
-      case 'job': return `/jobs/${notification.entity_id}`;
-      case 'finding': return '/findings';
-      case 'target': return '/targets';
+      case 'job': return `${ROUTES.JOBS}/${notification.entity_id}`;
+      case 'finding': return ROUTES.FINDINGS;
+      case 'target': return ROUTES.TARGETS;
       default: return null;
     }
   }

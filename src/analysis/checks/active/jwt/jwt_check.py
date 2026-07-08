@@ -13,18 +13,18 @@ from src.analysis.helpers import (
     endpoint_signature,
     normalize_headers,
 )
-from src.analysis.helpers.scoring import normalized_confidence
+from src.core.utils.scoring import normalized_confidence
 from src.core.utils.url_validation import is_safe_url
 
 from .attacks import (
     JWT_AUTH_HEADERS,
     AlgorithmConfusionAttack,
-    KidPathTraversalAttack,
+    KIDPathTraversalAttack,
     NoneAlgorithmAttack,
     decode_jwt_part,
 )
 from .expiry import LifetimeManipulationAttack
-from .token_manipulation import JkuInjectionAttack, WeakSecretAttack
+from .token_manipulation import JKUInjectionAttack, WeakSecretAttack
 from .validator import SEVERITY_ORDER, collect_findings, determine_severity
 
 logger = logging.getLogger(__name__)
@@ -94,8 +94,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:
+                logger.warning("Failed to extract response from RequestException: %s", exc, exc_info=True)
         return {
             "status": status,
             "headers": headers,
@@ -105,6 +105,7 @@ def _safe_request(
             "error": str(e),
         }
     except Exception as e:
+        logger.warning("Unexpected error in _safe_request: %s", e, exc_info=True)
         return {
             "status": 0,
             "headers": {},
@@ -118,7 +119,7 @@ def _safe_request(
 class _SessionAdapter:
     """Adapter that wraps _safe_request in a requests.Session-like interface."""
 
-    def __init__(self, original_headers: dict[str, str] | None = None):
+    def __init__(self, original_headers: dict[str, str] | None = None) -> None:
         self.headers = dict(original_headers or {})
 
     def request(
@@ -218,10 +219,10 @@ def run_jwt_attack_suite(token: str, url: str, session: Any, config: Any = None)
 
     alg_none = NoneAlgorithmAttack(token)
     alg_confusion = AlgorithmConfusionAttack(token)
-    kid_traversal = KidPathTraversalAttack(token)
+    kid_traversal = KIDPathTraversalAttack(token)
     weak_secret = WeakSecretAttack(token)
     lifetime = LifetimeManipulationAttack(token)
-    jku = JkuInjectionAttack(token)
+    jku = JKUInjectionAttack(token)
 
     attacks: dict[str, dict[str, Any]] = {
         "alg_none": alg_none.execute(url, session),
@@ -295,9 +296,8 @@ def jwt_security_analyzer(
         if response_cache is not None:
             try:
                 resp = response_cache.get(url)
-            except Exception:  # noqa: S110
-                logger.warning("Cache lookup failed for %s", url)
-                pass
+            except Exception as exc:
+                logger.warning("Cache lookup failed for %s: %s", url, exc, exc_info=True)
 
         if not resp:
             resp = _safe_request(url, timeout=8)

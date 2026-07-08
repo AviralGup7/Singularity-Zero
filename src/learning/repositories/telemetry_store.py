@@ -12,7 +12,7 @@ from .attack_chains_repo import AttackChainsRepo
 from .confidence_repo import ConfidenceRepo
 from .feedback_repo import FeedbackRepo
 from .findings_repo import FindingsRepo
-from .fp_patterns_repo import FpPatternsRepo
+from .fp_patterns_repo import FPPatternsRepo
 from .graph_repo import GraphRepo
 from .metrics_repo import MetricsRepo
 from .scan_runs_repo import ScanRunsRepo
@@ -87,14 +87,14 @@ _KNOWN_TIME_COLUMNS = {
     "end_time",
 }
 
-_DELETE_QUERIES = {  # noqa: S608  # nosec B608  (t and c are from hardcoded allowlisted sets)
-    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608  # nosec B608
+_DELETE_QUERIES = {  # used with allowlisted tables only
+    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608
     for t in _KNOWN_TABLES
     for c in _KNOWN_TIME_COLUMNS
 }
 
-_COUNT_QUERIES = {  # noqa: S608  # nosec B608  (t is from hardcoded allowlisted set)
-    t: f"SELECT COUNT(*) FROM {t}"  # noqa: S608  # nosec B608
+_COUNT_QUERIES = {  # used with allowlisted tables only
+    t: f"SELECT COUNT(*) FROM {t}"  # noqa: S608
     for t in _KNOWN_TABLES
 }
 
@@ -157,7 +157,7 @@ class TelemetryStore:
         self.scan_runs = ScanRunsRepo(self.db_path, self._local)
         self.findings = FindingsRepo(self.db_path, self._local)
         self.feedback = FeedbackRepo(self.db_path, self._local)
-        self.fp_patterns = FpPatternsRepo(self.db_path, self._local)
+        self.fp_patterns = FPPatternsRepo(self.db_path, self._local)
         self.graph = GraphRepo(self.db_path, self._local)
         self.thresholds = ThresholdsRepo(self.db_path, self._local)
         self.metrics = MetricsRepo(self.db_path, self._local)
@@ -233,8 +233,8 @@ class TelemetryStore:
                 self._local.conn.close()
             except sqlite3.ProgrammingError as exc:
                 logger.warning("Operation failed in telemetry_store.py: %s", exc, exc_info=True)  # noqa: BLE001
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Operation failed in telemetry_store.py", exc_info=True)
             self._local.conn = None
 
     def __enter__(self) -> TelemetryStore:

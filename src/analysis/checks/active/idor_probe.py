@@ -8,7 +8,7 @@ from typing import Any, cast
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.helpers.scoring import normalized_confidence
+from src.core.utils.scoring import normalized_confidence
 from src.recon.common import normalize_url
 
 IDOR_NUMERIC_RE = re.compile(r"/(\d+)(?:/|$|\?)")

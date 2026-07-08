@@ -7,7 +7,14 @@ import {
   Clock, Zap, BarChart3, FileText, Terminal, Globe, Lock, Unlock,
   Bug, Cpu, Network, Scan, ShieldCheck, AlertOctagon, TrendingUp,
   TrendingDown, ChevronLeft, ChevronUp, MoreVertical, MoreHorizontal, Moon, Sun, Database,
-  MessageSquare, type LucideIcon,
+  MessageSquare, LayoutGrid, List, Loader2, Briefcase, LogIn, LockKeyhole,
+  ScanLine, Workflow, Bookmark, BookmarkCheck, ShieldAlert, Crown, GitBranch,
+  Radio, HardDrive, Gauge, KeyRound, Server, CalendarClock, PanelLeft,
+  GitCommitHorizontal, Clock3, CheckCircle2, Fingerprint, MousePointer2,
+  Wifi, WifiOff, HelpCircle, ClipboardPaste, RefreshCcw, ArrowLeftRight,
+  GitMerge, XCircle, FileDown, Send, Inbox, Crosshair, GripVertical,
+  Package, Library, Sparkles, FileJson, FileCode2, Circle, Check,
+  Navigate, type LucideIcon,
 } from 'lucide-react';
 
 export {
@@ -18,7 +25,14 @@ export {
   Clock, Zap, BarChart3, FileText, Terminal, Globe, Lock, Unlock,
   Bug, Cpu, Network, Scan, ShieldCheck, AlertOctagon, TrendingUp,
   TrendingDown, ChevronLeft, ChevronUp, MoreVertical, MoreHorizontal, Moon, Sun, Database,
-  MessageSquare,
+  MessageSquare, LayoutGrid, List, Loader2, Briefcase, LogIn, LockKeyhole,
+  ScanLine, Workflow, Bookmark, BookmarkCheck, ShieldAlert, Crown, GitBranch,
+  Radio, HardDrive, Gauge, KeyRound, Server, CalendarClock, PanelLeft,
+  GitCommitHorizontal, Clock3, CheckCircle2, Fingerprint, MousePointer2,
+  Wifi, WifiOff, HelpCircle, ClipboardPaste, RefreshCcw, ArrowLeftRight,
+  GitMerge, XCircle, FileDown, Send, Inbox, Crosshair, GripVertical,
+  Package, Library, Sparkles, FileJson, FileCode2, Circle, Check,
+  Navigate,
 };
 
 export type { LucideIcon };
@@ -56,8 +70,25 @@ const iconMap = new Map<string, LucideIcon>([
   ['trendingUp', TrendingUp], ['trendingDown', TrendingDown], ['chevronLeft', ChevronLeft],
    
   ['chevronUp', ChevronUp], ['moreVertical', MoreVertical], ['moreHorizontal', MoreHorizontal],
-   
+
   ['moon', Moon], ['sun', Sun], ['database', Database], ['messageSquare', MessageSquare],
+  ['layoutGrid', LayoutGrid], ['list', List], ['loader2', Loader2],
+  ['briefcase', Briefcase], ['logIn', LogIn], ['lockKeyhole', LockKeyhole],
+  ['scanLine', ScanLine], ['workflow', Workflow], ['bookmark', Bookmark],
+  ['bookmarkCheck', BookmarkCheck], ['shieldAlert', ShieldAlert], ['crown', Crown],
+  ['gitBranch', GitBranch], ['radio', Radio], ['hardDrive', HardDrive],
+  ['gauge', Gauge], ['keyRound', KeyRound], ['server', Server],
+  ['calendarClock', CalendarClock], ['panelLeft', PanelLeft],
+  ['gitCommitHorizontal', GitCommitHorizontal], ['clock3', Clock3],
+  ['checkCircle2', CheckCircle2], ['fingerprint', Fingerprint],
+  ['mousePointer2', MousePointer2], ['wifi', Wifi], ['wifiOff', WifiOff],
+  ['helpCircle', HelpCircle], ['clipboardPaste', ClipboardPaste],
+  ['refreshCcw', RefreshCcw], ['arrowLeftRight', ArrowLeftRight],
+  ['gitMerge', GitMerge], ['xCircle', XCircle], ['fileDown', FileDown],
+  ['send', Send], ['inbox', Inbox], ['crosshair', Crosshair],
+  ['gripVertical', GripVertical], ['package', Package], ['library', Library],
+  ['sparkles', Sparkles], ['fileJson', FileJson], ['fileCode2', FileCode2],
+  ['circle', Circle], ['check', Check], ['navigate', Navigate],
 ]);
 
 export const Icon = memo(function Icon({ name, size = 16, color, className = '', strokeWidth = 2 }: IconProps) {

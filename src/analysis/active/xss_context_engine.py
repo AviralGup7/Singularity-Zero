@@ -65,7 +65,7 @@ _START_MARKER_RE = re.compile(r"_START_")
 # ---- Context classification ----
 
 
-class XssEnvironment(TypedDict, total=False):
+class XSSEnvironment(TypedDict, total=False):
     tag: str
     attribute: str
     quote: str
@@ -95,7 +95,7 @@ class ReflectionContext:
 
 
 @dataclass(frozen=True)
-class DomFlowFinding:
+class DOMFlowFinding:
     """A DOM XSS finding with source→variable→sink chain.
 
     Learned from XSStrike dom.py: instead of just spotting sink
@@ -460,7 +460,7 @@ def _generate_waf_evasion_payloads(vectors: dict[int, set[str]]) -> None:
         vectors[5].add(payload)
 
 
-class WafSignature(TypedDict):
+class WAFSignature(TypedDict):
     name: str
     headers: re.Pattern | None
     page: re.Pattern | None
@@ -471,7 +471,7 @@ class WafSignature(TypedDict):
 
 # Minimal WAF signatures based on response characteristics
 # Learned from XSStrike's wafDetector
-_WAF_SIGNATURES: list[WafSignature] = [
+_WAF_SIGNATURES: list[WAFSignature] = [
     {
         "name": "Cloudflare",
         "headers": re.compile(r"server:\s?cloudflare", re.I),

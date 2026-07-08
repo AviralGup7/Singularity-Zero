@@ -1,5 +1,7 @@
 """Lazy-loaded persistent cache backed by SQLite."""
 
+import logging
+logger = logging.getLogger(__name__)
 import json
 import os
 import shutil
@@ -26,6 +28,7 @@ from src.infrastructure.db.sqlite_utils import (
     SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
 )
 from src.infrastructure.db.sqlite_utils import (
+
     safe_close,
 )
 
@@ -35,6 +38,19 @@ _DEFAULT_DB_PATH = os.environ.get(
     "RECON_CACHE_DB_PATH",
     str(Path(__file__).resolve().parent.parent / "output" / "cache" / "probe_cache.db"),
 )
+
+# Process-wide locks per database path to prevent concurrent cleanup_expired()
+# across different PersistentCache instances pointing to the same database.
+_cleanup_locks: dict[str, threading.RLock] = {}
+_cleanup_locks_lock = threading.Lock()
+
+
+def _get_cleanup_lock(db_path: str) -> threading.RLock:
+    """Return a process-wide lock for cleanup operations on the given db_path."""
+    with _cleanup_locks_lock:
+        if db_path not in _cleanup_locks:
+            _cleanup_locks[db_path] = threading.RLock()
+        return _cleanup_locks[db_path]
 
 
 class _ThreadLocalConnections(threading.local):
@@ -59,8 +75,8 @@ class PersistentCache:
     def __del__(self) -> None:
         try:
             self.close_all()
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+                logger.debug("Non-critical cleanup error", exc_info=True)
 
     def _ensure_thread_local(self) -> None:
         """Ensure all attributes are initialized (handles __new__ bypass)."""
@@ -333,20 +349,24 @@ class PersistentCache:
             self._with_retry(_op)
 
     def cleanup_expired(self) -> int:
-        with self._lock:
+        # Use process-wide lock to prevent concurrent cleanup across instances
+        # pointing to the same database (e.g., maintenance.py and hot-path cleanup).
+        process_lock = _get_cleanup_lock(self._db_path)
+        with process_lock:
+            with self._lock:
 
-            def _op(conn: sqlite3.Connection) -> int:
-                now = time.time()
-                cursor = conn.execute(
-                    "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ?",
-                    (now,),
-                )
-                conn.commit()
-                if cursor.rowcount > 0:
-                    self._metrics.expirations += cursor.rowcount
-                return int(cursor.rowcount)
+                def _op(conn: sqlite3.Connection) -> int:
+                    now = time.time()
+                    cursor = conn.execute(
+                        "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ?",
+                        (now,),
+                    )
+                    conn.commit()
+                    if cursor.rowcount > 0:
+                        self._metrics.expirations += cursor.rowcount
+                    return int(cursor.rowcount)
 
-            return int(self._with_retry(_op))
+                return int(self._with_retry(_op))
 
     def prune_oldest(self, count: int) -> int:
         """Remove the N oldest entries from the cache regardless of expiration."""

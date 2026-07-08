@@ -8,12 +8,13 @@
   border-radius: var(--radius-md);
   color: var(--text-primary);
   background: var(--surface-2);
-  padding: 8px var(--space-4);
+  padding: 7px var(--space-4);
   font-size: var(--text-body);
   font-weight: 500;
   cursor: pointer;
   transition: all var(--motion-fast) var(--easing-out);
   position: relative;
+  user-select: none;
 }
 
 .btn:hover, .stop-btn:hover, .restart-btn:hover, .filter-btn:hover, .view-toggle-btn:hover {
@@ -28,13 +29,13 @@
 }
 
 .btn:disabled, .stop-btn:disabled, .restart-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;
 }
 
 .btn-sm, .btn-small {
-  padding: 6px var(--space-3);
+  padding: 5px var(--space-3);
   font-size: var(--text-small);
   border-radius: var(--radius-sm);
 }
@@ -45,14 +46,26 @@
   background-position: 0% 0%;
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 3px 12px -3px hsla(217, 91%, 60%, 0.5);
+  box-shadow: 0 3px 12px -3px hsla(217, 100%, 64%, 0.45);
   transition: all var(--motion-fast) var(--easing-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.05) 50%, transparent 60%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .btn-primary:hover {
   background-position: 100% 0%;
   border-color: transparent;
-  box-shadow: 0 6px 24px -2px hsla(271, 91%, 65%, 0.6), var(--glow-accent);
+  box-shadow: 0 6px 24px -2px hsla(261, 100%, 72%, 0.5), var(--glow-accent);
   transform: translateY(-1px);
 }
 
@@ -64,8 +77,8 @@
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--glass-border));
+  background: var(--glass-bg-elevated);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transform: translateY(-1px);
 }
@@ -77,9 +90,10 @@
 }
 
 .btn-danger:hover, .stop-btn:hover {
-  background: color-mix(in srgb, var(--bad) 80%, black);
-  border-color: color-mix(in srgb, var(--bad) 80%, black);
+  background: color-mix(in srgb, var(--bad) 85%, black);
+  border-color: color-mix(in srgb, var(--bad) 85%, black);
   box-shadow: var(--glow-bad);
+  transform: translateY(-1px);
 }
 
 .btn-warning, .restart-btn {
@@ -89,8 +103,9 @@
 }
 
 .btn-warning:hover, .restart-btn:hover {
-  background: color-mix(in srgb, var(--warn) 85%, black);
-  border-color: color-mix(in srgb, var(--warn) 85%, black);
+  background: color-mix(in srgb, var(--warn) 88%, black);
+  border-color: color-mix(in srgb, var(--warn) 88%, black);
+  transform: translateY(-1px);
 }
 
 .btn-ghost {
@@ -115,7 +130,7 @@
   position: absolute;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.25);
   border-top-color: currentColor;
   border-radius: 50%;
   animation: btn-spin 0.6s linear infinite;
@@ -126,8 +141,8 @@
 }
 
 .btn-xs {
-  padding: 4px var(--space-2);
+  padding: 3px var(--space-2);
   font-size: var(--text-micro);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   gap: var(--space-1);
 }

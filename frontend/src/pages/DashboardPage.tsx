@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ShieldAlert,
@@ -12,39 +12,90 @@ import {
 import type { DashboardStats as StatsType, Job } from '../types/api';
 import { useApi } from '../hooks/useApi';
 import { DashboardStatsSchema } from '../api/schemas';
-import FindingsOverview from '../components/findings/FindingsOverview';
+import { formatDistanceToNow } from '../utils/time';
+import FindingsOverview from '@/features/findings/components/FindingsOverview';
 import { DashboardSkeleton, GlassCard, AnimatedCounter, GlowProgress, PageHeader } from '../components/ui';
 
-const sectionVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: 0.15 + i * 0.1, duration: 0.45, ease: [0.16, 1, 0.3, 1] },
-  }),
-};
+interface TelemetryCounts {
+  [key: string]: number;
+}
+
+const STORAGE_KEY_STATS = 'dashboard:stats';
+const STORAGE_KEY_JOBS = 'dashboard:jobs';
+const STORAGE_KEY_TIMESTAMP = 'dashboard:timestamp';
+
+function loadPersistedStats<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function persistStats<T>(key: string, data: T): void {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(data));
+    sessionStorage.setItem(STORAGE_KEY_TIMESTAMP, String(Date.now()));
+  } catch {
+    // sessionStorage full or unavailable — silently degrade
+  }
+}
+
+
 
 export function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [tick, setTick] = useState(0);
+
+  // Re-render every 30 seconds so the relative timestamp stays fresh
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const [isStaleData, setIsStaleData] = useState(false);
 
   const { data: stats, loading: statsLoading, error: statsError } = useApi<StatsType>('/api/dashboard', { 
     refetchInterval: 10000,
     schema: DashboardStatsSchema,
-    onSuccess: () => setLastUpdated(new Date())
+    onSuccess: (data) => {
+      setLastUpdated(new Date());
+      persistStats(STORAGE_KEY_STATS, data);
+      setIsStaleData(false);
+    },
+    onError: () => {
+      setIsStaleData(true);
+    }
   });
   
   const { data: jobsResponse, loading: jobsLoading, error: jobsError } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: 5000,
-    onSuccess: () => setLastUpdated(new Date())
+    onSuccess: (data) => {
+      setLastUpdated(new Date());
+      persistStats(STORAGE_KEY_JOBS, data);
+      setIsStaleData(false);
+    },
+    onError: () => {
+      setIsStaleData(true);
+    }
   });
+
+  const persistedStats = (stats ?? loadPersistedStats<StatsType>(STORAGE_KEY_STATS)) ?? null;
+  const persistedJobs = (jobsResponse ?? loadPersistedStats<{ jobs: Job[]; total: number }>(STORAGE_KEY_JOBS)) ?? null;
+
+  const effectiveStats = stats ?? persistedStats;
+  const effectiveJobs = jobsResponse ?? persistedJobs;
+  const offlineFallback = !stats && !jobsResponse && (persistedStats || persistedJobs);
+  const showStaleBanner = isStaleData && (effectiveStats || effectiveJobs);
 
   // Show skeleton only on initial load (no data yet). If one source
   // loads first, render the partial UI rather than blocking on both.
-  if ((statsLoading && !stats) || (jobsLoading && !jobsResponse)) {
+  if ((statsLoading && !effectiveStats) || (jobsLoading && !effectiveJobs)) {
     return <DashboardSkeleton />;
   }
 
-  if ((statsError || jobsError) && !stats && !jobsResponse) {
+  if ((statsError || jobsError) && !effectiveStats && !effectiveJobs) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -59,9 +110,9 @@ export function DashboardPage() {
     );
   }
 
-  const recentJobs = (jobsResponse?.jobs ?? []).slice(0, 5);
-  const telemetryTotals = (jobsResponse?.jobs ?? []).reduce((acc, job) => {
-    const counts = job.progress_telemetry?.event_counts ?? {};
+  const recentJobs = (effectiveJobs?.jobs ?? []).slice(0, 5);
+  const telemetryTotals = (effectiveJobs?.jobs ?? []).reduce<Map<string, number>>((acc, job) => {
+    const counts: TelemetryCounts = job.progress_telemetry?.event_counts ?? {};
     for (const [key, value] of Object.entries(counts)) {
       if (key === '__proto__' || key === 'constructor') continue;
       acc.set(key, (acc.get(key) ?? 0) + Number(value ?? 0));
@@ -70,19 +121,27 @@ export function DashboardPage() {
   }, new Map<string, number>());
   const telemetryEntries = Array.from(telemetryTotals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
-  const activeJobsCount = (jobsResponse?.jobs ?? []).filter(j => j.status === 'running').length || 0;
-  const criticalFindings = stats?.findings_summary?.severity_totals?.critical || 0;
-  const totalFindings = stats?.findings_summary?.total_findings || 0;
-  const totalTargets = stats?.total_targets || 0;
+  const activeJobsCount = (effectiveJobs?.jobs ?? []).filter(j => j.status === 'running').length || 0;
+  const criticalFindings = effectiveStats?.findings_summary?.severity_totals?.critical || 0;
+  const totalFindings = effectiveStats?.findings_summary?.total_findings || 0;
+  const totalTargets = effectiveStats?.total_targets || 0;
 
   return (
     <div className="space-y-6">
+      {showStaleBanner && (
+        <div className="flex items-center gap-3 px-5 py-3 rounded-xl border border-[var(--warn)]/30 bg-[var(--warn)]/10 text-[var(--warn)] text-sm" role="alert">
+          <CloudOff size={16} />
+          <span className="font-medium">Backend unreachable</span>
+          <span className="opacity-80">— showing last-known data</span>
+          <span className="ml-auto text-xs opacity-60">cached {lastUpdated.toLocaleTimeString()}</span>
+        </div>
+      )}
       <PageHeader
         icon={<ShieldAlert size={20} />}
         title="Dashboard"
-        subtitle="Security Operations Overview"
+        subtitle={offlineFallback ? 'Security Operations Overview (offline mode)' : 'Security Operations Overview'}
         actions={
-          <Link to="/targets" className="btn btn-primary cyber-gradient-btn rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2">
+          <Link to={ROUTES.TARGETS} className="btn btn-primary cyber-gradient-btn rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2">
             <Zap size={16} aria-hidden="true" /> New Scan
           </Link>
         }
@@ -139,7 +198,7 @@ export function DashboardPage() {
           </div>
           <div className="flex items-center gap-1 mt-2">
             <Clock size={10} className="text-muted" />
-            <span className="text-xs text-muted">{lastUpdated.toLocaleTimeString()}</span>
+            <span className="text-xs text-muted">{formatDistanceToNow(lastUpdated)}</span>
           </div>
         </GlassCard>
       </div>
@@ -156,7 +215,7 @@ export function DashboardPage() {
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="card-title">Pipeline Telemetry Ledger</h3>
-          <Link to="/findings-timeline" className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">Inspect Timeline</Link>
+          <Link to={ROUTES.FINDINGS_TIMELINE} className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">Inspect Timeline</Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {(telemetryEntries.length ? telemetryEntries : [['stage.progress', 0], ['artifact.discovered', 0], ['finding.discovered', 0]]).map(([name, count], idx) => (
@@ -184,7 +243,7 @@ export function DashboardPage() {
           <section className="card">
             <div className="flex items-center justify-between mb-6">
               <h3 className="card-title">Recent Pipeline Jobs</h3>
-              <Link to="/jobs" className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">View All</Link>
+              <Link to={ROUTES.JOBS} className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">View All</Link>
             </div>
             
             <div className="space-y-4">
@@ -198,7 +257,7 @@ export function DashboardPage() {
                   transition={{ delay: 0.05 * idx, duration: 0.3 }}
                 >
                   <Link 
-                    to={`/jobs/${job.id}`}
+                    to={`${ROUTES.JOBS}/${job.id}`}
                     className="flex items-center gap-4 p-3 rounded-lg border border-transparent hover:border-[var(--border)] transition-all duration-200 group hover:-translate-y-0.5 hover:bg-white/5 card--interactive"
                   >
                     <div className={`w-2.5 h-2.5 rounded-full ${
@@ -249,7 +308,7 @@ export function DashboardPage() {
               {criticalFindings > 0 ? (
                 <div>
                    <p className="text-sm text-text leading-relaxed">Multiple critical findings detected. Immediate review required.</p>
-                   <Link to="/findings?severity=critical" className="inline-block mt-3 text-xs font-medium text-bad hover:underline">Review Findings →</Link>
+                   <Link to={`${ROUTES.FINDINGS}?severity=critical`} className="inline-block mt-3 text-xs font-medium text-bad hover:underline">Review Findings →</Link>
                 </div>
               ) : (
                 <div className="py-4 text-center text-sm text-muted">
@@ -263,8 +322,8 @@ export function DashboardPage() {
             <h3 className="text-sm font-semibold text-text mb-4">Quick Actions</h3>
             <div className="space-y-2">
               {[
-                { label: 'Review Findings', icon: ShieldAlert, href: '/findings' },
-                { label: 'View Pipeline Overview', icon: Activity, href: '/pipeline' },
+                { label: 'Review Findings', icon: ShieldAlert, href: ROUTES.FINDINGS },
+                { label: 'View Pipeline Overview', icon: Activity, href: ROUTES.PIPELINE },
               ].map(action => (
                 <Link 
                   key={action.label} 

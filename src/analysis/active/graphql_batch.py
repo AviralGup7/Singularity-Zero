@@ -157,7 +157,8 @@ class GraphQLBatchAttack:
     # ------------------------------------------------------------------
 
     def _post(self, payload: dict[str, Any] | list[Any]) -> tuple[httpx.Response, float]:
-        assert self.client is not None
+        if self.client is None:
+            raise RuntimeError("HTTP client is not initialized for GraphQL batch request")
         start = time.monotonic()
         response = self.client.post(
             self.endpoint, json=payload, headers={"Accept": "application/json"}

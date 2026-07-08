@@ -147,9 +147,8 @@ class FeedbackLoopEngine:
             m.counter("feedback_loop_exploit_queue_total").inc(
                 len(adaptations.active_exploit_queue)
             )
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("Operation failed in feedback_loop.py", exc_info=True)
         logger.info(
             "Computed adaptations for target %s in %.2fms: %d boosts, %d suppressions, %d plugin overrides, "
             "%d threshold adjustments, %d nuclei boosts, %d exploit targets",

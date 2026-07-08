@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from src.api_tests.apitester.models import (
-    ApiTestContext,
+    APITestContext,
     ComparisonSummary,
     RequestSummary,
 )
@@ -177,8 +177,8 @@ def sample_candidate() -> dict[str, str]:
 
 
 @pytest.fixture
-def sample_context() -> ApiTestContext:
-    return ApiTestContext(
+def sample_context() -> APITestContext:
+    return APITestContext(
         title="Test Context",
         severity="HIGH",
         confidence="medium",

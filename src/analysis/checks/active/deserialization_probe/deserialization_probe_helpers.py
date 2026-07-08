@@ -1,5 +1,7 @@
 """Helper functions for deserialization probing."""
 
+import logging
+logger = logging.getLogger(__name__)
 import base64
 import time
 from typing import Any
@@ -12,10 +14,11 @@ from src.analysis.helpers import (
     endpoint_signature,
     meaningful_query_pairs,
 )
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 from src.core.utils.url_validation import is_safe_url
 
 from ._constants import (
+
     DESERIALIZATION_ERRORS,
     DOTNET_MARKERS,
     DOTNET_PAYLOAD,
@@ -82,8 +85,8 @@ def safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.warning("Suppressed exception", exc_info=True)
         return {
             "status": status,
             "headers": headers,

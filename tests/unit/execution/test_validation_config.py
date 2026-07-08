@@ -41,7 +41,7 @@ class TestBoundedConfidenceHelper(unittest.TestCase):
         self.assertLessEqual(result.score_contribution, 0.25 + 0.01)
 
     def test_validators_module_helper_matches(self) -> None:
-        from src.analysis.helpers.scoring import apply_bounded_confidence as b2
+        from src.core.utils.scoring import apply_bounded_confidence as b2
 
         result = b2(base=0.5, score=3, signals=["callback"], bonuses=[0.1, 0.1])
         self.assertGreater(result, 0.5)

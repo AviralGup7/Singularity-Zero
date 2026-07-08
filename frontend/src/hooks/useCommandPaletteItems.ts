@@ -1,52 +1,37 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import type { SearchableItem } from '@/components/layout/CommandPalette';
-
-interface _RegisteredItem {
-  id: string;
-  item: SearchableItem;
-}
-
-const itemRegistry = new Map<string, SearchableItem>();
+import { commandRegistry } from '@/lib/CommandRegistry';
 
 export function registerItem(item: SearchableItem) {
-  itemRegistry.set(item.id, item);
+  commandRegistry.register(item);
 }
 
 export function unregisterItem(id: string) {
-  itemRegistry.delete(id);
+  commandRegistry.unregister(id);
 }
 
 export function getAllItems(): SearchableItem[] {
-  return Array.from(itemRegistry.values());
+  return commandRegistry.getAll();
 }
 
 export function useCommandPaletteItems(items: SearchableItem[]) {
   useEffect(() => {
-    for (const item of items) {
-      itemRegistry.set(item.id, item);
-    }
-    return () => {
-      for (const item of items) {
-        itemRegistry.delete(item.id);
-      }
-    };
-   
+    commandRegistry.registerMany(items);
+    return () => commandRegistry.unregisterMany(items.map(i => i.id));
   }, [items]);
-
-  const allItems = useCallback(() => {
-    return Array.from(itemRegistry.values());
-  }, []);
-
-  return { allItems };
 }
 
 export function useRegisterItem(item: SearchableItem | null) {
   useEffect(() => {
     if (!item) return;
-    itemRegistry.set(item.id, item);
-    return () => {
-      itemRegistry.delete(item.id);
-    };
-   
+    commandRegistry.register(item);
+    return () => commandRegistry.unregister(item.id);
   }, [item]);
+}
+
+export function useCommandItems(): SearchableItem[] {
+  return useSyncExternalStore(
+    (cb) => commandRegistry.subscribe(cb),
+    () => commandRegistry.getAll(),
+  );
 }

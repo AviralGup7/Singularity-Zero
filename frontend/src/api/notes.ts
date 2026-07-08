@@ -3,14 +3,9 @@ export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest, Note
 import { apiClient } from './core';
 import { apiCache } from './cache';
 
-interface RawNote extends Omit<Note, 'id'> {
-  id?: string;
-  note_id?: string;
-}
-
 export async function getNotes(targetName: string, signal?: AbortSignal): Promise<NoteListResponse> {
   const res = await apiClient.get<NoteListResponse>(`/api/notes/${targetName}`, { signal });
-  res.data.notes = (res.data.notes as unknown as RawNote[]).map((n) => ({ 
+  res.data.notes = (res.data.notes as unknown as Record<string, unknown>[]).map((n) => ({ 
     ...n, 
     id: String(n.id || n.note_id || '')
   } as Note));

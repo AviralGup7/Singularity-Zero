@@ -187,9 +187,8 @@ class ThresholdTuner:
             m.gauge("threshold_medium_value").set(new_thresholds["medium"])
             m.gauge("threshold_high_value").set(new_thresholds["high"])
             m.gauge("threshold_is_converged").set(1.0 if self.is_converged else 0.0)
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("Operation failed in threshold_tuner.py", exc_info=True)
         self.current_thresholds = new_thresholds
         return new_thresholds
 

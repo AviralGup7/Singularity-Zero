@@ -5,20 +5,22 @@ from pathlib import Path
 def fix_file(path: Path):
     content = path.read_text(encoding="utf-8")
 
-    # We want to keep track of the leading indentation of the match
-    # So let's write a line-by-line replacement instead, which is safer
     lines = content.splitlines()
     modified = False
     for i, line in enumerate(lines):
-        # match line
-        match = re.search(r"^(\s*)except\s+([a-zA-Z0-9_\.]+)(?:\s*,\s*[a-zA-Z0-9_\.]+)+\s*:", line)
+        match = re.search(
+            r"^(\s*)except\s+([a-zA-Z0-9_\.]+)(?:\s*,\s*[a-zA-Z0-9_\.]+)+\s*:",
+            line,
+        )
         if match:
             indent = match.group(1)
-            # strip leading/trailing spaces and colon
             stripped = line.strip().removeprefix("except").removesuffix(":").strip()
-            exceptions = [e.strip() for e in stripped.split(",")]
-            joined = ", ".join(exceptions)
-            lines[i] = f"{indent}except ({joined}):"
+            parts = [e.strip() for e in stripped.split(",")]
+            var_name = parts.pop()
+            if len(parts) == 1:
+                lines[i] = f"{indent}except {parts[0]} as {var_name}:"
+            else:
+                lines[i] = f"{indent}except ({', '.join(parts)}) as {var_name}:"
             modified = True
 
     if modified:

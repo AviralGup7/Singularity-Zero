@@ -123,6 +123,7 @@ def _audit_wasm_secret_boundary(redacted_input: dict[str, Any]) -> None:
             },
         )
     except Exception:
+        logger.debug("WASM telemetry emit suppressed", exc_info=True)
         return
 
 

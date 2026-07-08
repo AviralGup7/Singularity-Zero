@@ -117,19 +117,17 @@ def _get_active_stages(job: dict[str, Any]) -> set[str]:
 
 def _get_stage_baseline() -> dict[str, int]:
     """Get the stage baseline percentages via protocol registry."""
-    from typing import cast
-
     from src.core.contracts.protocol_registry import get_stage_baseline
 
     baseline = get_stage_baseline()
     if baseline is not None and callable(baseline):
         # If it's a callable, try to get the dict
         try:
-            return cast(dict[str, int], baseline())
+            return baseline()
         except TypeError:
             return {}
-    elif baseline is not None and isinstance(baseline, dict):
-        return cast(dict[str, int], baseline)
+    elif baseline is not None:
+        return baseline
     return {}
 
 

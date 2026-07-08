@@ -201,8 +201,8 @@ def _reprobe_origin_hosts(
                 if progress_callback is not None:
                     try:
                         progress_callback(host, ["origin-discovery"])
-                    except Exception:  # noqa: BLE001, S110
-                        pass
+                    except Exception:
+                        logger.warning("Operation failed in discovery.py", exc_info=True)
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("origin re-probe failed: %s", exc)
     return reprobed_hosts
@@ -231,8 +231,7 @@ def _run_spa_discovery(
     live_hosts: Iterable[Any], progress_callback: Any | None = None
 ) -> dict[str, Any]:
     """Run SPA framework detection across live hosts in a bounded thread pool."""
-    from concurrent.futures import ThreadPoolExecutor
-
+    from src.infrastructure.execution_engine.shared_pool import get_recon_executor
     from src.recon.spa_detection import (
         collect_recommended_paths,
         probe_framework_endpoints,
@@ -245,23 +244,22 @@ def _run_spa_discovery(
 
     all_hits: list = []
     extra_urls: set[str] = set()
-    max_workers = min(8, max(1, len(hosts)))
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(probe_framework_endpoints, h): h for h in hosts}
-        for fut in futures:
+    executor = get_recon_executor()
+    futures = {executor.submit(probe_framework_endpoints, h): h for h in hosts}
+    for fut in futures:
+        try:
+            hits, _bodies = fut.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("spa probe failed: %s", exc)
+            continue
+        host = futures[fut]
+        all_hits.extend(hits)
+        extra_urls.update(spa_aware_extra_urls(host, hits))
+        if progress_callback is not None:
             try:
-                hits, _bodies = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("spa probe failed: %s", exc)
-                continue
-            host = futures[fut]
-            all_hits.extend(hits)
-            extra_urls.update(spa_aware_extra_urls(host, hits))
-            if progress_callback is not None:
-                try:
-                    progress_callback(host, [h.framework for h in hits])
-                except Exception:  # noqa: BLE001, S110
-                    pass
+                progress_callback(host, [h.framework for h in hits])
+            except Exception:
+                logger.warning("Operation failed in discovery.py", exc_info=True)
     return {
         "hits": [h.framework for h in all_hits],
         "recommended_paths": collect_recommended_paths(all_hits),
@@ -296,8 +294,8 @@ def _run_azure_for_scope(
         if progress_callback is not None:
             try:
                 progress_callback(entry, len(res.web_endpoints))
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                logger.warning("Operation failed in discovery.py", exc_info=True)
     return out
 
 
@@ -377,8 +375,8 @@ def run_enhanced_recon_layer(
                 try:
                     asn_cidrs = _asn_cidrs_for_hosts(port_hosts)
                     port_hosts = list(set(port_hosts) | asn_cidrs)
-                except Exception:  # noqa: BLE001, S110
-                    pass
+                except Exception:
+                    logger.warning("Operation failed in discovery.py", exc_info=True)
             for source_hosts in (extras.get("probed_ips"), extras.get("waf_cdn_ips")):
                 if isinstance(source_hosts, set) and source_hosts:
                     port_hosts = list(
@@ -522,8 +520,8 @@ def run_enhanced_recon_layer(
                 )
                 combined: set[str] = live_hosts | set(waf_live_hosts)
                 live_hosts = combined  # type: ignore[assignment]
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                logger.warning("Operation failed in discovery.py", exc_info=True)
         report = _safe_call(
             "waf-cdn-report",
             build_waf_cdn_report,
@@ -561,20 +559,11 @@ def _run_async(coro_factory: Any) -> Any:
     This wrapper handles the "no running event loop" case and never
     raises.
     """
-    import asyncio
-
     try:
         coro = coro_factory()
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None and loop.is_running():
-            import concurrent.futures
+        from src.core.utils.async_bridge import run_async_in_sync_context
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                return ex.submit(lambda: asyncio.run(coro)).result()
-        return asyncio.run(coro)
+        return run_async_in_sync_context(coro)
     except Exception as exc:  # pragma: no cover - defensive
         logger.info("async stage failed: %s", exc)
         return None

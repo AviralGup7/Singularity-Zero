@@ -324,9 +324,8 @@ class FPTracker:
             m = get_metrics()
             m.counter("fp_tracker_patterns_created_total").inc(patterns_created)
             m.counter("fp_tracker_patterns_updated_total").inc(patterns_updated)
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("Operation failed in fp_tracker.py", exc_info=True)
         return updated_count
 
     async def add_manual_fp(

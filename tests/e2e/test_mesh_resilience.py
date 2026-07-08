@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.core.frontier.ghost_actor import (
+from src.infrastructure.frontier.ghost_actor import (
     ActorState,
     GhostMeshCoordinator,
     ScanActor,

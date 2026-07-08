@@ -2,7 +2,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
 from .constants import DEFAULT_METHOD, DEFAULT_NEXT_STEP, DEFAULT_TITLE
-from .models import ApiTestContext
+from .models import APITestContext
 
 
 def clean(value: object) -> str:
@@ -58,7 +58,7 @@ def combined_signal(item: dict[str, Any]) -> str:
     return clean(item.get("combined_signal")) or signals or "none"
 
 
-def build_context(item: dict[str, Any]) -> ApiTestContext:
+def build_context(item: dict[str, Any]) -> APITestContext:
     context = request_context(item)
     title = clean(item.get("title")) or DEFAULT_TITLE
     method = request_method(context)
@@ -67,7 +67,7 @@ def build_context(item: dict[str, Any]) -> ApiTestContext:
     parameter, variant = parameter_details(item, context)
     path, query = path_and_query(url)
     base_path, base_query = path_and_query(base_url)
-    return ApiTestContext(
+    return APITestContext(
         title=title,
         severity=clean(item.get("severity")).upper() or "INFO",
         confidence=clean(item.get("confidence")),

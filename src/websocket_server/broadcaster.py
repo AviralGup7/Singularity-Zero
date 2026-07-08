@@ -51,7 +51,7 @@ class CircuitBreaker:
         import tempfile
         from pathlib import Path
 
-        self._state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
+        self._state_file = Path(tempfile.gettempdir()) / f"redis_breaker_state_{os.getpid()}.json"
         self._load_state()
 
     def _load_state(self) -> None:
@@ -304,9 +304,9 @@ class Broadcaster:
             import tempfile
             from pathlib import Path
 
-            state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
+            state_file = Path(tempfile.gettempdir()) / f"redis_breaker_state_{os.getpid()}.json"
             state_file.unlink(missing_ok=True)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Failed to clean up redis breaker state file: %s", exc)
 
     async def stop_message_dispatch(self, connection_id: str) -> None:
@@ -695,7 +695,7 @@ class Broadcaster:
 
         try:
             WS_DROPPED_MESSAGES.labels(scope=scope).inc()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Failed to increment dropped messages metric: %s", exc)
 
         # Determine how many messages we are about to drop.
@@ -754,16 +754,17 @@ class Broadcaster:
                 try:
                     info.message_queue.get_nowait()
                     info.message_queue.put_nowait(bp.to_json())
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.debug(
                         "Failed to enqueue backpressure notification for %s",
                         info.connection_id,
+                        exc_info=True,
                     )
             try:
                 WS_BACKPRESSURE_EVENTS.labels(scope=scope).inc()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("Failed to increment backpressure events metric: %s", exc)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Backpressure notification construction failed: %s", exc)
 
     async def start_message_dispatch(

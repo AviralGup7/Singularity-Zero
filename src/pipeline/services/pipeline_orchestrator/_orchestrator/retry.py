@@ -308,8 +308,8 @@ async def run_stage_with_retry(
             _reg = _get_metrics()
             _reg.histogram("scan_duration_seconds", labels={"stage": stage_name}).observe(elapsed)
             _reg.counter("total_jobs").inc()
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+                logger.debug("Metrics tracking error", exc_info=True)
 
         if isinstance(result, StageOutput):
             import dataclasses
@@ -322,8 +322,8 @@ async def run_stage_with_retry(
                 from src.infrastructure.observability.metrics import get_metrics as _get_metrics
 
                 _get_metrics().counter("completed_jobs").inc()
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                    logger.debug("Metrics tracking error", exc_info=True)
 
             orchestrator._emit_event(
                 EventType.STAGE_COMPLETED,
@@ -363,8 +363,8 @@ async def run_stage_with_retry(
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
 
             _get_metrics().counter("completed_jobs").inc()
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+                logger.debug("Metrics tracking error", exc_info=True)
 
         orchestrator._emit_event(
             EventType.STAGE_COMPLETED,
@@ -509,8 +509,8 @@ async def run_stage_with_retry(
                 from src.infrastructure.observability.metrics import get_metrics as _get_metrics
 
                 _get_metrics().counter("failed_jobs").inc()
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                    logger.debug("Metrics tracking error", exc_info=True)
             stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
             ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
             ctx.result.module_metrics[stage_name] = {
@@ -553,15 +553,6 @@ async def run_stage_with_retry(
                 event_trigger="stage_failed",
                 fatal=critical,
             )
-            orchestrator._emit_event(
-                EventType.STAGE_FAILED,
-                source=f"stage.{stage_name}",
-                data={
-                    "contract": orchestrator._build_stage_output_contract(
-                        stage_name, float(timeout), ctx
-                    )
-                },
-            )
             run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(
                 ctx, "run_id", ""
             )
@@ -586,8 +577,8 @@ async def run_stage_with_retry(
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
 
             _get_metrics().counter("retries_total").inc()
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+                logger.debug("Metrics tracking error", exc_info=True)
 
         if policy.is_budget_exhausted():
             err = "Stage retry budget exhausted"
@@ -633,15 +624,6 @@ async def run_stage_with_retry(
                 },
                 event_trigger="stage_failed",
                 fatal=critical,
-            )
-            orchestrator._emit_event(
-                EventType.STAGE_FAILED,
-                source=f"stage.{stage_name}",
-                data={
-                    "contract": orchestrator._build_stage_output_contract(
-                        stage_name, float(timeout), ctx
-                    )
-                },
             )
             run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(
                 ctx, "run_id", ""
@@ -704,20 +686,6 @@ async def run_stage_with_retry(
             },
             event_trigger="stage_retry",
         )
-        orchestrator._emit_event(
-            EventType.STAGE_RETRY,
-            source=f"stage.{stage_name}",
-            data={
-                "stage": stage_name,
-                "attempt": attempt,
-                "max_attempts": policy.max_attempts,
-                "classification": classification,
-                "retry_delay_seconds": round(backoff, 2),
-                "error": stage_error,
-                "budget_remaining_seconds": policy.budget_remaining(),
-                "adaptive_backoff_multiplier": round(policy.backoff_multiplier, 3),
-            },
-        )
         if backoff > 0:
             try:
                 await sleep_before_retry_async(policy, attempt, shutdown_event=shutdown_event)
@@ -766,13 +734,6 @@ async def run_stage_with_retry(
         },
         event_trigger="stage_failed",
         fatal=critical,
-    )
-    orchestrator._emit_event(
-        EventType.STAGE_FAILED,
-        source=f"stage.{stage_name}",
-        data={
-            "contract": orchestrator._build_stage_output_contract(stage_name, float(timeout), ctx)
-        },
     )
     run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
     await _record_trace(

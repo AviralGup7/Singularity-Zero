@@ -35,6 +35,8 @@ class _StageEventBus:
 
     def __init__(self) -> None:
         self._core_bus = get_event_bus()
+        self._subscriptions: dict[int, tuple[Callable[[StageEvent], None], object]] = {}
+        self._next_sub_id = 0
 
     def __call__(self, event: StageEvent) -> None:
         pipeline_event = PipelineEvent(
@@ -50,8 +52,8 @@ class _StageEventBus:
         )
         self._core_bus.publish(pipeline_event)
 
-    def subscribe(self, listener: Callable[[StageEvent], None]) -> None:
-        """Subscribe to stage telemetry events."""
+    def subscribe(self, listener: Callable[[StageEvent], None]) -> int:
+        """Subscribe to stage telemetry events. Returns a subscription ID for later unsubscribe."""
 
         def _handler(event: PipelineEvent) -> None:
             if event.event_type == EventType.STAGE_TELEMETRY:
@@ -64,11 +66,17 @@ class _StageEventBus:
                 )
                 listener(stage_event)
 
-        self._core_bus.subscribe(EventType.STAGE_TELEMETRY, _handler)
+        unsub = self._core_bus.subscribe(EventType.STAGE_TELEMETRY, _handler)
+        sub_id = self._next_sub_id
+        self._next_sub_id += 1
+        self._subscriptions[sub_id] = (listener, unsub)
+        return sub_id
 
     def unsubscribe(self, listener: Callable[[StageEvent], None]) -> None:
-        """Note: Unsubscription requires tracking subscription IDs."""
-        pass  # TODO: Track subscription IDs for proper unsubscribe support
+        for sub_id, (registered, unsub) in list(self._subscriptions.items()):
+            if registered is listener:
+                unsub()
+                del self._subscriptions[sub_id]
 
 
 # First-class importable event bus callable
@@ -82,7 +90,8 @@ def get_memory_usage() -> float:
 
         process = psutil.Process()
         return cast(float, process.memory_info().rss / (1024 * 1024))
-    except Exception:
+    except (ImportError, OSError, AttributeError) as _mem_exc:
+        logger.debug("Failed to get memory usage: %s", _mem_exc)
         return 0.0
 
 

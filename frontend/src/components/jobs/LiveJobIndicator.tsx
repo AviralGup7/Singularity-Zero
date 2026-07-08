@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { getJobs } from '@/api/client';
 import type { Job } from '@/types/api';
 
@@ -38,7 +39,7 @@ export function LiveJobIndicator() {
 
   return (
     <Link
-      to="/jobs"
+      to={ROUTES.JOBS}
       className="live-job-indicator group relative"
       aria-label={`${runningJobs.length} ${runningJobs.length === 1 ? 'job' : 'jobs'} running`}
       aria-live="polite"

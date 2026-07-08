@@ -12,7 +12,7 @@ from typing import Any
 
 from src.analysis.automation.access_control import AccessControlAnalyzer, EnforcementResult
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 
 logger = logging.getLogger(__name__)
 

@@ -1,31 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { listAccessLogs, type AccessLogEntry } from '@/api/accessLogs';
 import { getComplianceLogs, exportComplianceReport, type ComplianceLogEntry } from '@/utils/complianceLogger';
 import { Button } from '@/components/ui/Button';
+import { useLogFetcher, LogTableShell } from '@/components/common/TelemetryLogTable';
 
 type LogEntry = ComplianceLogEntry | AccessLogEntry;
 
 export function ComplianceLogViewer() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'success' | 'failure' | 'denied'>('all');
 
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const serverLogs = await listAccessLogs({ limit: 200 });
-      setLogs(serverLogs);
-    } catch {
-      // Fallback to client-side localStorage if backend unavailable
-      setLogs(getComplianceLogs());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadLogs();
-  }, [loadLogs]);
+  const { data: logs, loading } = useLogFetcher(
+    useCallback(async () => {
+      try {
+        return await listAccessLogs({ limit: 200 });
+      } catch {
+        return getComplianceLogs();
+      }
+    }, [])
+  );
 
   const filteredLogs = filter === 'all' ? logs : logs.filter((l) => l.outcome === filter);
 
@@ -77,13 +69,9 @@ export function ComplianceLogViewer() {
         ))}
       </div>
 
-      <div className="max-h-96 overflow-y-auto space-y-2 pr-2 scrollbar-cyber">
-        {loading ? (
-          <p className="text-muted text-xs italic">Loading access logs...</p>
-        ) : filteredLogs.length === 0 ? (
-          <p className="text-muted text-xs italic">No compliance entries.</p>
-        ) : (
-          filteredLogs.map((entry) => (
+      <LogTableShell loading={loading} isEmpty={filteredLogs.length === 0} loadingLabel="Loading access logs..." emptyLabel="No compliance entries.">
+        <div className="max-h-96 overflow-y-auto space-y-2 pr-2 scrollbar-cyber">
+          {filteredLogs.map((entry) => (
             <div key={entry.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2">
               <div className="flex items-start gap-3">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
@@ -107,9 +95,9 @@ export function ComplianceLogViewer() {
                 {new Date(entry.timestamp).toLocaleString()}
               </span>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      </LogTableShell>
     </div>
   );
 }

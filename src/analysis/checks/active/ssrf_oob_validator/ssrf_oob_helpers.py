@@ -13,7 +13,7 @@ from src.analysis.helpers import (
     is_internal_host_value,
     meaningful_query_pairs,
 )
-from src.analysis.helpers.scoring import severity_score
+from src.core.utils.scoring import severity_score
 from src.core.utils.url_validation import is_safe_url
 
 from ._constants import (

@@ -11,7 +11,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+import logging
+
 import msgpack
+
+logger = logging.getLogger(__name__)
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -47,6 +51,20 @@ class FrontierRingBus:
         self._wakeup_event = asyncio.Event()
         self._dropped_events = 0
         self._pending_tasks: set[asyncio.Task] = set()
+        self._task_semaphore: asyncio.Semaphore | None = None
+        self._MAX_CONCURRENT_TASKS = 256
+        # Bug #1 fix: Cap pending task creation to prevent unbounded memory growth.
+        # The semaphore limits concurrency, but tasks still exist in memory until
+        # they finish. Without this cap, 100k events × 100 subscribers = 10M tasks
+        # created before any handler finishes.
+        self._MAX_PENDING_TASKS = 2048
+        self._pending_task_drops = 0
+
+        # Finding 9: Error deduplication — prevents log storms when a
+        # handler fails repeatedly with the same error.
+        self._consecutive_errors = 0
+        self._error_suppress_after = 20  # suppress after N identical errors
+        self._last_error_msg: str | None = None
 
         # Shared Memory Zero-Copy Router
         self._enable_shm = enable_shm
@@ -112,6 +130,7 @@ class FrontierRingBus:
         self._loop = asyncio.get_running_loop()
         self._running = True
         self._wakeup_event.clear()
+        self._task_semaphore = asyncio.Semaphore(self._MAX_CONCURRENT_TASKS)
         logger.info("Neural-Mesh Ring Bus active (Capacity: %d)", self._buffer.maxlen)
 
         while self._running:
@@ -140,10 +159,62 @@ class FrontierRingBus:
                 for handler in handlers:
                     try:
                         if asyncio.iscoroutinefunction(handler):
-                            task = asyncio.create_task(handler(event))
+                            # Bug #1 fix: Backpressure check before creating task.
+                            # The semaphore limits concurrent execution, but tasks
+                            # still consume memory until they finish.
+                            if len(self._pending_tasks) >= self._MAX_PENDING_TASKS:
+                                self._pending_task_drops += 1
+                                if self._pending_task_drops % 100 == 1:
+                                    logger.warning(
+                                        "RingBus backpressure: %d tasks pending (max %d). "
+                                        "Dropping handler to prevent OOM. total_drops=%d",
+                                        len(self._pending_tasks),
+                                        self._MAX_PENDING_TASKS,
+                                        self._pending_task_drops,
+                                    )
+                                continue
+
+                            # Bug #8: Check global governor to prevent
+                            # multiplicative task explosion across subsystems.
+                            # Finding 3: Governor acquire + release wrapped
+                            # so the permit is released if create_task fails.
+                            _gov = None
+                            try:
+                                from src.core.concurrency_governor import get_governor
+                                _gov = get_governor()
+                                if not _gov.allow("ring_bus"):
+                                    continue
+                            except ImportError:
+                                _gov = None
+
+                            try:
+                                async def _guarded(h=handler, e=event, sem=self._task_semaphore):
+                                    async with sem:
+                                        await h(e)
+                                task = asyncio.create_task(_guarded())
+                            except Exception as exc:
+                                # Finding 3: Release the governor permit if
+                                # create_task itself fails (e.g. loop closed).
+                                if _gov is not None:
+                                    try:
+                                        _gov.release("ring_bus")
+                                    except Exception:
+                                            logger.debug("Non-critical cleanup error", exc_info=True)
+                                logger.warning("RingBus create_task failed: %s", exc)
+                                continue
+
                             self._pending_tasks.add(task)
                             task.add_done_callback(self._pending_tasks.discard)
-                            # Add callback for error logging in fire-and-forget tasks
+
+                            def _on_done(t: asyncio.Task) -> None:
+                                self._pending_tasks.discard(t)
+                                if _gov is not None:
+                                    try:
+                                        _gov.release("ring_bus")
+                                    except (ImportError, Exception):
+                                        pass
+
+                            task.add_done_callback(_on_done)
                             task.add_done_callback(self._handle_task_result)
                         else:
                             handler(event)
@@ -172,27 +243,101 @@ class FrontierRingBus:
                 for handler in handlers:
                     try:
                         if asyncio.iscoroutinefunction(handler):
-                            task = asyncio.create_task(handler(event))
+                            if len(self._pending_tasks) >= self._MAX_PENDING_TASKS:
+                                self._pending_task_drops += 1
+                                continue
+
+                            # Bug #9: Apply governor check in shutdown drain
+                            # path to prevent invisible task explosion.
+                            try:
+                                from src.core.concurrency_governor import get_governor
+                                if not get_governor().allow("ring_bus"):
+                                    self._pending_task_drops += 1
+                                    continue
+                            except ImportError:
+                                pass
+
+                            async def _guarded_shutdown(h=handler, e=event, sem=self._task_semaphore):
+                                async with sem:
+                                    await h(e)
+                            task = asyncio.create_task(_guarded_shutdown())
                             self._pending_tasks.add(task)
                             task.add_done_callback(self._pending_tasks.discard)
+
+                            def _on_done_shutdown(t: asyncio.Task) -> None:
+                                self._pending_tasks.discard(t)
+                                try:
+                                    from src.core.concurrency_governor import get_governor
+                                    get_governor().release("ring_bus")
+                                except (ImportError, Exception):
+                                    pass
+
+                            task.add_done_callback(_on_done_shutdown)
                             task.add_done_callback(self._handle_task_result)
                         else:
-                            handler(event)
+                            # Bug #9: Sync handlers also count toward the
+                            # ring_bus subsystem for accurate accounting.
+                            try:
+                                from src.core.concurrency_governor import get_governor
+
+                                if not get_governor().allow("ring_bus"):
+                                    continue
+                                try:
+                                    handler(event)
+                                finally:
+                                    get_governor().release("ring_bus")
+                            except ImportError:
+                                handler(event)
                     except Exception as e:
                         logger.error("Bus handler failure in shutdown: %s", e)
 
-        # Wait for all pending async task handlers to finish
+        # Finding 10: Wait for pending task handlers with a timeout to
+        # prevent deadlock with TaskRegistry shutdown.  Without this,
+        # the drain can hang indefinitely if a task is stuck being
+        # cancelled by the registry shutdown sequence.
         if self._pending_tasks:
-            await asyncio.gather(*self._pending_tasks, return_exceptions=True)
+            _drain_deadline = 10.0  # seconds
+            done, pending = await asyncio.wait(
+                self._pending_tasks, timeout=_drain_deadline,
+            )
+            if pending:
+                logger.warning(
+                    "RingBus shutdown drain: %d tasks still pending after %.0fs timeout, "
+                    "aborting remaining",
+                    len(pending),
+                    _drain_deadline,
+                )
+                for t in pending:
+                    t.cancel()
 
     def _handle_task_result(self, task: asyncio.Task) -> None:
-        """Handle exceptions in fire-and-forget tasks."""
+        """Handle exceptions in fire-and-forget tasks with deduplication."""
         try:
             task.result()
+            # Success resets the consecutive error counter.
+            self._consecutive_errors = 0
+            self._last_error_msg = None
         except asyncio.CancelledError as exc:
             logger.warning("Operation failed in ring_bus.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as e:
-            logger.error("Bus async handler task failed: %s", e)
+            # Finding 9: Deduplicate repeated identical errors to
+            # prevent log storms.
+            self._consecutive_errors += 1
+            err_msg = str(e)
+            if (
+                self._consecutive_errors <= self._error_suppress_after
+                or err_msg != self._last_error_msg
+            ):
+                logger.error("Bus async handler task failed: %s", e)
+                self._last_error_msg = err_msg
+            elif self._consecutive_errors == self._error_suppress_after + 1:
+                logger.error(
+                    "Bus async handler task failures continuing "
+                    "(suppressed identical messages until pattern changes): "
+                    "consecutive=%d last_error=%s",
+                    self._consecutive_errors,
+                    err_msg,
+                )
 
     def _hydrate_event_payload(self, event: NeuralEvent) -> bool:
         """Load a shared-memory payload back into the event before dispatch."""

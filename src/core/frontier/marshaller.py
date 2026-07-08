@@ -222,13 +222,26 @@ def mesh_unmarshal(raw: bytes) -> Any:
 # are accepted for signature compatibility with the previous implementation
 # but the safe envelope is small enough (msgspec + HMAC) that we do not
 # compress it in the default path.
+import warnings as _warnings
+
+
 def mesh_marshal_pickle(data: Any, compress: bool = True) -> bytes:  # noqa: D401
     """Serialize ``data`` using the safe msgspec envelope (legacy alias)."""
+    _warnings.warn(
+        "mesh_marshal_pickle is deprecated; use safe_pack() instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return safe_pack(data, payload_kind="mesh_legacy")
 
 
 def mesh_unmarshal_pickle(raw: bytes, decompress: bool = True) -> Any:  # noqa: D401
     """Deserialize ``raw`` through the safe msgspec envelope (legacy alias)."""
+    _warnings.warn(
+        "mesh_unmarshal_pickle is deprecated; use safe_unpack() instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return safe_unpack(raw)
 
 
@@ -316,7 +329,17 @@ class FrontierMarshaller:
     # legacy implementation used cloudpickle + zstd; the new implementation
     # uses the safe msgspec envelope, which is already small and signed.
     def pack_pickle(self, data: Any, compress: bool = True) -> bytes:  # noqa: D401
+        _warnings.warn(
+            "pack_pickle is deprecated; use pack() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return safe_pack(data, payload_kind="frontier_legacy")
 
     def unpack_pickle(self, raw_data: bytes, decompress: bool = True) -> Any:  # noqa: D401
+        _warnings.warn(
+            "unpack_pickle is deprecated; use unpack() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return safe_unpack(raw_data)

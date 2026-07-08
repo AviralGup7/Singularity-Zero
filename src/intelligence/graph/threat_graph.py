@@ -4,7 +4,10 @@ Provides functions for building comprehensive threat graphs,
 identifying critical attack paths, and computing risk summaries.
 """
 
+import logging
 from typing import Any, cast
+
+logger = logging.getLogger(__name__)
 
 
 def load_lateral_movement_graph(db_path: str, max_nodes: int = 2000) -> dict[str, Any]:
@@ -19,6 +22,7 @@ def load_lateral_movement_graph(db_path: str, max_nodes: int = 2000) -> dict[str
 
         return cast(dict[str, Any], LateralGraph(db_path=db_path).export_graph(max_nodes=max_nodes))
     except Exception:
+        logger.warning("threat_graph: Failed to load lateral movement graph", exc_info=True)
         return {"nodes": [], "edges": []}
 
 

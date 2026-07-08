@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
+from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 
 
 @dataclass(slots=True)

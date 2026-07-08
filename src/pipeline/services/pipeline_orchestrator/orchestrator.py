@@ -13,20 +13,12 @@ from src.core.checkpoint import (
     generate_run_id,  # noqa: F401 – module-namespace seam
 )
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
-from src.core.events import EVENT_SCHEMA_VERSION, EventBus, EventType, get_event_bus
+from src.core.events import EventBus, EventType, get_event_bus
 from src.core.logging.pipeline_logging import emit_error
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
-from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
-from src.infrastructure.observability.audit_subscriber import register_audit_subscriber
-from src.infrastructure.observability.event_subscribers import register_event_metrics_subscribers
-from src.infrastructure.observability.learning_subscriber import register_learning_subscriber
-from src.infrastructure.observability.notification_subscriber import (
-    register_notification_subscriber,
-)
-from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
+from src.infrastructure.notifications.manager import NotificationManager
 from src.learning.integration import LearningIntegration
-from src.pipeline.cache import cache_enabled  # noqa: F401 – module-namespace seam
 from src.pipeline.retry import (
     AdaptiveBackoffHeuristic,
     RetryMetrics,
@@ -34,14 +26,9 @@ from src.pipeline.retry import (
     StageRetryPolicy,
 )
 from src.pipeline.runner_support import (
-    build_tool_status,  # noqa: F401 – module-namespace seam
     emit_progress,
-    load_adaptive_config,  # noqa: F401 – module-namespace seam
 )
-from src.pipeline.services.output_store import PipelineOutputStore  # noqa: F401 – seam
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
-from src.pipeline.services.stage_registry import pipeline_flow_manifest  # noqa: F401 – seam
-from src.pipeline.storage import read_scope  # noqa: F401 – module-namespace seam
 
 from . import parallel
 from ._constants import (
@@ -61,9 +48,11 @@ from ._orchestrator import (
     safe_checkpoint_stage_outcome,
     stage_baseline,
 )
-from ._orchestrator.security import find_previous_run  # noqa: F401 – monkeypatch seam
 from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+from .execution_context import ExecutionContext
 from .migration_handler import ProactiveMigrationHandler
+from .observability_bus import ObservabilityBus
+from .stage_dispatcher import StageDispatcher
 
 
 class FindingDict(TypedDict, total=False):
@@ -80,7 +69,10 @@ class FindingDict(TypedDict, total=False):
 
 
 __all__ = [
+    "ExecutionContext",
+    "ObservabilityBus",
     "PipelineOrchestrator",
+    "StageDispatcher",
     "PIPELINE_STAGES",
     "STAGE_ORDER",
     "DEFAULT_ITERATION_LIMIT",
@@ -88,224 +80,6 @@ __all__ = [
 
 
 logger = get_pipeline_logger(__name__)
-
-
-class ExecutionContext:
-    """Manages the run inputs, variables, correlation IDs, run paths, output stores, and checkpoint managers."""
-
-    def __init__(self) -> None:
-        self.pipeline_input: PipelineInput | None = None
-        self.pipeline_correlation_id: str = ""
-        self.checkpoint_mgr: Any = None
-        self.wal: Any = None
-
-
-class ObservabilityBus:
-    """Manages registering of subscribers (event metrics, progress, audit, notification, learning) and emitting events."""
-
-    def __init__(
-        self, event_bus: EventBus, notification_manager: NotificationManager | None = None
-    ) -> None:
-        self._event_bus = event_bus
-        register_event_metrics_subscribers(self._event_bus)
-        register_progress_subscriber(self._event_bus)
-        register_audit_subscriber(self._event_bus)
-
-        if notification_manager is not None:
-            self.notification_manager = notification_manager
-        else:
-            self.notification_manager = NotificationManager(ManagerConfig())
-        register_notification_subscriber(self._event_bus, self.notification_manager)
-
-        self.learning_integration = LearningIntegration.get_or_create()
-        try:
-            register_learning_subscriber(self._event_bus, self.learning_integration)
-        except Exception as exc:
-            logger.warning("Failed to register learning subscriber: %s", exc)
-            # Clean up the LearningIntegration if registration fails
-            try:
-                self.learning_integration.close()
-            except Exception:  # noqa: BLE001, S110
-                pass
-            self.learning_integration = LearningIntegration.get_or_create()
-
-    def emit_event(
-        self,
-        event_type: EventType,
-        source: str,
-        data: dict[str, Any],
-        pipeline_input: PipelineInput | None,
-        correlation_id: str,
-        trace_id: str | None = None,
-    ) -> None:
-        enriched_data = {
-            "event_schema_version": EVENT_SCHEMA_VERSION,
-            **(data or {}),
-        }
-        if pipeline_input:
-            enriched_data.setdefault("target", pipeline_input.target_name)
-            enriched_data.setdefault("target_name", pipeline_input.target_name)
-            enriched_data.setdefault("run_id", pipeline_input.run_id)
-
-        try:
-            self._event_bus.emit(
-                event_type,
-                source=source,
-                data=enriched_data,
-                correlation_id=correlation_id or None,
-                trace_id=trace_id,
-            )
-        except (TypeError, ValueError, AttributeError) as exc:
-            logger.warning("Failed to emit event %s from %s: %s", event_type.value, source, exc)
-
-
-class StageDispatcher:
-    """Routes stage execution to either the local actor scheduler or
-    the distributed job queue.
-
-    When a ``JobQueue`` is provided, eligible stages are enqueued as
-    ``TaskEnvelope`` jobs so that remote workers can pick them up.
-    Stages that cannot be distributed (e.g. checkpoint-sensitive) are
-    always executed locally via the actor scheduler.
-    """
-
-    # Stages that should never be dispatched to the queue because they
-    # require direct access to the local pipeline context or filesystem.
-    _LOCAL_ONLY_STAGES: frozenset[str] = frozenset(
-        {
-            "reporting",
-            "sarif_export",
-            "report_distribution",
-        }
-    )
-
-    def __init__(self, queue: Any | None = None) -> None:
-        self._queue = queue
-        self._pending_job_ids: dict[str, str] = {}  # stage_name → job_id
-
-    @property
-    def has_queue(self) -> bool:
-        return self._queue is not None
-
-    def set_queue(self, queue: Any) -> None:
-        self._queue = queue
-        if queue is not None:
-            try:
-                from src.infrastructure.observability.system_sampler import get_system_sampler
-
-                get_system_sampler()._queue = queue
-            except Exception:
-                pass
-
-    async def enqueue_stage(
-        self,
-        stage_name: str,
-        ctx: Any,
-        config: Any,
-        *,
-        priority: int = 5,
-    ) -> str | None:
-        """Enqueue a stage as a distributed job. Returns the job_id or None
-        if the stage was not enqueued (e.g. local-only stage)."""
-        if self._queue is None:
-            return None
-        if stage_name in self._LOCAL_ONLY_STAGES:
-            return None
-
-        from src.core.contracts.task_envelope import TaskEnvelope
-
-        envelope = TaskEnvelope(
-            type=stage_name,
-            payload={
-                "target_name": str(getattr(config, "target_name", "")),
-                "run_id": str(getattr(ctx, "run_id", "")),
-                "scope_entries": list(getattr(ctx, "scope_entries", []) or []),
-            },
-            metadata={
-                "source": "orchestrator",
-                "pipeline_run_id": str(getattr(ctx, "run_id", "")),
-            },
-        )
-        try:
-            job_id = await self._queue.enqueue(envelope, priority=priority)
-            self._pending_job_ids[stage_name] = job_id
-            logger.info("Enqueued stage '%s' as job %s", stage_name, job_id)
-            return str(job_id)
-        except Exception as exc:
-            logger.warning(
-                "Failed to enqueue stage '%s', will execute locally: %s",
-                stage_name,
-                exc,
-            )
-            return None
-
-    async def enqueue_stages(
-        self,
-        stage_names: list[str],
-        ctx: Any,
-        config: Any,
-        *,
-        priority: int = 5,
-    ) -> dict[str, str]:
-        """Enqueue multiple stages. Returns {stage_name: job_id} for
-        successfully enqueued stages."""
-        result: dict[str, str] = {}
-        for name in stage_names:
-            job_id = await self.enqueue_stage(name, ctx, config, priority=priority)
-            if job_id is not None:
-                result[name] = job_id
-        return result
-
-    async def await_job_result(
-        self, stage_name: str, *, timeout: float = 600.0
-    ) -> dict[str, Any] | None:
-        """Poll Redis until the job for *stage_name* completes or times out."""
-        if self._queue is None:
-            return None
-        job_id = self._pending_job_ids.get(stage_name)
-        if job_id is None:
-            return None
-
-        import asyncio
-        import time
-
-        deadline = time.time() + timeout
-        job_key = f"queue:{self._queue.queue_name}:job:{job_id}"
-
-        while time.time() < deadline:
-            job_data = await asyncio.to_thread(
-                self._queue.redis.execute_command, "HGETALL", job_key
-            )
-            if not job_data:
-                await asyncio.sleep(1.0)
-                continue
-
-            def _decode(v: bytes | str) -> str:
-                return v.decode("utf-8") if isinstance(v, bytes) else str(v)
-
-            state = _decode(job_data.get(b"state", b""))
-            if state == "completed":
-                import json
-
-                result_raw = _decode(job_data.get(b"result", b"{}"))
-                try:
-                    return cast(dict[str, Any], json.loads(result_raw))
-                except (json.JSONDecodeError, TypeError):
-                    return {"status": "ok"}
-            elif state in ("dead_letter", "cancelled"):
-                error = _decode(job_data.get(b"error", b"unknown"))
-                logger.warning(
-                    "Stage '%s' job %s ended in %s: %s", stage_name, job_id, state, error
-                )
-                return {"status": "failed", "error": error}
-
-            await asyncio.sleep(1.0)
-
-        logger.warning("Timeout waiting for stage '%s' job %s", stage_name, job_id)
-        return None
-
-    def clear_completed(self, stage_name: str) -> None:
-        self._pending_job_ids.pop(stage_name, None)
 
 
 class PipelineOrchestrator:

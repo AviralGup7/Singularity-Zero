@@ -52,7 +52,7 @@ class HardwareEnclaveProvider:
         return data
 
 
-class eBPFHookManager:  # noqa: N801
+class EBPFHookManager:
     """Stub for eBPF memory pinning hooks."""
 
     @staticmethod

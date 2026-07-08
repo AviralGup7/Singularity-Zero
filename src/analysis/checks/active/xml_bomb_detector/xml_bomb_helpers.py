@@ -1,14 +1,20 @@
 """Helper functions for XML bomb detection."""
 
+logger = logging.getLogger(__name__)
+import logging
 import time
 from typing import Any
 
 import requests
 
+
+
+
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url
 
 from ._constants import (
+
     XML_BOMB_PAYLOADS,
     XML_CONTENT_TYPES,
     XML_DECLARATION_RE,
@@ -64,8 +70,8 @@ def safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:
+                logger.warning("Failed to extract response from RequestException: %s", exc, exc_info=True)
         return {
             "status": status,
             "headers": headers,
@@ -76,6 +82,7 @@ def safe_request(
         }
     except Exception as e:
         elapsed = time.monotonic() - start_time
+        logger.warning("Unexpected error in safe_request: %s", e, exc_info=True)
         return {
             "status": 0,
             "headers": {},

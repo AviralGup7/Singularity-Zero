@@ -181,7 +181,7 @@ class GossipProtocol:
             logic_fn_name = payload.get("logic_fn_name")
             coordinator = getattr(self.engine, "_coordinator", None)
             if coordinator and actor_id and logic_fn_name:
-                from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
+                from src.infrastructure.frontier.ghost_actor import _LOGIC_REGISTRY
 
                 logic_fn = _LOGIC_REGISTRY.get(logic_fn_name)
                 if not logic_fn:
@@ -195,6 +195,9 @@ class GossipProtocol:
                 import asyncio
 
                 asyncio.create_task(coordinator.spawn_or_rehydrate_actor(actor_id, logic_fn))
+        elif message_type == "port_update":
+            if hasattr(self.engine, "_handle_port_update"):
+                self.engine._handle_port_update(payload)
         else:
             if isinstance(body.get("source"), dict):
                 self.engine.update_node(body["source"])

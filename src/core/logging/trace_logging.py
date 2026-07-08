@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 class TraceContextFilter(logging.Filter):
     """Attach current OpenTelemetry identifiers to every log record."""
@@ -20,9 +22,9 @@ class TraceContextFilter(logging.Filter):
                 trace_id = f"{ctx.trace_id:032x}"
                 span_id = f"{ctx.span_id:016x}"
         except ImportError:
-            pass  # opentelemetry not installed; non-critical
-        except Exception:  # noqa: S110
-            pass  # Span context extraction failed; non-critical
+            logger.warning("Operation failed in trace_logging.py", exc_info=True)
+        except Exception:
+            logger.warning("Operation failed in trace_logging.py", exc_info=True)
 
         record.trace_id = trace_id  # type: ignore[attr-defined]
         record.span_id = span_id  # type: ignore[attr-defined]

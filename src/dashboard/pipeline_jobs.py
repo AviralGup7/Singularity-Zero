@@ -61,11 +61,17 @@ def run_pipeline_job(
         if not force and (now - last_persist) < 2.0:
             return
         job["_persist_last_epoch"] = now
-        try:
-            persist_callback(job)
-        except Exception as exc:  # noqa: S110
-            logger.warning("Failed to persist job state: %s", exc)
-            job["persist_failures_count"] = job.get("persist_failures_count", 0) + 1
+        # Bug #28: Terminal persist has retry logic to close the dead zone.
+        for _attempt in range(3):
+            try:
+                persist_callback(job)
+                return
+            except Exception as exc:
+                if _attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    logger.warning("Failed to persist job state after 3 attempts: %s", exc)
+                    job["persist_failures_count"] = job.get("persist_failures_count", 0) + 1
 
     def _capture_forensics() -> None:
         job_id = str(job.get("id", "") or "").strip()
@@ -82,7 +88,7 @@ def run_pipeline_job(
                 job_id,
                 persisted_job=job,
             )
-        except Exception as exc:  # noqa: S110
+        except Exception as exc:
             # Forensic capture is best-effort and must not change job outcome.
             logger.debug("Forensic capture failed: %s", exc)
             job["forensic_capture_failures_count"] = (
@@ -108,6 +114,11 @@ def run_pipeline_job(
     # Dashboard launches should always start from explicit config/scope files.
     # Avoid restoring stale cross-run checkpoint metadata.
     command.append("--force-fresh-run")
+
+    # Bug #38: Log config fingerprint for resume drift detection
+    config_fingerprint = job.get("config_fingerprint")
+    if config_fingerprint:
+        append_log(job, f"Config fingerprint: {config_fingerprint}")
 
     env = os.environ.copy()
     path_sep = os.pathsep
@@ -142,13 +153,14 @@ def run_pipeline_job(
         with lock:
             job["process"] = process
             _persist(force=True)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
+        logger.warning("Failed to launch pipeline subprocess: %s", exc, exc_info=True)
         if process is not None:
             try:
                 process.kill()
                 process.wait(timeout=5)
-            except Exception:  # noqa: S110
-                pass  # Process may already be dead
+            except Exception:
+                logger.warning("Failed to kill process after launch failure", exc_info=True)
         safe_msg = safe_error_message(exc)
         with lock:
             job["status"] = "failed"
@@ -171,24 +183,66 @@ def run_pipeline_job(
         stdout_path.open("w", encoding="utf-8") as stdout_handle,
         stderr_path.open("w", encoding="utf-8") as stderr_handle,
     ):
+        # Bug #25: Consumer threads are NOT daemon threads.  Daemon threads
+        # are killed silently at process exit, losing buffered forensic data
+        # (the exact "unknown failure" symptoms users report).  Since we
+        # join them explicitly below, non-daemon is correct.
         consumers = [
             threading.Thread(
                 target=consume_stream,
                 args=(job, process.stdout, stdout_handle, "stdout", lock, persist_callback),
-                daemon=True,
+                name=f"stream-consumer-stdout-{job.get('id', 'unknown')}",
             ),
             threading.Thread(
                 target=consume_stream,
                 args=(job, process.stderr, stderr_handle, "stderr", lock, persist_callback),
-                daemon=True,
+                name=f"stream-consumer-stderr-{job.get('id', 'unknown')}",
             ),
         ]
         for consumer in consumers:
             consumer.start()
 
         returncode = process.wait()
+
+        # Bug #26: Release the process reference immediately after wait()
+        # returns so we don't hold the subprocess object in job state longer
+        # than necessary.  The process is dead at this point.
+        with lock:
+            job["process"] = None
+
+        # Bug #24: Join consumers with adequate timeout and verify completion.
+        # A 30s timeout can legitimately be exceeded on large-output jobs.
+        # Use a tiered approach: generous first wait, then a hard cap with
+        # diagnostic logging.
+        _CONSUMER_JOIN_PRIMARY = 60  # seconds -- generous for large output
+        _CONSUMER_JOIN_HARD_CAP = 120  # seconds -- absolute maximum
+        _consumer_join_start = time.time()
         for consumer in consumers:
-            consumer.join(timeout=30)
+            remaining = _CONSUMER_JOIN_HARD_CAP - (time.time() - _consumer_join_start)
+            if remaining <= 0:
+                logger.warning(
+                    "Stream consumers exhausted hard cap of %ds; "
+                    "proceeding with finalization",
+                    _CONSUMER_JOIN_HARD_CAP,
+                )
+                break
+            consumer.join(timeout=min(_CONSUMER_JOIN_PRIMARY, remaining))
+            if consumer.is_alive():
+                logger.warning(
+                    "Stream consumer %s still alive after %ds join timeout; "
+                    "remaining data may be incomplete",
+                    consumer.name,
+                    _CONSUMER_JOIN_PRIMARY,
+                )
+
+    # Bug #27: Persist immediately after consumers finish, before the
+    # heavy finalization work.  This ensures the returncode and basic
+    # status are durable even if the finalization code or the subsequent
+    # file reads crash.
+    with lock:
+        job["returncode"] = returncode
+        job["updated_at"] = time.time()
+        _persist(force=True)
 
     # Wait briefly for file handles to flush, but use retry to handle slow disks
     for _flush_attempt in range(5):
@@ -211,20 +265,19 @@ def run_pipeline_job(
         stderr_classification = classify_stderr_text(stderr_content)
         if stderr_classification.best_fatal_line:
             error_detail = safe_error_message(Exception(stderr_classification.best_fatal_line))
-    except Exception:  # noqa: S110
-        pass
-
-    # If stderr is empty, also check stdout for error messages
+    except Exception:
+        logger.warning("Operation failed in pipeline_jobs.py", exc_info=True)
     if not error_detail:
         try:
             stdout_content = stdout_path.read_text(encoding="utf-8").strip()
             error_detail = _extract_stdout_error_detail(stdout_content)
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Failed to read stdout content for error detail", exc_info=True)
     else:
         try:
             stdout_content = stdout_path.read_text(encoding="utf-8").strip()
-        except Exception:  # noqa: S110
+        except Exception:
+            logger.warning("Failed to read stdout content", exc_info=True)
             stdout_content = ""
 
     no_pipeline_output = not stdout_content and not stderr_content

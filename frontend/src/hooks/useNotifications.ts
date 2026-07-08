@@ -216,10 +216,13 @@ export function useNotifications(): UseNotificationsReturn {
     }
   }, [fetchNotifications]);
 
-  // Initial fetch + SSE connection
+  // Initial fetch + SSE connection (defer fetch to avoid competing with paint)
   useEffect(() => {
     mountedRef.current = true;
-    fetchNotifications();
+    const defer = typeof window.requestIdleCallback === 'function'
+      ? (fn: () => void) => requestIdleCallback(() => fn(), { timeout: 2000 })
+      : (fn: () => void) => setTimeout(fn, 0);
+    defer(() => fetchNotifications());
     connectSSE();
 
     return () => {

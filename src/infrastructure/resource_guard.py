@@ -1,11 +1,30 @@
+"""ResourceGuard — memory-aware scheduling gate.
+
+Prevents OOM by estimating per-stage RAM requirements and checking
+available system memory before dispatch.
+
+Bug #18: When psutil is unavailable, returns a safe default (4096 MB)
+instead of 0, which caused all stages to be skipped as "insufficient_ram".
+
+Bug #24: Model path is resolved relative to this file's directory, not
+os.getcwd(), so it works regardless of the working directory.
+"""
+
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL_PATH = ".ai/performance_model.json"
+# Bug #24: Resolve model path relative to this file, not CWD
+_MODULE_DIR = Path(__file__).resolve().parent
+_DEFAULT_MODEL_PATH = str(_MODULE_DIR.parent.parent / ".ai" / "performance_model.json")
+
+# Bug #18: Safe default when psutil is unavailable — 4 GB allows most
+# stages to run.  Only truly massive scans (100k+ URLs) need more.
+_PSUTIL_UNAVAILABLE_DEFAULT_RAM_MB = 4096
 
 _BUILTIN_DEFAULTS = {
     "version": "2.0",
@@ -39,9 +58,12 @@ class ResourceGuard:
         self.stage_tools = self.model.get("stage_tools", _BUILTIN_DEFAULTS["stage_tools"])
 
     def _load_model(self, path: str) -> dict[str, Any]:
+        # Bug #24: If path is relative, resolve against this file's directory
+        # first, then fall back to CWD for backward compatibility.
         if not os.path.isabs(path):
-            base = os.getcwd()
-            candidate = os.path.join(base, path)
+            candidate = str(_MODULE_DIR.parent.parent / path)
+            if not os.path.isfile(candidate):
+                candidate = os.path.join(os.getcwd(), path)
         else:
             candidate = path
 
@@ -116,18 +138,55 @@ class ResourceGuard:
 
             return int(psutil.virtual_memory().available / (1024 * 1024))
         except ImportError as exc:
-            logger.warning("psutil not available for RAM check: %s", exc)
+            logger.warning(
+                "psutil not available for RAM check — using safe default %d MB: %s",
+                _PSUTIL_UNAVAILABLE_DEFAULT_RAM_MB,
+                exc,
+            )
         except Exception as exc:
             logger.debug("ResourceGuard: psutil check failed (%s).", exc)
 
-        # When psutil is unavailable, return 0 to signal "unknown RAM"
-        # rather than incorrectly using disk space. Returning 0 causes
-        # stages to be skipped conservatively, which is safer than OOM.
-        return 0
+        # Bug #18: Return a safe default instead of 0.  Returning 0 caused
+        # all stages to be skipped as "insufficient_ram", silently disabling
+        # the entire pipeline on systems without psutil.
+        return _PSUTIL_UNAVAILABLE_DEFAULT_RAM_MB
 
     def check_available_ram(self, estimated_ram_mb: int) -> bool:
         available = self._get_available_ram_mb()
         return available >= estimated_ram_mb
+
+    def check_available_ram_for_dispatch(
+        self,
+        estimated_ram_mb: int,
+        in_flight_count: int = 0,
+        in_flight_avg_ram_mb: int = 0,
+    ) -> tuple[bool, str | None]:
+        """Check if there is enough RAM to dispatch another task.
+
+        Bug #19: Preventive check that accounts for in-flight work,
+        not just current memory.  Returns (ok, reason_if_not_ok).
+
+        Args:
+            estimated_ram_mb: RAM needed by the task about to be dispatched.
+            in_flight_count: Number of tasks currently running.
+            in_flight_avg_ram_mb: Average RAM per in-flight task (estimate).
+        """
+        if not self.oom_guard.get("enabled", True):
+            return True, None
+
+        available = self._get_available_ram_mb()
+        # Account for in-flight work that hasn't been counted by psutil yet
+        planned_overhead = in_flight_count * in_flight_avg_ram_mb
+        reserve = int(self.oom_guard.get("reserve_ram_mb", 2048))
+        needed = estimated_ram_mb + planned_overhead + reserve
+
+        if available < needed:
+            return False, (
+                f"dispatch_denied available_{available}_mb "
+                f"needed_{needed}_mb (estimated={estimated_ram_mb}, "
+                f"in_flight={in_flight_count}x{in_flight_avg_ram_mb})"
+            )
+        return True, None
 
     def should_skip_stage(
         self, stage_name: str, target_count: int, url_count: int
@@ -153,8 +212,10 @@ class ResourceGuard:
                 raise RuntimeError(
                     f"Critical OOM: memory usage {mem.percent:.1f}% exceeds threshold {kill_percent * 100:.1f}%"
                 )
-        except ImportError as exc:
-            logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
+        except ImportError:
+            pass
+        except RuntimeError:
+            raise
         except Exception as exc:
             logger.debug("ResourceGuard: psutil-based OOM check failed (%s).", exc)
 
@@ -170,8 +231,8 @@ class ResourceGuard:
                 return (
                     f"memory usage {mem.percent:.1f}% exceeds threshold {kill_percent * 100:.1f}%"
                 )
-        except ImportError as exc:
-            logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
+        except ImportError:
+            pass
         except Exception as exc:
             logger.debug("ResourceGuard: OOM check failed (%s).", exc)
         return None

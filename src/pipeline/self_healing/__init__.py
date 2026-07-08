@@ -4,15 +4,17 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.core.contracts.health import (
+        ActionHandler,
         CorrectionEvent,
         CorrectiveAction,
+        CorrectiveActionRegistry,
         HealthComponent,
         HealthFinding,
         HealthMetric,
         HealthStatus,
         PipelineHealthSnapshot,
     )
-    from src.pipeline.self_healing.controller import CorrectiveActionRegistry, SelfHealingController
+    from src.pipeline.self_healing.controller import SelfHealingController
     from src.pipeline.self_healing.dampening import DampeningWindow
     from src.pipeline.self_healing.history_store import CorrectionHistoryStore
 
@@ -37,7 +39,7 @@ def __getattr__(name: str) -> Any:  # type: ignore[override]
 
         return SelfHealingController
     if name == "CorrectiveActionRegistry":
-        from src.pipeline.self_healing.controller import CorrectiveActionRegistry
+        from src.core.contracts.health import CorrectiveActionRegistry
 
         return CorrectiveActionRegistry
     if name == "DampeningWindow":

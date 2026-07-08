@@ -1,7 +1,7 @@
 from typing import Any
 
 from src.analysis.automation.access_control import AccessControlAnalyzer, EnforcementResult
-from src.analysis.automation.auto_filters import (
+from src.core.auto_filters import (
     AutoFilterEngine,
     FilterRule,
     create_default_security_filters,

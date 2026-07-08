@@ -6,7 +6,7 @@ and optional raw request/response data.
 
 This module provides:
 - ``NucleiFinding``: A frozen dataclass representing a single parsed finding.
-- ``NucleiSeverityMapper``: Severity normalisation and scoring utilities.
+- ``NucleiSeverityMapper``: Severity normalization and scoring utilities.
 - ``NucleiFindingParser``: Deterministic parser with deduplication and scope filtering.
 - Convenience functions for one-shot parsing of JSONL strings and files.
 """

@@ -1,5 +1,7 @@
 """Analyzer execution metrics with type decomposition.
 
+import logging
+logger = logging.getLogger(__name__)
 Provides per-analyzer-type execution tracking, duration histograms,
 error classification, and throughput counters. Includes cardinality
 controls to prevent label explosion from dynamic analyzer names.
@@ -108,7 +110,7 @@ class AnalyzerExecutionTracker:
                 labels={"analyzer_type": self._sanitized_type},
             ).inc()
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -169,7 +171,7 @@ class AnalyzerExecutionTracker:
                 labels={"analyzer_type": self._sanitized_type},
             ).dec()
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
 
     def set_findings_count(self, count: int) -> None:
         """Set the number of findings produced by this execution.
@@ -249,7 +251,7 @@ class AnalyzerMetrics:
                 labels=labels,
             ).inc(urls_processed)
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
 
     def record_skip(self, analyzer_type: str, reason: str = "disabled") -> None:
         """Record an analyzer skip event.
@@ -262,6 +264,7 @@ class AnalyzerMetrics:
         try:
             from src.infrastructure.observability.metrics import get_metrics
 
+
             metrics = get_metrics()
             metrics.counter(
                 "analyzer_skips_total",
@@ -269,7 +272,7 @@ class AnalyzerMetrics:
                 labels={"analyzer_type": sanitized, "reason": reason},
             ).inc()
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
 
     def get_analyzer_types(self) -> list[str]:
         """Return all seen analyzer type labels.

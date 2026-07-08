@@ -1,12 +1,11 @@
 """WAF-aware probe adapter.
 
-Wraps the :class:`FastPathDispatcher` to automatically apply WAF
-evasion strategies to active probe payloads. The adapter is the
-runtime companion to :mod:`src.detection.waf.strategies` — the
-strategy factories generate the *candidates*; this module applies
-them to outbound requests.
+Wraps a probe dispatcher to automatically apply WAF evasion strategies
+to active probe payloads. The adapter is the runtime companion to
+:mod:`src.detection.waf.strategies` — the strategy factories generate
+the *candidates*; this module applies them to outbound requests.
 
-When a :class:`WafProfile` is bound to the adapter, it picks the
+When a :class:`WAFProfile` is bound to the adapter, it picks the
 appropriate :class:`StrategyBundle` and applies each strategy in
 order to the request's URL, body, and headers. The adapter is
 deliberately stateless: it does not keep a per-connection payload
@@ -17,11 +16,11 @@ Usage::
 
     from src.detection.waf.fingerprint import WafFingerprinter
     from src.detection.waf.strategies import strategy_bundle_for
-    from src.analysis.fast_path import FastPathDispatcher
-    from src.execution.waf_probe_adapter import WafAwareProbeAdapter
+    from src.execution.waf_probe_adapter import WAFAwareProbeAdapter
 
-    dispatcher = FastPathDispatcher()
-    adapter = WafAwareProbeAdapter(dispatcher)
+    # Obtain dispatcher via protocol registry or dependency injection
+    # from src.core.contracts.protocol_registry import get_fetch_response_provider
+    adapter = WAFAwareProbeAdapter(dispatcher)
     profile = WafFingerprinter().fingerprint(url)
     adapter.set_strategy_bundle(strategy_bundle_for(profile))
     response = await adapter.dispatch(url, method="POST", body=original)
@@ -33,6 +32,8 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
+
+from src.core.contracts.cross_package_protocols import ProbeDispatcherProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class StrategyBundle:
         return not self.strategies
 
 
-class WafAwareProbeAdapter:
+class WAFAwareProbeAdapter:
     """Wraps a FastPathDispatcher and applies WAF evasion strategies.
 
     The adapter does not change the dispatcher's scope-enforcement or
@@ -78,7 +79,7 @@ class WafAwareProbeAdapter:
         }
     """
 
-    def __init__(self, dispatcher: Any) -> None:
+    def __init__(self, dispatcher: ProbeDispatcherProtocol) -> None:
         self._dispatcher = dispatcher
         self._bundle: StrategyBundle | None = None
         self._enabled: bool = False
@@ -128,7 +129,7 @@ class WafAwareProbeAdapter:
         self._bundle = bundle
         if bundle is not None and not bundle.is_empty():
             logger.info(
-                "WafAwareProbeAdapter: armed with %d strategies from bundle %s",
+                "WAFAwareProbeAdapter: armed with %d strategies from bundle %s",
                 len(bundle.strategies),
                 bundle.name,
             )
@@ -178,7 +179,7 @@ class WafAwareProbeAdapter:
                 self._applications += 1
             except Exception as exc:  # noqa: BLE001
                 logger.debug(
-                    "WafAwareProbeAdapter: strategy %s failed on %s: %s",
+                    "WAFAwareProbeAdapter: strategy %s failed on %s: %s",
                     getattr(strategy, "__name__", strategy),
                     url,
                     exc,
@@ -218,5 +219,5 @@ class WafAwareProbeAdapter:
 
 __all__ = [
     "StrategyBundle",
-    "WafAwareProbeAdapter",
+    "WAFAwareProbeAdapter",
 ]

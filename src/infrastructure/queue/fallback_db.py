@@ -1,5 +1,7 @@
 """SQLite-backed fallback store data access layer for RedisClient.
 
+import logging
+logger = logging.getLogger(__name__)
 Encapsulates data storage, retrieval, deletion, and schema management
 used when the main Redis instance is unavailable.
 """
@@ -25,6 +27,7 @@ from src.infrastructure.db.sqlite_utils import (
     SQLITE_LOCK_RETRY_ATTEMPTS as _LOCK_RETRY_ATTEMPTS,
 )
 from src.infrastructure.db.sqlite_utils import (
+
     SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
 )
 
@@ -104,7 +107,7 @@ class FallbackDB:
         except Exception as exc:
             self._available = False
             self.last_error = str(exc)
-            logger.error("Failed to initialize SQLite fallback database: %s", exc)
+            logger.error("Failed to initialize SQLite fallback database: %s", exc, exc_info=True)
 
     def _get_sqlite_conn(self) -> Any:
         if not self._available or getattr(self._thread_local, "read_only", False):
@@ -129,8 +132,8 @@ class FallbackDB:
         if conn is not None:
             try:
                 conn.close()
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.debug("Non-critical cleanup error", exc_info=True)
             self._thread_local.conn = None
 
     def db_get(self, key: str) -> tuple[str | None, Any]:
@@ -156,8 +159,8 @@ class FallbackDB:
             if val_type == "set":
                 return val_type, set(data)
             return val_type, data
-        except Exception as exc:
-            logger.error("SQLite fallback get error for key '%s': %s", key, exc)
+        except Exception:
+            logger.exception("SQLite fallback get error for key '%s'", key)
             return None, None
 
     def db_set(self, key: str, val_type: str, data: Any) -> None:
@@ -186,13 +189,14 @@ class FallbackDB:
                         )
                         conn.commit()
                     except Exception:
+                        logger.debug("FallbackDB: SQLite set operation failed, rolling back", exc_info=True)
                         conn.rollback()
                         raise
 
             self._with_retry(_op, write=True)
-        except Exception as exc:
+        except Exception:
             self.last_error = str(exc)
-            logger.error("SQLite fallback set error for key '%s': %s", key, exc)
+            logger.exception("SQLite fallback set error for key '%s'", key)
 
     def db_del(self, key: str) -> int:
         """Delete key from SQLite."""
@@ -210,14 +214,15 @@ class FallbackDB:
                         conn.commit()
                         return int(deleted)
                     except Exception:
+                        logger.debug("FallbackDB: SQLite del operation failed, rolling back", exc_info=True)
                         conn.rollback()
                         raise
 
             deleted = self._with_retry(_op, write=True)
             return int(deleted)
-        except Exception as exc:
+        except Exception:
             self.last_error = str(exc)
-            logger.error("SQLite fallback del error for key '%s': %s", key, exc)
+            logger.exception("SQLite fallback del error for key '%s'", key)
             return 0
 
     def db_scan(self) -> list[str]:
@@ -230,7 +235,7 @@ class FallbackDB:
 
             rows = self._with_retry(_op)
             return [row["key"] for row in rows]
-        except Exception as exc:
+        except Exception:
             self.last_error = str(exc)
-            logger.error("SQLite fallback scan error: %s", exc)
+            logger.exception("SQLite fallback scan error")
             return []

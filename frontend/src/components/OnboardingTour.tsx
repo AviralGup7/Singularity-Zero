@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/config/paths';
 import { useDisplay } from '@/hooks/useDisplay';
+import { useDisplayStore } from '@/stores/displayStore';
 
 interface TourStep {
   title: string;
@@ -9,51 +11,86 @@ interface TourStep {
   path?: string;
 }
 
-const TOUR_STEPS: TourStep[] = [
+const PENTEST_STEPS: TourStep[] = [
   {
-    title: 'Welcome to Cyber Security Test Pipeline',
-    description: 'This tour will walk you through the main features of the application.',
+    title: 'Welcome to Penetration Testing Pipeline',
+    description: 'This tour covers the pentest-specific workflow: live terminal streams, 3D attack graphs, and real-time telemetry.',
   },
   {
     title: 'Dashboard',
-    description: 'Get an overview of your security posture, active jobs, and findings at a glance.',
+    description: 'Monitor active penetration tests, live shell sessions, and real-time findings at a glance.',
     target: '[data-tour="dashboard"]',
   },
   {
     title: 'Targets',
-    description: 'Manage your scan targets and view findings organized by target.',
+    description: 'Manage in-scope targets and launch custom pentest modules.',
     target: '[data-tour="targets"]',
-    path: '/targets',
+    path: ROUTES.TARGETS,
+  },
+  {
+    title: 'Live Terminal',
+    description: 'Stream real-time command output from remote agents during active exploitation.',
+    target: '[data-tour="terminal"]',
+    path: ROUTES.JOBS,
+  },
+  {
+    title: '3D Attack Graph',
+    description: 'Visualize the attack surface and pivot paths through an interactive 3D graph.',
+    path: ROUTES.PIPELINE,
+  },
+  {
+    title: 'Settings',
+    description: 'Configure proxy chains, module triggers, and reporting preferences.',
+    target: '[data-tour="settings"]',
+    path: ROUTES.SETTINGS,
+  },
+];
+
+const APP_SEC_STEPS: TourStep[] = [
+  {
+    title: 'Welcome to Application Security Pipeline',
+    description: 'This tour covers the AppSec workflow: SAST, DAST, dependency scanning, and compliance tracking.',
+  },
+  {
+    title: 'Dashboard',
+    description: 'Get an overview of your security posture, active scans, and findings at a glance.',
+    target: '[data-tour="dashboard"]',
+  },
+  {
+    title: 'Targets',
+    description: 'Manage your scan targets and view findings organized by application.',
+    target: '[data-tour="targets"]',
+    path: ROUTES.TARGETS,
   },
   {
     title: 'Jobs',
     description: 'Monitor running scans, view job details, and manage pipeline execution.',
     target: '[data-tour="jobs"]',
-    path: '/jobs',
+    path: ROUTES.JOBS,
   },
   {
     title: 'Findings Triage',
     description: 'Switch the view mode to Table, then use the bulk action bar to change status, mark false positives, assign, or delete across many findings at once.',
     target: '[data-tour="findings"]',
-    path: '/findings',
+    path: ROUTES.FINDINGS,
   },
   {
     title: 'Evidence & Chain of Custody',
     description: 'Open any finding detail, then look for the Evidence tab to inspect the request/response and the chain-of-custody record proving integrity.',
     target: '[data-tour="findings"]',
-    path: '/findings',
+    path: ROUTES.FINDINGS,
   },
   {
     title: 'Reporting',
     description: 'Build a structured report from selected findings and export to Markdown, HTML, or JSON. Signed artefacts remain in the Reports library.',
     target: '[data-tour="findings"]',
-    path: '/findings',
+    path: ROUTES.FINDINGS,
   },
   {
     title: 'Settings',
     description: 'Customize themes, display options, notifications, and more.',
     target: '[data-tour="settings"]',
-    path: '/settings',
+    path: ROUTES.SETTINGS,
   },
 ];
 
@@ -61,11 +98,14 @@ const STORAGE_KEY = 'cyber-pipeline-onboarding-complete';
 
 function useOnboardingTour() {
   const { display } = useDisplay();
+  const workflowMode = useDisplayStore((s) => s.workflowMode);
   const navigate = useNavigate();
 
   const [active, setActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const initialized = useRef(false);
+
+  const steps = useMemo(() => workflowMode === 'pentest' ? PENTEST_STEPS : APP_SEC_STEPS, [workflowMode]);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -80,8 +120,8 @@ function useOnboardingTour() {
   }, [display.reduceMotion]);
 
   const next = useCallback(() => {
-    if (currentStep < TOUR_STEPS.length - 1) {
-      const step = TOUR_STEPS[currentStep + 1];
+    if (currentStep < steps.length - 1) {
+      const step = steps[currentStep + 1];
       setCurrentStep(s => s + 1);
       if (step.path && window.location.pathname !== step.path) {
         navigate(step.path, { replace: true });
@@ -90,7 +130,7 @@ function useOnboardingTour() {
       setActive(false);
       localStorage.setItem(STORAGE_KEY, 'true');
     }
-  }, [currentStep, navigate]);
+  }, [currentStep, steps, navigate]);
 
   const skip = useCallback(() => {
     setActive(false);
@@ -106,9 +146,9 @@ function useOnboardingTour() {
   return {
     active,
     // eslint-disable-next-line security/detect-object-injection
-    step: TOUR_STEPS[currentStep],
+    step: steps[currentStep],
     currentStep,
-    totalSteps: TOUR_STEPS.length,
+    totalSteps: steps.length,
     next,
     prev,
     skip,
@@ -116,6 +156,7 @@ function useOnboardingTour() {
 }
 
 export function OnboardingTour() {
+  const workflowMode = useDisplayStore((s) => s.workflowMode);
   const { active, step, currentStep, totalSteps, next, prev, skip } = useOnboardingTour();
 
   useEffect(() => {
@@ -154,7 +195,7 @@ export function OnboardingTour() {
         <div className="onboarding-progress" role="progressbar" aria-valuenow={currentStep + 1} aria-valuemin={1} aria-valuemax={totalSteps}>
           {Array.from({ length: totalSteps }).map((_, i) => (
             <span
-              key={i}
+              key={`dot-${i}`}
               className={`onboarding-dot ${i === currentStep ? 'active' : i < currentStep ? 'done' : ''}`}
             />
           ))}

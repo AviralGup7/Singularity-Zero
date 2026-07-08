@@ -173,7 +173,7 @@ class TriageCollaborationService:
             try:
                 await connection.websocket.send_text(data)
                 return True
-            except Exception:  # noqa: S112
+            except Exception:
                 return False
 
         results = await asyncio.gather(

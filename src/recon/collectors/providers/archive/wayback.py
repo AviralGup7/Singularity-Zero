@@ -18,11 +18,11 @@ import logging
 import os
 import time
 from collections.abc import Generator, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.http_safety import safe_get
 from src.recon.collectors.observability import emit_collection_progress
@@ -154,7 +154,6 @@ def iter_for_hosts(
         )
         return empty
 
-    workers = min(max_workers, max(1, len(hosts_list)))
     errors = 0
     timeout_count = 0
     total_new = 0
@@ -165,49 +164,49 @@ def iter_for_hosts(
         10,
     )
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_host = {
-            executor.submit(_collect_for_host, host, timeout_seconds, per_host_limit, session): host
-            for host in hosts_list
-        }
-        idx = 0
-        for future in future_to_host:
-            idx += 1
-            host = future_to_host[future]
-            try:
-                host_urls = future.result()
-            except requests.Timeout as exc:
-                host_urls = set()
-                errors += 1
-                timeout_count += 1
-                collector_metrics.increment_errors("wayback")
-                logger.debug("Wayback timeout for %s: %s", host, exc)
-            except Exception as exc:
-                host_urls = set()
-                errors += 1
-                collector_metrics.increment_errors("wayback")
-                logger.debug("Wayback host future failed for %s: %s", host, exc)
+    executor = get_recon_executor()
+    future_to_host = {
+        executor.submit(_collect_for_host, host, timeout_seconds, per_host_limit, session): host
+        for host in hosts_list
+    }
+    idx = 0
+    for future in future_to_host:
+        idx += 1
+        host = future_to_host[future]
+        try:
+            host_urls = future.result()
+        except requests.Timeout as exc:
+            host_urls = set()
+            errors += 1
+            timeout_count += 1
+            collector_metrics.increment_errors("wayback")
+            logger.debug("Wayback timeout for %s: %s", host, exc)
+        except Exception as exc:
+            host_urls = set()
+            errors += 1
+            collector_metrics.increment_errors("wayback")
+            logger.debug("Wayback host future failed for %s: %s", host, exc)
 
-            host_meta = CollectorMeta(
-                status=CollectorStatus.OK if host_urls else CollectorStatus.EMPTY,
-                duration_seconds=0.0,
-                new_urls=len(host_urls),
-                hosts_scanned=1,
-                provider_name="wayback",
-                extras={"host": host},
-            )
-            total_new += len(host_urls)
-            if host_urls:
-                collector_metrics.increment_urls("wayback", len(host_urls))
-            emit_collection_progress(
-                progress_callback,
-                f"Wayback host {idx}/{len(hosts_list)}: +{len(host_urls)} urls, "
-                f"running total {total_new}",
-                10 + int((idx / len(hosts_list)) * 40),
-                processed=idx,
-                total=len(hosts_list),
-            )
-            yield host, host_urls, host_meta
+        host_meta = CollectorMeta(
+            status=CollectorStatus.OK if host_urls else CollectorStatus.EMPTY,
+            duration_seconds=0.0,
+            new_urls=len(host_urls),
+            hosts_scanned=1,
+            provider_name="wayback",
+            extras={"host": host},
+        )
+        total_new += len(host_urls)
+        if host_urls:
+            collector_metrics.increment_urls("wayback", len(host_urls))
+        emit_collection_progress(
+            progress_callback,
+            f"Wayback host {idx}/{len(hosts_list)}: +{len(host_urls)} urls, "
+            f"running total {total_new}",
+            10 + int((idx / len(hosts_list)) * 40),
+            processed=idx,
+            total=len(hosts_list),
+        )
+        yield host, host_urls, host_meta
 
     duration = round(time.monotonic() - start, 1)
     collector_metrics.observe_duration("wayback", duration)

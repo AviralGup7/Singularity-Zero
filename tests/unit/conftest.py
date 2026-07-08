@@ -7,6 +7,7 @@ Provides fixtures common to all unit test categories.
 from typing import Any
 
 import pytest
+
 from tests.factories import (
     ConfigBuilder,
     FindingBuilder,

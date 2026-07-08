@@ -206,9 +206,8 @@ class LLMService:
                 "Total LLM query fallback events",
                 labels={"operation": operation},
             ).inc()
-        except Exception:  # noqa: S110
-            pass
-
+        except Exception:
+            logger.warning("LLMService: Failed to record fallback metric", exc_info=True)
     async def explain_finding(self, finding: dict[str, Any]) -> dict[str, str]:
         """Generate finding explanations tailored separately to developer vs. auditor personas."""
         title = finding.get("title") or finding.get("type") or "Vulnerability"

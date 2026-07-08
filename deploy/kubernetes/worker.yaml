@@ -10,7 +10,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cyber-pipeline
     app.kubernetes.io/component: worker
-    app.kubernetes.io/version: "2.0.0"
+    app.kubernetes.io/version: "3.1.0"
   annotations:
     checkov.io/skip1: CKV_K8S_35=Prefer using secrets as files over secrets as environment variables
 spec:
@@ -29,7 +29,7 @@ spec:
       labels:
         app.kubernetes.io/name: cyber-pipeline
         app.kubernetes.io/component: worker
-        app.kubernetes.io/version: "2.0.0"
+        app.kubernetes.io/version: "3.1.0"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8001"
@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: worker
-          image: cyber-pipeline:2.0.0@sha256:d55f00e99d91f28e2b8f855d045d6a2f38d3809fb0317e174092d6e3c03565f1
+          image: cyber-pipeline:3.1.0@sha256:d55f00e99d91f28e2b8f855d045d6a2f38d3809fb0317e174092d6e3c03565f1
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false

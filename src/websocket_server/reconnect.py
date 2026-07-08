@@ -49,7 +49,8 @@ class BufferedMessage:
 
             raw = json.loads(message_json)
             seq = int(raw.get("sequence", 0) or 0)
-        except Exception:  # noqa: BLE001
+        except Exception:
+            logger.warning("Failed to parse sequence from BufferedMessage envelope", exc_info=True)
             seq = 0
         return cls(sequence=seq, message_json=message_json)
 

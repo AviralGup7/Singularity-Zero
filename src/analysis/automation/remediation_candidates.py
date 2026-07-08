@@ -161,7 +161,7 @@ class RemediationCandidate:
 
 def _fingerprint(*parts: str) -> str:
     payload = "|".join(parts).encode("utf-8")
-    return hashlib.sha1(payload).hexdigest()  # noqa: S324  # nosec
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _coerce_confidence(value: Any, *, default: float = 0.0) -> float:

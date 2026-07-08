@@ -19,7 +19,7 @@ import {
   synthesizeCurrentStageEntry,
 } from './useJobMonitorUtils';
 import type { JobMonitorAction } from './useJobMonitorReducer';
-import { useJobMonitorStore } from '../stores/jobMonitorStore';
+import { useJobStore } from '../stores/jobStore';
 
 const POLL_INTERVAL_MS = 2000;
 const BUFFER_FLUSH_MS = 100;
@@ -27,12 +27,12 @@ const BUFFER_FLUSH_MS = 100;
 export function useJobMonitor(jobId: string | undefined, options: { onRestarted?: (id: string) => void } = {}) {
   const { onRestarted } = options;
 
-  const state = useJobMonitorStore(
+  const state = useJobStore(
     useCallback((s) => (jobId ? s.jobs.get(jobId) : undefined), [jobId])
   );
   const dispatch = useCallback(
     (action: JobMonitorAction) => {
-      if (jobId) useJobMonitorStore.getState().dispatch(jobId, action);
+      if (jobId) useJobStore.getState().dispatch(jobId, action);
     },
     [jobId]
   );
@@ -48,7 +48,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   const bufferDispatch = useCallback((action: JobMonitorAction) => {
     // Predict next state for SSE handler stale-closure prevention
     if (jobId) {
-      stateRef.current = useJobMonitorStore.getState().getState(jobId);
+      stateRef.current = useJobStore.getState().getState(jobId);
     }
 
     if (action.type === 'START_LOADING' || action.type === 'SET_ERROR' || action.type === 'SET_ACTION_LOADING') {
@@ -82,6 +82,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         getJob(jobId, signal),
         getJobLogs(jobId, signal).catch((err) => {
           console.error('getJobLogs failed:', err);
+          toast.error('Failed to fetch job logs');
           return null;
         }),
       ]);
@@ -164,6 +165,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       })
       .catch((err) => {
         console.error('Failed to fetch duration forecast:', err);
+        toast.error('Failed to fetch duration forecast');
         bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false });
       });
   }, [state?.job?.id, state?.job?.stage, bufferDispatch]);
@@ -193,7 +195,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   // --- SSE (progress, stages, findings, errors) ---
   const handleSSEEvent = useCallback(
     (event: SseEvent) => {
-      const currentState = jobId ? useJobMonitorStore.getState().getState(jobId) : undefined;
+      const currentState = jobId ? useJobStore.getState().getState(jobId) : undefined;
       processJobMonitorSseEvent(event, {
         jobStage: currentState?.job?.stage,
         jobStatus: currentState?.job?.status,

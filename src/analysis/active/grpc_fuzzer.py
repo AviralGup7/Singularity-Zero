@@ -254,7 +254,8 @@ class GrpcFuzzer:
             }
             try:
                 start = time.monotonic()
-                assert self.client is not None
+                if self.client is None:
+                    raise RuntimeError("HTTP client is not initialized in gRPC fuzzer")
                 response = self.client.post(
                     url,
                     json=payload,

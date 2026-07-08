@@ -271,12 +271,10 @@ async def run_stateful_campaign_with_machine(
                                     "hint": "Balance changed during state transitions",
                                 }
                             )
-                    except Exception as exc:
-                        logger.warning(
-                            "Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True
-                        )  # noqa: BLE001
-            except Exception as exc:
-                logger.warning("Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    except Exception:
+                        logger.warning("Operation failed in stateful_fuzzer.py", exc_info=True)
+            except Exception:
+                logger.warning("Operation failed in stateful_fuzzer.py", exc_info=True)
 
     finally:
         if close_client:
@@ -467,8 +465,8 @@ class StatefulFuzzingSession:
                         },
                     }
                 )
-        except Exception as e:
-            logger.warning("Stateful fuzzer campaign failed for %s: %s", url, e)
+        except Exception:
+            logger.warning("Stateful fuzzer campaign failed for %s", url, exc_info=True)
         finally:
             if close_client:
                 await client.aclose()

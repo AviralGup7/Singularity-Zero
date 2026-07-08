@@ -1,5 +1,7 @@
 """Database latency metrics via SQLAlchemy event listeners.
 
+import logging
+logger = logging.getLogger(__name__)
 Instruments SQLAlchemy to record query execution time, connection pool
 utilization, and transaction metrics. Works with both sync and async
 engines.
@@ -136,7 +138,7 @@ class DBMetricsCollector:
             with self._lock:
                 self._query_count += 1
         except Exception:
-            pass
+                logger.warning("Suppressed exception", exc_info=True)
 
     def _handle_dbapi_error(
         self, conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, exception: Any
@@ -154,7 +156,7 @@ class DBMetricsCollector:
             with self._lock:
                 self._error_count += 1
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
 
 
 _collector: DBMetricsCollector | None = None
@@ -195,7 +197,7 @@ def install_db_metrics(engine_instance: Engine) -> None:
 
             get_metrics().counter("db_connections_total", "Total DB connections created").inc()
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
 
     @event.listens_for(engine_instance, "checkout")
     def _on_checkout(dbapi_conn: Any, connection_record: Any, connection_proxy: Any) -> None:
@@ -206,7 +208,7 @@ def install_db_metrics(engine_instance: Engine) -> None:
                 "db_connection_checkouts_total", "Total DB connection checkouts"
             ).inc()
         except Exception:
-            pass
+                logger.debug("Metrics tracking error", exc_info=True)
 
 
 def record_pool_stats(pool: Any) -> None:
@@ -220,6 +222,7 @@ def record_pool_stats(pool: Any) -> None:
     """
     try:
         from src.infrastructure.observability.metrics import get_metrics
+
 
         metrics = get_metrics()
 
@@ -238,4 +241,4 @@ def record_pool_stats(pool: Any) -> None:
                 pool.overflow()
             )
     except Exception:
-        pass
+            logger.debug("Metrics tracking error", exc_info=True)

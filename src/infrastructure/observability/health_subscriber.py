@@ -14,12 +14,9 @@ the subsystems or by callers invoking ``controller.collect_probe_metrics()``.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
+from src.core.contracts.cross_package_protocols import SelfHealingControllerProtocol
 from src.core.events import EventBus, EventType
-
-if TYPE_CHECKING:
-    from src.pipeline.self_healing.controller import SelfHealingController  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +24,7 @@ logger = logging.getLogger(__name__)
 class HealthSubscriber:
     """Subscribes a :class:`SelfHealingController` to ``HEALTH_METRIC_EMITTED`` events."""
 
-    def __init__(self, event_bus: EventBus, controller: SelfHealingController) -> None:
+    def __init__(self, event_bus: EventBus, controller: SelfHealingControllerProtocol) -> None:
         self._event_bus = event_bus
         self._controller = controller
         self._subscription_id: str | None = None
@@ -64,7 +61,7 @@ class HealthSubscriber:
 
 
 def register_health_subscriber(
-    event_bus: EventBus, controller: SelfHealingController
+    event_bus: EventBus, controller: SelfHealingControllerProtocol
 ) -> HealthSubscriber:
     """Create and start a :class:`HealthSubscriber`.
 

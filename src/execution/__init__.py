@@ -18,7 +18,7 @@ try:
 
     _VALIDATORS_AVAILABLE = True
     _VALIDATOR_IMPORT_ERROR: Exception | None = None
-except Exception as exc:
+except ImportError as exc:
     # Validator imports are intentionally optional during child-process bootstrap.
     validators = None  # type: ignore[assignment]
     _VALIDATORS_AVAILABLE = False

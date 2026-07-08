@@ -198,7 +198,7 @@ class TestDashboardAPIE2E:
         data = response.json()
         score = data["pipeline_health_score"]
         assert isinstance(score, int)
-        assert 0 <= score <= 100
+        assert 0 <= score <= 100, f"Expected health score 0–100, got {score}"
         label = data["pipeline_health_label"]
         assert label in ["Healthy", "Warning", "Critical"]
 

@@ -4,7 +4,7 @@ import asyncio
 import time
 from typing import Any, cast
 
-from src.analysis.behavior.analysis import annotate_behavior_history
+from src.analysis.behavior.analysis_support import annotate_behavior_history
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     annotate_finding_history,

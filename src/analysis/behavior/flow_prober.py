@@ -42,7 +42,7 @@ class FlowProber:
     Identifies and tests multi-request sequences.
     """
 
-    def __init__(self, response_cache: Any):
+    def __init__(self, response_cache: Any) -> None:
         self.cache = response_cache
 
     def analyze_flows(self, urls: set[str], limit: int = 15) -> list[dict[str, Any]]:

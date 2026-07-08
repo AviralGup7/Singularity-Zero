@@ -16,16 +16,12 @@ from __future__ import annotations
 import enum
 import hashlib
 import json
-import logging
 import math
 import time
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
-
-logger = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # Indicator → vulnerability class mapping
@@ -76,7 +72,7 @@ _INDICATOR_TO_CATEGORY: dict[str, str] = {
     "cache_control_issue": "cache_poisoning",
     "dom_runtime_xss": "xss",
     "dom_runtime_open_redirect": "open_redirect",
-    "dom_runtime Prototype Pollution": "deserialization",
+    "dom_runtime_prototype_pollution": "deserialization",
     "wasm_url_candidate": "information_disclosure",
     "wasm_high_risk_import": "command_injection",
     "wasm_high_risk_export": "command_injection",

@@ -23,13 +23,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Generator, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, cast
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.types import CollectorMeta, CollectorStatus
@@ -290,45 +290,45 @@ def iter_for_hosts(
     total_pages = 0
     total_scripts = 0
 
-    with ThreadPoolExecutor(max_workers=min(workers, len(hosts))) as executor:
-        futures = {
-            executor.submit(
-                _crawl_single_host,
-                host,
-                timeout_seconds,
-                max_pages_per_host,
-                js_discovery,
-                scope_roots,
-            ): host
-            for host in hosts
-        }
-        for idx, future in enumerate(futures, start=1):
-            host = futures[future]
-            try:
-                host_urls, host_meta = future.result()
-            except Exception:
-                host_urls = set()
-                host_meta = CollectorMeta(
-                    status=CollectorStatus.ERROR,
-                    new_urls=0,
-                    errors=1,
-                    hosts_scanned=1,
-                    provider_name="crawler",
-                )
-
-            total_new += len(host_urls)
-            total_errors += host_meta.errors
-            total_pages += int(host_meta.extras.get("pages_fetched", 0))
-            total_scripts += int(host_meta.extras.get("scripts_found", 0))
-
-            emit_collection_progress(
-                progress_callback,
-                f"crawler host {idx}/{len(hosts)}: +{len(host_urls)} urls, total {total_new}",
-                60 + int((idx / len(hosts)) * 8),
-                processed=idx,
-                total=len(hosts),
+    executor = get_recon_executor()
+    futures = {
+        executor.submit(
+            _crawl_single_host,
+            host,
+            timeout_seconds,
+            max_pages_per_host,
+            js_discovery,
+            scope_roots,
+        ): host
+        for host in hosts
+    }
+    for idx, future in enumerate(futures, start=1):
+        host = futures[future]
+        try:
+            host_urls, host_meta = future.result()
+        except Exception:
+            host_urls = set()
+            host_meta = CollectorMeta(
+                status=CollectorStatus.ERROR,
+                new_urls=0,
+                errors=1,
+                hosts_scanned=1,
+                provider_name="crawler",
             )
-            yield host, host_urls, host_meta
+
+        total_new += len(host_urls)
+        total_errors += host_meta.errors
+        total_pages += int(host_meta.extras.get("pages_fetched", 0))
+        total_scripts += int(host_meta.extras.get("scripts_found", 0))
+
+        emit_collection_progress(
+            progress_callback,
+            f"crawler host {idx}/{len(hosts)}: +{len(host_urls)} urls, total {total_new}",
+            60 + int((idx / len(hosts)) * 8),
+            processed=idx,
+            total=len(hosts),
+        )
+        yield host, host_urls, host_meta
 
     duration = round(time.monotonic() - start, 1)
     collector_metrics.observe_duration("crawler", duration)

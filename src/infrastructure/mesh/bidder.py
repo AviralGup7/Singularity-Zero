@@ -97,6 +97,7 @@ class MeshBidder:
                     psutil.virtual_memory().available / psutil.virtual_memory().total * 100
                 )
             except Exception:
+                logger.warning("MeshBidder: failed to get CPU/RAM metrics", exc_info=True)
                 cpu_free = 50.0
                 ram_free_pct = 50.0
         else:
@@ -149,6 +150,7 @@ class MeshBidder:
 
                 return float(min(1.0, load_avg / (psutil.cpu_count() or 1)))
             except Exception:
+                logger.warning("MeshBidder: failed to calculate pressure penalty", exc_info=True)
                 return 0.5
         else:
             return 0.5
@@ -218,7 +220,7 @@ class MeshBidder:
             await redis_client.expire(bid_key, 60)
             logger.info("Submitted bid %.4f for job %s", bid_value, job_id)
         except Exception as e:
-            logger.error("Bid submission failed: %s", e)
+            logger.error("Bid submission failed: %s", e, exc_info=True)
 
 
 def find_winning_bid(bids: dict[str, str]) -> str | None:

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -29,6 +31,11 @@ logger = get_pipeline_logger(__name__)
 class CheckpointManager:
     """Manages stage-level checkpointing for crash recovery."""
 
+    # Maximum number of replication retries before giving up.
+    _REPLICATION_MAX_RETRIES: int = 3
+    # Base delay (seconds) for exponential backoff between retries.
+    _REPLICATION_RETRY_BASE_DELAY: float = 0.5
+
     def __init__(
         self,
         checkpoint_dir: Path,
@@ -36,6 +43,7 @@ class CheckpointManager:
         checkpoint_store: CheckpointStore | None = None,
         storage_config: dict[str, Any] | None = None,
         distributed_store: Any | None = None,
+        source_node: str = "",
     ) -> None:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.run_id = run_id
@@ -44,8 +52,15 @@ class CheckpointManager:
             storage_config, self.checkpoint_dir
         )
         self._distributed: Any | None = distributed_store
+        self._source_node: str = source_node
         self._state: CheckpointState | None = None
         self._lock = threading.RLock()
+        # Track in-flight replication tasks for graceful shutdown (Bug #21).
+        self._replication_tasks: set[asyncio.Task[bool]] = set()
+        self._replication_lock = threading.Lock()
+        # Bug #2 fix: Track replication threads for lifecycle management.
+        self._replication_threads: set[threading.Thread] = set()
+        self._replication_thread_lock = threading.Lock()
 
     @property
     def completed_stages(self) -> list[str]:
@@ -54,6 +69,164 @@ class CheckpointManager:
             if state is None:
                 return []
             return self._ensure_completed_stages_list(state)
+
+    # ------------------------------------------------------------------
+    # Distributed replication helpers (Bugs #17, #21)
+    # ------------------------------------------------------------------
+
+    async def _replicate_with_retry(
+        self, state: CheckpointState, run_id: str,
+    ) -> bool:
+        """Replicate checkpoint to distributed store with retry and backoff.
+
+        Returns True if replication succeeded, False after exhausting retries.
+        """
+        dist = self._distributed
+        if dist is None:
+            return False
+
+        last_exc: BaseException | None = None
+        for attempt in range(1, self._REPLICATION_MAX_RETRIES + 1):
+            try:
+                result = await dist.save_checkpoint(state, run_id)
+                if result is True:
+                    logger.info(
+                        "Distributed replication succeeded for checkpoint %s v%s (attempt %d)",
+                        state.pipeline_run_id, state.checkpoint_version, attempt,
+                    )
+                    return True
+                logger.warning(
+                    "Distributed replication returned %s for checkpoint %s v%s (attempt %d/%d)",
+                    result, state.pipeline_run_id, state.checkpoint_version,
+                    attempt, self._REPLICATION_MAX_RETRIES,
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                logger.warning(
+                    "Distributed replication attempt %d/%d failed for checkpoint %s v%s: %s",
+                    attempt, self._REPLICATION_MAX_RETRIES,
+                    state.pipeline_run_id, state.checkpoint_version, exc,
+                )
+
+            if attempt < self._REPLICATION_MAX_RETRIES:
+                delay = self._REPLICATION_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                await asyncio.sleep(delay)
+
+        logger.error(
+            "Distributed replication failed after %d attempts for checkpoint %s v%s: %s. "
+            "Local checkpoint remains intact.",
+            self._REPLICATION_MAX_RETRIES,
+            state.pipeline_run_id, state.checkpoint_version, last_exc,
+        )
+        return False
+
+    def _dispatch_replication(self, state: CheckpointState) -> None:
+        """Dispatch an async replication task, tracked for graceful shutdown."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None and loop.is_running():
+            task = loop.create_task(self._replicate_with_retry(state, self.run_id))
+            with self._replication_lock:
+                self._replication_tasks.add(task)
+                task.add_done_callback(self._replication_tasks.discard)
+            return
+
+        # Bug #2 fix: Synchronous context – run in a tracked daemon thread.
+        # The thread is registered so wait_for_replications() can join it
+        # during shutdown, preventing the "replication silently lost" failure.
+        def _sync_replicate() -> None:
+            try:
+                new_loop = asyncio.new_event_loop()
+                try:
+                    new_loop.run_until_complete(
+                        self._replicate_with_retry(state, self.run_id),
+                    )
+                finally:
+                    new_loop.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Synchronous distributed replication failed for checkpoint %s v%s: %s",
+                    state.pipeline_run_id, state.checkpoint_version, exc,
+                )
+
+        thread = threading.Thread(
+            target=_sync_replicate,
+            name=f"checkpoint-replicate-{state.pipeline_run_id}-v{state.checkpoint_version}",
+            daemon=True,
+        )
+        # Bug #12: Register with LifecycleManager so it is joined during
+        # shutdown instead of being killed mid-flight by the OS.
+        try:
+            from src.core.lifecycle import get_lifecycle_manager
+            lm = get_lifecycle_manager()
+            lm.register_thread(thread.name, thread)
+        except ImportError:
+            pass
+        with self._replication_thread_lock:
+            self._replication_threads.add(thread)
+        thread.start()
+        # Auto-remove from tracking when thread finishes
+        def _on_thread_done() -> None:
+            with self._replication_thread_lock:
+                self._replication_threads.discard(thread)
+        thread.join_event = getattr(thread, "join_event", None)  # type: ignore[attr-defined]
+        # Use a small watcher thread to clean up (daemon, so won't block shutdown)
+        threading.Thread(target=lambda: (thread.join(), _on_thread_done()), daemon=True).start()
+
+    async def wait_for_replications(self, timeout: float = 10.0) -> bool:
+        """Wait for all in-flight replication tasks AND threads to finish.
+
+        Called during graceful shutdown so that replicated state is durable
+        before executors and storage backends are torn down.
+
+        Bug #2 fix: Also waits for replication threads (not just async tasks)
+        to prevent silent loss of distributed replicas on shutdown.
+
+        Returns True if all tasks/threads completed within *timeout*.
+        """
+        with self._replication_lock:
+            tasks = list(self._replication_tasks)
+        with self._replication_thread_lock:
+            threads = list(self._replication_threads)
+
+        if not tasks and not threads:
+            return True
+
+        logger.info(
+            "Waiting for %d replication task(s) and %d replication thread(s)…",
+            len(tasks), len(threads),
+        )
+
+        all_done = True
+
+        # Wait for async tasks
+        if tasks:
+            _, pending = await asyncio.wait(tasks, timeout=timeout)
+            if pending:
+                logger.warning(
+                    "%d replication task(s) still pending after %.1fs shutdown timeout",
+                    len(pending), timeout,
+                )
+                all_done = False
+
+        # Wait for threads (using asyncio.to_thread to avoid blocking the loop)
+        if threads:
+            import concurrent.futures
+
+            thread_timeout = max(0.1, timeout - 0.5)  # Leave some margin
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(threads)) as pool:
+                futures = {pool.submit(t.join, thread_timeout): t for t in threads}
+                for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                    try:
+                        future.result()
+                    except Exception:
+                        logger.warning("Future wait failed during checkpoint replication", exc_info=True)
+                        all_done = False
+
+        return all_done
 
     def _context_snapshot_path(self, stage_name: str) -> Path:
         from src.core.storage.local_backends import _stage_safe_name
@@ -118,6 +291,9 @@ class CheckpointManager:
     def save(self, state: CheckpointState) -> Path:
         with self._lock:
             state.last_checkpoint_at = time.time()
+            # Bug #31 fix: stamp the source node for distributed fencing
+            if self._source_node and not state.source_node:
+                state.source_node = self._source_node
             data = state.to_dict()
             data["checksum"] = ""
 
@@ -143,44 +319,8 @@ class CheckpointManager:
                 logger.error("Failed to write checkpoint: %s", exc)
                 raise
 
-            dist = self._distributed
-            if dist is not None:
-
-                def _log_replication_failure(exc: BaseException | None) -> None:
-                    logger.warning(
-                        "Distributed replication failed for checkpoint %s v%s: %s. "
-                        "Local checkpoint remains intact.",
-                        state.pipeline_run_id,
-                        state.checkpoint_version,
-                        exc,
-                    )
-
-                try:
-                    try:
-                        loop = asyncio.get_running_loop()
-                        task = loop.create_task(dist.save_checkpoint(state, self.run_id))
-
-                        def _on_done(t: asyncio.Task[Any]) -> None:
-                            if t.cancelled():
-                                _log_replication_failure(asyncio.CancelledError("Task cancelled"))
-                            elif t.exception() is not None:
-                                _log_replication_failure(t.exception())
-
-                        task.add_done_callback(_on_done)
-                    except RuntimeError:
-                        try:
-                            loop = asyncio.new_event_loop()
-                            try:
-                                loop.run_until_complete(dist.save_checkpoint(state, self.run_id))
-                            finally:
-                                try:
-                                    loop.close()
-                                except (RuntimeError, OSError) as loop_close_exc:
-                                    _log_replication_failure(loop_close_exc)
-                        except Exception as e:
-                            _log_replication_failure(e)
-                except Exception as exc:
-                    _log_replication_failure(exc)
+            if self._distributed is not None:
+                self._dispatch_replication(state)
 
             self._state = state
             local_marker = (
@@ -189,6 +329,21 @@ class CheckpointManager:
                 / f"checkpoint_v{state.checkpoint_version}.json"
             )
             return local_marker
+
+    async def save_and_wait(self, state: CheckpointState, timeout: float = 10.0) -> Path:
+        """Save checkpoint and wait for replication to complete.
+
+        Bug #3 fix: Unlike save() which returns immediately while replication
+        runs async, this method blocks until replication finishes (or times out),
+        ensuring the caller has true durability before proceeding.
+
+        Use this for critical checkpoints where the next stage depends on the
+        distributed replica being visible (e.g. before failover, before pipeline
+        completion signal).
+        """
+        local_marker = self.save(state)
+        await self.wait_for_replications(timeout=timeout)
+        return local_marker
 
     def load(self) -> CheckpointState | None:
         with self._lock:
@@ -283,6 +438,20 @@ class CheckpointManager:
             payload.setdefault("status", normalized_status)
             if error and "error" not in payload:
                 payload["error"] = error
+
+            # Bug #29 fix: Preserve immutable first-failure snapshot.
+            # Once set, first_failure is never overwritten, so the original
+            # root cause survives retries and subsequent failures.
+            if normalized_status == "failed" and current.first_failure is None:
+                import time as _time
+
+                current.first_failure = {
+                    "failed_stage": stage_name,
+                    "failure_reason": error or "",
+                    "failure_step": payload.get("error", ""),
+                    "failure_reason_code": payload.get("failure_reason_code", ""),
+                    "timestamp": _time.time(),
+                }
 
             completed_stages = self._ensure_completed_stages_list(current)
             if normalized_status in {"completed", "skipped"}:
@@ -403,6 +572,118 @@ class CheckpointManager:
             if not current_stage:
                 return snapshot
             return self.apply_stage_deltas(snapshot, current_stage)
+
+    # ------------------------------------------------------------------
+    # Artifact integrity tracking (Bug #23)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _hash_file(path: str) -> str:
+        """Compute SHA-256 hex digest for a single file."""
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    def record_artifact_hashes(
+        self, stage_name: str, artifact_paths: list[str],
+    ) -> dict[str, str]:
+        """Hash the given artifact files and store them in checkpoint state.
+
+        Called by stage guards or pipeline runners after a stage produces
+        output files.  The hashes are persisted with the next checkpoint
+        save so that resume can later verify the artifacts are intact.
+
+        Returns the mapping ``{path: sha256}`` that was recorded.
+        """
+        hashes: dict[str, str] = {}
+        for p in artifact_paths:
+            try:
+                hashes[p] = self._hash_file(p)
+            except OSError as exc:
+                logger.warning("Could not hash artifact %s: %s", p, exc)
+        if not hashes:
+            return hashes
+        with self._lock:
+            current = self.ensure_state()
+            current.artifact_hashes[stage_name] = hashes
+        logger.debug(
+            "Recorded %d artifact hash(es) for stage %s", len(hashes), stage_name,
+        )
+        return hashes
+
+    def validate_artifacts_integrity(self) -> dict[str, list[str]]:
+        """Check all recorded artifact hashes against current file state.
+
+        Returns a dict ``{"valid": [...], "corrupted": [...], "missing": [...]}``
+        so callers can decide whether to re-run stages whose artifacts
+        have been tampered with or lost.
+        """
+        with self._lock:
+            state = self.load()
+        if state is None:
+            return {"valid": [], "corrupted": [], "missing": []}
+
+        valid: list[str] = []
+        corrupted: list[str] = []
+        missing: list[str] = []
+
+        for stage_name, hashes in state.artifact_hashes.items():
+            for path, expected_hash in hashes.items():
+                if not os.path.isfile(path):
+                    missing.append(path)
+                    logger.warning(
+                        "Artifact missing: stage=%s path=%s", stage_name, path,
+                    )
+                    continue
+                try:
+                    actual_hash = self._hash_file(path)
+                except OSError as exc:
+                    missing.append(path)
+                    logger.warning(
+                        "Artifact unreadable: stage=%s path=%s: %s",
+                        stage_name, path, exc,
+                    )
+                    continue
+                if actual_hash != expected_hash:
+                    corrupted.append(path)
+                    logger.warning(
+                        "Artifact corrupted: stage=%s path=%s "
+                        "expected=%s actual=%s",
+                        stage_name, path, expected_hash, actual_hash,
+                    )
+                else:
+                    valid.append(path)
+
+        if corrupted or missing:
+            logger.warning(
+                "Artifact integrity check: %d valid, %d corrupted, %d missing",
+                len(valid), len(corrupted), len(missing),
+            )
+        return {"valid": valid, "corrupted": corrupted, "missing": missing}
+
+    def get_stages_with_corrupted_artifacts(self) -> list[str]:
+        """Return stage names whose artifacts are corrupted or missing.
+
+        Useful for the resume planner to decide which stages must be
+        re-run even if ``completed_stages`` says they finished.
+        """
+        report = self.validate_artifacts_integrity()
+        bad_paths = set(report["corrupted"]) | set(report["missing"])
+        if not bad_paths:
+            return []
+
+        with self._lock:
+            state = self.load()
+        if state is None:
+            return []
+
+        affected: list[str] = []
+        for stage_name, hashes in state.artifact_hashes.items():
+            if any(p in bad_paths for p in hashes):
+                affected.append(stage_name)
+        return affected
 
     def ensure_state(self) -> CheckpointState:
         with self._lock:
@@ -540,6 +821,7 @@ def create_checkpoint_manager(
     run_id: str | None = None,
     storage_config: dict[str, Any] | None = None,
     distributed_store: Any | None = None,
+    source_node: str = "",
 ) -> CheckpointManager:
     """Create a CheckpointManager with standard directory layout."""
     from src.core.checkpoint.recovery import generate_run_id
@@ -551,4 +833,5 @@ def create_checkpoint_manager(
         resolved_run_id,
         storage_config=storage_config,
         distributed_store=distributed_store,
+        source_node=source_node,
     )

@@ -1,17 +1,12 @@
-import { useCallback, useRef } from 'react';
+import { useRef, memo } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { LogLine } from '../LogLine';
-import { List as VirtualList, type RowComponentProps } from 'react-window';
 
 const LOG_LINE_HEIGHT = 20;
 
-interface LogRowData {
-  lines: string[];
-}
-
-function LogRowRenderer(props: RowComponentProps<LogRowData>) {
-  const { index, style, lines } = props;
-  return <LogLine line={lines.at(index) ?? ''} index={index} style={style} />;
-}
+const LogRowRenderer = memo(function LogRowRenderer({ line, index }: { line: string; index: number }) {
+  return <LogLine line={line} index={index} />;
+});
 
 interface JobLogViewerProps {
   displayLines: string[];
@@ -22,13 +17,6 @@ interface JobLogViewerProps {
 export function JobLogViewer({ displayLines, wsFailed, jobStatus }: JobLogViewerProps) {
   const logsContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    const threshold = 60;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-    (el as HTMLDivElement).dataset.autoScroll = String(atBottom);
-  }, []);
-
   if (displayLines.length > 50) {
     return (
       <div className="card logs-card">
@@ -38,19 +26,14 @@ export function JobLogViewer({ displayLines, wsFailed, jobStatus }: JobLogViewer
             <span className="ws-status ws-disconnected">Falling back to polling</span>
           )}
         </h3>
-        <div
-          className="logs-container"
-          ref={logsContainerRef}
-          onScroll={handleScroll}
-        >
+        <div className="logs-container" ref={logsContainerRef}>
           <div className="logs-virtualized" style={{ height: 400 }}>
-            <VirtualList<LogRowData>
-              key={displayLines.length}
-              rowCount={displayLines.length}
-              rowHeight={LOG_LINE_HEIGHT}
-              defaultHeight={400}
-              rowProps={{ lines: displayLines }}
-              rowComponent={LogRowRenderer}
+            <Virtuoso
+              totalCount={displayLines.length}
+              itemContent={(index) => <LogRowRenderer line={displayLines[index]} index={index} />}
+              className="scrollbar-cyber"
+              overscan={200}
+              style={{ height: '100%' }}
             />
           </div>
         </div>
@@ -66,13 +49,9 @@ export function JobLogViewer({ displayLines, wsFailed, jobStatus }: JobLogViewer
           <span className="ws-status ws-disconnected">Falling back to polling</span>
         )}
       </h3>
-      <div
-        className="logs-container"
-        ref={logsContainerRef}
-        onScroll={handleScroll}
-      >
+      <div className="logs-container" ref={logsContainerRef}>
         {displayLines.map((line, i) => (
-          <LogLine key={i} line={line} index={i} />
+          <LogLine key={`${line}-${i}`} line={line} index={i} />
         ))}
         {displayLines.length === 0 && (
           <div className="log-line log-line-info">Waiting for output...</div>

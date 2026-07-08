@@ -41,10 +41,10 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -224,31 +224,31 @@ class HuntBudget:
         if not isinstance(payload, Mapping):
             return cls()
         return cls(
-            max_duration_seconds=_coerce_optional_float(
-                payload.get("max_duration_seconds") or payload.get("max_wall_clock_seconds")
+            max_duration_seconds=_coerce_optional(
+                payload.get("max_duration_seconds") or payload.get("max_wall_clock_seconds"), float
             ),
-            max_requests=_coerce_optional_int(
-                payload.get("max_requests") or payload.get("max_http_requests")
+            max_requests=_coerce_optional(
+                payload.get("max_requests") or payload.get("max_http_requests"), int
             ),
-            max_findings=_coerce_optional_int(
+            max_findings=_coerce_optional(
                 payload.get("max_findings")
                 or payload.get("max_productive_findings")
-                or payload.get("stop_when_total_findings")
+                or payload.get("stop_when_total_findings"), int
             ),
-            confidence_threshold=_coerce_optional_float(payload.get("confidence_threshold")) or 0.7,
+            confidence_threshold=_coerce_optional(payload.get("confidence_threshold"), float) or 0.7,
             label=str(payload.get("label") or "default"),
-            stop_when_high_confidence_count=_coerce_optional_int(
-                payload.get("stop_when_high_confidence_count")
+            stop_when_high_confidence_count=_coerce_optional(
+                payload.get("stop_when_high_confidence_count"), int
             ),
-            high_value_target_time_budget_pct=_coerce_optional_float(
-                payload.get("high_value_target_time_budget_pct")
+            high_value_target_time_budget_pct=_coerce_optional(
+                payload.get("high_value_target_time_budget_pct"), float
             )
             or 0.4,
-            high_confidence_threshold=_coerce_optional_float(
-                payload.get("high_confidence_threshold")
+            high_confidence_threshold=_coerce_optional(
+                payload.get("high_confidence_threshold"), float
             )
             or 0.95,
-            max_concurrent_probes=_coerce_optional_int(payload.get("max_concurrent_probes")) or 5,
+            max_concurrent_probes=_coerce_optional(payload.get("max_concurrent_probes"), int) or 5,
             countdown_visible=bool(payload.get("countdown_visible", True)),
         )
 
@@ -432,44 +432,24 @@ class HuntBudgetEnforcer:
         return self._last_snapshot
 
     def bind_to_priority_queue(self, queue: Any) -> None:
-        """Wire ``queue.should_terminate_early`` to this enforcer.
+        """Wire this enforcer into ``queue`` for budget-aware early termination.
 
-        Wraps the queue's existing ``should_terminate_early`` so it
-        returns ``True`` whenever any budget axis is exhausted. The
-        queue's own heuristic still runs for low-priority early-out.
+        Stores the enforcer on the queue so its ``should_terminate_early``
+        method can consult the budget without monkey-patching.
         """
-        original = getattr(queue, "should_terminate_early", None)
-        if not callable(original):
-            raise TypeError("queue does not expose a callable should_terminate_early()")
-
-        enforcer = self
-
-        def should_terminate_early(*args: Any, **kwargs: Any) -> bool:
-            if enforcer.is_exhausted():
-                enforcer.mark_terminated("budget_exhausted")
-                return True
-            return bool(original(*args, **kwargs))
-
-        queue.should_terminate_early = should_terminate_early  # type: ignore[method-assign]
+        if not hasattr(queue, "_budget_enforcer_hook"):
+            raise TypeError("queue does not support _budget_enforcer_hook")
+        queue._budget_enforcer_hook = self
 
 
-def _coerce_optional_float(value: Any) -> float | None:
+T = TypeVar("T", float, int)
+
+
+def _coerce_optional[T: (float, int)](value: Any, caster: Callable[[Any], T]) -> T | None:  # noqa: UP047
     if value is None or value == "":
         return None
     try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    if result < 0:
-        return None
-    return result
-
-
-def _coerce_optional_int(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        result = int(value)
+        result = caster(value)
     except (TypeError, ValueError):
         return None
     if result < 0:

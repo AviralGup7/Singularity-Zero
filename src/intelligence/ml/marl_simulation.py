@@ -130,8 +130,8 @@ class MARLSimulator:
             get_metrics().counter(
                 "marl_simulation_steps_total", "Total MARL simulation steps run"
             ).inc()
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("MARLSimulator: Failed to record metrics", exc_info=True)
 
         return actions
 

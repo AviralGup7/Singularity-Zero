@@ -8,7 +8,6 @@ so existing import paths continue to work.
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -21,6 +20,12 @@ from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.pipeline_logging import emit_retry_warning, emit_warning
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import classify_stderr_lines
+from src.core.utils.subprocess_utils import (
+    SHELL_META,
+    _clean_env,
+    _coerce_output_text,
+    _get_creationflags,
+)
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
 from src.pipeline.retry.strategies import detect_rate_limit, parse_retry_after
 from src.pipeline.services.circuit_breaker import (
@@ -29,19 +34,11 @@ from src.pipeline.services.circuit_breaker import (
     CircuitBreakerStats,
     ProbeCallback,
 )
-from src.pipeline.waf_profile import WafTuningProfile
+from src.pipeline.waf_profile import WAFTuningProfile
 
 from .contracts import ToolExecutionError, ToolExecutionOutcome
 
 logger = get_pipeline_logger(__name__)
-
-SHELL_META = re.compile(r"[;|&\$\`\n\r]")
-
-
-def _get_creationflags() -> int:
-    if sys.platform.startswith("win"):
-        return subprocess.CREATE_NO_WINDOW
-    return 0
 
 
 class ToolExecutionService:
@@ -51,7 +48,7 @@ class ToolExecutionService:
     name so that breakers are isolated per service instance.  Callers can
     supply per-tool :class:`CircuitBreakerConfig` overrides at construction
     time to tune ``failure_threshold`` and ``recovery_timeout`` (e.g.
-    ``nuclei`` recovers in 60 s, a blacklisted ``crt.sh`` may need 10
+    ``nuclei`` recovers in 60 s, a denied ``crt.sh`` may need 10
     minutes).
 
     The self-healing controller can call :meth:`force_open_breaker` when
@@ -160,12 +157,12 @@ class ToolExecutionService:
         return {tool_name: breaker.stats() for tool_name, breaker in self._circuit_breakers.items()}
 
     def persist_breaker_states(self, cache: Any) -> None:
-        from src.pipeline.services.circuit_breaker import persist_all_breakers
+        from .runner import persist_all_breakers
 
         persist_all_breakers(cache, self._circuit_breakers)
 
     def restore_breaker_states(self, cache: Any) -> None:
-        from src.pipeline.services.circuit_breaker import load_all_breakers
+        from .runner import load_all_breakers
 
         restored = load_all_breakers(cache)
         for name, state_dict in restored.items():
@@ -275,7 +272,7 @@ class ToolExecutionService:
         timeout: int | None = None,
         stdin_text: str | None = None,
         retry_policy: RetryPolicy | None = None,
-        waf_profile: WafTuningProfile | None = None,
+        waf_profile: WAFTuningProfile | None = None,
     ) -> str:
         sanitized = self.sanitize_tool_arguments(command)
         tool_name = sanitized[0] if sanitized else "unknown"
@@ -346,7 +343,7 @@ class ToolExecutionService:
         timeout: int | None = None,
         stdin_text: str | None = None,
         retry_policy: RetryPolicy | None = None,
-        waf_profile: WafTuningProfile | None = None,
+        waf_profile: WAFTuningProfile | None = None,
     ) -> ToolExecutionOutcome:
         sanitized = self.sanitize_tool_arguments(command)
         tool_name = sanitized[0] if sanitized else "unknown"
@@ -523,7 +520,7 @@ class ToolExecutionService:
         timeout: int | None = None,
         stdin_text: str | None = None,
         retry_policy: RetryPolicy | None = None,
-        waf_profile: WafTuningProfile | None = None,
+        waf_profile: WAFTuningProfile | None = None,
     ) -> str:
         outcome = self.execute_command(
             command,
@@ -598,7 +595,7 @@ class ToolExecutionService:
         policy: Any,
         attempt_number: int,
         stderr_text: str = "",
-        waf_profile: WafTuningProfile | None = None,
+        waf_profile: WAFTuningProfile | None = None,
     ) -> float:
         """Return backoff delay, honouring Retry-After when present."""
         retry_after = parse_retry_after(stderr_text)
@@ -616,7 +613,7 @@ class ToolExecutionService:
         reason: str,
         policy: Any,
         stderr_text: str = "",
-        waf_profile: WafTuningProfile | None = None,
+        waf_profile: WAFTuningProfile | None = None,
     ) -> bool:
         if not retry_ready(policy, attempt):
             return False
@@ -720,28 +717,11 @@ class ToolExecutionService:
 
     @staticmethod
     def _clean_env(env: dict[str, str] | None) -> dict[str, str]:
-        if env is None:
-            return {}
-        clean = {}
-        for k, v in env.items():
-            try:
-                k_str = str(k)
-                v_str = str(v)
-                k_str.encode("utf-8")
-                v_str.encode("utf-8")
-                clean[k_str] = v_str
-            except (UnicodeEncodeError, UnicodeDecodeError) as exc:
-                logger.warning("Dropped environment variable %r due to encoding error: %s", k, exc)
-                continue
-        return clean
+        return _clean_env(env)
 
     @staticmethod
     def _coerce_output_text(value: str | bytes | None) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, bytes):
-            return value.decode("utf-8", errors="ignore")
-        return value
+        return _coerce_output_text(value)
 
     @classmethod
     def _stderr_lines(cls, stderr_text: str | bytes | None) -> list[str]:

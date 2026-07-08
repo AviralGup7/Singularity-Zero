@@ -194,7 +194,7 @@ def run_blackbox_validation_engine(
     retry_multiplier = max(1.0, float(engine_settings.get("retry_backoff_multiplier", 2.0)))
     per_validator_limit = max(1, int(engine_settings.get("per_validator_limit", 20)))
 
-    from src.pipeline.retry import RetryPolicy
+    from src.core.contracts.pipeline import RetryPolicy
 
     http_client = ValidationHttpClient(
         ValidationHttpConfig(

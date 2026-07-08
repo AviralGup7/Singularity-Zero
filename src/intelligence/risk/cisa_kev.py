@@ -105,7 +105,7 @@ class CISAKEVClient:
     # -- public --------------------------------------------------------
 
     def is_known_exploited(self, cve: str) -> bool:
-        cve_id = self._normalise_cve(cve)
+        cve_id = self._normalize_cve(cve)
         if not cve_id:
             return False
         self._ensure_fresh()
@@ -113,7 +113,7 @@ class CISAKEVClient:
             return cve_id in self._catalogue
 
     def lookup(self, cve: str) -> KEVRecord | None:
-        cve_id = self._normalise_cve(cve)
+        cve_id = self._normalize_cve(cve)
         if not cve_id:
             return None
         self._ensure_fresh()
@@ -190,7 +190,7 @@ class CISAKEVClient:
         for entry in records:
             if not isinstance(entry, dict):
                 continue
-            cve = self._normalise_cve(entry.get("cveID", ""))
+            cve = self._normalize_cve(entry.get("cveID", ""))
             if not cve:
                 continue
             new_catalogue[cve] = KEVRecord(
@@ -210,7 +210,7 @@ class CISAKEVClient:
         logger.info("CISAKEVClient: refreshed catalogue with %d records", len(new_catalogue))
 
     @staticmethod
-    def _normalise_cve(cve: str) -> str:
+    def _normalize_cve(cve: str) -> str:
         text = str(cve or "").strip().upper()
         if not text:
             return ""
@@ -227,7 +227,7 @@ class CISAKEVClient:
             if not source:
                 continue
             for item in source:
-                norm = self._normalise_cve(item)
+                norm = self._normalize_cve(item)
                 if norm and norm not in cves:
                     cves.append(norm)
         if not cves and finding.get("category"):
@@ -235,8 +235,8 @@ class CISAKEVClient:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                logger.warning("CISAKEVClient: Failed to correlate CVEs from category", exc_info=True)
         return [c for c in cves if c]
 
     def _network_disabled(self) -> bool:

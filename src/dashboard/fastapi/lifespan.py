@@ -1,46 +1,27 @@
-"""Lifespan events for the FastAPI dashboard."""
+"""Lifespan events for the FastAPI dashboard.
+
+Startup is organized into phases for clarity. Each phase module handles
+a single concern and runs in sequence. Shutdown runs phases in reverse.
+
+Phase modules:
+  - lifespan_core:         Logging, secrets, plugins, cache, services
+  - lifespan_notifications: Notification storage, broadcaster, manager
+  - lifespan_websocket:    WebSocket server with auth
+  - lifespan_mesh:         Gossip, consensus, mDNS, sharding, bloom
+  - lifespan_health:       Self-healing, corrective actions, telemetry
+"""
 
 import asyncio
 import logging
-import os
 import time
-import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
 
-from src.core.contracts.health import HealthMetric, HealthStatus
-from src.core.events import get_event_bus
-from src.core.security.secret_validator import validate_or_raise
-from src.dashboard.fastapi.collaboration import TriageCollaborationService
-from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.feature_flags import FeatureFlags
-from src.dashboard.fastapi.mesh_setup import (
-    create_worker_discovery,
-    init_bloom_filter,
-    init_bloom_mesh,
-)
-from src.dashboard.fastapi.self_healing_setup import setup_self_healing_controller
 from src.dashboard.fastapi.spa import setup_mimetypes
-from src.dashboard.fastapi.ws_setup import setup_websocket
-from src.infrastructure.frontier.bloom_mesh import ReconcileBloom
-from src.infrastructure.mesh.consensus import MeshConsensus
-from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
-from src.infrastructure.mesh.manifest import discover_manifest
-from src.infrastructure.mesh.sharding import MeshShardManager
-from src.infrastructure.observability.health_subscriber import register_health_subscriber
-from src.pipeline.self_healing import (
-    CorrectionEvent,
-    CorrectiveAction,
-    CorrectiveActionRegistry,
-    HealthComponent,
-)
-from src.websocket_server.integration import (
-    WSServices,
-    integrate_with_pipeline_progress,
-)
 
 try:
     import psutil
@@ -54,511 +35,48 @@ logger = logging.getLogger(__name__)
 _START_TIME: float | None = None
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    global _START_TIME
-    _START_TIME = time.time()
+# ---------------------------------------------------------------------------
+# Background task registration (Bug #23)
+# ---------------------------------------------------------------------------
 
-    # Register plugin hooks from analysis and detection layers
+
+def _register_background_tasks(app: FastAPI) -> None:
+    """Register all background tasks with the lifecycle manager.
+
+    Ensures tasks are cancelled during shutdown before cleanups run,
+    preventing ghost listeners and duplicate subscriptions.
+    """
     try:
-        import src.analysis.plugin_registration  # noqa: F401
+        from src.core.lifecycle import get_lifecycle_manager
+
+        mgr = get_lifecycle_manager()
     except ImportError:
-        pass
-    try:
-        import src.detection.cache_registration  # noqa: F401
-    except ImportError:
-        pass
+        return
 
-    from src.core.logging.trace_logging import install_trace_log_filter
-    from src.core.plugins.loader import refresh_dynamic_plugins, start_dynamic_plugin_watcher
-    from src.dashboard.fastapi.process_lock import ProcessLifespanLock
-    from src.dashboard.fastapi.routers.cache import start_cache_analytics
-    from src.dashboard.fastapi.security import api_security_enabled, app_secret_key
-    from src.dashboard.services import DashboardServices
-    from src.infrastructure.cache import CacheManager
-    from src.infrastructure.cache.config import CacheConfig
-    from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
-    from src.infrastructure.observability.structured_logging import setup_logging
-    from src.infrastructure.observability.system_sampler import start_system_sampler
-    from src.infrastructure.security.audit import AuditLogger
-    from src.infrastructure.security.config import SecurityConfig
+    # Cache analytics task
+    if hasattr(app.state, "cache_analytics_task") and app.state.cache_analytics_task is not None:
+        mgr.register_task("cache_analytics", app.state.cache_analytics_task)
 
-    setup_logging()
-    install_trace_log_filter()
-    register_pipeline_metrics(get_metrics())
-    start_system_sampler()
+    # ETA engine task
+    if hasattr(app.state, "eta_task") and app.state.eta_task is not None:
+        mgr.register_task("eta_engine", app.state.eta_task)
 
-    config: DashboardConfig = app.state.config
-    logger.info("Dashboard server starting on %s:%d", config.host, config.port)
-    logger.info("Project Root: %s", config.workspace_root)
-    logger.info("Frontend Dist: %s", config.frontend_dist)
+    # Consensus task (also registered in lifespan_mesh, but this is a safety net)
+    if hasattr(app.state, "mesh_consensus_task") and app.state.mesh_consensus_task is not None:
+        mgr.register_task("mesh_consensus", app.state.mesh_consensus_task)
 
-    validate_or_raise()
+    # Telemetry task
+    if hasattr(app.state, "mesh_telemetry_task") and app.state.mesh_telemetry_task is not None:
+        mgr.register_task("mesh_telemetry", app.state.mesh_telemetry_task)
 
-    # Log unconfigured optional integrations (Finding #190)
-    optional_api_keys = {
-        "VIRUSTOTAL_API_KEY": "VirusTotal",
-        "SHODAN_API_KEY": "Shodan",
-        "ALIENVAULT_API_KEY": "AlienVault",
-        "CVE_API_KEY": "CVE",
-    }
-    unconfigured = [name for name, _ in optional_api_keys.items() if not os.getenv(name)]
-    if unconfigured:
-        logger.info(
-            "Optional API integrations not configured (feature disabled): %s",
-            ", ".join(unconfigured),
-        )
 
-    refresh_dynamic_plugins()
-    start_dynamic_plugin_watcher()
+# ---------------------------------------------------------------------------
+# Shutdown helper
+# ---------------------------------------------------------------------------
 
-    app.state.audit_logger = AuditLogger(SecurityConfig())
 
-    cache_config = CacheConfig(
-        sqlite_db_path=config.cache_db_path,
-        cache_dir=config.cache_dir,
-        redis_url=config.redis_url,
-    )
-    app.state.cache_manager = CacheManager(config=cache_config)
-
-    app.state.cache_analytics_task = start_cache_analytics(app)
-
-    app.state.services = DashboardServices(
-        workspace_root=config.workspace_root,
-        output_root=config.output_root,
-        config_template=config.config_template,
-    )
-    app.state.services.cache_manager = app.state.cache_manager
-
-    lock_path = config.output_root / "startup.lock"
-    app.state.lifespan_lock = ProcessLifespanLock(str(lock_path))
-    is_primary = app.state.lifespan_lock.acquire()
-
-    db_path = config.output_root / "jobs.db"
-    app.state.services.init_persistence(db_path, is_primary=is_primary)
-    app.state.triage_collaboration = TriageCollaborationService(config.output_root)
-
-    from src.learning.collaboration import get_default_store
-
-    assignment_db_path = config.output_root / "assignments.db"
-    app.state.assignment_store = get_default_store(db_path=str(assignment_db_path))
-    logger.info("Assignment store initialized at %s", assignment_db_path)
-
-    # Initialize notification storage and SSE broadcaster
-    from src.infrastructure.notifications.broadcaster import get_notification_broadcaster
-    from src.infrastructure.notifications.storage import NotificationStorage
-
-    notif_db_path = config.output_root / "notifications.db"
-    app.state.notification_storage = NotificationStorage(str(notif_db_path))
-    app.state.notification_broadcaster = get_notification_broadcaster()
-    logger.info("Notification storage initialized at %s", notif_db_path)
-
-    # Initialize the global NotificationManager with in_app channel
-    from src.infrastructure.notifications.in_app import InAppNotifier
-    from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
-
-    in_app_notifier = InAppNotifier()
-    in_app_notifier.bind_storage(app.state.notification_storage)
-    in_app_notifier.bind_broadcaster(app.state.notification_broadcaster)
-
-    notif_manager = NotificationManager(ManagerConfig())
-    notif_manager.register_notifier("in_app", in_app_notifier)
-    app.state.notification_manager = notif_manager
-    logger.info("NotificationManager initialized with in_app channel")
-
-    ws_services: WSServices | None = None
-    try:
-        ws_api_keys = {key: f"admin:{index}" for index, key in enumerate(config.admin_keys) if key}
-        ws_required_roles = (
-            {"viewer", "operator", "admin", "anonymous"} if api_security_enabled() else None
-        )
-        ws_services = setup_websocket(
-            app,
-            jwt_secret=app_secret_key()
-            if api_security_enabled()
-            else (config.api_key if config.api_key else None),
-            api_keys=ws_api_keys or None,
-            required_roles=ws_required_roles,
-            heartbeat_interval=20.0,
-            heartbeat_timeout=45.0,
-            max_connections_per_ip=5 if api_security_enabled() else 20,
-            redis_url=config.redis_url,
-            redis_channel="cyber-pipeline:ws:broadcast",
-        )
-        app.state.ws_services = ws_services
-
-        if (
-            ws_services is not None
-            and hasattr(app.state.services, "jobs")
-            and hasattr(app.state.services, "lock")
-        ):
-            integrate_with_pipeline_progress(
-                ws_services,
-                job_state_store=app.state.services.jobs,
-                lock=app.state.services.lock,
-            )
-    except Exception as exc:
-        logger.warning("WebSocket server initialization failed: %s", exc)
-        app.state.ws_services = None
-
-    node_id = f"worker-{uuid.uuid4().hex[:8]}"
-    if psutil:
-        psutil.cpu_percent(interval=None)
-
-    manifest = discover_manifest()
-    local_node = MeshNode(
-        id=node_id,
-        host=os.getenv("MESH_BIND_INTERFACE", config.host),
-        port=config.port,
-        status="alive",
-        cpu_usage=psutil.cpu_percent(interval=0.1) if psutil else 0.0,
-        ram_available_mb=psutil.virtual_memory().available / 1024 / 1024 if psutil else 0.0,
-        active_jobs=0,
-        last_seen=time.time(),
-        capabilities=list(manifest.capabilities),
-        region=manifest.region,
-        zone=manifest.zone,
-        bandwidth_mbps=manifest.bandwidth_mbps,
-        capacity_weight=manifest.capacity_weight,
-        version_vector={node_id: 1},
-    )
-
-    import secrets
-
-    mesh_secret = os.getenv("MESH_SECRET")
-    is_prod = os.getenv("APP_ENV") == "production"
-
-    if not mesh_secret:
-        if is_prod:
-            raise ValueError(
-                "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
-            )
-        mesh_secret = secrets.token_hex(32)
-        logger.warning(
-            "MESH_SECRET is not set; generated a per-process random secret. "
-            "Mesh peers will NOT be able to authenticate each other. "
-            "Set MESH_SECRET to a long, random, shared value in any environment "
-            "with more than one dashboard instance."
-        )
-    elif is_prod and mesh_secret in (
-        "frontier-default-secret",
-        "frontier-default-secret-change-in-prod",
-        "frontier-default-secret-change-me",
-    ):
-        raise ValueError(
-            "CRITICAL SECURITY RISK: MESH_SECRET must not be a default value in production."
-        )
-
-    gossip_engine = GossipEngine(local_node, secret=mesh_secret)
-    try:
-        await gossip_engine.start()
-    except OSError as exc:
-        logger.warning("Gossip mesh disabled because UDP bind failed: %s", exc)
-        app.state.gossip = None
-    else:
-        app.state.gossip = gossip_engine
-
-    consensus = MeshConsensus(gossip_engine, redis_url=config.redis_url)
-    app.state.mesh_consensus = consensus
-    app.state.mesh_consensus_task = asyncio.create_task(
-        consensus.run_maintenance(), name="mesh-consensus"
-    )
-
-    # ------------------------------------------------------------------
-    # Optional mDNS worker discovery
-    # ------------------------------------------------------------------
-    app.state.worker_discovery = None
-    try:
-        discovery = create_worker_discovery(local_node, secret=mesh_secret, enable=True)
-        if discovery is not None:
-
-            def _on_discovery_change(action: str, payload: Any) -> None:
-                if action != "add":
-                    return
-                if not isinstance(payload, dict):
-                    return
-                try:
-                    gossip_engine.register_discovered_peer(payload)
-                except Exception:  # noqa: BLE001 - never let a callback kill the loop
-                    logger.exception("Failed to register mDNS-discovered peer")
-
-            discovery._on_change = _on_discovery_change
-            if discovery.register() and discovery.start_discovery():
-                app.state.worker_discovery = discovery
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("mDNS discovery bootstrap failed; continuing without it: %s", exc)
-
-    shard_manager = MeshShardManager()
-    shard_manager.add_node(
-        node_id,
-        weight=manifest.capacity_weight,
-        region=manifest.region,
-    )
-    app.state.sharding = shard_manager
-
-    bloom_filter = init_bloom_filter()
-    bloom_mesh = init_bloom_mesh(bloom_filter, node_id=node_id, redis_url=config.redis_url)
-    await bloom_mesh.start()
-    app.state.bloom_filter = bloom_filter
-    app.state.bloom_mesh = bloom_mesh
-    app.state.bloom_reconciler = ReconcileBloom(bloom_mesh)
-    app.state.model_registry = _init_model_registry()
-
-    action_registry = CorrectiveActionRegistry()
-
-    async def _refresh_stuck_stage(finding: Any) -> CorrectionEvent:
-        job_id = finding.labels.get("job_id")
-        jobs = getattr(app.state.services, "jobs", {})
-        job = jobs.get(job_id) if job_id else None
-        if isinstance(job, dict):
-            job["updated_at"] = time.time()
-            job["health_recovery"] = {
-                "action": "refetch_stage_timeout",
-                "reason": finding.reason,
-                "at": time.time(),
-            }
-        return CorrectionEvent(
-            finding_id=finding.finding_id,
-            action=CorrectiveAction.REFRESH_STUCK_STAGE,
-            success=job is not None,
-            message=f"Refreshed stuck stage watchdog for {job_id or 'unknown job'}",
-            component=HealthComponent.PIPELINE_STAGE,
-            details={"job_id": job_id},
-        )
-
-    async def _flush_bloom(finding: Any) -> CorrectionEvent:
-        details = await app.state.bloom_reconciler.flush(reason="self_healing")
-        return CorrectionEvent(
-            finding_id=finding.finding_id,
-            action=CorrectiveAction.FLUSH_BLOOM_FILTER,
-            success=True,
-            message="Flushed saturated Bloom filter and published reconciliation snapshot",
-            component=HealthComponent.BLOOM_MESH,
-            details=details,
-        )
-
-    async def _rollback_model(finding: Any) -> CorrectionEvent:
-        registry = app.state.model_registry
-        details = registry.rollback_bad_model_version(finding.labels.get("model_name"))
-        return CorrectionEvent(
-            finding_id=finding.finding_id,
-            action=CorrectiveAction.ROLLBACK_MODEL_VERSION,
-            success=bool(details.get("rolled_back")),
-            message=details.get("reason", "Model rollback evaluated"),
-            component=HealthComponent.MODEL_REGISTRY,
-            details=details,
-        )
-
-    async def _escalate(finding: Any) -> CorrectionEvent:
-        return CorrectionEvent(
-            finding_id=finding.finding_id,
-            action=CorrectiveAction.ESCALATE_ANALYST,
-            success=True,
-            message=f"Escalated {finding.component.value}: {finding.reason}",
-            component=finding.component,
-            details={"labels": finding.labels},
-        )
-
-    async def _rebalance(finding: Any) -> CorrectionEvent:
-        gossip = getattr(app.state, "gossip", None)
-        details = gossip.mesh_health() if gossip else {"mesh": "unavailable"}
-        return CorrectionEvent(
-            finding_id=finding.finding_id,
-            action=CorrectiveAction.REBALANCE_ACTORS,
-            success=gossip is not None,
-            message="Rebalanced actor placement pressure against current mesh telemetry",
-            component=finding.component,
-            details=details,
-        )
-
-    action_registry.register(CorrectiveAction.REFRESH_STUCK_STAGE, _refresh_stuck_stage)
-    action_registry.register(CorrectiveAction.FLUSH_BLOOM_FILTER, _flush_bloom)
-    action_registry.register(CorrectiveAction.ROLLBACK_MODEL_VERSION, _rollback_model)
-    action_registry.register(CorrectiveAction.ESCALATE_ANALYST, _escalate)
-    action_registry.register(CorrectiveAction.REBALANCE_ACTORS, _rebalance)
-
-    async def _trip_tool_breaker(finding: Any) -> CorrectionEvent:
-        controller = app.state.self_healing_controller
-        labels = dict(finding.labels or {})
-        tool_name = labels.get("tool")
-        if not tool_name and finding.metric.startswith("tool_circuit_breaker_state."):
-            tool_name = finding.metric.split(".", 1)[1]
-        if not tool_name and finding.metric.startswith("tool_error_rate."):
-            tool_name = finding.metric.split(".", 1)[1]
-        if not tool_name:
-            return CorrectionEvent(
-                finding_id=finding.finding_id,
-                action=CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER,
-                success=False,
-                message="Unable to derive tool name from finding",
-                component=finding.component,
-                details={"reason": finding.reason, "labels": labels},
-            )
-        success = controller.force_open_tool_breaker(
-            tool_name,
-            reason=f"self_healing:{finding.reason}",
-            duration_seconds=None,
-        )
-        return CorrectionEvent(
-            finding_id=finding.finding_id,
-            action=CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER,
-            success=success,
-            message=f"Force-opened circuit breaker for {tool_name}"
-            if success
-            else f"Unable to trip breaker for {tool_name}",
-            component=finding.component,
-            details={"reason": finding.reason, "labels": labels, "tool": tool_name},
-        )
-
-    action_registry.register(CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER, _trip_tool_breaker)
-
-    tool_service = getattr(app.state, "tool_execution_service", None)
-    if tool_service is None:
-        # Fallback: try to import via protocol registry or lazy import
-        try:
-            from src.pipeline.services.tool_execution import ToolExecutionService
-
-            tool_service = ToolExecutionService()
-        except ImportError:
-            logger.warning("ToolExecutionService not available")
-            tool_service = None
-    app.state.tool_execution_service = tool_service
-
-    async def _pipeline_stage_probe() -> list[HealthMetric]:
-        jobs = getattr(app.state.services, "jobs", {})
-        now = time.time()
-        metrics = [
-            HealthMetric(
-                component=HealthComponent.PIPELINE_STAGE,
-                name="stage_count",
-                value=len(jobs),
-            )
-        ]
-        for job_id, job in list(jobs.items()):
-            if job.get("status") != "running":
-                continue
-            updated = float(
-                job.get("updated_at") or job.get("last_update") or job.get("started_at") or now
-            )
-            age = max(0.0, now - updated)
-            metrics.append(
-                HealthMetric(
-                    component=HealthComponent.PIPELINE_STAGE,
-                    name="stage_age_seconds",
-                    value=round(age, 2),
-                    labels={
-                        "job_id": job_id,
-                        "stage": job.get("stage", "unknown"),
-                        "target": job.get("target", ""),
-                    },
-                )
-            )
-        return metrics
-
-    async def _dashboard_connection_probe() -> list[HealthMetric]:
-        ws = getattr(app.state, "ws_services", None)
-        if ws is None:
-            return [
-                HealthMetric(
-                    component=HealthComponent.DASHBOARD_CONNECTION,
-                    name="dashboard_connection_age",
-                    value=0,
-                    status=HealthStatus.DEGRADED,
-                    labels={"reason": "websocket_services_unavailable"},
-                )
-            ]
-        connections = await ws.manager.get_all_connections()
-        now = time.time()
-        metrics = [
-            HealthMetric(
-                component=HealthComponent.DASHBOARD_CONNECTION,
-                name="dashboard_active_connections",
-                value=len(connections),
-            )
-        ]
-        for connection in connections:
-            metrics.append(
-                HealthMetric(
-                    component=HealthComponent.DASHBOARD_CONNECTION,
-                    name="dashboard_connection_age",
-                    value=round(now - connection.last_activity, 2),
-                    labels={
-                        "connection_id": connection.connection_id,
-                        "user_id": connection.user_id,
-                    },
-                )
-            )
-        return metrics
-
-    controller = setup_self_healing_controller(action_registry=action_registry)
-    controller.register_probe("pipeline_stages", _pipeline_stage_probe)
-    controller.register_probe("dashboard_connections", _dashboard_connection_probe)
-    controller.register_probe(
-        "bloom_mesh",
-        lambda: bloom_mesh.health_metrics(fill_threshold=controller.bloom_fill_threshold),
-    )
-    controller.register_probe("model_registry", app.state.model_registry.health_metrics)
-    controller.bind_tool_execution_service(tool_service)
-    app.state.self_healing_controller = controller
-    register_health_subscriber(get_event_bus(), controller)
-
-    async def _mesh_telemetry_pulse(node: MeshNode, app_ref: FastAPI) -> None:
-        while True:
-            try:
-                if psutil is not None:
-                    try:
-                        node.cpu_usage = await asyncio.to_thread(psutil.cpu_percent, interval=0.1)
-                        node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
-                    except (AttributeError, OSError) as psutil_exc:
-                        logger.debug("psutil metric read failed: %s", psutil_exc)
-                running = [
-                    j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"
-                ]
-                node.active_jobs = len(running)
-                node.last_seen = time.time()
-
-                try:
-                    from src.infrastructure.observability.metrics import get_metrics as _get_metrics
-
-                    _reg = _get_metrics()
-                    _reg.gauge("active_workers").set(len(running))
-                    _reg.gauge("queue_depth").set(
-                        sum(
-                            1
-                            for j in app_ref.state.services.jobs.values()
-                            if j.get("status") == "queued"
-                        )
-                    )
-                    if psutil is not None:
-                        _reg.gauge("cpu_usage_percent").set(psutil.cpu_percent(interval=0))
-                        _reg.gauge("memory_usage_mb").set(
-                            psutil.virtual_memory().used / 1024 / 1024
-                        )
-                except Exception:
-                    logger.debug("Failed to update mesh telemetry gauges", exc_info=True)
-                    pass
-
-                await asyncio.sleep(5.0)
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                logger.debug("Mesh telemetry pulse failed: %s", e)
-                await asyncio.sleep(10.0)
-
-    app.state.mesh_telemetry_task = asyncio.create_task(_mesh_telemetry_pulse(local_node, app))
-
-    if FeatureFlags.ENABLE_BAYESIAN_ETA():
-        from src.dashboard.fastapi.feature_flags_setup import maybe_start_bayesian_eta
-
-        maybe_start_bayesian_eta(app)
-
-    logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
-    logger.info("Dashboard lifecycle transition: READY")
-    if psutil is None:
-        logger.warning("psutil is not installed; mesh CPU/RAM telemetry will be unavailable")
-
-    yield
-
+async def _shutdown(app: FastAPI, ws_services: Any) -> None:
+    """Run all shutdown steps in reverse order."""
     logger.info("Dashboard lifecycle transition: SHUTDOWN")
 
     if hasattr(app.state, "mesh_telemetry_task"):
@@ -569,16 +87,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             logger.warning("Operation failed in lifespan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     # Terminate running job processes BEFORE shutting down websocket
-    # so clients can receive final status updates
     if hasattr(app.state, "services") and hasattr(app.state.services, "jobs"):
         for job_id, job in app.state.services.jobs.items():
             if job.get("status") == "running":
                 process = job.get("process")
                 if process:
                     logger.info("Terminating process for job %s", job_id)
-                    process.terminate()
+                    try:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5.0)
+                        except Exception:
+                            # process.wait() not available or timed out — force kill
+                            try:
+                                process.kill()
+                                process.wait(timeout=3.0)
+                            except Exception:
+                                logger.warning(
+                                    "Failed to kill process for job %s", job_id
+                                )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to terminate process for job %s: %s", job_id, exc
+                        )
 
-    # Give processes time to terminate and flush output
     await asyncio.sleep(0.5)
 
     if ws_services:
@@ -600,7 +132,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if discovery is not None:
         try:
             discovery.shutdown()
-        except Exception:  # noqa: BLE001 - shutdown must not raise
+        except Exception:
             logger.exception("mDNS discovery shutdown raised")
 
     if hasattr(app.state, "cache_analytics_task"):
@@ -636,8 +168,185 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if hasattr(app.state, "lifespan_lock"):
         app.state.lifespan_lock.release()
 
+    from src.core.plugins.loader import stop_dynamic_plugin_watcher
 
-def _init_model_registry() -> Any:
-    from src.intelligence.ml.registry import ModelVersionRegistry
+    try:
+        stop_dynamic_plugin_watcher()
+    except Exception:
+        logger.debug("Plugin watcher shutdown raised", exc_info=True)
 
-    return ModelVersionRegistry()
+    from src.core.utils.shared_sessions import async_close_all_clients
+
+    await async_close_all_clients()
+
+    # Reset singletons to prevent stale state on restart (Bug #24).
+    # Singletons that survive process restart accumulate duplicate
+    # listeners, callbacks, and background tasks.
+    _reset_singletons()
+
+    # Unregister the main event loop (Bug #22)
+    from src.core.utils.async_bridge import reset_main_loop
+
+    reset_main_loop()
+
+
+def _reset_singletons() -> None:
+    """Reset global singletons that hold background state.
+
+    Prevents duplicate listeners, callbacks, and refreshers when the
+    dashboard restarts within the same process (e.g. uvicorn --reload).
+    """
+    # Reset ETA engine singleton
+    try:
+        import src.dashboard.eta_engine as _eta_mod
+
+        _eta_mod._eta_engine = None
+    except (ImportError, AttributeError):
+        pass
+
+    # Reset learning integration singleton
+    try:
+        from src.learning.integration import _cleanup_learning_integration
+
+        _cleanup_learning_integration()
+    except (ImportError, Exception):
+        pass
+
+    # Reset unified cache singleton
+    try:
+        import src.pipeline.unified_cache as _cache_mod
+
+        if hasattr(_cache_mod, "_unified_cache") and _cache_mod._unified_cache is not None:
+            try:
+                _cache_mod._unified_cache.close()
+            except Exception:
+                    logger.debug("Non-critical cleanup error", exc_info=True)
+            _cache_mod._unified_cache = None
+            # Reset the class-level instance too
+            _cache_mod.UnifiedCache._instance = None
+    except (ImportError, AttributeError):
+        pass
+
+    # Reset shared HTTP clients
+    try:
+        from src.core.utils import shared_sessions as _ss_mod
+
+        with _ss_mod._async_clients_lock:
+            _ss_mod._async_clients.clear()
+        # Bug #20: Reset cleanup flag so next shutdown can close clients
+        _ss_mod._cleanup_done = False
+    except (ImportError, AttributeError):
+        pass
+
+    # Reset TaskRegistry singleton
+    try:
+        import src.core.task_registry as _tr_mod
+        _tr_mod._registry = None
+    except (ImportError, AttributeError):
+        pass
+
+    # Reset ConcurrencyGovernor singleton
+    try:
+        from src.core.concurrency_governor import reset_governor
+        reset_governor()
+    except (ImportError, Exception):
+        pass
+
+    # Bug #25: Reset CapacityManager singleton
+    try:
+        import src.core.capacity_manager as _cm_mod
+        _cm_mod._capacity_manager = None
+    except (ImportError, AttributeError):
+        pass
+
+    # Reset LifecycleManager singleton
+    try:
+        import src.core.lifecycle as _lc_mod
+        _lc_mod._manager = None
+        _lc_mod._atexit_registered = False
+    except (ImportError, AttributeError):
+        pass
+
+    # Reset bridge executor
+    try:
+        import src.core.utils.async_bridge as _ab_mod
+        if _ab_mod._bridge_executor is not None:
+            _ab_mod._bridge_executor.shutdown(wait=False)
+            _ab_mod._bridge_executor = None
+    except (ImportError, AttributeError):
+        pass
+
+    logger.debug("Singleton reset complete")
+
+
+# ---------------------------------------------------------------------------
+# Main lifespan context manager
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    global _START_TIME
+    _START_TIME = time.time()
+
+    # Register the main event loop for cross-module coordination (Bug #22)
+    from src.core.utils.async_bridge import register_main_loop
+
+    register_main_loop(asyncio.get_running_loop())
+
+    # Register plugin hooks from analysis and detection layers
+    try:
+        import src.analysis.plugin_registration  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import src.detection.cache_registration  # noqa: F401
+    except ImportError:
+        pass
+
+    config: Any = app.state.config
+    ws_services = None
+
+    # Phase 1: Core infrastructure
+    from src.dashboard.fastapi.lifespan_core import startup_core
+
+    startup_core(app, config)
+
+    # Phase 2: Notifications
+    from src.dashboard.fastapi.lifespan_notifications import startup_notifications
+
+    startup_notifications(app, config)
+
+    # Phase 3: WebSocket
+    from src.dashboard.fastapi.lifespan_websocket import startup_websocket
+
+    ws_services = await startup_websocket(app, config)
+
+    # Phase 4: Mesh infrastructure
+    from src.dashboard.fastapi.lifespan_mesh import startup_mesh
+
+    local_node, node_id = await startup_mesh(app, config)
+
+    # Phase 5: Health monitoring & telemetry
+    from src.dashboard.fastapi.lifespan_health import startup_health
+
+    await startup_health(app, local_node, node_id, ws_services)
+
+    # Optional: Bayesian ETA engine
+    if FeatureFlags.ENABLE_BAYESIAN_ETA():
+        from src.dashboard.fastapi.feature_flags_setup import maybe_start_bayesian_eta
+
+        maybe_start_bayesian_eta(app)
+
+    # Bug #23: Register all background tasks with lifecycle manager
+    _register_background_tasks(app)
+
+    logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
+    logger.info("Dashboard lifecycle transition: READY")
+    if psutil is None:
+        logger.warning("psutil is not installed; mesh CPU/RAM telemetry will be unavailable")
+
+    yield
+
+    # Shutdown (reverse order)
+    await _shutdown(app, ws_services)

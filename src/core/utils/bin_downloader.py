@@ -140,7 +140,7 @@ def download_and_extract_tool(
     message = f"Installing {tool_name} v{version} ({os_name}/{arch_name})..."
     logger.info(message)
     if console_print:
-        print(f"\n[*] {message}")
+        logger.info(message)
 
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -161,7 +161,7 @@ def download_and_extract_tool(
             tmp_archive_path = Path(tmpdir) / "archive.zip"
 
             if console_print:
-                print("  └─ Downloading from GitHub...")
+                logger.info("Downloading from GitHub...")
 
             with (
                 urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310  # nosec B310  (scheme allowlist checked above)
@@ -203,7 +203,7 @@ def download_and_extract_tool(
                 )
 
             if console_print:
-                print("  └─ Unpacking archive and resolving binary...")
+                logger.info("Unpacking archive and resolving binary...")
 
             # Extract archive
             # Most modern ProjectDiscovery releases are in ZIP format, but let's be robust
@@ -259,7 +259,7 @@ def download_and_extract_tool(
             success_msg = f"Successfully installed {tool_name} to {dest_path}"
             logger.info(success_msg)
             if console_print:
-                print(f"  └─ [✓] {success_msg}")
+                logger.info(success_msg)
 
             return dest_path
 
@@ -267,7 +267,7 @@ def download_and_extract_tool(
         err_msg = f"Failed to download or install {tool_name}: {exc}"
         logger.error(err_msg)
         if console_print:
-            print(f"  └─ [✗] Error: {exc}")
+            logger.error("Error: %s", exc)
         return None
 
 

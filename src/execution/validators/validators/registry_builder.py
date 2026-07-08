@@ -162,13 +162,13 @@ def _engine_strategy_runner(name: str) -> Validator | None:
         return None
 
     def _run(target: dict[str, Any], context: dict[str, Any]) -> ValidationResult:
+        from src.core.contracts.pipeline import RetryPolicy
         from src.execution.validators.engine._base import ValidationContext
         from src.execution.validators.engine._http_client import (
             ValidationHttpClient,
             ValidationHttpConfig,
         )
         from src.execution.validators.engine_helpers import collect_scope_hosts
-        from src.pipeline.retry import RetryPolicy
 
         http_client = ValidationHttpClient(
             ValidationHttpConfig(

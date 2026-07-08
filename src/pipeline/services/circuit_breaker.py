@@ -28,7 +28,7 @@ Operational hooks
 * :meth:`CircuitBreaker.force_open` lets the self-healing controller trip a
   breaker proactively when monitoring detects sustained error rates.
 * :meth:`CircuitBreaker.update_recovery_timeout` lets operators tune the
-  cool-down window per tool (e.g. ``nuclei`` recovers in 60 s, a blacklisted
+  cool-down window per tool (e.g. ``nuclei`` recovers in 60 s, a denied
   ``crt.sh`` may need 10 minutes).
 * :meth:`CircuitBreaker.schedule_recovery_probe` registers a callback the
   coordinator will invoke when the breaker enters ``HALF_OPEN`` to test

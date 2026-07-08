@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import os
 import sqlite3
 import threading
@@ -19,6 +20,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 from urllib import error, request
+
+logger = logging.getLogger(__name__)
 
 # DEFAULT_OTLP_ENDPOINT should use HTTPS in production.
 DEFAULT_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
@@ -84,8 +87,8 @@ class SQLiteSpanExporter:
             from opentelemetry.sdk.trace.export import SpanExportResult  # pylint: disable=C0415
 
             success_code = SpanExportResult.SUCCESS
-        except Exception:  # noqa: S110  # pylint: disable=W0718
-            pass
+        except (ImportError, AttributeError):
+            logger.debug("OpenTelemetry SpanExportResult not available, using default")
 
         rows = []
         for span in spans:
@@ -182,7 +185,7 @@ class TracingManager:
                 SimpleSpanProcessor,
             )
             from opentelemetry.trace import Status, StatusCode  # pylint: disable=C0415
-        except Exception as exc:  # pylint: disable=W0718
+        except (ImportError, AttributeError) as exc:
             self.initialization_error = str(exc)
             return
 
@@ -198,8 +201,8 @@ class TracingManager:
             )
             try:
                 trace.set_tracer_provider(provider)
-            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
-                pass
+            except (TypeError, RuntimeError):
+                logger.debug("Failed to set global tracer provider")
 
             self._trace = trace
             self._propagate = propagate
@@ -228,7 +231,7 @@ class TracingManager:
         if parent_headers and self._propagate is not None:
             try:
                 context = self._propagate.extract(dict(parent_headers))
-            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
+            except (TypeError, ValueError):
                 context = None
 
         with self._tracer.start_as_current_span(
@@ -292,11 +295,11 @@ class TracingManager:
                 target_count = len(
                     getattr(ctx, "priority_urls", []) or getattr(ctx, "urls", []) or []
                 )
-            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
+            except (TypeError, AttributeError):
                 target_count = 0
             try:
                 scope_size = len(getattr(ctx, "scope_entries", []) or [])
-            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
+            except (TypeError, AttributeError):
                 scope_size = 0
         attributes = {
             "stage_name": stage_name,
@@ -329,19 +332,16 @@ class TracingManager:
             span.record_exception(exc)
             span.set_attribute("status", "ERROR")
             self._set_error_status(span, str(exc) or exc.__class__.__name__)
-        except Exception as e:  # pylint: disable=W0718
-            # Fix #338: Log OTel propagation failures instead of silently swallowing
-            from src.core.logging.trace_logging import get_pipeline_logger
-
-            get_pipeline_logger(__name__).debug("Failed to record exception in OTel span: %s", e)
+        except (TypeError, AttributeError) as e:
+            logger.debug("Failed to record exception in OTel span: %s", e)
 
     def inject_headers(self, carrier: dict[str, str] | None = None) -> dict[str, str]:
         headers: dict[str, str] = carrier if carrier is not None else {}
         if self.otel_available and self._propagate is not None:
             try:
                 self._propagate.inject(headers)
-            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
-                pass
+            except (TypeError, ValueError):
+                logger.debug("Failed to inject trace headers")
         return headers
 
     def inject_task_context(self, envelope: Any) -> Any:
@@ -356,7 +356,7 @@ class TracingManager:
                 metadata=metadata,
                 traceparent=headers.get("traceparent", envelope.traceparent),
             )
-        except Exception:  # pylint: disable=W0718  # noqa: S110,BLE001
+        except (TypeError, AttributeError):
             return envelope
 
     @staticmethod
@@ -389,7 +389,7 @@ class TracingManager:
                 res = "connected"
         except error.HTTPError:
             res = "connected"
-        except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
+        except (OSError, ValueError):
             res = "unreachable"
 
         self._status_cache = res

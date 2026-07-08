@@ -30,7 +30,7 @@ from typing import Any
 
 import requests
 
-from src.infrastructure.execution_engine.shared_pool import get_shared_executor
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.dnsx_wildcard import is_public_ip
 
 logger = logging.getLogger(__name__)
@@ -242,7 +242,7 @@ def cross_reference_ips(
             results.extend(_leakix_lookup(ip))
         return results
 
-    ex = get_shared_executor()
+    ex = get_recon_executor()
     futures = [ex.submit(_all_for_ip, ip) for ip in ip_list]
     for fut in futures:
         try:

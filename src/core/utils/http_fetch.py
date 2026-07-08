@@ -75,7 +75,8 @@ def build_response_record(
         except LookupError:
             try:
                 body_text = raw[:max_bytes].decode("utf-8", errors="replace")
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to decode response body: %s", exc, exc_info=True)
                 body_text = raw[:max_bytes].decode("latin-1", errors="replace")
     else:
         body_text = None
@@ -154,4 +155,5 @@ def fetch_response_once(
     except urllib3.exceptions.HTTPError:
         return FetchResponseResult(None, time.monotonic() - started_at, None, False, True)
     except Exception:
+        logger.exception("Unexpected error in fetch_response_once")
         raise

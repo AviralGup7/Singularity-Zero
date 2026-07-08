@@ -36,7 +36,8 @@ class ProcessLifespanLock:
         try:
             self._pid = os.getpid()
             self.fd = open(self.lock_path, "w", encoding="utf-8")
-            assert self.fd is not None
+            if self.fd is None:
+                raise RuntimeError("Failed to open lock file descriptor")
             self.fd.write(str(self._pid))
             self.fd.flush()
             if sys.platform == "win32":

@@ -32,7 +32,7 @@ class PoolHealth:
     last_health_check: float = field(default_factory=time.monotonic)
 
     @property
-    def utilisation_pct(self) -> float:
+    def utilization_pct(self) -> float:
         """Current utilisation as a percentage (0-100)."""
         if self.max_concurrent == 0:
             return 0.0
@@ -99,6 +99,9 @@ class ResourcePool:
 
         Increasing adds permits; decreasing removes permits by acquiring them.
 
+        When growing after a shrink, cancelled drain tasks that already
+        acquired permits release them back to prevent capacity leaks.
+
         Args:
             new_max: New maximum concurrent count (must be >= 1).
         """
@@ -107,6 +110,28 @@ class ResourcePool:
 
         async with self._lock:
             if new_max > self._max_concurrent:
+                # Cancel any pending shrink drain tasks before adding permits.
+                # If a drain task already acquired a permit, release it back
+                # to prevent capacity leaking.
+                if self._shrink_drain_tasks:
+                    for task in self._shrink_drain_tasks:
+                        if not task.done():
+                            task.cancel()
+                    results = await asyncio.gather(
+                        *self._shrink_drain_tasks, return_exceptions=True
+                    )
+                    # Check if any cancelled drain tasks acquired a permit
+                    # (the acquire coroutine returns True on success)
+                    for result in results:
+                        if result is True:
+                            # Drain task acquired a permit before cancellation —
+                            # release it back since we're growing
+                            self._semaphore.release()
+                            logger.debug(
+                                "Resource pool '%s': released permit from cancelled drain task",
+                                self.name,
+                            )
+                    self._shrink_drain_tasks.clear()
                 added = new_max - self._max_concurrent
                 for _ in range(added):
                     self._semaphore.release()
@@ -131,9 +156,29 @@ class ResourcePool:
                         except RuntimeError:
                             running_loop = None
                         if running_loop is not None and not running_loop.is_closed():
+                            # Global governor check: drain tasks count toward
+                            # system-wide concurrency.  Without this, a shrink
+                            # from 64→8 creating 56 drain tasks would not be
+                            # visible to other subsystems, allowing them to
+                            # also create tasks while the system is overloaded.
+                            try:
+                                from src.core.concurrency_governor import get_governor
+
+                                if not get_governor().allow("resource_pool"):
+                                    logger.debug(
+                                        "Resource pool '%s' shrink: global governor "
+                                        "limit reached, skipping background drain",
+                                        self.name,
+                                    )
+                                    continue
+                            except ImportError:
+                                pass
                             bg_task = running_loop.create_task(self._semaphore.acquire())
                             self._shrink_drain_tasks.add(bg_task)
                             bg_task.add_done_callback(self._shrink_drain_tasks.discard)
+                            bg_task.add_done_callback(
+                                self._make_drain_release_callback()
+                            )
                         else:
                             logger.debug(
                                 "Resource pool '%s' shrink: cannot schedule drain, no running loop",
@@ -153,8 +198,25 @@ class ResourcePool:
             await asyncio.gather(*self._shrink_drain_tasks, return_exceptions=True)
             self._shrink_drain_tasks.clear()
 
+    @staticmethod
+    def _make_drain_release_callback() -> Callable[[asyncio.Task[Any]], None]:
+        """Return a done callback that releases the global governor slot."""
+
+        def _release_governor(task: asyncio.Task[Any]) -> None:
+            try:
+                from src.core.concurrency_governor import get_governor
+
+                get_governor().release("resource_pool")
+            except ImportError:
+                pass
+
+        return _release_governor
+
     async def acquire(self, timeout: float | None = None) -> bool:
         """Acquire a resource permit from the pool.
+
+        The usage counter is incremented atomically with the semaphore
+        acquisition to prevent divergence (Bug #22).
 
         Args:
             timeout: Override the default acquire timeout.
@@ -175,13 +237,6 @@ class ResourcePool:
 
         try:
             await asyncio.wait_for(self._semaphore.acquire(), timeout=effective_timeout)
-            self._health.current_usage += 1
-            wait_time = time.monotonic() - start
-            self._wait_times.append(wait_time)
-            if len(self._wait_times) > 1000:
-                self._wait_times = self._wait_times[-500:]
-            self._health.avg_wait_time_seconds = sum(self._wait_times) / len(self._wait_times)
-            return True
         except TimeoutError:
             self._health.total_timeouts += 1
             logger.warning(
@@ -193,17 +248,32 @@ class ResourcePool:
             )
             raise
 
+        # Atomic: increment usage under lock to stay in sync with semaphore
+        async with self._lock:
+            self._health.current_usage += 1
+            wait_time = time.monotonic() - start
+            self._wait_times.append(wait_time)
+            if len(self._wait_times) > 1000:
+                self._wait_times = self._wait_times[-500:]
+            self._health.avg_wait_time_seconds = sum(self._wait_times) / len(self._wait_times)
+        return True
+
     async def release(self) -> None:
-        """Release a resource permit back to the pool."""
-        if self._health.current_usage > 0:
-            self._health.current_usage -= 1
-            self._semaphore.release()
-            logger.debug(
-                "Resource pool '%s' released (usage: %d/%d)",
-                self.name,
-                self._health.current_usage,
-                self._max_concurrent,
-            )
+        """Release a resource permit back to the pool.
+
+        The usage counter is decremented atomically with the semaphore
+        release to prevent divergence (Bug #22).
+        """
+        async with self._lock:
+            if self._health.current_usage > 0:
+                self._health.current_usage -= 1
+                self._semaphore.release()
+                logger.debug(
+                    "Resource pool '%s' released (usage: %d/%d)",
+                    self.name,
+                    self._health.current_usage,
+                    self._max_concurrent,
+                )
 
     async def health_check(self) -> PoolHealth:
         """Run a health check and return the current health snapshot."""
@@ -212,9 +282,20 @@ class ResourcePool:
         return self._health
 
     async def close(self) -> None:
-        """Close the pool, preventing further acquisitions and awaiting pending drain tasks."""
+        """Close the pool, preventing further acquisitions and awaiting pending drain tasks.
+
+        Bug #5: Cancels any pending drain tasks before awaiting them to prevent
+        indefinite hangs if acquire() never completes. Also marks the pool as
+        closed to prevent new acquisitions.
+        """
         self._closed = True
         if self._shrink_drain_tasks:
+            # Cancel pending drain tasks to prevent infinite wait on shutdown.
+            # If acquire() is blocked (e.g. all permits held), the drain task
+            # will hang forever, causing shutdown to stall.
+            for task in self._shrink_drain_tasks:
+                if not task.done():
+                    task.cancel()
             await asyncio.gather(*self._shrink_drain_tasks, return_exceptions=True)
             self._shrink_drain_tasks.clear()
         logger.info("Resource pool '%s' closed", self.name)
@@ -403,7 +484,10 @@ class ResourcePoolManager:
 
                 await asyncio.sleep(interval_seconds)
 
-        self._monitor_task = asyncio.create_task(_monitor_loop(), name="resource-pool-monitor")
+        from src.core.task_registry import get_task_registry
+        self._monitor_task = get_task_registry().create_task(
+            _monitor_loop(), owner="resource_pool", name="monitor"
+        )
         self._monitor_task.add_done_callback(self._log_task_exception)
 
     @staticmethod

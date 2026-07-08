@@ -10,12 +10,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
 from typing import Any, cast
 from urllib.parse import urlparse
 
 import requests
 
+from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.pipeline.tools import execute_command
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import parse_plain_lines
@@ -133,145 +134,145 @@ def run_archive_jobs(
         batch = hostnames[start : start + archive_batch_size]
         batched_input = "\n".join(batch) + "\n"
         current_batch = start // archive_batch_size + 1
-        with ThreadPoolExecutor(max_workers=len(active_jobs)) as executor:
-            futures = {
-                executor.submit(
-                    execute_command,
-                    command,
-                    min(max(1, int(timeout)), remaining_budget_seconds),
-                    batched_input,
-                    cast(Any, retry_policy),
-                ): (
-                    label,
-                    time.monotonic(),
-                    max(1, int(timeout)),
-                    min(max(1, int(timeout)), remaining_budget_seconds),
-                )
-                for label, command, timeout, retry_policy in active_jobs
-            }
-            for future in as_completed(futures):
-                label, started, configured_timeout_seconds, timeout_seconds = futures[future]
-                try:
-                    outcome = future.result()
-                except Exception as exc:
-                    duration = round(time.monotonic() - started, 1)
-                    aggregate_meta[label]["duration_seconds"] += duration
-                    aggregate_meta[label]["status"] = "error"
-                    aggregate_meta[label]["error_count"] += 1
-                    logger.exception(
-                        "Archive job execute_command failed for provider '%s' with hostnames %s: %s",
-                        label,
-                        batch,
-                        exc,
-                    )
-                    # Bug #5 fix: previously *any* exception (DNS failure,
-                    # SSL error, parse error, connection reset) was counted
-                    # toward ``timeout_streak_by_provider``, so a single
-                    # misbehaving upstream that returned 5xx or refused TLS
-                    # would be treated as ``max_timeout_streak`` consecutive
-                    # timeouts and get permanently disabled. Now we only
-                    # increment on actual timeouts; generic errors are
-                    # tracked separately and never trip the provider
-                    # disablement.
-                    if isinstance(exc, (TimeoutError,)) or (
-                        hasattr(outcome, "exception") and False  # placeholder; outcome not set
-                    ):
-                        timeout_streak_by_provider[label] = (
-                            timeout_streak_by_provider.get(label, 0) + 1
-                        )
-                        if timeout_streak_by_provider[label] >= max_timeout_streak:
-                            disabled_providers.add(label)
-                    else:
-                        # Reset the timeout streak for non-timeout errors
-                        # so a flaky provider is not penalised forever.
-                        timeout_streak_by_provider[label] = 0
-                    percent = 59 + min(4, int((current_batch / total_archive_batches) * 4))
-                    emit_collection_progress(
-                        progress_callback,
-                        (
-                            f"{label} host-group {current_batch}/{total_archive_batches}: "
-                            f"provider error ({exc})"
-                        ),
-                        percent,
-                        processed=current_batch,
-                        total=total_archive_batches,
-                        stage_percent=int((current_batch / total_archive_batches) * 100),
-                    )
-                    continue
-                output = outcome.stdout
-                parsed_urls = apply_url_filters(parse_plain_lines(output), filters)
-                archive_filter_mime = filters.get("archive_filter_mime")
-                if archive_filter_mime:
-                    mime_filtered = _mime_filter(parsed_urls, filters)
-                    if mime_filtered:
-                        parsed_urls = mime_filtered
-                new_urls = len(parsed_urls - urls)
-                urls.update(parsed_urls)
-                duration = round(outcome.duration_seconds or (time.monotonic() - started), 1)
+        executor = get_recon_executor()
+        futures = {
+            executor.submit(
+                execute_command,
+                command,
+                min(max(1, int(timeout)), remaining_budget_seconds),
+                batched_input,
+                cast(Any, retry_policy),
+            ): (
+                label,
+                time.monotonic(),
+                max(1, int(timeout)),
+                min(max(1, int(timeout)), remaining_budget_seconds),
+            )
+            for label, command, timeout, retry_policy in active_jobs
+        }
+        for future in as_completed(futures):
+            label, started, configured_timeout_seconds, timeout_seconds = futures[future]
+            try:
+                outcome = future.result()
+            except Exception as exc:
+                duration = round(time.monotonic() - started, 1)
                 aggregate_meta[label]["duration_seconds"] += duration
-                aggregate_meta[label]["new_urls"] += new_urls
-                aggregate_meta[label]["attempt_count"] += max(1, int(outcome.attempt_count or 1))
-                aggregate_meta[label]["configured_timeout_seconds"] = configured_timeout_seconds
-                aggregate_meta[label]["effective_timeout_seconds"] = timeout_seconds
-
-                existing_warnings = set(aggregate_meta[label]["warning_messages"])
-                for warning in outcome.warning_messages:
-                    if warning not in existing_warnings:
-                        aggregate_meta[label]["warning_messages"].append(warning)
-                        existing_warnings.add(warning)
-
-                existing_timeouts = set(aggregate_meta[label]["timeout_events"])
-                for event in outcome.warning_messages:
-                    if "timed out" in str(event or "").lower():
-                        if event not in existing_timeouts:
-                            aggregate_meta[label]["timeout_events"].append(event)
-                            existing_timeouts.add(event)
-
-                if outcome.timed_out:
-                    aggregate_meta[label]["timeout_count"] += 1
-                    timeout_streak_by_provider[label] = timeout_streak_by_provider.get(label, 0) + 1
+                aggregate_meta[label]["status"] = "error"
+                aggregate_meta[label]["error_count"] += 1
+                logger.exception(
+                    "Archive job execute_command failed for provider '%s' with hostnames %s: %s",
+                    label,
+                    batch,
+                    exc,
+                )
+                # Bug #5 fix: previously *any* exception (DNS failure,
+                # SSL error, parse error, connection reset) was counted
+                # toward ``timeout_streak_by_provider``, so a single
+                # misbehaving upstream that returned 5xx or refused TLS
+                # would be treated as ``max_timeout_streak`` consecutive
+                # timeouts and get permanently disabled. Now we only
+                # increment on actual timeouts; generic errors are
+                # tracked separately and never trip the provider
+                # disablement.
+                if isinstance(exc, (TimeoutError,)) or (
+                    hasattr(outcome, "exception") and False  # placeholder; outcome not set
+                ):
+                    timeout_streak_by_provider[label] = (
+                        timeout_streak_by_provider.get(label, 0) + 1
+                    )
+                    if timeout_streak_by_provider[label] >= max_timeout_streak:
+                        disabled_providers.add(label)
                 else:
+                    # Reset the timeout streak for non-timeout errors
+                    # so a flaky provider is not penalised forever.
                     timeout_streak_by_provider[label] = 0
-
-                if timeout_streak_by_provider[label] >= max_timeout_streak:
-                    disabled_providers.add(label)
-                    aggregate_meta[label]["status"] = "degraded_timeout"
-                elif outcome.timed_out:
-                    aggregate_meta[label]["status"] = "degraded_timeout"
-                elif outcome.fatal:
-                    aggregate_meta[label]["status"] = "error"
-                    aggregate_meta[label]["error_count"] += 1
-                elif output:
-                    aggregate_meta[label]["status"] = "ok"
-                else:
-                    aggregate_meta[label]["status"] = "empty"
                 percent = 59 + min(4, int((current_batch / total_archive_batches) * 4))
-                effective_timeout_note = ""
-                if timeout_seconds != configured_timeout_seconds:
-                    effective_timeout_note = f" (configured {configured_timeout_seconds}s, clamped to {timeout_seconds}s)"
                 emit_collection_progress(
                     progress_callback,
                     (
                         f"{label} host-group {current_batch}/{total_archive_batches}: "
-                        f"+{new_urls} URLs, total {len(urls)}{effective_timeout_note}"
+                        f"provider error ({exc})"
                     ),
                     percent,
                     processed=current_batch,
                     total=total_archive_batches,
                     stage_percent=int((current_batch / total_archive_batches) * 100),
                 )
-                if label in disabled_providers:
-                    emit_collection_progress(
-                        progress_callback,
-                        (
-                            f"{label} disabled after {timeout_streak_by_provider[label]} "
-                            "timeout-like attempts"
-                        ),
-                        percent,
-                        processed=current_batch,
-                        total=total_archive_batches,
-                        stage_percent=int((current_batch / total_archive_batches) * 100),
-                    )
+                continue
+            output = outcome.stdout
+            parsed_urls = apply_url_filters(parse_plain_lines(output), filters)
+            archive_filter_mime = filters.get("archive_filter_mime")
+            if archive_filter_mime:
+                mime_filtered = _mime_filter(parsed_urls, filters)
+                if mime_filtered:
+                    parsed_urls = mime_filtered
+            new_urls = len(parsed_urls - urls)
+            urls.update(parsed_urls)
+            duration = round(outcome.duration_seconds or (time.monotonic() - started), 1)
+            aggregate_meta[label]["duration_seconds"] += duration
+            aggregate_meta[label]["new_urls"] += new_urls
+            aggregate_meta[label]["attempt_count"] += max(1, int(outcome.attempt_count or 1))
+            aggregate_meta[label]["configured_timeout_seconds"] = configured_timeout_seconds
+            aggregate_meta[label]["effective_timeout_seconds"] = timeout_seconds
+
+            existing_warnings = set(aggregate_meta[label]["warning_messages"])
+            for warning in outcome.warning_messages:
+                if warning not in existing_warnings:
+                    aggregate_meta[label]["warning_messages"].append(warning)
+                    existing_warnings.add(warning)
+
+            existing_timeouts = set(aggregate_meta[label]["timeout_events"])
+            for event in outcome.warning_messages:
+                if "timed out" in str(event or "").lower():
+                    if event not in existing_timeouts:
+                        aggregate_meta[label]["timeout_events"].append(event)
+                        existing_timeouts.add(event)
+
+            if outcome.timed_out:
+                aggregate_meta[label]["timeout_count"] += 1
+                timeout_streak_by_provider[label] = timeout_streak_by_provider.get(label, 0) + 1
+            else:
+                timeout_streak_by_provider[label] = 0
+
+            if timeout_streak_by_provider[label] >= max_timeout_streak:
+                disabled_providers.add(label)
+                aggregate_meta[label]["status"] = "degraded_timeout"
+            elif outcome.timed_out:
+                aggregate_meta[label]["status"] = "degraded_timeout"
+            elif outcome.fatal:
+                aggregate_meta[label]["status"] = "error"
+                aggregate_meta[label]["error_count"] += 1
+            elif output:
+                aggregate_meta[label]["status"] = "ok"
+            else:
+                aggregate_meta[label]["status"] = "empty"
+            percent = 59 + min(4, int((current_batch / total_archive_batches) * 4))
+            effective_timeout_note = ""
+            if timeout_seconds != configured_timeout_seconds:
+                effective_timeout_note = f" (configured {configured_timeout_seconds}s, clamped to {timeout_seconds}s)"
+            emit_collection_progress(
+                progress_callback,
+                (
+                    f"{label} host-group {current_batch}/{total_archive_batches}: "
+                    f"+{new_urls} URLs, total {len(urls)}{effective_timeout_note}"
+                ),
+                percent,
+                processed=current_batch,
+                total=total_archive_batches,
+                stage_percent=int((current_batch / total_archive_batches) * 100),
+            )
+            if label in disabled_providers:
+                emit_collection_progress(
+                    progress_callback,
+                    (
+                        f"{label} disabled after {timeout_streak_by_provider[label]} "
+                        "timeout-like attempts"
+                    ),
+                    percent,
+                    processed=current_batch,
+                    total=total_archive_batches,
+                    stage_percent=int((current_batch / total_archive_batches) * 100),
+                )
 
     if filters.get("archive_fetch_archiveph_today"):
         candidate_hosts = []

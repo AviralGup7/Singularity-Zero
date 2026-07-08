@@ -33,6 +33,7 @@ from src.infrastructure.db.sqlite_utils import (
     SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
 )
 from src.infrastructure.db.sqlite_utils import (
+    configure_connection,
     safe_close,
 )
 
@@ -231,10 +232,7 @@ class SecurityStore:
             self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS, check_same_thread=False
         )
         try:
-            conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
-            conn.execute("PRAGMA foreign_keys=ON")
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
+            configure_connection(conn, busy_timeout_ms=_BUSY_TIMEOUT_MS, wal=True, foreign_keys=True, synchronous="NORMAL")
         except Exception:
             safe_close(conn)
             raise

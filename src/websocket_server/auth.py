@@ -138,7 +138,8 @@ async def authenticate_websocket(
         # ``websocket.url.scheme`` is "ws" or "wss".
         try:
             scheme = (websocket.url.scheme or "").lower()
-        except Exception:  # noqa: BLE001
+        except Exception:
+            logger.warning("Failed to get WebSocket URL scheme", exc_info=True)
             scheme = ""
         is_secure = scheme == "wss" or forwarded_proto == "https"
         if not is_secure:

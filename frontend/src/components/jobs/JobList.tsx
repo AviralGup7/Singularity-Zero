@@ -50,7 +50,7 @@ function stageName(stageLabel?: string, stage?: string): string {
   return normalizedStage || 'Unknown stage';
 }
 
-const JobCard = memo(function JobCard({ job, onRefresh }: { job: Job; onRefresh: () => void }) {
+const JobCard = memo(function JobCard({ job, onRefresh, shortcut }: { job: Job; onRefresh: () => void; shortcut?: string }) {
    
   const [actionLoading, setActionLoading] = useState<string | null>(null);
    
@@ -152,6 +152,7 @@ const JobCard = memo(function JobCard({ job, onRefresh }: { job: Job; onRefresh:
       )}
 
       <div className="job-started-text">Started: {job.started_at ?? '-'}</div>
+      {shortcut && <div className="job-shortcut-hint"><kbd className="shortcut-key">{shortcut}</kbd></div>}
 
       {job.enabled_modules && job.enabled_modules.length > 0 && (
         <div className="job-modules-text">Modules: {job.enabled_modules.join(', ')}</div>

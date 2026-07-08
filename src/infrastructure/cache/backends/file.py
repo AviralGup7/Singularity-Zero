@@ -227,9 +227,8 @@ class FileBackend:
                 get_metrics().counter(
                     "file_cache_write_failures_total", "Total file cache write failures"
                 ).inc()
-            except Exception:  # noqa: S110
-                pass
-
+            except Exception:
+                logger.warning("FileBackend: Failed to record write failure metric", exc_info=True)
     def _delete_file(self, key: str) -> bool:
         """Delete cache files for a key."""
         deleted = False

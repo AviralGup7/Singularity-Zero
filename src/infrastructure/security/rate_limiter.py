@@ -365,8 +365,8 @@ class RateLimiter:
                         "rate_limiter_redis_fallback_total",
                         "Total rate limiter fallback to local due to Redis failure",
                     ).inc()
-                except Exception:  # noqa: S110
-                    pass
+                except Exception:
+                    logger.warning("RateLimiter: Failed to record Redis fallback metric", exc_info=True)
 
         return self._local_counter.increment(key, limit)
 

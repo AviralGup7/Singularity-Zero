@@ -32,7 +32,7 @@ from src.pipeline.services.circuit_breaker import (
     CircuitBreakerStats,
     ProbeCallback,
 )
-from src.pipeline.waf_profile import WafTuningProfile
+from src.pipeline.waf_profile import WAFTuningProfile
 
 from .contracts import (
     CompletedToolRun,
@@ -46,6 +46,7 @@ from .runner import (
     SHELL_META,
     _clean_env,
     _coerce_output_text,
+    _get_creationflags,
     get_circuit_breaker,
     run_external_tool,  # noqa: E402  (pull async runner after service for ordering)
 )
@@ -72,6 +73,6 @@ __all__ = [
     "CircuitBreakerConfig",
     "CircuitBreakerStats",
     "ProbeCallback",
-    "WafTuningProfile",
+    "WAFTuningProfile",
     "subprocess",
 ]

@@ -31,4 +31,11 @@ async def get_cached_job(job_id: str, services: Any) -> dict[str, Any] | None:
                 return cached_job
         job = await asyncio.to_thread(services.get_job, job_id)
         _JOB_CACHE[job_id] = (now, job)
-        return cast(dict[str, Any] | None, job)
+    # Notify SSE streams outside the lock to avoid holding it during fanout
+    try:
+        from src.dashboard.fastapi.routers.jobs.notifications import notify_job_updated
+
+        await notify_job_updated(job_id)
+    except Exception:
+        logger.warning("Operation failed in artifacts.py", exc_info=True)
+    return cast(dict[str, Any] | None, job)

@@ -284,7 +284,7 @@ class BaseFeedConnector(ABC):
                         f"Request to {self.client_name} failed after {self.config.max_retries + 1} attempts: {exc}",
                     ) from exc
 
-            assert False, "unreachable"  # noqa: RET503
+            raise AssertionError("Unreachable code reached in feed request loop")  # noqa: RET503
         except Exception as exc:
             self._failure_count += 1
             if self._failure_count >= 5:

@@ -7,21 +7,15 @@ This package modularizes the helpers into separate files
 for better maintainability and AI-agent editability.
 """
 
-# Re-export scoring utilities from helpers_scoring.py
-# Re-export probe confidence/severity helpers
-# Re-export scoring functions
-from src.analysis.helpers.scoring import (
+# DEPRECATED: re-exports from core.utils create circular-import-prone barrel; import directly from src.core.utils instead
+from src.core.utils.param_types import decode_candidate_value
+from src.core.utils.response_filters import classify_response_delta
+from src.core.utils.scoring import (
     PARAMETER_WEIGHTS,
     SIGNAL_WEIGHTS,
     normalized_confidence,
     parameter_weight,
     signal_weight,
-)
-
-# Re-export classification functions
-from src.core.utils.param_types import decode_candidate_value
-from src.core.utils.response_filters import classify_response_delta
-from src.core.utils.scoring import (
     apply_bounded_confidence,
     severity_score,
 )
@@ -189,14 +183,6 @@ __all__ = [
     "probe_confidence_from_map",
     "probe_severity_from_map",
     "classify_response_delta",
-    "EMAIL_VALUE_RE",
-    "has_remote_scheme",
-    "is_dangerous_scheme",
-    "is_internal_host_value",
-    "looks_like_dns_callback",
-    "token_shape",
-    "json_type_name",
-    "normalize_headers",
     "apply_bounded_confidence",
     "severity_score",
 ]

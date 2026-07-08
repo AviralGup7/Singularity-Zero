@@ -307,7 +307,7 @@ async def run_secured(
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
-        from src.core.frontier.ghost_actor import GhostMeshCoordinator
+        from src.infrastructure.frontier.ghost_actor import GhostMeshCoordinator
         from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
 
         from ..migration_handler import ProactiveMigrationHandler

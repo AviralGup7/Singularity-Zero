@@ -6,7 +6,7 @@ export { usePersistedState } from './usePersistedState';
 export { useJobMonitor } from './useJobMonitor';
 export { useMotionPolicy } from './useMotionPolicy';
 export { useRiskHistory, buildRiskDateColumns } from './useRiskHistory';
-export { useFindingsTimeline } from './useFindingsTimeline';
+export { useFindingsTimeline } from '@/features/findings/hooks/useFindingsTimeline';
 export type { UseJobMonitorReturn } from './useJobMonitor';
 export type { DurationForecastData } from './useJobMonitorReducer';
 

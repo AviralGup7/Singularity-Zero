@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import aiohttp
 
-from src.recon.cloud_recon.services import (
+from src.recon.cloud_recon.helpers import (
     _build_cloud_run_1st_gen_candidates,
     _build_cloud_run_2nd_gen_candidates,
 )
@@ -15,9 +15,6 @@ logger = logging.getLogger(__name__)
 
 class GCPCloudRecon:
     """GCP-specific cloud asset probes."""
-
-    timeout_seconds: int
-    gcp_regions: list[str]
 
     async def check_gcp_bucket(
         self,
@@ -63,9 +60,8 @@ class GCPCloudRecon:
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
                             finding["details"] += " ACL is publicly readable."
-                except Exception:  # noqa: S110
-                    pass
-
+                except Exception:
+                    logger.warning("Operation failed in gcp.py", exc_info=True)
                 if getattr(self, "enable_write_probes", False):
                     try:
                         async with session.put(
@@ -79,13 +75,12 @@ class GCPCloudRecon:
                                 finding["details"] += (
                                     " Bucket allows unauthenticated file uploads (Public Write)!"
                                 )
-                    except Exception:  # noqa: S110
-                        pass
-
+                    except Exception:
+                        logger.warning("Operation failed in gcp.py", exc_info=True)
                 return finding
 
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Operation failed in gcp.py", exc_info=True)
         return None
 
     def enumerate_cloud_run_candidates(self, target: str) -> list[str]:
@@ -145,10 +140,10 @@ class GCPCloudRecon:
         return findings
 
     def _build_cloud_run_1st_gen_candidates(self, target: str) -> list[str]:
-        return cast(list[str], _build_cloud_run_1st_gen_candidates(self, target))
+        return _build_cloud_run_1st_gen_candidates(self, target)
 
     def _build_cloud_run_2nd_gen_candidates(self, target: str) -> list[str]:
-        return cast(list[str], _build_cloud_run_2nd_gen_candidates(self, target))
+        return _build_cloud_run_2nd_gen_candidates(self, target)
 
     async def probe_gcp_cloud_functions(
         self,
@@ -211,8 +206,8 @@ class GCPCloudRecon:
                             ),
                         }
                     )
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Operation failed in gcp.py", exc_info=True)
         return findings
 
     async def probe_gcp_app_engine(

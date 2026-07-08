@@ -96,6 +96,7 @@ export function Header({
                 key={action.path}
                 to={action.path}
                 className="btn btn-primary btn-sm topbar-primary flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-semibold rounded-lg shadow-md transition-all duration-200"
+                aria-label={action.label}
               >
                 <Icon name={action.icon} size={13} aria-hidden="true" />
                 {action.label}

@@ -206,10 +206,10 @@ function GraphNodes({
   onSelectNode: (id: string) => void;
   onHoverNode: (id: string | null) => void;
 }) {
-  const meshRef = useRef<InstancedMesh | null>(null);
-  const pulseRef = useRef<InstancedMesh | null>(null);
-  const healthRef = useRef<InstancedMesh | null>(null);
-  const healthBgRef = useRef<InstancedMesh | null>(null);
+  const meshRef = useRef<InstancedMesh>(null);
+  const pulseRef = useRef<InstancedMesh>(null);
+  const healthRef = useRef<InstancedMesh>(null);
+  const healthBgRef = useRef<InstancedMesh>(null);
   const temp = useMemo(() => new Object3D(), []);
 
   // Index lookup so we can convert `event.instanceId` to a node O(1).
@@ -423,7 +423,7 @@ function CameraRig({ selected }: { selected?: PositionedNode }) {
 
 function OrbitRig() {
   const { camera, gl } = useThree();
-  const controlsRef = useRef<InstanceType<typeof ThreeOrbitControls> | null>(null);
+  const controlsRef = useRef<InstanceType<typeof ThreeOrbitControls>>(null);
 
   useEffect(() => {
     controlsRef.current = new ThreeOrbitControls(camera, gl.domElement);

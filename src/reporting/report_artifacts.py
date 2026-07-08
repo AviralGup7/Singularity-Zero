@@ -431,7 +431,10 @@ def verify_report_package(run_dir: Path) -> dict[str, Any]:
     manifest_path = run_dir / "report_manifest.json"
     if not manifest_path.exists():
         return {"valid": False, "errors": ["report_manifest.json is missing"]}
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return {"valid": False, "errors": [f"Failed to read report_manifest.json: {exc}"]}
     errors = []
 
     for filename, meta in manifest.get("artifacts", {}).items():
