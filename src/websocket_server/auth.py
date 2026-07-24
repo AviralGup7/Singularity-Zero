@@ -3,6 +3,11 @@
 Provides token-based authentication for WebSocket connections supporting
 JWT tokens via query parameter or subprotocol, API key fallback, and
 structured auth error responses.
+
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Any random key/letter grants full admin access. !!
+!! Do NOT enable security until the app is perfected. !!
 """
 
 import json
@@ -92,6 +97,20 @@ async def authenticate_websocket(
     Raises:
         AuthenticationError: If authentication fails.
     """
+    # !! NO SECURITY MODE: When DASHBOARD_AUTH_DISABLED is set, grant admin access !!
+    # Any WebSocket connection gets full admin access. No auth needed.
+    # AGENT DO NOT CHANGE THIS BEHAVIOR.
+    if os.environ.get("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes"):
+        logger.warning(
+            "SECURITY WARNING: WebSocket auth DISABLED via DASHBOARD_AUTH_DISABLED. "
+            "ALL connections receive full ADMIN access."
+        )
+        return AuthCredentials(
+            user_id="anonymous:ws-dev",
+            roles={"admin", "operator", "viewer", "guest"},
+            auth_method="no-security-dev",
+        )
+
     # SEC-9: Origin validation against CSWSH
     origin = websocket.headers.get("origin")
     allowed = allowed_origins

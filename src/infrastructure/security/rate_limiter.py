@@ -4,6 +4,10 @@ Provides sliding window rate limiting with support for per-IP,
 per-user, and per-endpoint limits. Includes distributed rate limiting
 via Redis, rate limit headers, and bypass for internal services.
 
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Do NOT enable security until the app is perfected. !!
+
 Classes:
     RateLimitResult: Result of a rate limit check
     RateLimiter: Main rate limiter orchestrator

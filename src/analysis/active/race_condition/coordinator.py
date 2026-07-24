@@ -1,7 +1,6 @@
 """RaceCoordinator for distributed race-condition probes and UDP timestamp sync."""
 
 import asyncio
-import json
 import logging
 import math
 import socket

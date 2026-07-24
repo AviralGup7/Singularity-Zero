@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/Progress';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 import type { CacheKeyInfo, CacheKeysResponse, CachePerformancePoint, CacheStatusResponse } from '@/types/extended';
 import { formatBytes, formatRatio, ttlLabel, StatusPill, MetricCard, HitRateGauge, PerformanceLineChart } from './index';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export function CacheManagementPage() {
   const { policy, strategy } = useMotionPolicy('graph');
@@ -43,10 +44,10 @@ export function CacheManagementPage() {
     refreshOverview(controller.signal)
       .then(() => refreshKeys(pattern, controller.signal))
       .then(() => setError(null))
-      .catch((err: { message?: string }) => setError(err.message || 'Failed to load cache telemetry'))
+      .catch((err: { message?: string }) => { const msg = err.message || 'Failed to load cache telemetry'; setError(msg); showErrorToast(msg); })
       .finally(() => { clearTimeout(loadingTid); setLoading(false); });
     const interval = window.setInterval(() => {
-      refreshOverview().catch((err: { message?: string }) => setError(err.message || 'Failed to refresh cache telemetry'));
+      refreshOverview().catch((err: { message?: string }) => { const msg = err.message || 'Failed to refresh cache telemetry'; setError(msg); showErrorToast(msg); });
     }, 10000);
     return () => { controller.abort(); window.clearInterval(interval); };
   }, [pattern, refreshKeys, refreshOverview]);
@@ -82,7 +83,7 @@ export function CacheManagementPage() {
       const res = await deleteCacheKeys(nextPattern.trim());
       setMessage(`Deleted ${res.deleted} of ${res.matched} matching Redis keys.`);
       await Promise.all([refreshOverview(), refreshKeys(pattern)]);
-    } catch (err: unknown) { setMessage(err instanceof Error ? err.message : 'Pattern flush failed.'); }
+    } catch (err: unknown) { const msg = err instanceof Error ? err.message : 'Pattern flush failed.'; setMessage(msg); showErrorToast(msg); }
     finally { setActionLoading(false); }
   }
 
@@ -92,7 +93,7 @@ export function CacheManagementPage() {
       const res = await clearAllCaches();
       setMessage(`Cleared ${res.cleared} cache entries.`);
       await Promise.all([refreshOverview(), refreshKeys(pattern)]);
-    } catch (err: unknown) { setMessage(err instanceof Error ? err.message : 'Clear all failed.'); }
+    } catch (err: unknown) { const msg = err instanceof Error ? err.message : 'Clear all failed.'; setMessage(msg); showErrorToast(msg); }
     finally { setConfirmClear(false); setActionLoading(false); }
   }
 
@@ -102,7 +103,7 @@ export function CacheManagementPage() {
       const res = await triggerCacheCleanup();
       setMessage(`Cleaned ${res.cleaned} expired entries in ${res.duration_seconds.toFixed(2)}s.`);
       await Promise.all([refreshOverview(), refreshKeys(pattern)]);
-    } catch (err: unknown) { setMessage(err instanceof Error ? err.message : 'Cleanup failed.'); }
+    } catch (err: unknown) { const msg = err instanceof Error ? err.message : 'Cleanup failed.'; setMessage(msg); showErrorToast(msg); }
     finally { setActionLoading(false); }
   }
 
@@ -111,11 +112,11 @@ export function CacheManagementPage() {
     try {
       const res = await (await import('@/api/cacheMgmt')).reconcileBloomFilter();
       setMessage(`Bloom reconciliation triggered: ${res.status}. Redis: ${res.redis_enabled ? 'Active' : 'N/A'}`);
-    } catch (err: unknown) { setMessage(err instanceof Error ? err.message : 'Bloom reconciliation failed.'); }
+    } catch (err: unknown) { const msg = err instanceof Error ? err.message : 'Bloom reconciliation failed.'; setMessage(msg); showErrorToast(msg); }
     finally { setBloomReconciling(false); }
   }
 
-  if (loading && !status) return <div className="p-8 text-[var(--muted)]">Loading cache telemetry...</div>;
+  if (loading && !status) return <div className="p-8 text-muted">Loading cache telemetry...</div>;
 
   return (
     <motion.div
@@ -126,8 +127,8 @@ export function CacheManagementPage() {
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Cache Management</h1>
-          <p className="text-sm text-[var(--muted)]">Redis, SQLite, key exploration, and rolling cache performance.</p>
+          <h1 className="text-2xl font-bold text-text">Cache Management</h1>
+          <p className="text-sm text-muted">Redis, SQLite, key exploration, and rolling cache performance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => refreshOverview()} disabled={actionLoading}>
@@ -148,14 +149,14 @@ export function CacheManagementPage() {
       {(error || message) && (
         <div className="banner" role="status">
           <span>{error || message}</span>
-          <button className="ml-3 text-xs text-[var(--muted)] hover:text-[var(--text)]" onClick={() => { setError(null); setMessage(null); }}>Dismiss</button>
+          <button className="ml-3 text-xs text-muted hover:text-text" onClick={() => { setError(null); setMessage(null); }}>Dismiss</button>
         </div>
       )}
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-sm uppercase tracking-wider text-[var(--muted)]">Redis Overview</h2>
+            <h2 className="font-mono text-sm uppercase tracking-wider text-muted">Redis Overview</h2>
             <StatusPill connected={!!status?.redis.connected} />
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -169,7 +170,7 @@ export function CacheManagementPage() {
         </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-sm uppercase tracking-wider text-[var(--muted)]">SQLite Overview</h2>
+            <h2 className="font-mono text-sm uppercase tracking-wider text-muted">SQLite Overview</h2>
             <StatusPill connected={!!status?.sqlite.connected} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
@@ -186,8 +187,8 @@ export function CacheManagementPage() {
         <div className="card p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[var(--text)]">Key Explorer</h2>
-              <p className="text-sm text-[var(--muted)]">{keys?.connected ? `${keys.count} keys shown` : 'Not connected'}</p>
+              <h2 className="text-lg font-semibold text-text">Key Explorer</h2>
+              <p className="text-sm text-muted">{keys?.connected ? `${keys.count} keys shown` : 'Not connected'}</p>
             </div>
             <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleSearch}>
               <Input id="cache-key-pattern" label="Pattern" value={pattern} onChange={event => setPattern(event.target.value)} />
@@ -196,21 +197,21 @@ export function CacheManagementPage() {
               </Button>
             </form>
           </div>
-          <div className="mt-4 overflow-hidden border border-[var(--line)]">
-            <div className="grid grid-cols-[1fr_86px_92px_84px] gap-3 bg-[var(--panel)] px-3 py-2 text-xs font-mono uppercase tracking-wider text-[var(--muted)]">
+          <div className="mt-4 overflow-hidden border border-line">
+            <div className="grid grid-cols-[1fr_86px_92px_84px] gap-3 bg-panel px-3 py-2 text-xs font-mono uppercase tracking-wider text-muted">
               <span>Key</span><span>TTL</span><span>Size</span><span className="text-right">Action</span>
             </div>
             <div className="max-h-[360px] overflow-auto">
-              {!keys?.connected && <div className="px-3 py-8 text-center text-sm text-[var(--muted)]">Not connected</div>}
-              {keys?.connected && keys.keys.length === 0 && <div className="px-3 py-8 text-center text-sm text-[var(--muted)]">No matching keys</div>}
+              {!keys?.connected && <div className="px-3 py-8 text-center text-sm text-muted">Not connected</div>}
+              {keys?.connected && keys.keys.length === 0 && <div className="px-3 py-8 text-center text-sm text-muted">No matching keys</div>}
               {keys?.keys.map(item => (
-                <div key={item.key} className="grid grid-cols-[1fr_86px_92px_84px] items-center gap-3 border-t border-[var(--line)] px-3 py-2 text-sm">
+                <div key={item.key} className="grid grid-cols-[1fr_86px_92px_84px] items-center gap-3 border-t border-line px-3 py-2 text-sm">
                   <div className="min-w-0">
-                    <p className="truncate font-mono text-[var(--text)]" title={item.key}>{item.key}</p>
-                    <p className="text-xs text-[var(--muted)]">{item.type || 'unknown'}</p>
+                    <p className="truncate font-mono text-text" title={item.key}>{item.key}</p>
+                    <p className="text-xs text-muted">{item.type || 'unknown'}</p>
                   </div>
-                  <span className="font-mono text-xs text-[var(--muted)]">{ttlLabel(item.ttl)}</span>
-                  <span className="font-mono text-xs text-[var(--muted)]">{formatBytes(item.size)}</span>
+                  <span className="font-mono text-xs text-muted">{ttlLabel(item.ttl)}</span>
+                  <span className="font-mono text-xs text-muted">{formatBytes(item.size)}</span>
                   <Button size="sm" variant="ghost" onClick={() => handleDeletePattern(item.key)} disabled={actionLoading}>
                     <Trash2 size={14} aria-hidden="true" /> Delete
                   </Button>
@@ -221,7 +222,7 @@ export function CacheManagementPage() {
         </div>
         <div className="space-y-6">
           <section className="card p-4">
-            <h2 className="text-lg font-semibold text-[var(--text)]">Actions</h2>
+            <h2 className="text-lg font-semibold text-text">Actions</h2>
             <div className="mt-4 flex flex-col gap-3">
               <Input id="cache-flush-pattern" label="Flush Pattern" value={flushPattern} onChange={event => setFlushPattern(event.target.value)} />
               <Button variant="danger" onClick={() => handleDeletePattern(flushPattern)} disabled={!flushPattern.trim()} loading={actionLoading}>
@@ -232,29 +233,29 @@ export function CacheManagementPage() {
           <section className="card p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-[var(--text)]">Cache Simulator</h2>
-                <p className="truncate text-xs text-[var(--muted)]" title={simulator.key}>{simulator.key}</p>
+                <h2 className="text-lg font-semibold text-text">Cache Simulator</h2>
+                <p className="truncate text-xs text-muted" title={simulator.key}>{simulator.key}</p>
               </div>
-              <Server className="text-[var(--accent)]" size={20} aria-hidden="true" />
+              <Server className="text-accent" size={20} aria-hidden="true" />
             </div>
             <div className="mt-4 space-y-3">
               <div>
-                <div className="flex justify-between text-xs font-mono text-[var(--muted)]">
+                <div className="flex justify-between text-xs font-mono text-muted">
                   <span>Cached lookup</span><span>{simulator.warm}ms</span>
                 </div>
                 <Progress value={simulator.warm} max={simulator.cold} size="sm" variant="completed" />
               </div>
               <div>
-                <div className="flex justify-between text-xs font-mono text-[var(--muted)]">
+                <div className="flex justify-between text-xs font-mono text-muted">
                   <span>After clear</span><span>{simulator.cold}ms</span>
                 </div>
                 <Progress value={simulator.cold} max={simulator.cold} size="sm" variant="failed" />
               </div>
-              <p className="text-sm text-[var(--text)]">{simulator.delta}ms estimated lookup penalty on the next miss.</p>
+              <p className="text-sm text-text">{simulator.delta}ms estimated lookup penalty on the next miss.</p>
               {policy.allowFramer && (
-                <div className="relative h-8 overflow-hidden border border-[var(--line)] bg-[var(--panel)]" aria-hidden="true">
+                <div className="relative h-8 overflow-hidden border border-line bg-panel" aria-hidden="true">
                   {[0, 1, 2].map(index => (
-                    <motion.span key={index} className="absolute top-3 h-2 w-8 bg-[var(--accent)]"
+                    <motion.span key={index} className="absolute top-3 h-2 w-8 bg-accent"
                       initial={{ x: -40, opacity: 0.2 }} animate={{ x: 360, opacity: [0.2, 0.9, 0.2] }}
                       transition={{ duration: 2.4, repeat: Infinity, delay: index * 0.45, ease: 'linear' }} />
                   ))}
@@ -268,10 +269,10 @@ export function CacheManagementPage() {
       <section className="card p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--text)]">Performance History</h2>
-            <p className="text-sm text-[var(--muted)]">Last hour at one-minute resolution.</p>
+            <h2 className="text-lg font-semibold text-text">Performance History</h2>
+            <p className="text-sm text-muted">Last hour at one-minute resolution.</p>
           </div>
-          <Activity className="text-[var(--accent)]" size={20} aria-hidden="true" />
+          <Activity className="text-accent" size={20} aria-hidden="true" />
         </div>
         <div className="h-[280px]"><PerformanceLineChart data={chartData} animate={policy.allowFramer} /></div>
       </section>

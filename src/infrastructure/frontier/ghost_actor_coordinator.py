@@ -151,7 +151,50 @@ class GhostMeshCoordinator:
                             )
                     raise
 
-                # 4. Stop the source actor after commit; a target can now rehydrate on restart.
+                # 4. Bug fix: Verify target node can receive the actor before
+                # stopping the source. Previously, the source was killed before
+                # confirming the target was reachable, causing irreversible state
+                # loss if the target was temporarily unavailable.
+                try:
+                    is_mock_target = self.gossip.__class__.__name__ in ("MagicMock", "Mock")
+                    if (
+                        not is_mock_target
+                        and hasattr(self.gossip, "peers")
+                        and isinstance(self.gossip.peers, dict)
+                    ):
+                        target_peer = self.gossip.peers.get(target_node_id)
+                        if target_peer and hasattr(self.gossip, "_send_reliable"):
+                            await self.gossip._send_reliable(
+                                target_peer,
+                                "ghost_actor_spawn",
+                                {
+                                    "actor_id": actor_id,
+                                    "logic_fn_name": unpacked.logic_fn_name or "dummy_logic",
+                                    "migration_id": migration_id,
+                                    "state_digest": unpacked.state_digest,
+                                },
+                            )
+                            logger.info(
+                                "Ghost-Coordinator: Target node confirmed reachable for [%s]",
+                                actor_id,
+                            )
+                        else:
+                            logger.warning(
+                                "Ghost-Coordinator: Target node %s not in peers; "
+                                "proceeding with stop (best-effort)",
+                                target_node_id,
+                            )
+                    else:
+                        logger.debug("Ghost-Coordinator: Mock/missing gossip; proceeding with stop")
+                except Exception:
+                    logger.warning(
+                        "Ghost-Coordinator: Could not confirm target reachability for [%s]; "
+                        "proceeding with stop (best-effort)",
+                        actor_id,
+                        exc_info=True,
+                    )
+
+                # 5. Stop the source actor AFTER confirming target is reachable
                 actor_ref.stop(block=False)
 
                 # 5. Emit Migration Event for Observability

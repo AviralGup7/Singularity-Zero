@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CockpitPage } from '@/pages/CockpitPage';
-import React from 'react';
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();

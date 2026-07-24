@@ -11,9 +11,6 @@ import { IterationProgressBar } from '@/components/IterationProgressBar';
 import { PluginProgressGrid } from '@/components/PluginProgressGrid';
 import { LiveTerminalFeed } from '@/components/LiveTerminalFeed';
 import { DurationForecast } from '@/components/DurationForecast';
-const ModulePerformanceChart = lazy(() =>
-  import('@/components/charts/ModulePerformanceChart').then(m => ({ default: m.ModulePerformanceChart }))
-);
 import { JobStatusHeader } from '@/components/jobs/JobStatusHeader';
 import { JobLogViewer } from '@/components/jobs/JobLogViewer';
 import { JobTimelineComponent } from '@/components/jobs/JobTimelineComponent';
@@ -23,7 +20,6 @@ import { ThroughputStrip } from '@/components/ops/ThroughputStrip';
 import { VisualProvider } from '@/context/VisualContext';
 import { mapToVisualState } from '@/lib/mapToVisualState';
 import { useJobMonitor } from '@/hooks/useJobMonitor';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { GlowProgress } from '@/components/ui/GlowProgress';
 import { InfoItem, formatDurationLabel } from '@/components/jobs/JobInfoItem';
 import { useJobDetails, useJobStageTheater, useJobThroughput } from '@/hooks/useJobDetails';
@@ -40,6 +36,9 @@ import {
   StreamingFindingsSection,
   FailureSection,
 } from './index';
+const ModulePerformanceChart = lazy(() =>
+  import('@/components/charts/ModulePerformanceChart').then(m => ({ default: m.ModulePerformanceChart }))
+);
 
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -49,11 +48,13 @@ export function JobDetailPage() {
   const prevStageRef = useRef<Record<string, number>>({});
   const [stageDeltas, setStageDeltas] = useState<Array<{ stage: string; delta: number; status: string }>>([]);
 
-  const [exportStamp, setExportStamp] = useState<string>('');
-  useEffect(() => { setExportStamp(String(Date.now())); }, []);
+  const [exportStamp] = useState<string>(() => String(Date.now()));
 
   const navigate = useNavigate();
   const handleRestarted = useCallback((newJobId: string) => { navigate(`${ROUTES.JOBS}/${newJobId}`); }, [navigate]);
+
+  console.debug(`[JobDetailPage] mounted jobId=${jobId}`);
+
   const monitor = useJobMonitor(jobId, { onRestarted: handleRestarted });
 
   const {
@@ -122,14 +123,14 @@ export function JobDetailPage() {
         )}
 
         {job.status === 'running' && isPollingFallback && (
-          <div className="banner warning">
+          <div className="banner warning" role="status">
             Real-time updates unavailable. Progress is polling at reduced frequency.
           </div>
         )}
 
-        <motion.div variants={itemVariants} className="card">
+        <motion.div variants={itemVariants} className="card" role="region" aria-label="Job information">
           <h3>Job Information</h3>
-          <div className="info-grid">
+          <div className="info-grid tabular-nums">
             <InfoItem label="Target" value={job.base_url} />
             <InfoItem label="Hostname" value={job.hostname} />
             <InfoItem label="Mode" value={job.mode} />
@@ -145,9 +146,9 @@ export function JobDetailPage() {
         </motion.div>
 
         {hasRuntimeSignals && (
-          <motion.div variants={itemVariants} className="card">
+          <motion.div variants={itemVariants} className="card" role="region" aria-label="Runtime signals">
             <h3>Runtime Signals</h3>
-            <div className="info-grid">
+            <div className="info-grid tabular-nums">
               {warningCount > 0 && <InfoItem label="Warnings" value={`${warningCount}`} />}
               {fatalSignalCount > 0 && <InfoItem label="Fatal Signals" value={`${fatalSignalCount}`} />}
               {typeof job.effective_timeout_seconds === 'number' && (
@@ -158,16 +159,16 @@ export function JobDetailPage() {
             </div>
             {degradedProviders.length > 0 && (
               <>
-                <h4 className="mt-4 text-xs font-bold text-[var(--text-secondary)] font-mono uppercase tracking-wider">Degraded Providers</h4>
-                <div className="modules-list flex flex-wrap gap-2 mt-2">
-                  {degradedProviders.map((provider) => <span key={provider} className="module-tag">{provider}</span>)}
+                <h4 className="mt-4 text-xs font-bold text-text-secondary font-mono uppercase tracking-wider">Degraded Providers</h4>
+                <div className="modules-list flex flex-wrap gap-2 mt-2" role="list" aria-label="Degraded providers">
+                  {degradedProviders.map((provider) => <span key={provider} className="module-tag" role="listitem">{provider}</span>)}
                 </div>
               </>
             )}
             {timeoutEvents.length > 0 && (
               <>
-                <h4 className="mt-4 text-xs font-bold text-[var(--text-secondary)] font-mono uppercase tracking-wider">Timeout Events</h4>
-                <ul className="warnings-list mt-2 space-y-1">
+                <h4 className="mt-4 text-xs font-bold text-text-secondary font-mono uppercase tracking-wider">Timeout Events</h4>
+                <ul className="warnings-list mt-2 space-y-1" aria-label="Timeout events">
                   {timeoutEvents.map((event) => <li key={event}>{event}</li>)}
                 </ul>
               </>
@@ -187,24 +188,24 @@ export function JobDetailPage() {
         )}
 
         {(job.config_href || job.scope_href || job.stdout_href || job.stderr_href || job.target_href) && (
-          <motion.div variants={itemVariants} className="card">
+          <motion.div variants={itemVariants} className="card" role="region" aria-label="Job files">
             <h3>Job Files</h3>
             <div className="job-files-grid">
-              {job.config_href && <a href={job.config_href} target="_blank" rel="noopener noreferrer" className="file-link">config.json</a>}
-              {job.scope_href && <a href={job.scope_href} target="_blank" rel="noopener noreferrer" className="file-link">scope.txt</a>}
-              {job.stdout_href && <a href={job.stdout_href} target="_blank" rel="noopener noreferrer" className="file-link">stdout.txt</a>}
-              {job.stderr_href && <a href={job.stderr_href} target="_blank" rel="noopener noreferrer" className="file-link">stderr.txt</a>}
-              {job.target_href && <a href={job.target_href} target="_blank" rel="noopener noreferrer" className="file-link">Report</a>}
+              {job.config_href && <a href={job.config_href} target="_blank" rel="noopener noreferrer" className="file-link focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded">config.json</a>}
+              {job.scope_href && <a href={job.scope_href} target="_blank" rel="noopener noreferrer" className="file-link focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded">scope.txt</a>}
+              {job.stdout_href && <a href={job.stdout_href} target="_blank" rel="noopener noreferrer" className="file-link focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded">stdout.txt</a>}
+              {job.stderr_href && <a href={job.stderr_href} target="_blank" rel="noopener noreferrer" className="file-link focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded">stderr.txt</a>}
+              {job.target_href && <a href={job.target_href} target="_blank" rel="noopener noreferrer" className="file-link focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded">Report</a>}
             </div>
           </motion.div>
         )}
 
         {job.status === 'running' && (
-          <motion.div variants={itemVariants} className="card">
+          <motion.div variants={itemVariants} className="card" role="region" aria-label="Scan progress">
             <h3>Progress</h3>
             <div className="progress-section space-y-3">
               <GlowProgress value={job.progress_percent ?? 0} variant="cyber" animated size="lg" />
-              <div className="progress-details flex justify-between text-xs text-[var(--text-secondary)] font-mono">
+              <div className="progress-details flex justify-between text-xs text-text-secondary font-mono tabular-nums">
                 <span>{Math.round(job.progress_percent ?? 0)}% complete</span>
                 {job.has_eta && <span>ETA: {job.eta_label ?? '--'}</span>}
               </div>
@@ -279,7 +280,7 @@ export function JobDetailPage() {
 
         {job.per_module_stats && Object.keys(job.per_module_stats).length > 0 && (
           <motion.div variants={itemVariants}>
-            <Suspense fallback={<div className="h-32 bg-white/5 rounded-lg animate-pulse" />}>
+            <Suspense fallback={<div className="h-32 bg-surface-hover rounded-lg animate-pulse" />}>
               <ModulePerformanceChart
                 data={Object.entries(job.per_module_stats).map(([module, stats]) => ({
                   module, duration: stats.duration_sec ?? 0, findings: stats.findings_count ?? 0,
@@ -293,9 +294,9 @@ export function JobDetailPage() {
           <motion.div variants={itemVariants} className="card error-card">
             <h3>Error</h3>
             {job.failure_reason_code === 'circuit_breaker_open' ? (
-              <p className="text-sm text-[var(--text-secondary)]">
+              <p className="text-sm text-text-secondary">
                 Circuit breaker is open for <strong>{job.failed_stage || 'a tool'}</strong>. Stage was skipped.
-                Visit <Link to={ROUTES.SELF_HEALING} className="underline">Self-Healing</Link> to manage circuit breakers.
+                Visit <Link to="/security?tab=self-healing" className="underline focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded" aria-label="Go to Self-Healing to manage circuit breakers">Self-Healing</Link> to manage circuit breakers.
               </p>
             ) : (
               <pre className="error-text">{job.error}</pre>
@@ -305,13 +306,13 @@ export function JobDetailPage() {
 
         {job.warnings && job.warnings.length > 0 && (
           <motion.div variants={itemVariants} className="card warning-card">
-            <button type="button" onClick={() => setWarningsExpanded(!warningsExpanded)} className="w-full flex items-center justify-between text-left focus:outline-none">
+              <button type="button" onClick={() => setWarningsExpanded(!warningsExpanded)} className="w-full flex items-center justify-between text-left focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded" aria-expanded={warningsExpanded} aria-controls="job-warnings-panel">
               <h3>Warnings ({job.warnings.length})</h3>
-              <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${warningsExpanded ? 'rotate-180 text-[var(--bad)]' : ''}`} />
+              <ChevronDown size={18} className={`transform transition-transform duration-200 text-text-secondary ${warningsExpanded ? 'rotate-180 text-bad' : ''}`} aria-hidden="true" />
             </button>
             <AnimatePresence initial={false}>
               {warningsExpanded && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: EASE_OUT }} className="overflow-hidden">
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: EASE_OUT }} className="overflow-hidden" id="job-warnings-panel">
                   <ul className="warnings-list mt-4 space-y-1.5">
                     {job.warnings.map((w, idx) => <li key={w.substring(0, 40) + idx}>{w}</li>)}
                   </ul>
@@ -322,13 +323,13 @@ export function JobDetailPage() {
         )}
 
         <motion.div variants={itemVariants} className="card">
-          <button type="button" onClick={() => setLogsExpanded(!logsExpanded)} className="w-full flex items-center justify-between text-left focus:outline-none">
+          <button type="button" onClick={() => setLogsExpanded(!logsExpanded)} className="w-full flex items-center justify-between text-left focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded" aria-expanded={logsExpanded} aria-controls="job-logs-panel">
             <h3>Job Logs</h3>
-            <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${logsExpanded ? 'rotate-180 text-[var(--accent)]' : ''}`} />
+            <ChevronDown size={18} className={`transform transition-transform duration-200 text-text-secondary ${logsExpanded ? 'rotate-180 text-accent' : ''}`} aria-hidden="true" />
           </button>
           <AnimatePresence initial={false}>
             {logsExpanded && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: EASE_OUT }} className="overflow-hidden">
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: EASE_OUT }} className="overflow-hidden" id="job-logs-panel">
                 <div className="pt-4">
                   <JobLogViewer displayLines={displayLines} wsFailed={wsFailed} jobStatus={job.status} />
                 </div>

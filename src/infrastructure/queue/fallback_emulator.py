@@ -514,7 +514,7 @@ class FallbackEmulator:
             self.client.execute_command("HINCRBY", metrics_key, "completed", 1)
             return [1]
 
-        if name == "fail_job" and len(keys) >= 5 and len(args) >= 7:
+        if name == "fail_job" and len(keys) >= 5 and len(args) >= 6:
             job_key = _as_str(keys[0])
             worker_key = _as_str(keys[1])
             queue_key = _as_str(keys[2])
@@ -522,12 +522,11 @@ class FallbackEmulator:
             metrics_key = _as_str(keys[4])
 
             error_msg = _as_str(args[0])
-            retries = int(float(args[1]))
-            max_retries = int(float(args[2]))
-            now_ff = float(args[3])
-            initial = float(args[4])
-            multiplier = float(args[5])
-            max_delay = float(args[6])
+            max_retries = int(float(args[1]))
+            now_ff = float(args[2])
+            initial = float(args[3])
+            multiplier = float(args[4])
+            max_delay = float(args[5])
 
             if self.client.execute_command("EXISTS", job_key) == 0:
                 return [0, b"not_found"]
@@ -535,7 +534,12 @@ class FallbackEmulator:
             self.client.execute_command("SREM", worker_key, job_key)
             self.client.execute_command("HSET", job_key, "error", error_msg)
 
-            if retries < max_retries:
+            retries_raw = self.client.execute_command("HGET", job_key, "retries")
+            retries = int(float(_as_str(retries_raw))) if retries_raw is not None else 0
+            self.client.execute_command("HINCRBY", job_key, "retries", 1)
+            new_retries = retries + 1
+
+            if new_retries <= max_retries:
                 backoff = min(initial * (multiplier**retries), max_delay)
                 retry_at = now_ff + backoff
                 bid_raw = self.client.execute_command("HGET", job_key, "bid_score")

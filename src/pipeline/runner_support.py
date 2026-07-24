@@ -7,9 +7,9 @@ from typing import Any
 
 from src.core.logging.pipeline_logging import emit_progress_event
 from src.core.models import TOOL_NAMES
-from src.pipeline.cache import load_cached_set, save_cached_set
 from src.pipeline.screenshots import detect_browser
 from src.pipeline.tools import projectdiscovery_httpx_available, tool_available
+from src.pipeline.unified_cache import load_cached_set, save_cached_set
 
 logger = logging.getLogger(__name__)
 

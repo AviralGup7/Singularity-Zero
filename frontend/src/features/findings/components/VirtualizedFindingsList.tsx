@@ -2,7 +2,7 @@ import { memo, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import { Shield, ExternalLink, Clock, CheckSquare, Square } from 'lucide-react';
-import type { Finding } from '../types/api';
+import type { Finding } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // High-Performance Row Component
@@ -45,7 +45,7 @@ const FindingRow = memo(function FindingRow({
 
   return (
     <div className="px-4 py-2">
-      <div className={`flex items-center gap-4 p-4 rounded-xl border border-white/5 border-l-4 ${severityClass} hover:border-white/10 transition-all group cursor-pointer glass-panel`}>
+      <div className={`flex items-center gap-4 p-4 rounded-xl border border-line border-l-4 ${severityClass} hover:border-line transition-all group cursor-pointer glass-panel`}>
         {selectionMode && (
           <button
             type="button"
@@ -60,15 +60,15 @@ const FindingRow = memo(function FindingRow({
             {isSelected ? <CheckSquare size={16} className="text-accent" /> : <Square size={16} />}
           </button>
         )}
-        <div className="shrink-0 w-10 h-10 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center font-black text-xs text-muted group-hover:text-accent transition-colors">
+        <div className="shrink-0 w-10 h-10 rounded-lg bg-zinc-900 border border-line flex items-center justify-center font-black text-xs text-muted group-hover:text-accent transition-colors">
           {initials}
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
-              finding.severity === 'critical' ? 'bg-critical text-white' : 
-              finding.severity === 'high' ? 'bg-high text-white' : 
+              finding.severity === 'critical' ? 'bg-critical text-text-primary' : 
+              finding.severity === 'high' ? 'bg-high text-text-primary' : 
               'bg-zinc-800 text-muted'
             }`}>
               {finding.severity}
@@ -84,10 +84,10 @@ const FindingRow = memo(function FindingRow({
 
         <div className="shrink-0 flex items-center gap-6 pr-4">
           <div className="flex flex-col items-end">
-            <span className="text-[10px] text-white font-bold">{Math.round(finding.confidence * 100)}%</span>
+            <span className="text-[10px] text-text-primary font-bold">{Math.round(finding.confidence * 100)}%</span>
             <span className="text-[9px] text-muted uppercase tracking-tighter">Confidence</span>
           </div>
-          <div className="w-px h-8 bg-white/5" />
+          <div className="w-px h-8 bg-surface-hover" />
           <div className="text-right">
             <div className="text-[10px] text-muted flex items-center gap-1 justify-end">
               <Clock size={10} /> {timestamp !== null ? new Date(timestamp).toLocaleDateString() : 'Unknown'}
@@ -104,7 +104,7 @@ const FindingRow = memo(function FindingRow({
 
 const FindingHeader = memo(function FindingHeader({ count }: { count: number }) {
   return (
-    <div className="px-6 py-4 flex justify-between items-center bg-black/40 border-b border-white/5 sticky top-0 z-10 backdrop-blur-md">
+    <div className="px-6 py-4 flex justify-between items-center bg-surface-2 border-b border-line sticky top-0 z-10 backdrop-blur-md">
       <span className="text-[10px] font-black text-muted uppercase tracking-widest">
         Aggregated Intelligence Grid ({count} points)
       </span>

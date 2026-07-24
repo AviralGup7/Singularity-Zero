@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useJobMonitor } from '../../hooks/useJobMonitor';
+
 let sseEventHandler: ((event: Record<string, unknown>) => void) | undefined;
 
 const getJobMock = vi.fn();
@@ -46,8 +48,6 @@ vi.mock('../../hooks/useToast', () => ({
     info: vi.fn(),
   }),
 }));
-
-import { useJobMonitor } from '../../hooks/useJobMonitor';
 
 const baseJob = {
   id: 'job-1',

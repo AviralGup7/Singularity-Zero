@@ -4,14 +4,9 @@ import argparse
 import asyncio
 import concurrent.futures
 import os
+from pathlib import Path
 from typing import Any, TypedDict, cast
 
-from src.core.checkpoint import (
-    StageCheckpointGuard,
-    attempt_recovery,  # noqa: F401 – module-namespace seam
-    create_checkpoint_manager,  # noqa: F401 – module-namespace seam
-    generate_run_id,  # noqa: F401 – module-namespace seam
-)
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
 from src.core.events import EventBus, EventType, get_event_bus
 from src.core.logging.pipeline_logging import emit_error
@@ -19,6 +14,27 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.infrastructure.notifications.manager import NotificationManager
 from src.learning.integration import LearningIntegration
+
+
+def _lazy_checkpoint_import(name: str):  # type: ignore[no-untyped-def]
+    """Lazy-import from ``src.core.checkpoint`` to avoid circular import.
+
+    The checkpoint package imports *this* module during its own initialisation,
+    so we must not import it at the top level.
+    """
+    from src.core.checkpoint import (  # type: ignore[no-redef]
+        StageCheckpointGuard,
+        attempt_recovery,
+        create_checkpoint_manager,
+        generate_run_id,
+    )
+    _map = {
+        "StageCheckpointGuard": StageCheckpointGuard,
+        "attempt_recovery": attempt_recovery,
+        "create_checkpoint_manager": create_checkpoint_manager,
+        "generate_run_id": generate_run_id,
+    }
+    return _map[name]
 from src.pipeline.retry import (
     AdaptiveBackoffHeuristic,
     RetryMetrics,
@@ -68,11 +84,80 @@ class FindingDict(TypedDict, total=False):
     signals: list[str]
 
 
+def pipeline_flow_manifest() -> dict[str, Any]:
+    """Return pipeline stage flow manifest detailing stage ordering and definitions."""
+    return {
+        "stages": list(STAGE_ORDER),
+        "definitions": dict(PIPELINE_STAGES),
+    }
+
+
+def build_tool_status(config: Any) -> dict[str, bool]:
+    """Build a dictionary of tool names and their availability or enabled status."""
+    tools_cfg = getattr(config, "tools", {})
+    if isinstance(tools_cfg, dict):
+        return {str(k): bool(v) for k, v in tools_cfg.items()}
+    return {}
+
+
+def cache_enabled(config: Any) -> bool:
+    """Return True if caching is enabled in config."""
+    cache_cfg = getattr(config, "cache", {})
+    if isinstance(cache_cfg, dict):
+        return bool(cache_cfg.get("enabled", True))
+    return True
+
+
+def find_previous_run(target_dir: Any) -> Path | None:
+    """Find the previous run directory for a target."""
+    path = Path(str(target_dir)) if not isinstance(target_dir, Path) else target_dir
+    if not path.exists() or not path.is_dir():
+        return None
+    dirs = sorted([d for d in path.iterdir() if d.is_dir() and not d.name.startswith("_")])
+    return dirs[-2] if len(dirs) >= 2 else None
+
+
+from src.pipeline.services.output_store import PipelineOutputStore
+
+
+def generate_run_id() -> str:
+    """Generate a unique run ID string."""
+    fn = _lazy_checkpoint_import("generate_run_id")
+    return fn()
+
+
+def StageCheckpointGuard(*args: Any, **kwargs: Any) -> Any:
+    cls = _lazy_checkpoint_import("StageCheckpointGuard")
+    return cls(*args, **kwargs)
+
+
+def create_checkpoint_manager(*args: Any, **kwargs: Any) -> Any:
+    fn = _lazy_checkpoint_import("create_checkpoint_manager")
+    return fn(*args, **kwargs)
+
+
+def attempt_recovery(*args: Any, **kwargs: Any) -> Any:
+    fn = _lazy_checkpoint_import("attempt_recovery")
+    return fn(*args, **kwargs)
+
+
 __all__ = [
     "ExecutionContext",
     "ObservabilityBus",
     "PipelineOrchestrator",
     "StageDispatcher",
+    "PipelineOutputStore",
+    "pipeline_flow_manifest",
+    "build_tool_status",
+    "cache_enabled",
+    "find_previous_run",
+    "generate_run_id",
+    "StageCheckpointGuard",
+    "create_checkpoint_manager",
+    "attempt_recovery",
+    "emit_progress",
+    "resolve_stage_timeout",
+    "run_stage_with_retry",
     "PIPELINE_STAGES",
     "STAGE_ORDER",
     "DEFAULT_ITERATION_LIMIT",
@@ -184,14 +269,20 @@ class PipelineOrchestrator:
         self, event_type: EventType, source: str, data: dict[str, Any], trace_id: str | None = None
     ) -> None:
         """Emit a pipeline domain event while keeping orchestration failure-safe."""
-        self.observability_bus.emit_event(
-            event_type,
-            source=source,
-            data=data,
-            pipeline_input=self.ctx.pipeline_input,
-            correlation_id=self.ctx.pipeline_correlation_id,
-            trace_id=trace_id,
-        )
+        print(f"[INSTRUMENT] _emit_event: START event_type={event_type} source={source}", flush=True)
+        try:
+            _result = self.observability_bus.emit_event(
+                event_type,
+                source=source,
+                data=data,
+                pipeline_input=self.ctx.pipeline_input,
+                correlation_id=self.ctx.pipeline_correlation_id,
+                trace_id=trace_id,
+            )
+            print(f"[INSTRUMENT] _emit_event: SUCCESS event_type={event_type}", flush=True)
+        except Exception as exc:
+            print(f"[INSTRUMENT] _emit_event: EXCEPTION event_type={event_type} exc={exc}", flush=True)
+            raise
 
     def _emit_pipeline_error(self, reason: str, details: dict[str, Any] | None = None) -> None:
         self._emit_event(
@@ -280,6 +371,22 @@ class PipelineOrchestrator:
         ctx: PipelineContext | None = None,
         config: Any | None = None,
     ) -> int:
+        # Defect 2 fix: Wait for all in-flight checkpoint replications
+        # to complete before tearing down, preventing data loss on shutdown.
+        if self._checkpoint_mgr is not None:
+            try:
+                await self._checkpoint_mgr.wait_for_replications(timeout=15.0)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Checkpoint replication wait during finalize failed: %s", exc)
+
+        # Defect 2 fix: Close WAL and wait for any pending WAL operations.
+        wal = getattr(self, "_wal", None)
+        if wal is not None:
+            try:
+                wal.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("WAL close during finalize failed: %s", exc)
+
         if self._migration_handler:
             await self._migration_handler.stop()
 
@@ -337,7 +444,7 @@ class PipelineOrchestrator:
             nuclei_available=nuclei_available,
             checkpoint_mgr=checkpoint_mgr,
             handled_by_parallel=handled_by_parallel,
-            stage_checkpoint_guard=StageCheckpointGuard,
+            stage_checkpoint_guard=_lazy_checkpoint_import("StageCheckpointGuard"),
             progress_emitter=emit_progress,
             error_emitter=emit_error,
         )
@@ -403,10 +510,11 @@ class PipelineOrchestrator:
         from src.infrastructure.cache import CacheManager
         from src.infrastructure.cache.config import CacheConfig
 
+        output_dir_path = Path(config.output_dir) if isinstance(config.output_dir, str) else config.output_dir
         cache_db_path = getattr(
-            config, "cache_db_path", str(config.output_dir / "cache" / "cache_layer.db")
+            config, "cache_db_path", str(output_dir_path / "cache" / "cache_layer.db")
         )
-        cache_dir = getattr(config, "cache_dir", str(config.output_dir / "cache" / "files"))
+        cache_dir = getattr(config, "cache_dir", str(output_dir_path / "cache" / "files"))
         redis_url = getattr(config, "redis_url", os.getenv("REDIS_URL"))
 
         cache_config = CacheConfig(
@@ -418,10 +526,8 @@ class PipelineOrchestrator:
 
         target_name = str(getattr(config, "target_name", "unknown") or "unknown")
 
-        from pathlib import Path
-
         force_fresh = getattr(args, "force_fresh_run", False)
-        can_recover, recovered_state = attempt_recovery(
+        can_recover, recovered_state = _lazy_checkpoint_import("attempt_recovery")(
             Path(config.output_dir),
             config.target_name,
             force_fresh=force_fresh,
@@ -437,14 +543,16 @@ class PipelineOrchestrator:
         exit_code = 3
         try:
             exit_code = await self._run_secured(
-                args, config, flow_manifest, cache_mgr, scope_entries, tool_status
+                args, config, flow_manifest, cache_mgr, scope_entries, tool_status,
+                pre_recovered_state=recovered_state,
             )
             return exit_code
         finally:
-            if exit_code != 3:
-                await self._release_distributed_lock()
-            else:
-                logger.warning("Abnormal exit (exit_code=%d). Lock NOT released.", exit_code)
+            # Bug fix: Always release the lock regardless of exit code.
+            # Previously, exit_code == 3 caused lock to be skipped on release,
+            # which leaked the lock on unhandled exceptions that weren't mapped
+            # to a non-3 exit code.
+            await self._release_distributed_lock()
             cache_mgr.close()
 
     async def _run_secured(
@@ -455,12 +563,14 @@ class PipelineOrchestrator:
         cache_mgr: Any,
         scope_entries: list[str],
         tool_status: dict[str, Any],
+        pre_recovered_state: Any | None = None,
     ) -> int:
         """Internal execution loop after lock acquisition."""
         from ._orchestrator.security import run_secured
 
         return await run_secured(
-            self, args, config, flow_manifest, cache_mgr, scope_entries, tool_status
+            self, args, config, flow_manifest, cache_mgr, scope_entries, tool_status,
+            pre_recovered_state=pre_recovered_state,
         )
 
     # ------------------------------------------------------------------ parallel helpers --
@@ -530,8 +640,6 @@ class PipelineOrchestrator:
 
         checkpoint_mgr = getattr(self, "_checkpoint_mgr", None)
         if checkpoint_mgr is None:
-            from pathlib import Path
-
             from src.core.checkpoint import create_checkpoint_manager
 
             checkpoint_mgr = create_checkpoint_manager(
@@ -783,3 +891,4 @@ class PipelineOrchestrator:
                     "fatal": critical,
                 }
                 return 1
+

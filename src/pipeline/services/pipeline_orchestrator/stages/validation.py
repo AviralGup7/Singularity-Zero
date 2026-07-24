@@ -70,10 +70,14 @@ async def run_validation(
 
     for attempt in range(1, 3):
         try:
-            from src.execution.validators import execute_validation_runtime
+            from src.core.contracts.protocol_registry import get_validation_runtime
+
+            _validation_runtime = get_validation_runtime()
+            if _validation_runtime is None:
+                raise RuntimeError("Validation runtime not registered")
 
             validation_summary = await asyncio.to_thread(
-                execute_validation_runtime,
+                _validation_runtime,
                 analysis_results,
                 ranked_priority_urls,
                 config.extensions,

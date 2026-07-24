@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Icon } from '../components/ui/Icon';
 import { EmptyState } from '../components/ui';
 import { useGapAnalysis, useGapAnalysisSorting, useGapAnalysisFiltering } from '../hooks/useGapAnalysis';
 import { GapDeficiencies } from '../components/gap-analysis/GapAnalysisComponents';
 import { MitigationModal } from '../components/gap-analysis/MitigationModal';
+import { ROUTES } from '@/config/paths';
 
 
 export function GapAnalysisPage() {
@@ -33,16 +35,22 @@ export function GapAnalysisPage() {
   if (loading && !data) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-10 w-48 animate-pulse rounded bg-[var(--panel-2)]" />
+        <div className="h-10 w-48 animate-pulse rounded bg-surface-2" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="h-32 animate-pulse rounded bg-[var(--panel-2)]" />
-          <div className="h-32 animate-pulse rounded bg-[var(--panel-2)]" />
-          <div className="h-32 animate-pulse rounded bg-[var(--panel-2)]" />
+          <div className="h-32 animate-pulse rounded bg-surface-2" />
+          <div className="h-32 animate-pulse rounded bg-surface-2" />
+          <div className="h-32 animate-pulse rounded bg-surface-2" />
         </div>
-        <div className="h-96 animate-pulse rounded bg-[var(--panel-2)]" />
+        <div className="h-96 animate-pulse rounded bg-surface-2" />
       </div>
     );
   }
+
+  const isNoTelemetryState =
+    data &&
+    data.results.length > 0 &&
+    data.overall_coverage === 0 &&
+    data.modules_with_gaps === data.total_modules;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -58,7 +66,7 @@ export function GapAnalysisPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 focus-within:border-accent/50 transition-colors">
+          <div className="flex items-center gap-2 bg-surface-2 border border-line rounded-lg px-3 py-1.5 focus-within:border-accent/50 transition-colors">
             <span className="text-[10px] text-muted font-bold uppercase tracking-wider whitespace-nowrap">Select Target:</span>
             <select
               value={selectedTarget}
@@ -110,7 +118,47 @@ export function GapAnalysisPage() {
         </div>
       )}
 
-      {data && (
+      {isNoTelemetryState && (
+        <div className="glass-panel p-8 rounded-2xl border border-warn/20 bg-warn/5 text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="p-3 rounded-full bg-warn/10 border border-warn/20 text-warn">
+              <Icon name="activity" size={28} />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-text">No Scan Telemetry Available</h3>
+            <p className="text-sm text-muted mt-2 max-w-xl mx-auto leading-relaxed">
+              Gap analysis compares completed scan runs against the global detection registry.
+              Right now there are no scan results with coverage data for the selected target,
+              so every module appears as <span className="font-mono text-bad">missing</span> by default.
+              This does <span className="font-semibold text-text">not</span> mean all 46 modules are broken —
+              it means there is nothing to compare yet.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Icon name="refresh" size={16} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Analyzing...' : 'Run / Refresh Analysis'}
+            </button>
+            <Link
+              to={ROUTES.TARGETS}
+              className="btn btn-secondary flex items-center gap-2"
+            >
+              <Icon name="target" size={16} />
+              Go to Targets
+            </Link>
+          </div>
+          <p className="text-[11px] text-muted">
+            After a scan completes, re-open this page or press <span className="font-mono bg-surface-2 px-1.5 py-0.5 rounded border border-line">Refresh Analysis</span> to see real coverage data.
+          </p>
+        </div>
+      )}
+
+      {data && !isNoTelemetryState && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -126,7 +174,7 @@ export function GapAnalysisPage() {
             >
               {data.overall_coverage}%
             </div>
-            <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div className="mt-4 h-1.5 w-full bg-surface-hover rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-1000 ${
                   data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'bg-bad'
@@ -169,14 +217,15 @@ export function GapAnalysisPage() {
         </div>
       )}
 
-      <div className="bg-panel border border-white/5 rounded-xl overflow-hidden shadow-2xl">
-        <div className="p-4 border-b border-white/5 bg-white/5 flex flex-col md:flex-row gap-4 justify-between items-center">
+      {data && !isNoTelemetryState && (
+      <div className="bg-panel border border-line rounded-xl overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-line bg-surface-hover flex flex-col md:flex-row gap-4 justify-between items-center">
           <div className="relative w-full md:w-96">
             <Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               type="text"
               placeholder="Filter by module or category..."
-              className="w-full bg-black/40 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-accent/50 transition-colors"
+              className="w-full bg-surface-2 border border-line rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-accent/50 transition-colors"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -190,7 +239,7 @@ export function GapAnalysisPage() {
               id="status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'complete' | 'partial' | 'missing')}
-              className="bg-black/40 border border-white/10 rounded-lg py-2 px-4 text-xs focus:outline-none focus:border-accent/50 appearance-none cursor-pointer"
+              className="bg-surface-2 border border-line rounded-lg py-2 px-4 text-xs focus:outline-none focus:border-accent/50 appearance-none cursor-pointer"
             >
               <option value="all">All Statuses</option>
               <option value="complete">Complete</option>
@@ -203,7 +252,7 @@ export function GapAnalysisPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-white/5 text-[10px] uppercase tracking-tighter font-black text-muted border-b border-white/5">
+              <tr className="bg-surface-hover text-[10px] uppercase tracking-tighter font-black text-muted border-b border-line">
                 <th className="p-4 cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('module')}>
                   Module {sortKey === 'module' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
@@ -220,7 +269,7 @@ export function GapAnalysisPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {filtered.map((row) => (
-                <tr key={row.module} className="group hover:bg-white/[0.02] transition-colors">
+                <tr key={row.module} className="group hover:bg-surface-hover transition-colors">
                   <td className="p-4">
                     <div className="font-bold text-sm text-text">{row.module}</div>
                   </td>
@@ -240,7 +289,7 @@ export function GapAnalysisPage() {
                   </td>
                   <td className="p-4 w-48">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1 bg-surface-hover rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full ${
                             row.coverage_percent === 100 ? 'bg-ok' : row.coverage_percent > 0 ? 'bg-warn' : 'bg-bad'
@@ -270,7 +319,7 @@ export function GapAnalysisPage() {
                     {row.missing_checks > 0 && (
                       <button
                         onClick={() => toggleExpand(row.module)}
-                        className="p-1 hover:bg-white/10 rounded transition-colors text-muted hover:text-text"
+                        className="p-1 hover:bg-surface-2 rounded transition-colors text-muted hover:text-text"
                       >
                         <Icon name={expandedRows.has(row.module) ? 'chevronUp' : 'chevronDown'} size={16} />
                       </button>
@@ -289,11 +338,14 @@ export function GapAnalysisPage() {
                 icon="shield"
               />
             </div>
-          )}
+            )}
         </div>
       </div>
+      )}
 
+      {data && !isNoTelemetryState && (
       <GapDeficiencies filtered={filtered} expandedRows={expandedRows} setActiveMitigation={setActiveMitigation} />
+      )}
 
       <MitigationModal
         activeMitigation={activeMitigation}

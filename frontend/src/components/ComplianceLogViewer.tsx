@@ -1,10 +1,8 @@
 import { useState, useCallback } from 'react';
-import { listAccessLogs, type AccessLogEntry } from '@/api/accessLogs';
-import { getComplianceLogs, exportComplianceReport, type ComplianceLogEntry } from '@/utils/complianceLogger';
+import { listAccessLogs  } from '@/api/accessLogs';
+import { getComplianceLogs, exportComplianceReport  } from '@/utils/complianceLogger';
 import { Button } from '@/components/ui/Button';
 import { useLogFetcher, LogTableShell } from '@/components/common/TelemetryLogTable';
-
-type LogEntry = ComplianceLogEntry | AccessLogEntry;
 
 export function ComplianceLogViewer() {
   const [filter, setFilter] = useState<'all' | 'success' | 'failure' | 'denied'>('all');
@@ -38,7 +36,7 @@ export function ComplianceLogViewer() {
   return (
     <div className="compliance-log-viewer">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-mono text-[var(--accent)] text-sm font-bold uppercase tracking-wider">
+        <h3 className="font-mono text-accent text-sm font-bold uppercase tracking-wider">
           Compliance Log ({filteredLogs.length})
         </h3>
         <div className="flex gap-1">
@@ -51,17 +49,17 @@ export function ComplianceLogViewer() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-3" role="tablist" aria-label="Compliance log filters">
         {(['all', 'success', 'failure', 'denied'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
+            role="tab"
+            aria-selected={filter === f}
             className={`px-2 py-0.5 text-xs font-mono border transition-colors ${
               filter === f
-   
-                ? 'border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10'
-   
-                : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]'
+                ? 'border-accent text-accent bg-accent/10'
+                : 'border-line text-muted hover:text-text'
             }`}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -70,14 +68,14 @@ export function ComplianceLogViewer() {
       </div>
 
       <LogTableShell loading={loading} isEmpty={filteredLogs.length === 0} loadingLabel="Loading access logs..." emptyLabel="No compliance entries.">
-        <div className="max-h-96 overflow-y-auto space-y-2 pr-2 scrollbar-cyber">
+        <div className="max-h-96 overflow-y-auto space-y-2 pr-2 scrollbar-cyber" role="list" aria-label="Compliance log entries">
           {filteredLogs.map((entry) => (
-            <div key={entry.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <div key={entry.id} className="p-3 bg-surface-hover border border-line rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2" role="listitem">
               <div className="flex items-start gap-3">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                   entry.outcome === 'success' ? 'bg-green-500/20 text-green-400' :
                   entry.outcome === 'denied' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
-                }`}>
+                }`} aria-label={`Outcome: ${entry.outcome}`}>
                   {entry.outcome}
                 </span>
                 <div>
@@ -91,9 +89,9 @@ export function ComplianceLogViewer() {
                   </div>
                 </div>
               </div>
-              <span className="text-muted text-[9px] font-mono whitespace-nowrap">
+              <time className="text-muted text-[9px] font-mono whitespace-nowrap" dateTime={entry.timestamp}>
                 {new Date(entry.timestamp).toLocaleString()}
-              </span>
+              </time>
             </div>
           ))}
         </div>

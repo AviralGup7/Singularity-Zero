@@ -1,26 +1,25 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { Shield, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '../../types/api';
-import { getFindingRemediation, getFindingById } from '../../api/client';
-import { useToast } from '../../hooks/useToast';
-import { EvidenceDisplay } from '../EvidenceDisplay';
-import { AttackChainVisualizer } from '../../components/AttackChainVisualizer';
-import { FindingComments } from '../FindingComments';
-import { FindingReviewPanel } from '../FindingReviewPanel';
-import { RequestResponseViewer } from '../../components/RequestResponseViewer';
-import { ChainOfCustodyViewer } from '../../components/common/ChainOfCustodyViewer';
+import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '@/types/api';
+import { getFindingRemediation, getFindingById } from '@/api/client';
+import { useToast } from '@/hooks/useToast';
+import { EvidenceDisplay } from './EvidenceDisplay';
+import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
+import { FindingComments } from './FindingComments';
+import { RequestResponseViewer } from '@/components/RequestResponseViewer';
+import { ChainOfCustodyViewer } from '@/components/common/ChainOfCustodyViewer';
 import { useTriageCollaboration } from '@/hooks/useTriageCollaboration';
-import { exportFinding, type ReportFormat } from '@/utils/findingExport';
+import { exportFinding  } from '@/utils/findingExport';
+import type {ReportFormat} from '@/utils/findingExport';
 import { SubmitToPlatformDialog } from './SubmitToPlatformDialog';
 import { DetailHeader } from './FindingDetailPanel/DetailHeader';
 import { DetailFooter } from './FindingDetailPanel/DetailFooter';
 import { DetailTabs, buildTabs } from './FindingDetailPanel/DetailTabs';
 import { BountyPanel } from './FindingDetailPanel/BountyPanel';
 import { RiskPanel } from './FindingDetailPanel/RiskPanel';
-import { remediationCache, prefetchRemediation, type DetailTab, type ExtendedEvidence } from './FindingDetailPanel/helpers';
-import { estimateBounty } from './FindingDetailPanel/helpers';
+import { remediationCache, prefetchRemediation } from './FindingDetailPanel/helpers';
+import type {DetailTab, ExtendedEvidence} from './FindingDetailPanel/helpers';
 
 export { remediationCache, prefetchRemediation };
 
@@ -40,7 +39,7 @@ export function FindingDetailPanel({
   useEffect(() => {
     let cancelled = false;
     getFindingById(initialFinding.id)
-      .then((fresh) => {
+      .then((fresh: Finding | null | undefined) => {
         if (!cancelled && fresh) setFinding(fresh);
       })
       .catch(() => {});
@@ -113,7 +112,7 @@ export function FindingDetailPanel({
   const handleSaveBounty = async () => {
     setSavingBounty(true);
     try {
-      const { updateFinding } = await import('../../api/findings');
+      const { updateFinding } = await import('../../../api/findings');
       await updateFinding(finding.id, {
         bounty_value: bountyValue,
         bounty_source: bountySource as 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'estimate' | 'manual',
@@ -148,7 +147,7 @@ export function FindingDetailPanel({
       if (mounted) setLoadingRemediation(true);
     });
     getFindingRemediation(finding.id)
-      .then((res) => {
+      .then((res: { suggestions: RemediationSuggestion[] }) => {
         if (mounted) {
           const suggestions = res.suggestions || [];
           remediationCache.set(finding.id, suggestions);
@@ -200,7 +199,7 @@ export function FindingDetailPanel({
           )
         : true;
     if (!ok) return;
-    const { updateFinding } = await import('../../api/findings');
+      const { updateFinding } = await import('../../../api/findings');
     let failed = 0;
     for (const dupId of dupIds) {
       try {
@@ -229,7 +228,7 @@ export function FindingDetailPanel({
           )
         : true;
     if (!ok) return;
-    const { updateFinding } = await import('../../api/findings');
+      const { updateFinding } = await import('../../../api/findings');
     try {
       await updateFinding(finding.id, {
         falsePositive: true,
@@ -251,7 +250,7 @@ export function FindingDetailPanel({
           )
         : true;
     if (!ok) return;
-    const { updateFinding } = await import('../../api/findings');
+      const { updateFinding } = await import('../../../api/findings');
     try {
       await updateFinding(finding.id, { duplicates: [], kanbanStatus: 'new' });
       toast.success('Finding promoted to independent');
@@ -297,7 +296,7 @@ export function FindingDetailPanel({
     let reqResDump = '';
     if (finding.request_response && finding.request_response.length > 0) {
       reqResDump = finding.request_response
-        .map((pair, idx) => {
+        .map((pair: { request: { body: string; headers: Record<string, string>; method: string; url: string }; response: { body: string; headers: Record<string, string>; status: number } }, idx: number) => {
           let reqBody = pair.request.body || '';
           let resBody = pair.response.body || '';
           let headersStr = Object.entries(pair.request.headers || {})
@@ -374,7 +373,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-panel backdrop-blur-md p-4"
       onClick={onClose}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
       role="presentation"
@@ -383,7 +382,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
         ref={dialogRef}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-4xl max-h-[90vh] bg-bg border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
+        className="w-full max-w-4xl max-h-[90vh] bg-bg border border-line rounded-3xl shadow-overlay-lg overflow-hidden flex flex-col"
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         role="dialog"
@@ -401,7 +400,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
           <div className="grid grid-cols-4 gap-4">
             {[
               { label: 'CSI Index', value: finding.csi_score || 'N/A', cls: 'text-accent' },
-              { label: 'Confidence', value: `${Math.round(finding.confidence * 100)}%`, cls: 'text-white' },
+              { label: 'Confidence', value: `${Math.round(finding.confidence * 100)}%`, cls: 'text-text-primary' },
               { label: 'State', value: triageStatus, cls: 'text-text uppercase' },
               {
                 label: 'Severity',
@@ -434,7 +433,6 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                 alreadyReported={alreadyReported}
                 sanitizePII={sanitizePII}
                 savingBounty={savingBounty}
-                rawPocText={rawPocText}
                 onBountyValueChange={setBountyValue}
                 onBountyCurrencyChange={setBountyCurrency}
                 onBountySourceChange={setBountySource}
@@ -464,7 +462,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                       Remediation Signals
                     </div>
                     {remediation.slice(0, 3).map((item) => (
-                      <div key={item.id} className="p-3 bg-black/30 border border-white/5 rounded-xl">
+                      <div key={item.id} className="p-3 bg-surface-2 border border-line rounded-xl">
                         <div className="text-xs font-bold text-text">{item.title}</div>
                         {item.rationale && (
                           <p className="text-[10px] text-muted mt-1">{item.rationale}</p>
@@ -484,7 +482,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                     Differential analysis revealed significant identical behavior across distinct contexts.
                   </p>
                 </div>
-                <pre className="p-6 bg-black/60 rounded-2xl border border-white/5 text-accent overflow-x-auto whitespace-pre-wrap">
+                <pre className="p-6 bg-panel rounded-2xl border border-line text-accent overflow-x-auto whitespace-pre-wrap">
                   {finding.logic_diff || 'No structural diff recorded for this signal.'}
                 </pre>
               </div>
@@ -495,7 +493,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
             {detailTab === 'evidence' && <EvidenceDisplay evidence={evidenceItems} />}
 
             {detailTab === 'custody' && (
-              <div className="glass-panel p-6 rounded-2xl border border-white/5">
+              <div className="glass-panel p-6 rounded-2xl border border-line">
                 <ChainOfCustodyViewer evidenceId={finding.id} source="evidenceChain" />
               </div>
             )}
@@ -508,7 +506,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               <div className="space-y-4">
                 <div className="text-[10px] text-muted uppercase tracking-widest font-black">Triage Activity</div>
                 {triage.state?.chain && (
-                  <div className="glass-panel p-4 rounded-xl border border-white/5 text-[10px] font-mono text-muted">
+                  <div className="glass-panel p-4 rounded-xl border border-line text-[10px] font-mono text-muted">
                     Audit chain: {triage.state.chain.valid ? 'verified' : 'invalid'} ·{' '}
                     {triage.state.chain.entries} entries · hash{' '}
                     {triage.state.chain.latest_hash.slice(0, 16)}…
@@ -533,7 +531,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
             )}
 
             {detailTab === 'comments' && (
-              <div className="glass-panel p-6 rounded-2xl border border-white/5">
+              <div className="glass-panel p-6 rounded-2xl border border-line">
                 <FindingComments findingId={finding.id} targetName={finding.target} runId={runId} />
               </div>
             )}
@@ -560,11 +558,8 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
         </div>
 
         <DetailFooter
-          findingId={finding.id}
           target={finding.target || ''}
           url={finding.url}
-          severity={finding.severity}
-          confidence={finding.confidence}
           triageStatus={triageStatus}
           duplicates={finding.duplicates || []}
           onReplay={() => {

@@ -25,11 +25,11 @@ type SeverityKey = 'critical' | 'high' | 'medium' | 'low' | 'info';
 const SEVERITY_KEYS: SeverityKey[] = ['critical', 'high', 'medium', 'low', 'info'];
 
 const COLORS: Record<SeverityKey, string> = {
-  critical: 'var(--severity-critical, #ff0040)',
-  high: 'var(--severity-high, #ff8800)',
-  medium: 'var(--severity-medium, #ffcc00)',
-  low: 'var(--severity-low, #00cc88)',
-  info: 'var(--severity-info, #00aaff)',
+  critical: 'var(--severity-critical)',
+  high: 'var(--severity-high)',
+  medium: 'var(--severity-medium)',
+  low: 'var(--severity-low)',
+  info: 'var(--severity-info)',
 };
 
 export const SeverityTrendChart = memo(function SeverityTrendChart({ data, onSeverityClick, onDateRangeClick }: SeverityTrendChartProps) {
@@ -143,7 +143,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data, onSev
                   x2={dimensions.innerWidth}
                   y1={0}
                   y2={0}
-                  stroke="var(--line, #333)"
+                  stroke="var(--line)"
                   strokeDasharray="4 5"
                   opacity={0.35}
                 />
@@ -151,7 +151,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data, onSev
                   x={-10}
                   y={4}
                   textAnchor="end"
-                  fill="var(--muted, #888)"
+                  fill="var(--text-secondary)"
                   fontSize={11}
                 >
                   {tick}
@@ -201,7 +201,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data, onSev
                       x2={x}
                       y1={0}
                       y2={dimensions.innerHeight}
-                      stroke="var(--accent, #00f3ff)"
+                      stroke="var(--accent)"
                       strokeDasharray="3 4"
                       opacity={0.9}
                     />
@@ -228,7 +228,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data, onSev
                   x={xScale(index)}
                   y={dimensions.innerHeight + 24}
                   textAnchor="middle"
-                  fill="var(--muted, #888)"
+                  fill="var(--text-secondary)"
                   fontSize={11}
                 >
                   {point.date}

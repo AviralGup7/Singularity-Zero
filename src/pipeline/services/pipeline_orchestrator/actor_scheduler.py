@@ -172,6 +172,7 @@ class ActorScheduler:
         self._outcome = SchedulerOutcome()
         self._deferral_count: dict[str, int] = {}
         self._max_deferrals: int = 5
+        print(f"[INSTRUMENT] ActorScheduler.__init__: done nodes={len(self._graph.nodes)}", flush=True)
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -202,6 +203,7 @@ class ActorScheduler:
         overridden_keys: set[str] = set()
 
         while True:
+            print(f"[INSTRUMENT] ActorScheduler.run: loop iteration start failed_critical={self._failed_critical}", flush=True)
             if self._failed_critical is not None:
                 if self._outcome.exit_code is None:
                     self._outcome.exit_code = 3
@@ -231,6 +233,7 @@ class ActorScheduler:
                         overridden_keys.add(config_key)
 
             ready = self._collect_ready_nodes()
+            print(f"[INSTRUMENT] ActorScheduler.run: ready_nodes={[n.name for n in ready]} in_flight={len(self._in_flight)} remaining={len(self._remaining)}", flush=True)
             if ready:
                 try:
                     from src.infrastructure.resource_guard import ResourceGuard
@@ -299,13 +302,30 @@ class ActorScheduler:
                             pass
 
                     self._dispatch(node)
-                if self._in_flight:
-                    await self._await_any_completion()
+            if self._in_flight:
+                print(f"[INSTRUMENT] ActorScheduler.run: awaiting {len(self._in_flight)} tasks", flush=True)
+                await self._await_any_completion()
+                print("[INSTRUMENT] ActorScheduler.run: after _await_any_completion", flush=True)
                 continue
 
             if not self._in_flight:
+                # Defensive re-check: a node may have become ready while we
+                # were awaiting the previous batch (e.g. a dependency
+                # completed and its ``when`` predicate is now satisfied).
+                # Only break when there are truly no ready nodes left.
+                ready = self._collect_ready_nodes()
+                if ready:
+                    for node in ready:
+                        self._dispatch(node)
+                    if self._in_flight:
+                        await self._await_any_completion()
+                        continue
+                print("[INSTRUMENT] ActorScheduler.run: no in_flight, breaking", flush=True)
                 break
+            print("[INSTRUMENT] ActorScheduler.run: awaiting any completion (no ready)", flush=True)
             await self._await_any_completion()
+
+        print("[INSTRUMENT] ActorScheduler.run: loop exited", flush=True)
 
         self._apply_re_scheduling()
 
@@ -343,6 +363,7 @@ class ActorScheduler:
         """
         ready: list[tuple[int, int, StageNode]] = []
         for index, node in enumerate(self._graph.nodes):
+            print(f"[INSTRUMENT] ActorScheduler._collect_ready_nodes: checking node={node.name} completed={node.name in self._completed} launched={node.name in self._launched} remaining={node.name in self._remaining}", flush=True)
             if node.name in self._completed or node.name in self._skipped:
                 continue
             if node.name in self._launched:
@@ -415,8 +436,11 @@ class ActorScheduler:
         )
 
     def _condition_holds(self, node: StageNode) -> bool:
+        print(f"[INSTRUMENT] ActorScheduler._condition_holds: checking node={node.name}", flush=True)
         try:
-            return bool(node.when.is_satisfied(self._ctx, self._runtime_flags))
+            result = bool(node.when.is_satisfied(self._ctx, self._runtime_flags))
+            print(f"[INSTRUMENT] ActorScheduler._condition_holds: node={node.name} result={result}", flush=True)
+            return result
         except Exception as exc:  # noqa: BLE001 — broad catch intentional, condition predicates may raise arbitrary errors
             # A condition predicate that raises is almost certainly a bug,
             # not a legitimate "condition not met".  Log at error level so
@@ -453,10 +477,12 @@ class ActorScheduler:
                 "Stage method resolution failed: stage method not found.",
             )
             self._mark_skipped(node, reason="method_not_found")
+            self._release_capacity(node.name)
             return
 
         if not self._suspend_ok(node):
             self._mark_skipped(node, reason="suspend_triggered")
+            self._release_capacity(node.name)
             return
 
         import time as _time
@@ -474,6 +500,26 @@ class ActorScheduler:
             node.weight,
             REASON_PRIORITY if node.weight > 1 else REASON_SPECULATIVE_DISPATCH,
         )
+
+    def _release_capacity(self, stage_name: str) -> None:
+        """Release capacity slot if one was acquired but no task was created.
+
+        Defect 3 fix: When _dispatch() returns early (method not found,
+        suspend triggered), the capacity slot acquired by can_dispatch()
+        must be released to prevent permanent capacity leaks.
+        """
+        try:
+            from src.core.capacity_manager import get_capacity_manager
+
+            capacity_mgr = get_capacity_manager()
+            capacity_mgr.release("actor_scheduler")
+        except (ImportError, Exception):
+            try:
+                from src.core.concurrency_governor import get_governor
+
+                get_governor().release("actor_scheduler")
+            except (ImportError, Exception):
+                pass
 
     async def _execute_node(
         self,
@@ -593,6 +639,16 @@ class ActorScheduler:
     # ------------------------------------------------------------------
 
     def _apply_re_scheduling(self) -> None:
+        # Bug fix: Guard against re-dispatching after the scheduler has
+        # decided to exit due to a critical failure. Without this check,
+        # late-unblocked nodes can be re-dispatched after the main loop
+        # has already given up, running stages out of intended order.
+        if self._failed_critical is not None:
+            logger.debug(
+                "ActorScheduler: skipping re-scheduling (failed_critical=%s)",
+                self._failed_critical,
+            )
+            return
         for node in self._graph.nodes:
             if node.name in self._completed or node.name not in self._remaining:
                 continue
@@ -748,3 +804,4 @@ def _utcnow_iso() -> str:
     import datetime
 
     return datetime.datetime.now(datetime.UTC).isoformat()
+

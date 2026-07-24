@@ -28,12 +28,10 @@ const STAGE_ORDER = [
   'subdomains',
   'live_hosts',
   'urls',
-  'recon_validation',
   'parameters',
   'ranking',
   'passive_scan',
   'active_scan',
-  'semgrep',
   'nuclei',
   'access_control',
   'validation',
@@ -168,9 +166,8 @@ export function StageDurationHeatmap({ jobs }: { jobs: Job[] }) {
               }
 
               const intensity = maxMean > 0 ? cell.duration / maxMean : 0;
-              const h = Math.round(120 - 120 * Math.min(1, intensity)); // 120=green(fast), 0=red(slow)
-              const color = `hsl(${h}, 70%, 45%)`;
-              const bgColor = `hsla(${h}, 70%, 45%, 0.15)`;
+              const color = intensity < 0.5 ? 'var(--ok)' : intensity < 0.8 ? 'var(--warn)' : 'var(--bad)';
+              const bgColor = intensity < 0.5 ? 'color-mix(in srgb, var(--ok) 15%, transparent)' : intensity < 0.8 ? 'color-mix(in srgb, var(--warn) 15%, transparent)' : 'color-mix(in srgb, var(--bad) 15%, transparent)';
 
               return (
                 <div

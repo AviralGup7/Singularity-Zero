@@ -72,41 +72,6 @@ async def get_attack_chains(
         }
         formatted.append(entry)
 
-    try:
-        from src.dashboard.fastapi.routers.cockpit.nodes import get_cockpit_graph
-
-        graph_data = await get_cockpit_graph(target=target, services=services, _auth=_auth)
-        from src.intelligence.ml.gnn_predict import GNNPredictor
-
-        predictor = GNNPredictor()
-        predicted_links = predictor.predict_links(
-            graph_data["nodes"], graph_data["edges"], threshold=0.65
-        )
-
-        for idx, link in enumerate(predicted_links):
-            source_id = link["source"]
-            tgt_id = link["target"]
-            confidence = link["metadata"]["confidence"]
-
-            chain_entry: dict[str, Any] = {
-                "id": f"chain-gnn-{idx}-{hash(source_id + tgt_id)}",
-                "steps": [
-                    {
-                        "asset_id": source_id,
-                        "finding_id": source_id,
-                        "severity": "high",
-                    },
-                    {
-                        "asset_id": tgt_id,
-                        "finding_id": tgt_id,
-                        "severity": "critical",
-                    },
-                ],
-                "confidence": confidence,
-                "description": f"GNN predicted attack path from {source_id} to {tgt_id} with {round(confidence * 100, 1)}% confidence",
-            }
-            formatted.append(chain_entry)
-    except Exception as exc:
-        logger.debug("Failed to enrich attack chains with GNN predictions: %s", exc)
+    pass
 
     return formatted  # type: ignore

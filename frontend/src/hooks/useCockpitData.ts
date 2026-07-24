@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useToast } from '@/hooks/useToast';
 import type { CockpitNode, CockpitEdge, ForensicExchange } from '@/api/cockpit';
 import { cockpitApi } from '@/api/cockpit';
 import { getNotes } from '@/api/notes';
 import type { Note } from '@/api/notes';
 import type { AttackChain, Job, MeshHealth, MigrationEvent } from '@/types/api';
 import { useMountedRef } from './realtime/shared';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface UseCockpitDataOptions {
   target: string;
@@ -31,7 +31,6 @@ export function useCockpitData({
   const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
   const [migrations, setMigrations] = useState<MigrationEvent[]>([]);
 
-  const toast = useToast();
   const { mountedRef } = useMountedRef();
   const streamRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,7 +55,7 @@ export function useCockpitData({
           cockpitApi
             .getAttackChains(target, { signal: controller.signal })
             .catch((err) => {
-               console.error('Failed to fetch attack chains:', err);
+               showErrorToast(err, 'Failed to load attack chains');
                return { data: [] };
             }),
         ]);
@@ -64,7 +63,7 @@ export function useCockpitData({
         setChains(chainsRes.data || []);
       } catch (error) {
         if ((error as Error).name !== 'CanceledError') {
-          console.error('Failed to fetch cockpit intelligence', error);
+          showErrorToast(error, 'Failed to load cockpit intelligence');
         }
       } finally {
         setLoading(false);
@@ -154,8 +153,7 @@ export function useCockpitData({
         if (mountedRef.current) setNotes(res.notes);
       })
       .catch((err) => {
-        console.error('API Error:', err);
-        toast.error('Failed to load notes');
+        showErrorToast(err, 'Failed to load notes');
       });
     cockpitApi
       .listExchanges(target)
@@ -163,8 +161,7 @@ export function useCockpitData({
         if (mountedRef.current) setExchanges(res.data.exchanges);
       })
       .catch((err) => {
-        console.error('API Error:', err);
-        toast.error('Failed to load exchanges');
+        showErrorToast(err, 'Failed to load forensic exchanges');
       });
     return () => controller.abort();
   }, [target, mountedRef]);
@@ -223,7 +220,7 @@ export function useActiveJob(jobId?: string) {
           setActiveJob(jobData);
         }
       } catch (error) {
-        console.error('Error fetching job details:', error);
+        showErrorToast(error, 'Failed to fetch job details');
       }
     };
     fetchJobStatus();

@@ -12,11 +12,11 @@ from src.recon.js_parsers.ast_extractors import (
     extract_endpoint_calls,
 )
 from src.recon.js_parsers.endpoints import (
-    _candidate_to_absolute_url,
     _is_in_scope_url,
     _is_minified_or_node_modules,
 )
 from src.recon.js_parsers.regex_extractors import (
+    _candidate_to_absolute_url,
     extract_axios_interceptors,
     extract_graphql_tagged_literals,
     extract_html_attribute_endpoints,

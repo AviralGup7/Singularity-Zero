@@ -1,9 +1,9 @@
-logger = logging.getLogger(__name__)
 import logging
+
+logger = logging.getLogger(__name__)
 import time
 from typing import Any
 from urllib.parse import urlparse
-
 
 from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 

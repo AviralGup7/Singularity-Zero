@@ -7,23 +7,18 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-from src.core.checkpoint import (
-    attempt_recovery,
-    create_checkpoint_manager,
-    generate_run_id,
-)
 from src.core.contracts.pipeline_runtime import PipelineInput
 from src.core.events import EventType
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.middleware import OutboundRequestInterceptor, ScopeValidator
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.core.utils import normalize_scope_entry
-from src.pipeline.cache import cache_enabled
 from src.pipeline.runner_support import (
     emit_progress,
     load_adaptive_config,
 )
 from src.pipeline.services.output_store import PipelineOutputStore
+from src.pipeline.unified_cache import cache_enabled
 
 from .._constants import STAGE_ORDER
 
@@ -41,6 +36,25 @@ def find_previous_run(target_root: Path) -> Path | None:
     from src.reporting import find_previous_run as _find_previous_run
 
     return cast(Path | None, _find_previous_run(target_root))
+
+
+def generate_run_id() -> str:
+    """Generate a unique run ID string."""
+    from src.core.checkpoint import generate_run_id as _gen
+    return _gen()
+
+
+def create_checkpoint_manager(*args: Any, **kwargs: Any) -> Any:
+    from src.core.checkpoint import create_checkpoint_manager as _ccm
+    return _ccm(*args, **kwargs)
+
+
+def attempt_recovery(*args: Any, **kwargs: Any) -> Any:
+    from src.core.checkpoint import attempt_recovery as _ar
+    return _ar(*args, **kwargs)
+
+
+from src.core.checkpoint import StageCheckpointGuard
 
 
 def _merge_and_diff_scopes(
@@ -134,15 +148,55 @@ async def run_secured(
     cache_mgr: Any,
     scope_entries: list[str],
     tool_status: dict[str, Any],
+    pre_recovered_state: Any | None = None,
 ) -> int:
+    from src.core.checkpoint import (
+        attempt_recovery,
+        create_checkpoint_manager,
+        generate_run_id,
+    )
+
     started_at = time.time()
     force_fresh = getattr(args, "force_fresh_run", False)
-    can_recover, recovered_state = attempt_recovery(
-        Path(config.output_dir),
-        config.target_name,
-        force_fresh=force_fresh,
-        storage_config=config.storage,
-    )
+
+    # Defect 1 fix: Acquire distributed run lock before recovery to prevent
+    # split-brain when multiple processes attempt recovery for the same target.
+    recovery_lock = None
+    if not force_fresh:
+        try:
+            from src.infrastructure.task_pool import RunLock
+
+            recovery_lock = RunLock(
+                cache_dir=Path(config.output_dir) / ".locks",
+                redis_url=getattr(config, "redis_url", None),
+            )
+            lock_key = f"recovery:{config.target_name}"
+            if not recovery_lock.acquire(lock_key, ttl_seconds=7200):
+                logger.warning(
+                    "Could not acquire recovery lock for target '%s'; "
+                    "another process may be recovering. Proceeding cautiously.",
+                    config.target_name,
+                )
+                recovery_lock = None
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Recovery lock acquisition failed (non-fatal): %s", exc)
+            recovery_lock = None
+
+    print("[INSTRUMENT] run_secured: before attempt_recovery", flush=True)
+    # Bug fix: Use pre-recovered state if provided to avoid double recovery
+    # call race where two calls to attempt_recovery() may select different
+    # checkpoints, causing state divergence.
+    if pre_recovered_state is not None:
+        can_recover = True
+        recovered_state = pre_recovered_state
+    else:
+        can_recover, recovered_state = attempt_recovery(
+            Path(config.output_dir),
+            config.target_name,
+            force_fresh=force_fresh,
+            storage_config=config.storage,
+        )
+    print(f"[INSTRUMENT] run_secured: after attempt_recovery can_recover={can_recover}", flush=True)
 
     ctx = None
     checkpoint_mgr = None
@@ -152,12 +206,14 @@ async def run_secured(
 
     if can_recover and recovered_state:
         rec_run_id = recovered_state.pipeline_run_id
+        print("[INSTRUMENT] run_secured: before recovered_checkpoint_mgr", flush=True)
         recovered_checkpoint_mgr = create_checkpoint_manager(
             Path(config.output_dir),
             config.target_name,
             run_id=rec_run_id,
             storage_config=config.storage,
         )
+        print("[INSTRUMENT] run_secured: after recovered_checkpoint_mgr", flush=True)
         recovered_completed_stages = {
             str(stage).strip()
             for stage in (getattr(recovered_state, "completed_stages", []) or [])
@@ -208,7 +264,29 @@ async def run_secured(
                 )
                 ctx = PipelineContext.restore(recovered_payload)
                 _merge_and_diff_scopes(ctx, recovered_completed_stages, scope_entries)
+
+                # Defect 6 fix: Immediately checkpoint after scope merge to
+                # prevent data loss if a crash occurs before the next stage
+                # saves its own checkpoint. Without this, recovery would
+                # replay WAL deltas for pruned scope entries.
                 checkpoint_mgr = recovered_checkpoint_mgr
+                checkpoint_mgr.save_context_snapshot(
+                    "_scope_merge",
+                    ctx.to_dict(),
+                )
+                # Defect 6 fix: Compact WAL to remove stale deltas for
+                # scope entries that were pruned during the merge.
+                wal = getattr(orchestrator, "_wal", None)
+                if wal is not None and hasattr(wal, "compact_after_snapshot"):
+                    try:
+                        from src.core.frontier.state import NeuralState
+
+                        wal_state = getattr(ctx.result, "_neural_state", None)
+                        if isinstance(wal_state, NeuralState):
+                            wal.compact_after_snapshot(wal_state, keep_entries=500)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug("WAL compaction after scope merge failed: %s", exc)
+
                 orchestrator._checkpoint_mgr = checkpoint_mgr
                 run_id = rec_run_id
                 remaining_stages = [
@@ -223,9 +301,12 @@ async def run_secured(
             )
 
     if run_id is None:
+        print("[INSTRUMENT] run_secured: before generate_run_id", flush=True)
         run_id = generate_run_id()
         remaining_stages = list(STAGE_ORDER)
+        print(f"[INSTRUMENT] run_secured: after generate_run_id run_id={run_id}", flush=True)
 
+    print("[INSTRUMENT] run_secured: before PipelineOutputStore.create", flush=True)
     output_store = PipelineOutputStore.create(
         config.output_dir,
         config.target_name,
@@ -233,6 +314,7 @@ async def run_secured(
         storage_config=config.storage,
         run_id=run_id,
     )
+    print("[INSTRUMENT] run_secured: after PipelineOutputStore.create", flush=True)
 
     use_cache = cache_enabled(config.cache)
     if ctx is not None:
@@ -298,14 +380,17 @@ async def run_secured(
     from src.infrastructure.frontier.wal import FrontierWAL
 
     wal_aof_dir = Path(config.output_dir) / ".wal"
+    print("[INSTRUMENT] run_secured: before FrontierWAL", flush=True)
     orchestrator._wal = FrontierWAL(
         getattr(config, "redis_url", None),
         run_id,
         aof_dir=wal_aof_dir,
     )
+    print("[INSTRUMENT] run_secured: after FrontierWAL", flush=True)
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
+    print(f"[INSTRUMENT] run_secured: before Ghost-Actor check redis_url={getattr(config, 'redis_url', None)}", flush=True)
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
         from src.infrastructure.frontier.ghost_actor import GhostMeshCoordinator
         from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
@@ -325,6 +410,7 @@ async def run_secured(
         logger.info("Ghost-Actor Mesh deactivated: running in single-node/no-Redis mode")
 
     scope_entries = list(ctx.scope_entries)
+    print("[INSTRUMENT] run_secured: before pipeline_correlation_id", flush=True)
     orchestrator._pipeline_correlation_id = run_id
     orchestrator._pipeline_input = PipelineInput(
         target_name=str(getattr(config, "target_name", "unknown") or "unknown"),
@@ -338,6 +424,8 @@ async def run_secured(
             "flow_stage_count": len(flow_manifest),
         },
     )
+    print("[INSTRUMENT] run_secured: after pipeline_input", flush=True)
+    print("[INSTRUMENT] run_secured: before PIPELINE_STARTED event", flush=True)
     orchestrator._emit_event(
         EventType.PIPELINE_STARTED,
         source="pipeline_orchestrator",
@@ -345,6 +433,8 @@ async def run_secured(
             "contract": orchestrator._pipeline_input.to_dict(),
         },
     )
+    print("[INSTRUMENT] run_secured: after PIPELINE_STARTED event", flush=True)
+    print("[INSTRUMENT] run_secured: before scope_hosts", flush=True)
 
     scope_hosts = {entry.strip().lower() for entry in scope_entries if entry.strip()}
     scope_hosts.update(
@@ -354,19 +444,28 @@ async def run_secured(
             if normalize_scope_entry(entry).strip()
         }
     )
+    print(f"[INSTRUMENT] run_secured: after scope_hosts count={len(scope_hosts)}", flush=True)
     scope_validator = ScopeValidator(scope_hosts)
     scope_interceptor = OutboundRequestInterceptor(scope_validator)
+    print("[INSTRUMENT] run_secured: after scope_interceptor", flush=True)
 
     # Apply learning adaptations exactly ONCE
     adaptations = {}
+    print("[INSTRUMENT] run_secured: before learning integration", flush=True)
     try:
         from src.learning.integration import LearningIntegration
 
         ctx_dict = ctx.to_dict()
+        print("[INSTRUMENT] run_secured: before LearningIntegration.get_or_create", flush=True)
         learning = LearningIntegration.get_or_create(ctx_dict)
+        print("[INSTRUMENT] run_secured: after LearningIntegration.get_or_create", flush=True)
+        print("[INSTRUMENT] run_secured: before compute_adaptations", flush=True)
         adaptations = learning.compute_adaptations(ctx_dict)
+        print(f"[INSTRUMENT] run_secured: after compute_adaptations adaptations={len(adaptations)}", flush=True)
     except Exception as exc:
         logger.warning("Learning compute_adaptations failed: %s", exc)
+        print(f"[INSTRUMENT] run_secured: learning integration EXCEPTION={exc}", flush=True)
+    print(f"[INSTRUMENT] run_secured: after learning integration adaptations={len(adaptations)}", flush=True)
 
     if not adaptations:
         adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
@@ -375,6 +474,7 @@ async def run_secured(
 
     if adaptations:
         ctx_dict = ctx.to_dict()
+        print("[INSTRUMENT] run_secured: before apply_adaptations", flush=True)
         import inspect
 
         sig = inspect.signature(orchestrator._learning_integration.apply_adaptations)
@@ -386,14 +486,29 @@ async def run_secured(
             orchestrator._learning_integration.apply_adaptations(ctx_dict, adaptations)
         ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
         logger.info("Applied learning adaptations for target: %s", config.target_name)
+        print("[INSTRUMENT] run_secured: after apply_adaptations", flush=True)
 
+    # Defect 1 fix: Release the recovery lock now that recovery and
+    # checkpoint setup are complete. Subsequent writes are protected by
+    # the CheckpointManager's own lock.
+    if recovery_lock is not None:
+        try:
+            recovery_lock.release()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Recovery lock release failed (non-fatal): %s", exc)
+        recovery_lock = None
+
+    print("[INSTRUMENT] run_secured: before _build_stage_methods", flush=True)
     stage_methods = orchestrator._build_stage_methods()
+    print(f"[INSTRUMENT] run_secured: after _build_stage_methods count={len(stage_methods)}", flush=True)
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
+    print(f"[INSTRUMENT] run_secured: remaining_stages={len(remaining_stages)}", flush=True)
 
     if getattr(args, "dry_run", False):
         logger.info(
             "Dry-run mode: config and tools validated successfully; skipping stage execution."
         )
+        print(f"Dry run complete. scope_entries: {scope_entries}", flush=True)
         emit_progress("startup", "Dry-run complete", 100, status="completed")
         return 0
 
@@ -404,6 +519,7 @@ async def run_secured(
         nuclei_available = bool(nuclei_status)
 
     handled_by_parallel: set[str] = set()
+    print("[INSTRUMENT] run_secured: BEFORE _execute_remaining_stages", flush=True)
     stage_execution_exit = await orchestrator._execute_remaining_stages(
         remaining_stages=remaining_stages,
         stage_methods=stage_methods,
@@ -415,6 +531,7 @@ async def run_secured(
         checkpoint_mgr=checkpoint_mgr,
         handled_by_parallel=handled_by_parallel,
     )
+    print(f"[INSTRUMENT] run_secured: AFTER _execute_remaining_stages exit={stage_execution_exit}", flush=True)
     if stage_execution_exit is not None:
         return cast(
             int, await orchestrator._finalize_run(stage_execution_exit, ctx=ctx, config=config)
@@ -427,3 +544,4 @@ async def run_secured(
         args=args,
     )
     return cast(int, await orchestrator._finalize_run(exit_code, ctx=ctx, config=config))
+

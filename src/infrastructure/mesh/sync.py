@@ -350,7 +350,7 @@ class MeshSync:
             await self._pubsub.aclose()
             await self._client.close()
             logger.info("MeshSync: Disconnected from channel '%s'", self.channel_scoped)
-        except Exception as e:
+        except Exception:
             logger.warning("MeshSync: Shutdown error", exc_info=True)
 
 

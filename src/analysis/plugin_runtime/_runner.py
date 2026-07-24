@@ -105,6 +105,9 @@ _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "header_targets_and_cache": ("targets", "response_cache", "response_map"),
     "urls_and_cache": ("urls", "response_cache"),
     "dynamic_analysis_context": ("payload",),
+    "flow_items_and_cache": ("flow_items", "response_cache"),
+    "flow_items_only": ("flow_items",),
+    "bulk_findings_only": ("bulk_findings",),
 }
 
 
@@ -429,19 +432,15 @@ def _resolve_input_kwargs(
             "urls": context.urls,
             "response_cache": context.response_cache,
         }
-    if kind == "dynamic_analysis_context":
+    if kind == "flow_items_and_cache":
         return {
-            "payload": {
-                "urls": sorted(context.urls),
-                "priority_urls": sorted(context.priority_urls),
-                "live_hosts": sorted(context.live_hosts),
-                "responses": context.responses,
-                "response_map": context.response_map,
-                "analysis_config": context.analysis_config,
-                "ranked_items": context.ranked_items,
-                "header_targets": context.header_targets,
-            }
+            "flow_items": context.flow_items,
+            "response_cache": context.response_cache,
         }
+    if kind == "flow_items_only":
+        return {"flow_items": context.flow_items}
+    if kind == "bulk_findings_only":
+        return {"bulk_findings": context.bulk_items}
 
     return {}
 

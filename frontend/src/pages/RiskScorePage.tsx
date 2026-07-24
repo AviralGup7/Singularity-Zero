@@ -21,7 +21,7 @@ import { buildRiskDateColumns, useRiskHistory, useTargets } from '@/hooks';
 
 import type { RiskHistoryEntry } from '@/types/extended';
 
-const TARGET_COLORS = ['#2FD8F8', '#FF9A3D', '#2ECC71', '#A55CFF', '#F2C94C', '#4FA3FF'];
+const TARGET_COLORS = ['var(--neon-cyan)', 'var(--neon-amber)', 'var(--neon-emerald)', 'var(--neon-purple)', 'var(--severity-medium)', 'var(--neon-blue)'];
 
 const ThreeGroup = 'group' as unknown as React.ComponentType<{
   position?: [number, number, number];
@@ -122,7 +122,7 @@ function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: 
         position={[0, 0, 0]}
         label="CSI"
         value={data.csi_value}
-        color={data.csi_value >= 6.5 ? '#ff0055' : data.csi_value >= 4 ? '#f59e0b' : '#10b981'}
+        color={data.csi_value >= 6.5 ? 'var(--bad)' : data.csi_value >= 4 ? 'var(--warn)' : 'var(--ok)'}
         size={1.5}
         isMain
       />
@@ -136,10 +136,10 @@ function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: 
               position={pos}
               label={f.label}
               value={val}
-              color="#2FD8F8"
+              color="var(--neon-cyan)"
               size={0.8}
             />
-            <ConnectionLine start={[0, 0, 0]} end={pos} color="#2FD8F8" />
+            <ConnectionLine start={[0, 0, 0]} end={pos} color="var(--neon-cyan)" />
           </ThreeGroup>
         );
       })}
@@ -192,7 +192,7 @@ export function RiskScorePage() {
   const heatColor = useMemo(
     () => scaleLinear<string>()
       .domain([0, 3, 6.5, 10])
-      .range(['#0B1728', '#10b981', '#f59e0b', '#ff0055'])
+      .range(['var(--bg)', 'var(--ok)', 'var(--warn)', 'var(--bad)'])
       .clamp(true),
     [],
   );
@@ -332,7 +332,7 @@ export function RiskScorePage() {
                           key={`${target}-${day}`}
                           type="button"
                           className={`risk-heat-cell ${selectedPoint === point ? 'risk-heat-cell--active' : ''}`}
-                          style={{ backgroundColor: point ? heatColor(point.csi_value) : '#0B1728' }}
+                          style={{ backgroundColor: point ? heatColor(point.csi_value) : 'var(--bg)' }}
                           title={point ? `${target} ${day}: CSI ${point.csi_value}` : `${target} ${day}: no data`}
                           onClick={() => point && setSelectedPoint(point)}
                           aria-label={point ? `${target} ${day} CSI ${point.csi_value}` : `${target} ${day} no data`}
@@ -372,7 +372,7 @@ export function RiskScorePage() {
               </div>
               <div className="h-[320px] w-full">
                 {viewMode3D ? (
-                  <div className="h-full w-full bg-[var(--surface-2)] rounded-lg overflow-hidden border border-[var(--border)]">
+                  <div className="h-full w-full bg-surface-2 rounded-lg overflow-hidden border border-line">
                     <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
                       <Suspense fallback={null}>
                         <RiskGraph data={selectedPoint} factors={factors} />
@@ -382,9 +382,9 @@ export function RiskScorePage() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-                      <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                      <YAxis domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
+                      <CartesianGrid stroke="var(--line)" />
+                      <XAxis dataKey="day" stroke="var(--muted)" tick={{ fontSize: 11 }} />
+                      <YAxis domain={[0, 10]} stroke="var(--muted)" tick={{ fontSize: 11 }} />
                       <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
                       <Legend />
                       {visibleTargets.slice(0, 6).map((target, index) => (
@@ -406,11 +406,11 @@ export function RiskScorePage() {
               <div className="h-[260px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-                    <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
+                    <CartesianGrid stroke="var(--line)" />
+                    <XAxis type="number" domain={[0, 10]} stroke="var(--muted)" tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="label" stroke="var(--muted)" tick={{ fontSize: 11 }} width={112} />
                     <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
-                    <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
+                    <Bar dataKey="value" fill="var(--neon-cyan)" radius={[0, 8, 8, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

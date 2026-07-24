@@ -146,16 +146,16 @@ export function FindingsTimelinePage() {
       {/* Styled Input filter panel */}
       <motion.section variants={itemVariants} className="timeline-filter-bar card grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 p-4" aria-label="Timeline filters">
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-mono">Severity</span>
-          <select className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200 cursor-pointer" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary font-mono">Severity</span>
+          <select className="bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200 cursor-pointer" value={severity} onChange={(event) => setSeverity(event.target.value)}>
             {SEVERITIES.map((value) => (
               <option key={value || 'all'} value={value}>{value ? value : 'All severities'}</option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-mono">Target</span>
-          <select className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200 cursor-pointer" value={target} onChange={(event) => setTarget(event.target.value)}>
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary font-mono">Target</span>
+          <select className="bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200 cursor-pointer" value={target} onChange={(event) => setTarget(event.target.value)}>
             <option value="">All targets</option>
             {targetOptions.map((name) => (
               <option key={name} value={name}>{name}</option>
@@ -163,25 +163,25 @@ export function FindingsTimelinePage() {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-mono">Job</span>
-          <input className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200" value={jobId} onChange={(event) => setJobId(event.target.value)} placeholder="Job or run id" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary font-mono">Job</span>
+          <input className="bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200" value={jobId} onChange={(event) => setJobId(event.target.value)} placeholder="Job or run id" />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-mono">Start</span>
-          <input className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary font-mono">Start</span>
+          <input className="bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-mono">End</span>
-          <input className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary font-mono">End</span>
+          <input className="bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
         </label>
       </motion.section>
 
       {/* Overview stats cards */}
       <motion.div variants={itemVariants} className="timeline-summary-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
         <GlassCard variant="glow" delay={0.05} className="timeline-summary-card flex items-center gap-3 p-4">
-          <CalendarClock size={20} aria-hidden="true" className="text-[var(--accent)]" />
+          <CalendarClock size={20} aria-hidden="true" className="text-accent" />
           <div className="flex flex-col">
-            <span className="text-xs text-[var(--text-secondary)] uppercase font-semibold font-mono tracking-wider">Loaded Events</span>
+            <span className="text-xs text-text-secondary uppercase font-semibold font-mono tracking-wider">Loaded Events</span>
             <span className="text-2xl font-bold mt-0.5">
               <AnimatedCounter value={events.length} />
             </span>
@@ -189,14 +189,14 @@ export function FindingsTimelinePage() {
         </GlassCard>
         
         <GlassCard variant="glow" delay={0.1} className="timeline-summary-card flex items-center gap-3 p-4">
-          <Filter size={20} aria-hidden="true" className="text-[var(--accent)]" />
+          <Filter size={20} aria-hidden="true" className="text-accent" />
           <div className="flex flex-col">
-            <span className="text-xs text-[var(--text-secondary)] uppercase font-semibold font-mono tracking-wider">Filter State</span>
+            <span className="text-xs text-text-secondary uppercase font-semibold font-mono tracking-wider">Filter State</span>
             <span className="text-xl font-bold mt-0.5">
               {severity || target || jobId ? (
-                <span className="text-[var(--warn)] font-semibold">Active Scope</span>
+                <span className="text-warn font-semibold">Active Scope</span>
               ) : (
-                <span className="text-[var(--text-secondary)] font-normal">Unscoped</span>
+                <span className="text-text-secondary font-normal">Unscoped</span>
               )}
             </span>
           </div>
@@ -216,13 +216,13 @@ export function FindingsTimelinePage() {
             {groupedEvents.map(([day, dayEvents]) => (
               <div className="timeline-day space-y-4" key={day}>
                 {/* Sticky day header with backdrop blur glass effect */}
-                <div className="timeline-day-label sticky top-[60px] z-10 bg-[var(--surface)]/90 backdrop-blur-md py-2 border-b border-[var(--border)]/40 flex items-center justify-between px-2 rounded-t-lg">
-                  <time className="font-bold text-sm text-[var(--text-primary)] font-mono">{day}</time>
-                  <span className="text-xs text-[var(--text-secondary)] bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--border)]">{dayEvents.length} events</span>
+                <div className="timeline-day-label sticky top-[60px] z-10 bg-surface/90 backdrop-blur-md py-2 border-b border-line/40 flex items-center justify-between px-2 rounded-t-lg">
+                  <time className="font-bold text-sm text-text-primary font-mono">{day}</time>
+                  <span className="text-xs text-text-secondary bg-surface-2 px-2 py-0.5 rounded border border-line">{dayEvents.length} events</span>
                 </div>
                 
                 {/* Vertical spine timeline day track */}
-                <div className="timeline-day-track relative pl-6 border-l-2 border-[var(--border)]/60 ml-3.5 space-y-3 py-1">
+                <div className="timeline-day-track relative pl-6 border-l-2 border-line/60 ml-3.5 space-y-3 py-1">
                   {dayEvents.map((event, index) => {
                     const isSelected = selectedEvent?.id === event.id;
                     const isCriticalOrHigh = event.severity === 'critical' || event.severity === 'high';
@@ -231,8 +231,8 @@ export function FindingsTimelinePage() {
                     return (
                       <motion.article
                         key={event.id}
-                        className={`timeline-event relative rounded-lg border border-[var(--border)] transition-all duration-200 overflow-hidden ${
-                          isSelected ? 'bg-[var(--accent-soft)]/10 border-[var(--accent)]/50 shadow' : 'bg-[var(--surface-2)] hover:bg-white/5'
+                        className={`timeline-event relative rounded-lg border border-line transition-all duration-200 overflow-hidden ${
+                          isSelected ? 'bg-accent-dim/10 border-accent/50 shadow' : 'bg-surface-2 hover:bg-surface-hover'
                         }`}
                         initial={policy.allowFramer ? { opacity: 0, y: strategy.distance } : false}
                         animate={policy.allowFramer ? { opacity: 1, y: 0 } : undefined}
@@ -243,10 +243,10 @@ export function FindingsTimelinePage() {
                           <span className={`${severityTone(event.severity)} ${glowClass} shrink-0 w-3 h-3 rounded-full border border-current mr-3.5`} />
                           
                           <span className="timeline-event-copy flex-1 min-w-0 pr-4">
-                            <strong className="block text-sm text-[var(--text-primary)] truncate font-semibold">{event.title}</strong>
-                            <small className="block text-xs text-[var(--text-secondary)] font-mono mt-0.5 truncate">{event.target} &bull; {event.url || event.module || event.finding_id}</small>
+                            <strong className="block text-sm text-text-primary truncate font-semibold">{event.title}</strong>
+                            <small className="block text-xs text-text-secondary font-mono mt-0.5 truncate">{event.target} &bull; {event.url || event.module || event.finding_id}</small>
                           </span>
-                          <time className="text-xs text-[var(--text-secondary)] font-mono tabular-nums shrink-0">{eventTimeLabel(event.timestamp)}</time>
+                          <time className="text-xs text-text-secondary font-mono tabular-nums shrink-0">{eventTimeLabel(event.timestamp)}</time>
                         </button>
                       </motion.article>
                     );
@@ -283,31 +283,31 @@ export function FindingsTimelinePage() {
                   transition={{ duration: 0.25, ease: EASE_OUT }}
                   className="space-y-4"
                 >
-                  <div className="timeline-detail-head flex items-start gap-3 pb-3 border-b border-[var(--border)]">
+                  <div className="timeline-detail-head flex items-start gap-3 pb-3 border-b border-line">
                     <span className={`${severityTone(selectedEvent.severity)} shrink-0 w-3.5 h-3.5 rounded-full mt-1.5 border border-current shadow-[0_0_8px_currentColor]`} />
                     <div className="min-w-0">
-                      <h3 className="font-bold text-base text-[var(--text-primary)] leading-snug">{selectedEvent.title}</h3>
-                      <p className="text-xs text-[var(--text-secondary)] font-mono mt-1 truncate">{selectedEvent.target} &bull; {eventTimeLabel(selectedEvent.timestamp)}</p>
+                      <h3 className="font-bold text-base text-text-primary leading-snug">{selectedEvent.title}</h3>
+                      <p className="text-xs text-text-secondary font-mono mt-1 truncate">{selectedEvent.target} &bull; {eventTimeLabel(selectedEvent.timestamp)}</p>
                     </div>
                   </div>
                   
                   <dl className="timeline-detail-list text-xs space-y-2 font-mono">
-                    <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Severity</dt><dd className="font-bold uppercase text-[var(--text-primary)]">{selectedEvent.severity}</dd></div>
-                    <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Finding ID</dt><dd className="text-[var(--text-primary)] truncate max-w-[150px]">{selectedEvent.finding_id}</dd></div>
-                    <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Job ID</dt><dd className="text-[var(--text-primary)] truncate max-w-[150px]">{selectedEvent.job_id || 'Unknown'}</dd></div>
-                    <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Module</dt><dd className="text-[var(--text-primary)]">{selectedEvent.module || 'Unknown'}</dd></div>
-                    <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Confidence</dt><dd className="text-[var(--text-primary)]">{selectedEvent.confidence ?? 'n/a'}</dd></div>
+                    <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Severity</dt><dd className="font-bold uppercase text-text-primary">{selectedEvent.severity}</dd></div>
+                    <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Finding ID</dt><dd className="text-text-primary truncate max-w-[150px]">{selectedEvent.finding_id}</dd></div>
+                    <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Job ID</dt><dd className="text-text-primary truncate max-w-[150px]">{selectedEvent.job_id || 'Unknown'}</dd></div>
+                    <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Module</dt><dd className="text-text-primary">{selectedEvent.module || 'Unknown'}</dd></div>
+                    <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Confidence</dt><dd className="text-text-primary">{selectedEvent.confidence ?? 'n/a'}</dd></div>
                     {selectedEvent.telemetry_event && (
                       <>
-                        <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Telemetry</dt><dd className="text-[var(--text-primary)]">{selectedEvent.telemetry_event.event_type}</dd></div>
-                        <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Event ID</dt><dd className="text-[var(--text-primary)] truncate max-w-[150px]">{selectedEvent.telemetry_event.event_id}</dd></div>
-                        <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Source</dt><dd className="text-[var(--text-primary)]">{selectedEvent.telemetry_event.source}</dd></div>
-                        <div className="flex justify-between border-b border-[var(--border)]/30 pb-1"><dt className="text-[var(--text-secondary)]">Artifact</dt><dd className="text-[var(--text-primary)] truncate max-w-[150px]">{selectedEvent.telemetry_event.artifact_id || 'n/a'}</dd></div>
+                        <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Telemetry</dt><dd className="text-text-primary">{selectedEvent.telemetry_event.event_type}</dd></div>
+                        <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Event ID</dt><dd className="text-text-primary truncate max-w-[150px]">{selectedEvent.telemetry_event.event_id}</dd></div>
+                        <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Source</dt><dd className="text-text-primary">{selectedEvent.telemetry_event.source}</dd></div>
+                        <div className="flex justify-between border-b border-line/30 pb-1"><dt className="text-text-secondary">Artifact</dt><dd className="text-text-primary truncate max-w-[150px]">{selectedEvent.telemetry_event.artifact_id || 'n/a'}</dd></div>
                       </>
                     )}
                   </dl>
                   
-                  <div className="p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded text-xs leading-relaxed text-[var(--text-secondary)] italic max-h-48 overflow-y-auto">
+                  <div className="p-3 bg-surface-2 border border-line rounded text-xs leading-relaxed text-text-secondary italic max-h-48 overflow-y-auto">
                     {selectedEvent.preview}
                   </div>
                   
@@ -321,9 +321,9 @@ export function FindingsTimelinePage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex flex-col items-center justify-center py-20 text-[var(--text-secondary)] text-center text-xs"
+                  className="flex flex-col items-center justify-center py-20 text-text-secondary text-center text-xs"
                 >
-                  <CalendarClock size={32} className="text-[var(--text-tertiary)] mb-2 opacity-50" />
+                  <CalendarClock size={32} className="text-text-tertiary mb-2 opacity-50" />
                   <span>Select an event to inspect the finding context.</span>
                 </motion.div>
               )}

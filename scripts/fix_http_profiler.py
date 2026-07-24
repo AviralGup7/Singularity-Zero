@@ -1,6 +1,6 @@
 """Replace print() with logger.info() in http_profiler.py."""
 path = r"D:\cyber security test pipeline - Copy\src\core\utils\http_profiler.py"
-with open(path, "r", encoding="utf-8") as f:
+with open(path, encoding="utf-8") as f:
     content = f.read()
 
 # Add logger if not present

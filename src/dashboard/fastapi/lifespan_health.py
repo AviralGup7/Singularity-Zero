@@ -236,7 +236,10 @@ async def startup_health(
         "bloom_mesh",
         lambda: app.state.bloom_mesh.health_metrics(fill_threshold=controller.bloom_fill_threshold),
     )
-    controller.register_probe("model_registry", app.state.model_registry.health_metrics)
+    if getattr(app.state, "model_registry", None) is not None:
+        controller.register_probe("model_registry", app.state.model_registry.health_metrics)
+    else:
+        logger.debug("Model registry not available; skipping model_registry health probe")
     controller.bind_tool_execution_service(tool_service)
     app.state.self_healing_controller = controller
     register_health_subscriber(get_event_bus(), controller)

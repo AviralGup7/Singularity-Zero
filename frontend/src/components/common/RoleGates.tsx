@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { useRole, type UserRole, type Permission } from '@/utils/rolePermissions';
+import { useRole   } from '@/utils/rolePermissions';
+import type {UserRole, Permission} from '@/utils/rolePermissions';
 
 export function RoleGate({
   children,

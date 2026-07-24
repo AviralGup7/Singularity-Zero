@@ -52,9 +52,9 @@ export function ThroughputStrip({
         </span>
       </div>
       <div className="throughput-strip-grid">
-        <Metric label="Jobs/Sec" value={safeJobs} accent="var(--accent, #37f6ff)" />
-        <Metric label="Findings/Sec" value={safeFindings} accent="var(--warn, #ffc74f)" />
-        <Metric label="Scan Velocity" value={safeVelocity} accent="var(--ok, #1fe28a)" />
+        <Metric label="Jobs/Sec" value={safeJobs} accent="var(--accent)" />
+        <Metric label="Findings/Sec" value={safeFindings} accent="var(--warn)" />
+        <Metric label="Scan Velocity" value={safeVelocity} accent="var(--ok)" />
       </div>
       <div className="throughput-strip-wave" aria-hidden="true">
         {history.map((value, index) => {

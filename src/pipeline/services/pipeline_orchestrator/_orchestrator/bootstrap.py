@@ -75,3 +75,4 @@ def bootstrap_pipeline(args: argparse.Namespace) -> tuple[Any, list[str], dict[s
             )
 
     return config, scope_entries, tool_status, flow_manifest
+

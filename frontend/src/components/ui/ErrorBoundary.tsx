@@ -1,5 +1,5 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Component   } from 'react';
+import type {ErrorInfo, ReactNode} from 'react';
 import { errorTracker } from '@/utils/errorTracker';
 
 interface Props {
@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null, crashId };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (import.meta.env.DEV) {
       errorTracker.track(error, { component: this.props.name, metadata: { componentStack: errorInfo.componentStack } });
       console.error('ErrorBoundary caught:', error, '\nComponent stack:', errorInfo.componentStack);
@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState(prev => ({ hasError: false, error: null, errorInfo: null, retryCount: prev.retryCount + 1, crashId: '' }));
   };
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="error-message">
             {this.state.error?.message || 'An unexpected error occurred.'}
           </p>
-          <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>
+          <p className="text-[11px] text-text-tertiary font-mono mt-2">
             Crash ID: {this.state.crashId}{this.state.retryCount > 0 ? ` · Retry #${this.state.retryCount}` : ''}
           </p>
           {import.meta.env.DEV && this.state.errorInfo && (
@@ -67,9 +67,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <button className="btn btn-primary" onClick={this.handleReset} aria-label="Try again">
               Try Again
             </button>
-            <Link to="/" className="btn btn-secondary" onClick={() => this.handleReset()} aria-label="Go to dashboard">
+            <a href="/" className="btn btn-secondary" aria-label="Go to dashboard">
               Go Home
-            </Link>
+            </a>
           </div>
         </div>
       );

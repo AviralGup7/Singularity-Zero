@@ -105,6 +105,10 @@ class RunLock:
         self._redis_client: Any = None
         self._lock_key: str | None = None
         self._lock_value: str | None = None
+        # Bug fix: Track which backend actually acquired the lock so release()
+        # only touches the correct backend, preventing double-release errors
+        # when Redis fails mid-acquire and falls back to filesystem.
+        self._active_backend: str | None = None  # "redis" | "filesystem" | None
 
     def _get_redis(self) -> Any:
         """Lazily initialize a Redis client for distributed locking."""
@@ -123,7 +127,7 @@ class RunLock:
             )
             self._redis_client.ping()
             return self._redis_client
-        except (ImportError, TypeError, AttributeError) as exc:
+        except (ImportError, TypeError, AttributeError, Exception) as exc:
             logging.debug("Redis unavailable for distributed lock, using filesystem: %s", exc)
             self._redis_client = None
             return None
@@ -157,6 +161,7 @@ class RunLock:
                     existing = redis.get(self._lock_key)
                     if existing == self._lock_value:
                         self._acquired = True
+                        self._active_backend = "redis"
                         return True
 
                     acquired = redis.set(
@@ -167,10 +172,13 @@ class RunLock:
                     )
                     if acquired:
                         self._acquired = True
+                        self._active_backend = "redis"
                         return True
                     return False
                 except (TypeError, ValueError, AttributeError) as exc:
                     logging.debug("Redis lock acquire failed, falling back to filesystem: %s", exc)
+                    self._lock_key = None
+                    self._lock_value = None
 
             # Fallback: filesystem lock
             self._cache_dir.mkdir(parents=True, exist_ok=True)
@@ -181,6 +189,7 @@ class RunLock:
                         val = f.read().strip()
                     if owner_id and val == owner_id:
                         self._acquired = True
+                        self._active_backend = "filesystem"
                         return True
                 except (OSError, ValueError):
                     logging.debug("Failed to read lock file")
@@ -194,6 +203,7 @@ class RunLock:
                 self._lock_value = owner_id or str(uuid.uuid4())
                 os.write(self._file_handle, self._lock_value.encode())
                 self._acquired = True
+                self._active_backend = "filesystem"
                 return True
             except FileExistsError:
                 self._file_handle = None
@@ -206,8 +216,10 @@ class RunLock:
             if not self._acquired:
                 return
 
-            # Release Redis lock if held
-            if self._lock_key and self._lock_value:
+            # Bug fix: Only release the backend that actually acquired the lock.
+            # Previously, release() would try to release both Redis and filesystem
+            # locks, causing errors when the other backend was never acquired.
+            if self._active_backend == "redis" and self._lock_key and self._lock_value:
                 redis = self._get_redis()
                 if redis is not None:
                     try:
@@ -225,19 +237,21 @@ class RunLock:
                 self._lock_key = None
                 self._lock_value = None
 
-            # Release filesystem lock if held
-            if self._file_handle is not None:
-                try:
-                    os.close(self._file_handle)
-                except OSError as exc:
-                    logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
-                self._file_handle = None
-            if self._lock_file and self._lock_file.exists():
-                try:
-                    self._lock_file.unlink()
-                except OSError as exc:
-                    logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
-            self._lock_file = None
+            if self._active_backend == "filesystem":
+                if self._file_handle is not None:
+                    try:
+                        os.close(self._file_handle)
+                    except OSError as exc:
+                        logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    self._file_handle = None
+                if self._lock_file and self._lock_file.exists():
+                    try:
+                        self._lock_file.unlink()
+                    except OSError as exc:
+                        logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
+                self._lock_file = None
+
+            self._active_backend = None
             self._acquired = False
 
     def __enter__(self) -> RunLock:

@@ -346,7 +346,7 @@ class FrontierProcessPool:
                 if output:
                     return output.splitlines()[0][:256]
             except Exception:
-                logger.debug("ProcPool: tool version detection failed for %s", args[0] if args else "unknown", exc_info=True)
+                logger.debug("ProcPool: tool version detection failed for %s", tool_path, exc_info=True)
                 continue
         return None
 

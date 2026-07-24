@@ -1,3 +1,4 @@
+from typing import Any
 from src.core.contracts.protocol_registry import get_analysis_check_options
 
 ANALYSIS_CONTROL_GROUPS = [
@@ -173,7 +174,16 @@ ANALYSIS_FOCUS_PRESETS = [
     },
 ]
 
-_analysis_check_options_fn = get_analysis_check_options()
-ANALYSIS_CHECK_OPTIONS = (
-    _analysis_check_options_fn() if _analysis_check_options_fn is not None else {}
-)
+def _get_check_options() -> list[dict[str, Any]]:
+    fn = get_analysis_check_options()
+    if fn is not None:
+        res = fn() if callable(fn) else fn
+        if res:
+            return list(res)
+    try:
+        from src.analysis.plugins import analysis_check_options
+        return list(analysis_check_options())
+    except ImportError:
+        return []
+
+ANALYSIS_CHECK_OPTIONS = _get_check_options()

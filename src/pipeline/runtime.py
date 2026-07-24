@@ -438,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
 
             async def _run_with_shutdown_check() -> int:
                 from src.pipeline.runner_support import check_max_duration
+                from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 
                 if check_max_duration(args, _pipeline_started_at):
                     emit_warning("Max-duration budget exhausted before stage execution.")

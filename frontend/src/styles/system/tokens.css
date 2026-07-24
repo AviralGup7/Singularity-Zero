@@ -75,11 +75,11 @@
   --glass-shadow: 0 8px 40px 0 rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 
   /* ── Glow Effects ──────────────────────────────────────────── */
-  --glow-accent:  0 0 16px hsla(217, 100%, 64%, 0.35), 0 0 40px hsla(217, 100%, 64%, 0.10);
-  --glow-ok:      0 0 16px hsla(150, 90%, 58%, 0.30), 0 0 40px hsla(150, 90%, 58%, 0.08);
-  --glow-bad:     0 0 16px hsla(329, 100%, 65%, 0.35), 0 0 40px hsla(329, 100%, 65%, 0.10);
-  --glow-warn:    0 0 16px hsla(38, 100%, 60%, 0.30), 0 0 40px hsla(38, 100%, 60%, 0.08);
-  --glow-subtle:  0 0 8px hsla(217, 100%, 64%, 0.10);
+  --glow-accent:  0 0 16px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 40px color-mix(in srgb, var(--accent) 10%, transparent);
+  --glow-ok:      0 0 16px color-mix(in srgb, var(--ok) 30%, transparent), 0 0 40px color-mix(in srgb, var(--ok) 8%, transparent);
+  --glow-bad:     0 0 16px color-mix(in srgb, var(--bad) 35%, transparent), 0 0 40px color-mix(in srgb, var(--bad) 10%, transparent);
+  --glow-warn:    0 0 16px color-mix(in srgb, var(--warn) 30%, transparent), 0 0 40px color-mix(in srgb, var(--warn) 8%, transparent);
+  --glow-subtle:  0 0 8px color-mix(in srgb, var(--accent) 10%, transparent);
 
   /* ── Severity Scale (CVSS-aligned) ────────────────────────── */
   --severity-critical: #FF2D55;
@@ -256,11 +256,11 @@
   --glass-shadow: 0 4px 28px 0 rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(0, 0, 0, 0.03);
 
   /* ── Glow Effects (subtle for light mode) ────────────────── */
-  --glow-accent:  0 0 10px hsla(217, 80%, 53%, 0.12), 0 0 24px hsla(217, 80%, 53%, 0.05);
-  --glow-ok:      0 0 10px hsla(160, 84%, 39%, 0.12), 0 0 24px hsla(160, 84%, 39%, 0.05);
-  --glow-bad:     0 0 10px hsla(0, 72%, 51%, 0.12), 0 0 24px hsla(0, 72%, 51%, 0.05);
-  --glow-warn:    0 0 10px hsla(38, 92%, 50%, 0.12), 0 0 24px hsla(38, 92%, 50%, 0.05);
-  --glow-subtle:  0 0 6px hsla(217, 80%, 53%, 0.04);
+  --glow-accent:  0 0 10px color-mix(in srgb, var(--accent) 12%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 5%, transparent);
+  --glow-ok:      0 0 10px color-mix(in srgb, var(--ok) 12%, transparent), 0 0 24px color-mix(in srgb, var(--ok) 5%, transparent);
+  --glow-bad:     0 0 10px color-mix(in srgb, var(--bad) 12%, transparent), 0 0 24px color-mix(in srgb, var(--bad) 5%, transparent);
+  --glow-warn:    0 0 10px color-mix(in srgb, var(--warn) 12%, transparent), 0 0 24px color-mix(in srgb, var(--warn) 5%, transparent);
+  --glow-subtle:  0 0 6px color-mix(in srgb, var(--accent) 4%, transparent);
 
   /* ── Severity Scale ────────────────────────────────────────── */
   --severity-critical: #B91C1C;

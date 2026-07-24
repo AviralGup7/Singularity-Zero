@@ -1,21 +1,21 @@
 import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { exportFindings, getFindingById, bulkUpdateFindings } from '../api/client';
-import { useApi } from '../hooks/useApi';
-import { useProcessedFindings } from '../hooks/useProcessedFindings';
-import { useDebouncedFilter } from '../hooks/useDebouncedFilter';
+import { exportFindings, getFindingById, bulkUpdateFindings } from '../../api/client';
+import { useApi } from '../../hooks/useApi';
+import { useProcessedFindings } from '../../hooks/useProcessedFindings';
+import { useDebouncedFilter } from '../../hooks/useDebouncedFilter';
 import { VirtualizedFindingsList } from './components/VirtualizedFindingsList';
-import { Skeleton } from '../components/ui/Skeleton';
-import { EmptyState } from '../components/ui/EmptyState';
-import { SavedFilterPresets } from '../components/ui/SavedFilterPresets';
-import { useToast } from '../hooks/useToast';
-import { offlineQueue } from '../utils/offlineQueue';
-import type { Finding } from '../types/api';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { SavedFilterPresets } from '../../components/ui/SavedFilterPresets';
+import { useToast } from '../../hooks/useToast';
+import { offlineQueue } from '../../utils/offlineQueue';
+import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-const ReportFab = lazy(() => import('../components/report/ReportFab').then(m => ({ default: m.ReportFab })));
-const OnboardingTour = lazy(() => import('../components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+const ReportFab = lazy(() => import('../../components/report/ReportFab').then(m => ({ default: m.ReportFab })));
+const OnboardingTour = lazy(() => import('../../components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 
 export function FindingsPage() {
   const toast = useToast();
@@ -58,7 +58,7 @@ export function FindingsPage() {
 
   useEffect(() => {
     if (!findingsData?.findings) return;
-    const currentIds = new Set(findingsData.findings.map(f => f.id).filter(Boolean) as string[]);
+    const currentIds = new Set(findingsData.findings.map((f: Finding) => f.id).filter(Boolean) as string[]);
     if (!initializedRef.current) {
       lastSeenIdsRef.current = currentIds;
       initializedRef.current = true;
@@ -113,7 +113,7 @@ export function FindingsPage() {
       toast.success(successMsg);
       setFailedBulkAction(null);
       clearSelection();
-    } catch (err) {
+    } catch {
       setFailedBulkAction({ ids, action: actionLabel });
       if (!navigator.onLine) {
         offlineQueue.enqueue({
@@ -190,14 +190,14 @@ export function FindingsPage() {
     const fid = searchParams.get('finding');
     if (fid) {
       // Check if we already have it in the list
-      const existing = findingsData?.findings.find(f => f.id === fid);
+      const existing = findingsData?.findings.find((f: Finding) => f.id === fid);
       if (existing) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailFinding(existing);
       } else {
         // Fetch from the new singular endpoint
         getFindingById(fid)
-          .then((finding) => {
+          .then((finding: Finding | null) => {
             if (mounted) setDetailFinding(finding);
           })
           .catch(() => {
@@ -225,7 +225,7 @@ export function FindingsPage() {
   );
 
   const selectAllFindings = useCallback(() => {
-    setSelectedFindingIds(new Set(findings.map(f => f.id).filter(Boolean) as string[]));
+    setSelectedFindingIds(new Set(findings.map((f: Finding) => f.id).filter(Boolean) as string[]));
   }, [findings]);
 
   const handleExport = useCallback(async (format: 'csv' | 'json') => {
@@ -274,7 +274,7 @@ export function FindingsPage() {
   return (
     <div className="flex flex-col h-full bg-bg font-sans">
       {/* ── Cyber Page Header ────────────────────────────────────── */}
-      <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between glass-panel sticky top-0 z-20">
+      <div className="px-8 py-6 border-b border-line flex items-center justify-between glass-panel sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <div className="p-2 bg-accent/10 rounded-lg border border-accent/20">
             <Shield size={20} className="text-accent" />
@@ -289,7 +289,7 @@ export function FindingsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 p-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+          <div className="flex items-center gap-1 p-1 rounded-xl border border-line bg-surface-2">
              <button
                type="button"
                onClick={() => handleSortToggle('severity')}
@@ -324,11 +324,11 @@ export function FindingsPage() {
                {sortKey === 'bounty_value' && <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>}
              </button>
           </div>
-          <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
-             <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}>
+          <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-line">
+             <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
                 <LayoutGrid size={16} />
              </button>
-             <button onClick={() => setViewMode('table')} className={`p-1.5 rounded ${viewMode === 'table' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}>
+             <button onClick={() => setViewMode('table')} className={`p-1.5 rounded ${viewMode === 'table' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
                 <ListIcon size={16} />
              </button>
           </div>
@@ -348,7 +348,7 @@ export function FindingsPage() {
               animate={{ opacity: 1, y: 0, height: 'auto' }}
               exit={{ opacity: 0, y: -20, height: 0 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="w-full flex items-center justify-between gap-4 px-6 py-3 border border-accent/30 bg-accent/10 rounded-xl shadow-[0_0_20px_rgba(0,255,65,0.1)]"
+              className="w-full flex items-center justify-between gap-4 px-6 py-3 border border-accent/30 bg-accent/10 rounded-xl shadow-glow-accent-md"
               role="status"
               aria-live="polite"
             >
@@ -365,7 +365,7 @@ export function FindingsPage() {
                 <button
                   type="button"
                   onClick={loadNewFindings}
-                  className="px-4 py-1.5 rounded-lg bg-accent text-black font-black text-xs uppercase tracking-widest hover:bg-accent-dim transition-all shadow-[0_0_15px_rgba(0,255,65,0.3)] cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-accent text-black font-black text-xs uppercase tracking-widest hover:bg-accent-dim transition-all shadow-glow-accent-sm cursor-pointer"
                   aria-label="Load new findings"
                 >
                   Load Feed
@@ -373,7 +373,7 @@ export function FindingsPage() {
                 <button
                   type="button"
                   onClick={dismissNewFindings}
-                  className="p-1 rounded-lg text-muted hover:text-white transition-colors cursor-pointer"
+                  className="p-1 rounded-lg text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
                   aria-label="Dismiss banner"
                 >
                   <X size={16} aria-hidden="true" />
@@ -411,7 +411,7 @@ export function FindingsPage() {
                 <button
                   type="button"
                   onClick={() => setFailedBulkAction(null)}
-                  className="p-1 rounded-lg text-muted hover:text-white transition-colors cursor-pointer"
+                  className="p-1 rounded-lg text-muted hover:text-text-primary transition-colors cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -429,7 +429,7 @@ export function FindingsPage() {
             type="text"
             placeholder="FILTER BY CVE, CWE, URL, TYPE..."
             aria-label="Filter findings by CVE, CWE, URL or type"
-            className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-xs font-mono text-text focus:border-accent/50 outline-none transition-all uppercase"
+            className="w-full bg-surface-hover border border-line rounded-lg py-2 pl-10 pr-4 text-xs font-mono text-text focus:border-accent/50 outline-none transition-all uppercase"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -464,8 +464,8 @@ export function FindingsPage() {
                    }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all flex items-center gap-2 cursor-pointer ${
                     severityFilter.includes(sev) 
-                      ? 'bg-white/10 border-white/25 text-white' 
-                      : 'border-white/5 text-muted hover:border-white/15 hover:text-text'
+                      ? 'bg-surface-2 border-line text-text-primary' 
+                      : 'border-line text-muted hover:border-line hover:text-text'
                   }`}
                  >
                    <span className={`w-2 h-2 rounded-full ${dotColor}`} />
@@ -518,29 +518,29 @@ export function FindingsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.5)]"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl border border-line bg-surface/90 backdrop-blur-xl shadow-overlay-lg"
             role="toolbar"
             aria-label="Bulk actions for selected findings"
           >
-            <div className="flex items-center gap-2 pr-4 border-r border-white/10">
+            <div className="flex items-center gap-2 pr-4 border-r border-line">
               <span className="text-xs font-black text-accent">{selectedFindingIds.size}</span>
-              <span className="text-[10px] text-muted uppercase tracking-widest">selected</span>
+              <span className="text-[10px] text-text-secondary uppercase tracking-widest">selected</span>
             </div>
             <button
               type="button"
               onClick={selectAllFindings}
-              className="text-[10px] font-black uppercase tracking-widest text-muted hover:text-white transition-colors px-2 py-1"
+              className="text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors px-2 py-1"
             >
               Select All
             </button>
             <button
               type="button"
               onClick={clearSelection}
-              className="text-[10px] font-black uppercase tracking-widest text-muted hover:text-white transition-colors px-2 py-1"
+              className="text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors px-2 py-1"
             >
               Clear
             </button>
-            <div className="w-px h-6 bg-white/10" />
+            <div className="w-px h-6 bg-surface-2" />
             {bulkActionMode === 'status' ? (
               <div className="flex items-center gap-2">
                 <button onClick={() => handleBulkStatus('open')} className="btn-secondary btn-small text-[9px]">New</button>
@@ -556,7 +556,7 @@ export function FindingsPage() {
                   aria-label="Assignee name for bulk assignment"
                   value={bulkAssignee}
                   onChange={e => setBulkAssignee(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-text w-28 focus:border-accent/50 outline-none"
+                  className="bg-surface-hover border border-line rounded px-2 py-1 text-[10px] font-mono text-text w-28 focus:border-accent/50 outline-none"
                 />
                 <button onClick={handleBulkAssign} disabled={!bulkAssignee.trim()} className="btn-primary btn-small text-[9px] disabled:opacity-40">Assign</button>
                 <button onClick={() => { setBulkActionMode(null); setBulkAssignee(''); }} className="btn-ghost btn-small text-[9px]">Cancel</button>

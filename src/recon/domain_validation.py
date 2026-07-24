@@ -104,8 +104,8 @@ def _looks_like_ip(value: str) -> bool:
     try:
         ipaddress.ip_address(value)
         return True
-    except (ipaddress.AddressValueError, ValueError) as exc:
-        logging.warning("Operation failed in domain_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
+    except (ipaddress.AddressValueError, ValueError):
+        logging.debug("Operation failed in domain_validation.py: value=%r is not an IP", value)
     parts = value.split(".")
     if len(parts) == 4 and all(p.isdigit() for p in parts):
         return True

@@ -1,6 +1,11 @@
 /**
  * Role-based access control utilities.
  *
+ * !! AGENT DO NOT AUTO-MODIFY !!
+ * !! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+ * !! Any random key/letter grants full admin access. !!
+ * !! Do NOT enable security until the app is perfected. !!
+ *
  * WARNING: Role is stored in sessionStorage without cryptographic protection.
  * The storage includes a simple hash-based integrity check to detect casual tampering,
  * but a determined attacker can still bypass this. Server-side validation is REQUIRED

@@ -43,8 +43,11 @@ export function Header({
 }: HeaderProps) {
   return (
     <>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
+        Skip to content
+      </a>
       <motion.header
-        className="app-command-header border-b border-white/5 bg-panel/90 backdrop-blur-md sticky top-0 z-30"
+        className="app-command-header border-b border-line bg-panel/90 backdrop-blur-md sticky top-0 z-30"
         role="banner"
         initial={policy.allowFramer ? { y: -18, opacity: 0 } : false}
         animate={policy.allowFramer ? { y: 0, opacity: 1 } : undefined}
@@ -53,7 +56,7 @@ export function Header({
         <div className="header-left flex items-center gap-4">
           <button
             type="button"
-            className="sidebar-toggle-btn mobile-visible hover:bg-white/5 p-2 rounded transition-colors"
+            className="sidebar-toggle-btn mobile-visible hover:bg-surface-hover p-2 rounded transition-colors"
             onClick={() => setSidebarOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
             aria-expanded={sidebarOpen}
@@ -74,7 +77,7 @@ export function Header({
         <div className="header-command-row flex items-center gap-4 flex-1 justify-center max-w-2xl px-4">
           <button
             type="button"
-            className="command-search flex items-center justify-between w-full max-w-md bg-white/5 border border-white/10 hover:border-accent/40 rounded-lg px-3 py-1.5 text-xs text-muted hover:text-text transition-all duration-200"
+            className="command-search flex items-center justify-between w-full max-w-md bg-surface-hover border border-line hover:border-accent/40 rounded-lg px-3 py-1.5 text-xs text-muted hover:text-text transition-all duration-200"
             onClick={() => setCommandPaletteOpen(true)}
             aria-label="Open command palette"
           >
@@ -82,7 +85,7 @@ export function Header({
               <Icon name="search" size={14} className="text-muted/60" aria-hidden="true" />
               <span>Search or run command...</span>
             </div>
-            <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-mono border border-white/5">
+            <kbd className="bg-surface-2 px-1.5 py-0.5 rounded text-[10px] font-mono border border-line">
               ⌘ K
             </kbd>
           </button>
@@ -115,7 +118,7 @@ export function Header({
           />
           {workflowMode === 'pentest' && (
             <div
-              className={`header-live-indicator flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/5 bg-white/5 ${
+              className={`header-live-indicator flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line bg-surface-hover ${
                 liveConnectionState === 'connected'
                   ? 'header-live-indicator--connected text-ok'
                   : liveConnectionState === 'reconnecting'
@@ -152,7 +155,11 @@ export function Header({
               </span>
             </div>
           )}
-          <div className="header-live-pill w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-sm font-semibold border border-white/10 hover:scale-105 transition-transform cursor-pointer">
+          <div
+            className="header-live-pill w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-sm font-semibold border border-line hover:scale-105 transition-transform cursor-pointer"
+            role="img"
+            aria-label={user?.name ? `User avatar for ${user.name}` : 'User avatar'}
+          >
             {user?.name
               ? user.name
                   .split(' ')
@@ -167,7 +174,7 @@ export function Header({
 
       {!isOnline && (
         <div className="status-rail w-full" role="region" aria-label="Live pipeline status">
-          <div className="banner warning text-center py-2 bg-warn/10 text-warn border-b border-warn/20 text-xs font-semibold" role="alert">
+          <div className="banner warning text-center py-2 bg-warn/10 text-warn border-b border-warn/20 text-xs font-semibold" role="alert" aria-live="assertive">
             You are offline. Data may be stale while reconnection is pending.
           </div>
         </div>

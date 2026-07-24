@@ -1,0 +1,47 @@
+{
+  "exit_code": 0,
+  "outcome": "pass",
+  "counts": {
+    "low": 0,
+    "medium": 0,
+    "high": 0,
+    "critical": 0
+  },
+  "violations": [],
+  "failed_stages": [],
+  "partial": false,
+  "branch": "",
+  "policy_snapshot": {
+    "on_findings": {
+      "max_critical": 0,
+      "max_high": 5,
+      "max_medium": 50,
+      "max_low": 1000,
+      "allow_false_positive": true,
+      "exclude_categories": [],
+      "branch_glob": "*"
+    },
+    "on_infra": {
+      "fatal_stages": [
+        "live_hosts"
+      ],
+      "degraded_stages": [
+        "subdomains",
+        "urls"
+      ]
+    },
+    "on_failure": {
+      "retryable_only": false,
+      "treat_partial_as": 4
+    },
+    "ci": {
+      "exclude_regex_urls": [],
+      "exclude_methods": [],
+      "exclude_categories": [],
+      "exclude_status": [],
+      "exclude_body_contains": [],
+      "exclude_header_contains": []
+    }
+  },
+  "degraded_stages": []
+}

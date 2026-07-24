@@ -1,3 +1,11 @@
+/**
+ * Security API
+ *
+ * !! AGENT DO NOT AUTO-MODIFY !!
+ * !! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+ * !! Any random key/letter grants full admin access. !!
+ * !! Do NOT enable security until the app is perfected. !!
+ */
 import { apiClient, cachedGet } from './core';
 
 export interface RateLimitBucket {

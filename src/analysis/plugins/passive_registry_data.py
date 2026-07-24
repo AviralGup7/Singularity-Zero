@@ -360,7 +360,7 @@ _PLUGIN_DATA: tuple[tuple[str, str, str, str], ...] = (
         "redirect",
     ),
     (
-        "graphql_introspection_exposure_checker",
+        "graphql_introspection_detector",
         "GraphQL Introspection",
         "Detect exposed GraphQL schema introspection that reveals types, fields, and mutations.",
         "exposure",
@@ -600,7 +600,7 @@ _PLUGIN_DATA: tuple[tuple[str, str, str, str], ...] = (
         "passive",
     ),
     (
-        "logging_failure_detector",
+        "logging_security_detector",
         "Logging Security Detector",
         "Find log file exposure, logging endpoints, sensitive data in URLs, verbose logging headers, and debug logging indicators in responses.",
         "passive",

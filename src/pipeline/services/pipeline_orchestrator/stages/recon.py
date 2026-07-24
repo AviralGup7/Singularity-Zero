@@ -29,6 +29,8 @@ from src.recon.live_hosts import probe_live_hosts
 from src.recon.subdomains import enumerate_subdomains
 from src.recon.urls import collect_urls
 
+logger = get_pipeline_logger(__name__)
+
 # Test seams
 enumerate_subdomains = enumerate_subdomains
 _DEFAULT_PROBE_LIVE_HOSTS = probe_live_hosts
@@ -328,9 +330,6 @@ async def run_waf_detection(
         return StageOutput(
             stage_name="waf", outcome=StageOutcome.FAILED, duration_seconds=0.0, error=str(exc)
         )
-
-
-logger = get_pipeline_logger(__name__)
 
 
 async def run_url_collection(

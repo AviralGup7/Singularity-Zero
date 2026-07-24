@@ -175,7 +175,7 @@
   place-items: center;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--surface-2)));
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: var(--text-small);
   font-weight: 600;
   text-transform: uppercase;

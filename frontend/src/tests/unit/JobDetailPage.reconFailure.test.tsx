@@ -2,6 +2,8 @@ import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
+import { JobDetailPage } from '../../pages/JobDetailPage';
+
 vi.mock('../../hooks/useToast', () => ({
   useToast: () => ({
     success: vi.fn(),
@@ -58,8 +60,6 @@ const useJobMonitorMock = vi.fn();
 vi.mock('../../hooks/useJobMonitor', () => ({
   useJobMonitor: (...args: unknown[]) => useJobMonitorMock(...args),
 }));
-
-import { JobDetailPage } from '../../pages/JobDetailPage';
 
 describe('JobDetailPage recon failure surfacing', () => {
   it('renders persistent recon failure card with stage and reason code', async () => {

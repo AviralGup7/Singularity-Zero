@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -25,9 +24,6 @@ def _resolve_admin_roles(request: Request, effective_admin_roles: Any) -> list[s
                 return [str(r) for r in roles]
         except Exception as exc:
             logger.debug("Admin role resolver failed: %s", exc)
-    header = request.headers.get("x-user-roles", "")
-    if header:
-        return [r.strip() for r in re.split(r"[,;]", header) if r.strip()]
     return []
 
 
@@ -57,8 +53,12 @@ def _require_admin(request: Request, action: str, *, admin_api_key: str | None =
 
 
 def register_admin_routes(app: Any, services: Any, *, admin_api_key: str | None = None) -> None:
-    """Register admin WebSocket management endpoints on the FastAPI app."""
+    """Register admin WebSocket management endpoints on the FastAPI app.
 
+    ``admin_api_key`` is required for admin route authentication. Admin
+    routes should not rely on client-supplied role headers such as
+    ``x-user-roles``; roles must come from server-side resolvers.
+    """
     @app.get("/admin/websocket/connections")
     async def list_connections(request: Request) -> dict[str, Any]:
         _require_admin(request, "list_connections", admin_api_key=admin_api_key)

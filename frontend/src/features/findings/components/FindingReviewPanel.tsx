@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Loader2, Check, X, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
-import { apiClient } from '../api/core';
+import { apiClient } from '@/api/core';
 
 const ACTION_TYPES = [
   { id: 'confirm_tp', label: 'Confirm TP', icon: Check, color: 'accent' },
@@ -66,7 +66,7 @@ export function FindingReviewPanel({
   );
 
   return (
-    <div className="glass-panel border border-white/5 rounded-lg p-4 space-y-3" data-testid="finding-review-panel">
+    <div className="glass-panel border border-line rounded-lg p-4 space-y-3" data-testid="finding-review-panel">
       <div className="flex items-center justify-between">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-muted">Analyst Review</h3>
         <span className="text-[9px] text-muted font-mono">{findingId}</span>
@@ -80,7 +80,7 @@ export function FindingReviewPanel({
           type="text"
           value={reviewerId}
           onChange={(e) => setReviewerId(e.target.value)}
-          className="flex-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono px-2 py-1 text-text focus:border-accent/50 outline-none"
+          className="flex-1 bg-surface-hover border border-line rounded text-[11px] font-mono px-2 py-1 text-text focus:border-accent/50 outline-none"
           placeholder="reviewer-id"
         />
       </div>
@@ -96,7 +96,7 @@ export function FindingReviewPanel({
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-black uppercase tracking-widest border transition-all ${
                 isActive
                   ? 'bg-accent/20 border-accent/40 text-accent'
-                  : 'border-white/5 text-muted hover:border-white/10 hover:text-text'
+                  : 'border-line text-muted hover:border-line hover:text-text'
               }`}
               aria-pressed={isActive}
               data-action={id}
@@ -117,7 +117,7 @@ export function FindingReviewPanel({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Why is this a TP / FP / downgraded / escalated? Cite evidence or run id."
-            className="w-full bg-white/5 border border-white/10 rounded text-[11px] font-mono px-2 py-1.5 text-text focus:border-accent/50 outline-none resize-none h-20"
+            className="w-full bg-surface-hover border border-line rounded text-[11px] font-mono px-2 py-1.5 text-text focus:border-accent/50 outline-none resize-none h-20"
           />
           <div className="flex items-center gap-2">
             <button

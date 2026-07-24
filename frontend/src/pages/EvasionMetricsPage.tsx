@@ -19,11 +19,13 @@ import {
 import {
   getEvasionMetrics,
   resetEvasionMetrics,
-  setHuntMode,
-  type EvasionMetricsResponse,
-  type LowHangingFruitFinding,
+  setHuntMode
+  
+  
 } from '@/api/evasion';
+import type {EvasionMetricsResponse, LowHangingFruitFinding} from '@/api/evasion';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface StatCardProps {
   title: string;
@@ -36,13 +38,13 @@ interface StatCardProps {
 function StatCard({ title, value, subtitle, icon, colorClass }: StatCardProps) {
   return (
     <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group cyber-glow-card">
-      <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.01] rounded-bl-full pointer-events-none group-hover:bg-white/[0.02] transition-colors" />
+      <div className="absolute top-0 right-0 w-24 h-24 bg-surface-hover rounded-bl-full pointer-events-none group-hover:bg-surface-hover transition-colors" />
       <div className="flex justify-between items-start mb-3">
         <div>
           <span className="text-[10px] font-black text-muted uppercase tracking-widest block mb-1">{title}</span>
           <span className={`text-2xl font-black ${colorClass} cyber-text-glow`}>{value}</span>
         </div>
-        <div className={`p-2 rounded-lg bg-white/5 border border-white/10 ${colorClass}`}>
+        <div className={`p-2 rounded-lg bg-surface-hover border border-line ${colorClass}`}>
           {icon}
         </div>
       </div>
@@ -65,12 +67,12 @@ function BudgetBar({
   accent: string;
 }) {
   return (
-    <div className="p-3 rounded-xl border border-white/5 bg-black/30 space-y-2">
+    <div className="p-3 rounded-xl border border-line bg-surface-2 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-black uppercase tracking-widest text-muted">{label}</span>
         <span className={`text-[10px] font-mono font-black ${accent}`}>{value}</span>
       </div>
-      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-surface-hover rounded-full overflow-hidden">
         <div
           className={`h-full ${accent.replace('text-', 'bg-')} transition-all duration-700`}
           style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
@@ -94,7 +96,7 @@ export function EvasionMetricsPage() {
       const response = await getEvasionMetrics();
       setData(response);
     } catch {
-      toast.error('Failed to load evasion metrics');
+      showErrorToast('Failed to load evasion metrics');
     } finally {
       setLoading(false);
     }
@@ -112,7 +114,7 @@ export function EvasionMetricsPage() {
       toast.success('Metrics reset successfully');
       await loadData();
     } catch {
-      toast.error('Failed to reset metrics');
+      showErrorToast('Failed to reset evasion metrics');
     } finally {
       setResetting(false);
     }
@@ -126,7 +128,7 @@ export function EvasionMetricsPage() {
       setData(response.hunt_mode);
       toast.success(next ? 'Hunt mode engaged — focusing on LHF categories' : 'Hunt mode disabled — resuming normal scan');
     } catch {
-      toast.error('Failed to toggle hunt mode');
+      showErrorToast('Failed to toggle evasion hunt mode');
     } finally {
       setHuntToggling(false);
     }
@@ -249,7 +251,7 @@ export function EvasionMetricsPage() {
             {findings.map((f) => (
               <li
                 key={f.id}
-                className="p-3 rounded-xl border border-white/5 bg-black/30 hover:bg-black/40 transition-colors flex items-center justify-between gap-3"
+                className="p-3 rounded-xl border border-line bg-surface-2 hover:bg-surface-2 transition-colors flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -302,9 +304,9 @@ export function EvasionMetricsPage() {
 
   return (
     <div className="p-6 md:p-8 bg-bg min-h-full space-y-8 cyber-grid-overlay">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/5">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-line-muted">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl border border-accent/30 bg-accent/10 flex items-center justify-center text-accent shadow-[0_0_15px_rgba(59,130,246,0.2)] animate-pulse">
+          <div className="h-12 w-12 rounded-xl border border-accent/30 bg-accent/10 flex items-center justify-center text-accent shadow-glow-accent-sm animate-pulse">
             <ShieldAlert size={26} />
           </div>
           <div>
@@ -320,7 +322,7 @@ export function EvasionMetricsPage() {
             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg border transition-all duration-200 ${
               isHuntMode
                 ? 'bg-accent/15 border-accent/40 text-accent hover:bg-accent/25'
-                : 'bg-white/5 border-white/10 text-muted hover:bg-white/10 hover:border-white/20'
+                : 'bg-surface-hover border-line text-text-secondary hover:bg-surface-2 hover:border-line-strong'
             }`}
             onClick={handleHuntToggle}
             disabled={huntToggling}
@@ -330,7 +332,7 @@ export function EvasionMetricsPage() {
             {isHuntMode ? 'Hunt Mode: ON' : 'Hunt Mode: OFF'}
           </button>
           <button
-            className="btn btn-secondary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-white/20 transition-all duration-200"
+            className="btn btn-secondary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-surface-hover border border-line rounded-lg hover:bg-surface-2 hover:border-line transition-all duration-200"
             onClick={loadData}
             disabled={loading}
           >
@@ -442,7 +444,7 @@ export function EvasionMetricsPage() {
           Synchronizing Chameleon Evasion Nodes...
         </div>
       ) : metricsArray.length === 0 ? (
-        <div className="py-20 text-center text-muted italic bg-white/[0.02] rounded-2xl border border-white/5 p-8 max-w-2xl mx-auto flex flex-col items-center gap-4">
+        <div className="py-20 text-center text-muted italic bg-surface-hover rounded-2xl border border-line p-8 max-w-2xl mx-auto flex flex-col items-center gap-4">
           <AlertTriangle size={36} className="text-warn animate-bounce" />
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-text mb-1">No Telemetry Recorded</h3>
@@ -465,7 +467,7 @@ export function EvasionMetricsPage() {
               const isPartial = rate >= 50 && rate < 80;
               
               const toneClass = isOptimal ? 'ok' : isPartial ? 'warn' : 'bad';
-              const borderAccentColor = isOptimal ? 'rgba(16,185,129,0.2)' : isPartial ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)';
+              const borderAccentColor = isOptimal ? 'color-mix(in srgb, var(--ok) 20%, transparent)' : isPartial ? 'color-mix(in srgb, var(--warn) 20%, transparent)' : 'color-mix(in srgb, var(--bad) 20%, transparent)';
               
               // Circle gauge calculations
               const radius = 36;
@@ -480,7 +482,7 @@ export function EvasionMetricsPage() {
                   className={`glass-panel p-6 rounded-2xl relative overflow-hidden cyber-glow-card cyber-glow-card-${toneClass}`}
                   style={{ borderLeft: `3px solid ${borderAccentColor}` }}
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/[0.01] -rotate-45 translate-x-16 -translate-y-16 pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-surface-hover -rotate-45 translate-x-16 -translate-y-16 pointer-events-none" />
                   
                   {/* Card Header */}
                   <div className="flex justify-between items-start gap-4 mb-6">
@@ -512,7 +514,7 @@ export function EvasionMetricsPage() {
                           cx="40" 
                           cy="40" 
                           r={radius} 
-                          className="stroke-white/5 fill-transparent" 
+                          className="stroke-border fill-transparent" 
                           strokeWidth="6" 
                         />
                         {/* Value circle */}
@@ -538,7 +540,7 @@ export function EvasionMetricsPage() {
 
                     {/* Breakdown Numbers */}
                     <div className="space-y-3">
-                      <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5">
+                      <div className="flex justify-between items-center bg-surface-2 p-2 rounded-lg border border-line">
                         <div className="flex items-center gap-1.5">
                           <CheckCircle size={10} className="text-ok" />
                           <span className="text-[9px] font-bold text-muted uppercase">Successful Bypasses</span>
@@ -546,7 +548,7 @@ export function EvasionMetricsPage() {
                         <span className="text-xs font-mono font-black text-ok">{metrics.successes}</span>
                       </div>
                       
-                      <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5">
+                      <div className="flex justify-between items-center bg-surface-2 p-2 rounded-lg border border-line">
                         <div className="flex items-center gap-1.5">
                           <Zap size={10} className="text-accent" />
                           <span className="text-[9px] font-bold text-muted uppercase">Evasion Queries</span>

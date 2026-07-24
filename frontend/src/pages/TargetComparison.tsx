@@ -41,14 +41,14 @@ function ComparisonColumn({ target, otherTarget, severityTotal, otherSeverityTot
 
   return (
     <GlassCard delay={delay} hoverable>
-      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 pb-3 border-b border-[var(--border)]">
+      <h3 className="text-lg font-semibold text-text-primary mb-4 pb-3 border-b border-line">
         {target.name}
       </h3>
       <div className="space-y-3">
         {/* Risk Index */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[0]}</span>
-          <span className="font-semibold text-[var(--text-primary)] flex items-center">
+          <span className="font-semibold text-text-primary flex items-center">
             {riskA != null ? <AnimatedCounter value={riskA} decimals={1} /> : '—'}
             {riskA != null && riskB != null && <DeltaIndicator a={riskA} b={riskB} />}
           </span>
@@ -56,7 +56,7 @@ function ComparisonColumn({ target, otherTarget, severityTotal, otherSeverityTot
         {/* Findings */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[1]}</span>
-          <span className="font-semibold text-[var(--text-primary)] flex items-center">
+          <span className="font-semibold text-text-primary flex items-center">
             <AnimatedCounter value={target.finding_count} />
             {severityTotal != null && otherSeverityTotal != null && (
               <DeltaIndicator a={severityTotal} b={otherSeverityTotal} />
@@ -73,49 +73,49 @@ function ComparisonColumn({ target, otherTarget, severityTotal, otherSeverityTot
         {/* URLs */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[3]}</span>
-          <span className="font-semibold text-[var(--text-primary)]">
+          <span className="font-semibold text-text-primary">
             <AnimatedCounter value={target.url_count} />
           </span>
         </div>
         {/* Parameters */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[4]}</span>
-          <span className="font-semibold text-[var(--text-primary)]">
+          <span className="font-semibold text-text-primary">
             <AnimatedCounter value={target.parameter_count} />
           </span>
         </div>
         {/* Attack Chains */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[5]}</span>
-          <span className="font-semibold text-[var(--text-primary)]">
+          <span className="font-semibold text-text-primary">
             <AnimatedCounter value={target.attack_chain_count} />
           </span>
         </div>
         {/* Scan Runs */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[6]}</span>
-          <span className="font-semibold text-[var(--text-primary)]">
+          <span className="font-semibold text-text-primary">
             <AnimatedCounter value={target.run_count} />
           </span>
         </div>
         {/* Last Scan */}
         <div className="flex items-center justify-between py-2">
           <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[7]}</span>
-          <span className="text-sm text-[var(--text-secondary)]">{target.latest_run || '—'}</span>
+          <span className="text-sm text-text-secondary">{target.latest_run || '—'}</span>
         </div>
       </div>
 
       {/* Severity Breakdown */}
-      <div className="mt-4 pt-4 border-t border-[var(--border)]">
+      <div className="mt-4 pt-4 border-t border-line">
         <h4 className="text-xs uppercase tracking-wider text-muted mb-3">Severity Breakdown</h4>
         <div className="space-y-2">
           {Object.entries(target.severity_counts ?? {}).map(([sev, count]) => (
             <div key={sev} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full severity-dot severity-${sev}`} />
-                <span className="text-xs capitalize text-[var(--text-secondary)]">{sev}</span>
+                <span className="text-xs capitalize text-text-secondary">{sev}</span>
               </div>
-              <span className="text-sm font-medium text-[var(--text-primary)]">{count}</span>
+              <span className="text-sm font-medium text-text-primary">{count}</span>
             </div>
           ))}
         </div>
@@ -124,7 +124,7 @@ function ComparisonColumn({ target, otherTarget, severityTotal, otherSeverityTot
   );
 }
 
-const selectClass = 'w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] focus:outline-none transition-all duration-200 appearance-none cursor-pointer';
+const selectClass = 'w-full bg-surface border border-line rounded-lg px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] focus:outline-none transition-all duration-200 appearance-none cursor-pointer';
 
 export function TargetComparison({ targets: propTargets }: TargetComparisonProps) {
    
@@ -193,8 +193,8 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
   if (safeTargets.length < 2) {
     return (
       <GlassCard className="text-center py-16">
-        <ArrowLeftRight size={48} className="mx-auto mb-4 text-[var(--text-tertiary)]" />
-        <p className="text-[var(--text-secondary)]">At least 2 targets are needed for comparison.</p>
+        <ArrowLeftRight size={48} className="mx-auto mb-4 text-text-tertiary" />
+        <p className="text-text-secondary">At least 2 targets are needed for comparison.</p>
       </GlassCard>
     );
   }
@@ -270,8 +270,8 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
       {/* ── Loading ────────────────────────────────────────────── */}
       {compareLoading && (
         <GlassCard className="flex flex-col justify-center items-center py-16" hoverable={false}>
-          <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-sm text-[var(--text-secondary)]">Comparing security postures...</p>
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm text-text-secondary">Comparing security postures...</p>
         </GlassCard>
       )}
 
@@ -312,8 +312,8 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
       {/* ── Empty State ────────────────────────────────────────── */}
       {!compareLoading && !compareError && (!selectedA || !selectedB) && (
         <GlassCard className="text-center py-16" hoverable={false}>
-          <ArrowLeftRight size={48} className="mx-auto mb-4 text-[var(--text-tertiary)]" />
-          <p className="text-[var(--text-secondary)]">Select two targets to compare their security posture side by side.</p>
+          <ArrowLeftRight size={48} className="mx-auto mb-4 text-text-tertiary" />
+          <p className="text-text-secondary">Select two targets to compare their security posture side by side.</p>
         </GlassCard>
       )}
     </div>

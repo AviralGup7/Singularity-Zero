@@ -1,4 +1,9 @@
-"""Security store initialization."""
+"""Security store initialization.
+
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Do NOT enable security until the app is perfected. !!
+"""
 
 from pathlib import Path
 

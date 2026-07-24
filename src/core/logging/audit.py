@@ -154,8 +154,11 @@ class AuditLogger:
                 self._file_handle.flush()
 
             if self._to_stdout:
-                sys.stdout.write("[AUDIT] " + line + "\n")
-                sys.stdout.flush()
+                try:
+                    sys.stdout.write("[AUDIT] " + line + "\n")
+                    sys.stdout.flush()
+                except (UnicodeEncodeError, OSError):
+                    pass
 
             self._prev_hash = entry["entry_hash"]
 

@@ -10,9 +10,9 @@ interface ProgressTelemetrySectionProps {
 
 export function ProgressTelemetrySection({ telemetry }: ProgressTelemetrySectionProps) {
   return (
-    <motion.div variants={itemVariants} className="card">
+    <motion.div variants={itemVariants} className="card" role="region" aria-label="Progress telemetry">
       <div className="pt-4 space-y-4">
-        <div className="info-grid">
+        <div className="info-grid tabular-nums">
           <InfoItem label="Active Tasks" value={String(telemetry.active_task_count ?? 0)} />
           {typeof telemetry.requests_per_second === 'number' && (
             <InfoItem label="Requests/sec" value={telemetry.requests_per_second.toFixed(2)} />
@@ -68,9 +68,9 @@ export function ProgressTelemetrySection({ telemetry }: ProgressTelemetrySection
         </div>
 
         {telemetry.learning_feedback && (
-          <GlassCard variant="glow" delay={0.1} className="mt-4 p-4 border border-[var(--accent)]/30">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--accent)] mb-2 font-mono">Remediation Analysis</h4>
-            <p className="text-xs italic text-[var(--text-secondary)] leading-relaxed font-sans">
+          <GlassCard variant="glow" delay={0.1} className="mt-4 p-4 border border-accent/30">
+            <h4 className="text-xs font-bold uppercase tracking-widest text-accent mb-2 font-mono">Remediation Analysis</h4>
+            <p className="text-xs italic text-text-secondary leading-relaxed font-sans">
               {typeof telemetry.learning_feedback === 'string'
                 ? telemetry.learning_feedback
                 : JSON.stringify(telemetry.learning_feedback)}
@@ -80,10 +80,10 @@ export function ProgressTelemetrySection({ telemetry }: ProgressTelemetrySection
 
         {telemetry.skipped_stages && telemetry.skipped_stages.length > 0 && (
           <div className="mt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] font-mono mb-2">Skipped Stages</h4>
-            <div className="flex flex-wrap gap-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary font-mono mb-2">Skipped Stages</h4>
+            <div className="flex flex-wrap gap-2" role="list" aria-label="Skipped stages">
               {telemetry.skipped_stages.map((s) => (
-                <span key={s.stage} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono" title={s.reason}>
+                <span key={s.stage} className="px-2 py-1 bg-surface-hover border border-line rounded text-[10px] font-mono" role="listitem" title={s.reason}>
                   {s.stage}
                 </span>
               ))}
@@ -92,14 +92,14 @@ export function ProgressTelemetrySection({ telemetry }: ProgressTelemetrySection
         )}
 
         {telemetry.top_active_targets && telemetry.top_active_targets.length > 0 && (
-          <div className="modules-list mt-4 flex flex-wrap gap-2">
+          <div className="modules-list mt-4 flex flex-wrap gap-2" role="list" aria-label="Top active targets">
             {telemetry.top_active_targets.map((item) => (
-              <span key={item} className="module-tag">{item}</span>
+              <span key={item} className="module-tag" role="listitem">{item}</span>
             ))}
           </div>
         )}
         {telemetry.event_triggers && telemetry.event_triggers.length > 0 && (
-          <ul className="warnings-list mt-4 space-y-1">
+          <ul className="warnings-list mt-4 space-y-1" aria-label="Event triggers">
             {telemetry.event_triggers.slice(-5).map((trigger) => (
               <li key={trigger}>{trigger}</li>
             ))}

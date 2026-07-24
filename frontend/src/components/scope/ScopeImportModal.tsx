@@ -5,7 +5,7 @@ import { useScopeStore } from '@/stores/scopeStore';
 import { useToast } from '@/hooks/useToast';
 import { parseScopeText } from '@/utils/scopeParser';
 import type { ParsedScope } from '@/utils/scopeParser';
-import type React from 'react';
+import type { MouseEvent } from 'react';
 
 interface ScopeImportModalProps {
   open: boolean;
@@ -86,11 +86,11 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-panel backdrop-blur-sm p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={(e: React.MouseEvent<HTMLDivElement>) => { if (e.target === e.currentTarget) onClose(); }}
+          onClick={(e: MouseEvent<HTMLDivElement>) => { if (e.target === e.currentTarget) onClose(); }}
           role="dialog"
           aria-modal="true"
           aria-label="Import program scope"
@@ -100,9 +100,9 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 240, damping: 26 }}
-            className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-xl border border-white/10 bg-[#0b0d12] shadow-2xl"
+            className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-xl border border-line bg-surface shadow-2xl"
           >
-            <header className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+            <header className="flex items-center justify-between border-b border-line px-6 py-4">
               <div>
                 <h2 className="text-sm font-black uppercase tracking-[0.2em] text-accent">
                   Import Program Scope
@@ -123,8 +123,8 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-0 max-h-[calc(90vh-160px)] overflow-hidden">
-              <div className="flex flex-col border-r border-white/5">
-                <div className="flex items-center gap-2 border-b border-white/5 px-4 py-2">
+              <div className="flex flex-col border-r border-line">
+                <div className="flex items-center gap-2 border-b border-line px-4 py-2">
                   <FileText size={14} className="text-muted" />
                   <span className="text-[10px] font-mono uppercase tracking-widest text-muted">
                     Policy text
@@ -133,21 +133,21 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
                     <button
                       type="button"
                       onClick={handlePaste}
-                      className="flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-white"
+                      className="flex items-center gap-1 rounded border border-line bg-surface-hover px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-text-primary"
                     >
                       <ClipboardPaste size={11} /> Paste
                     </button>
                     <button
                       type="button"
                       onClick={() => setDraft(SAMPLE_HACKERONE)}
-                      className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-white"
+                      className="rounded border border-line bg-surface-hover px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-text-primary"
                     >
                       Sample H1
                     </button>
                     <button
                       type="button"
                       onClick={() => setDraft(SAMPLE_BUGCROWD)}
-                      className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-white"
+                      className="rounded border border-line bg-surface-hover px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-text-primary"
                     >
                       Sample BC
                     </button>
@@ -167,8 +167,8 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
                 )}
               </div>
 
-              <div className="flex flex-col bg-black/30">
-                <div className="border-b border-white/5 px-4 py-2">
+              <div className="flex flex-col bg-surface-2">
+                <div className="border-b border-line px-4 py-2">
                   <label htmlFor="scope-program-handle" className="block text-[10px] font-mono uppercase tracking-widest text-muted">
                     Program handle
                   </label>
@@ -177,14 +177,14 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
                     value={program}
                     onChange={(e) => setProgram(e.target.value)}
                     placeholder="e.g. hackerone-shopify"
-                    className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-[11px] text-text outline-none focus:border-accent/40"
+                    className="mt-1 w-full rounded border border-line bg-surface-hover px-2 py-1 font-mono text-[11px] text-text outline-none focus:border-accent/40"
                   />
                 </div>
                 <ScopePreview parsed={preview} />
               </div>
             </div>
 
-            <footer className="flex items-center justify-between gap-2 border-t border-white/5 bg-black/40 px-6 py-3">
+            <footer className="flex items-center justify-between gap-2 border-t border-line bg-surface-2 px-6 py-3">
               <button
                 type="button"
                 onClick={handleClear}
@@ -197,14 +197,14 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-muted hover:text-white"
+                  className="rounded border border-line bg-surface-hover px-4 py-2 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-text-primary"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleImport}
-                  className="flex items-center gap-1.5 rounded bg-accent px-4 py-2 text-[10px] font-black uppercase tracking-widest text-black shadow-[0_0_15px_rgba(0,255,244,0.25)] hover:bg-white"
+                  className="flex items-center gap-1.5 rounded bg-accent px-4 py-2 text-[10px] font-black uppercase tracking-widest text-black shadow-glow-accent-md hover:bg-surface-raised"
                 >
                   <CheckCircle2 size={12} /> Import Scope
                 </button>
@@ -212,7 +212,7 @@ export function ScopeImportModal({ open, onClose }: ScopeImportModalProps) {
             </footer>
 
             {importedAt && !draft && (
-              <div className="border-t border-white/5 bg-black/30 px-6 py-2 text-[10px] font-mono text-muted">
+              <div className="border-t border-line-muted bg-surface-muted px-6 py-2 text-[10px] font-mono text-text-secondary">
                 Last import: {new Date(importedAt).toLocaleString()}
               </div>
             )}
@@ -282,7 +282,7 @@ function ScopeBucket({
           {entries.map((e) => (
             <li
               key={e.pattern}
-              className="flex items-center gap-2 rounded border border-white/5 bg-white/[0.02] px-2 py-1"
+              className="flex items-center gap-2 rounded border border-line bg-surface-hover px-2 py-1"
             >
               <span className="truncate text-text">{e.pattern}</span>
               {(e.bounty_min_usd != null || e.bounty_max_usd != null) && (

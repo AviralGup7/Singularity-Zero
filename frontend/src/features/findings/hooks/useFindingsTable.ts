@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import type { Finding } from '../../types/api';
+import type { Finding } from '@/types/api';
 
 type SortKey = 'severity' | 'bounty_value' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';

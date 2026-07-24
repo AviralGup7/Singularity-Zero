@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback  } from 'react';
+import type {ReactNode} from 'react';
 
 export function useLogFetcher<T>(
   fetchFn: (signal: AbortSignal) => Promise<T[]>,
@@ -44,11 +45,20 @@ export function LogTableShell({
   children,
 }: LogTableShellProps) {
   if (loading) {
-    return <div className="p-12 text-center text-muted animate-pulse">{loadingLabel}</div>;
+    return (
+      <div className="p-12 text-center text-muted" role="status" aria-live="polite">
+        <div className="inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" aria-hidden="true" />
+        <p>{loadingLabel}</p>
+      </div>
+    );
   }
 
   if (isEmpty) {
-    return <div className="p-12 text-center text-muted">{emptyLabel}</div>;
+    return (
+      <div className="p-12 text-center text-muted" role="status">
+        <p>{emptyLabel}</p>
+      </div>
+    );
   }
 
   return <>{children}</>;

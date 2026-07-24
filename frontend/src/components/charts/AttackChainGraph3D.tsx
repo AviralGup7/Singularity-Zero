@@ -1,17 +1,18 @@
 import { memo, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Color, Object3D, Vector3, type InstancedMesh } from 'three';
+import { Color, Object3D, Vector3  } from 'three';
+import type {InstancedMesh} from 'three';
 import * as THREE from 'three';
 import { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#ff2d55',
-  high: '#ff6b35',
-  medium: '#f7b731',
-  low: '#4da3ff',
-  info: '#8aa4b8',
+  critical: 'var(--severity-critical)',
+  high: 'var(--severity-high)',
+  medium: 'var(--severity-medium)',
+  low: 'var(--severity-low)',
+  info: 'var(--severity-info)',
 };
 
 const TYPE_LANES: Record<CockpitNode['type'], number> = {
@@ -97,7 +98,7 @@ function GraphEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: PositionedN
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <lineBasicMaterial color="#35506b" transparent opacity={0.38} />
+      <lineBasicMaterial color="var(--line-strong)" transparent opacity={0.38} />
     </lineSegments>
   );
 }
@@ -115,7 +116,7 @@ function LaneGuides() {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <lineBasicMaterial color="#25435a" transparent opacity={0.45} />
+      <lineBasicMaterial color="var(--line)" transparent opacity={0.45} />
     </lineSegments>
   );
 }
@@ -159,7 +160,7 @@ function writeNodeMatrices(
   temp.scale.setScalar(pulseScale);
   temp.updateMatrix();
   pulseRef.current?.setMatrixAt(index, temp.matrix);
-  pulseRef.current?.setColorAt(index, new Color('#d8f3ff'));
+  pulseRef.current?.setColorAt(index, new Color('var(--accent)'));
 
   const barY = posY + finalScale + 0.35;
   const healthVal = nodeHealth(node);
@@ -174,7 +175,7 @@ function writeNodeMatrices(
   temp.updateMatrix();
   healthRef.current?.setMatrixAt(index, temp.matrix);
 
-  const healthColor = healthVal < 0.35 ? '#ff2d55' : healthVal < 0.7 ? '#f7b731' : '#10b981';
+  const healthColor = healthVal < 0.35 ? 'var(--bad)' : healthVal < 0.7 ? 'var(--severity-medium)' : 'var(--ok)';
   healthRef.current?.setColorAt(index, new Color(healthColor));
 }
 
@@ -384,7 +385,7 @@ function GraphNodes({
         frustumCulled={true}
       >
         <boxGeometry args={[1, 0.12, 0.12]} />
-        <meshBasicMaterial color="#1a1a2e" transparent opacity={0.3} toneMapped={false} />
+        <meshBasicMaterial color="var(--surface-2)" transparent opacity={0.3} toneMapped={false} />
       </instancedMesh>
       <instancedMesh
         ref={healthRef}
@@ -459,11 +460,11 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={['#05070b']} />
-      <fog attach="fog" args={['#05070b', 30, 82]} />
+      <color attach="background" args={['var(--bg)']} />
+      <fog attach="fog" args={['var(--bg)', 30, 82]} />
       <ambientLight intensity={0.35} />
-      <pointLight position={[12, 15, 14]} intensity={2.2} color="#7dd3fc" />
-      <pointLight position={[-18, -10, -18]} intensity={1.1} color="#ff6b35" />
+      <pointLight position={[12, 15, 14]} intensity={2.2} color="var(--neon-cyan)" />
+      <pointLight position={[-18, -10, -18]} intensity={1.1} color="var(--severity-high)" />
       <LaneGuides />
       <GraphEdges edges={edges} nodes={nodes} />
       <GraphNodes
@@ -474,7 +475,7 @@ function Scene({
         onHoverNode={onHoverNode}
       />
       <CameraRig selected={selected} />
-      <perspectiveCamera makeDefault position={[0, 0, 42]} fov={48} />
+      <perspectiveCamera position={[0, 0, 42]} fov={48} />
       <OrbitRig />
     </>
   );
@@ -522,7 +523,7 @@ function Cockpit2DFallback({ nodes, edges, selectedNodeId, hoveredNodeId, onSele
   const arranged = useMemo(() => arrangeNodes(nodes), [nodes]);
   const focused = hoveredNodeId || selectedNodeId;
   return (
-    <div className={`relative ${className ?? 'h-full w-full'} overflow-auto bg-[#05070b]`}>
+    <div className={`relative ${className ?? 'h-full w-full'} overflow-auto bg-bg`}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
         {arranged.length === 0 && (
           <div className="text-muted text-center col-span-full p-12 text-xs uppercase tracking-[0.3em]">
@@ -538,8 +539,8 @@ function Cockpit2DFallback({ nodes, edges, selectedNodeId, hoveredNodeId, onSele
             onMouseLeave={() => onHoverNode(null)}
             className={`text-left rounded-lg border p-3 transition-all ${
               focused === n.id
-                ? 'border-accent bg-accent/10 shadow-[0_0_18px_rgba(0,255,244,0.18)]'
-                : 'border-white/10 bg-black/40 hover:border-white/20'
+                ? 'border-accent bg-accent-soft shadow-glow-accent-md'
+                : 'border-line bg-surface/40 hover:border-line-strong'
             }`}
           >
             <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest mb-1">
@@ -549,13 +550,13 @@ function Cockpit2DFallback({ nodes, edges, selectedNodeId, hoveredNodeId, onSele
               </span>
             </div>
             <div className="text-xs font-bold text-text truncate">{n.label}</div>
-            <div className="mt-2 h-1 overflow-hidden rounded bg-white/10">
+            <div className="mt-2 h-1 overflow-hidden rounded bg-line-muted">
               <div
-                className="h-full bg-cyan-300"
+                className="h-full bg-accent"
                 style={{ width: `${Math.round(nodeHealth(n) * 100)}%` }}
               />
             </div>
-            <div className="mt-1 font-mono text-[9px] uppercase text-slate-400">
+            <div className="mt-1 font-mono text-[9px] uppercase text-text-secondary">
               Health {Math.round(nodeHealth(n) * 100)}%
             </div>
           </button>
@@ -612,18 +613,18 @@ export const AttackChainGraph3D = memo(function AttackChainGraph3D({
         />
       )}
       {hudNode && (
-        <div className="pointer-events-none absolute right-4 top-4 w-56 rounded border border-cyan-300/40 bg-black/85 p-3 text-left shadow-[0_0_28px_rgba(56,189,248,0.18)] backdrop-blur-xl">
+        <div className="pointer-events-none absolute right-4 top-4 w-56 rounded border border-accent/40 bg-surface/85 p-3 text-left shadow-glow-accent-md backdrop-blur-xl">
           <div className="mb-1 flex items-center justify-between gap-3">
-            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200">{hudNode.type}</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-accent">{hudNode.type}</span>
             <span className="text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: SEVERITY_COLORS[hudNode.severity] || SEVERITY_COLORS.info }}>
               {hudNode.severity}
             </span>
           </div>
-          <div className="truncate text-xs font-bold text-white">{hudNode.label}</div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded bg-white/10">
-            <div className="h-full rounded bg-cyan-300" style={{ width: `${health}%` }} />
+          <div className="truncate text-xs font-bold text-text-primary">{hudNode.label}</div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded bg-line-muted">
+            <div className="h-full rounded bg-accent" style={{ width: `${health}%` }} />
           </div>
-          <div className="mt-1 font-mono text-[9px] uppercase tracking-wider text-slate-400">Health {health}%</div>
+          <div className="mt-1 font-mono text-[9px] uppercase tracking-wider text-text-secondary">Health {health}%</div>
         </div>
       )}
     </div>

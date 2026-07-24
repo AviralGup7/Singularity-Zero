@@ -26,9 +26,11 @@ function JobRuntimeSignalsBase({
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       className="card"
+      role="region"
+      aria-label="Runtime signals"
     >
       <h3>Runtime Signals</h3>
-      <div className="info-grid">
+      <div className="info-grid tabular-nums">
         {warningCount > 0 && (
           <InfoItem label="Warnings" value={`${warningCount}`} />
         )}
@@ -50,18 +52,18 @@ function JobRuntimeSignalsBase({
       </div>
       {degradedProviders.length > 0 && (
         <>
-          <h4 className="mt-4 text-xs font-bold text-[var(--text-secondary)] font-mono uppercase tracking-wider">Degraded Providers</h4>
-          <div className="modules-list flex flex-wrap gap-2 mt-2">
+          <h4 className="mt-4 text-xs font-bold text-text-secondary font-mono uppercase tracking-wider">Degraded Providers</h4>
+          <div className="modules-list flex flex-wrap gap-2 mt-2" role="list" aria-label="Degraded providers">
             {degradedProviders.map((provider) => (
-              <span key={provider} className="module-tag">{provider}</span>
+              <span key={provider} className="module-tag" role="listitem">{provider}</span>
             ))}
           </div>
         </>
       )}
       {timeoutEvents.length > 0 && (
         <>
-          <h4 className="mt-4 text-xs font-bold text-[var(--text-secondary)] font-mono uppercase tracking-wider">Timeout Events</h4>
-          <ul className="warnings-list mt-2 space-y-1">
+          <h4 className="mt-4 text-xs font-bold text-text-secondary font-mono uppercase tracking-wider">Timeout Events</h4>
+          <ul className="warnings-list mt-2 space-y-1" aria-label="Timeout events">
             {timeoutEvents.map((event) => (
               <li key={event}>{event}</li>
             ))}

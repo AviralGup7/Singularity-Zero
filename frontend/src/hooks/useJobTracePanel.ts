@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { RemediationSuggestion, TraceLink } from '@/types/api';
 import { getJobRemediation, getJobTraceLink } from '@/api/jobs';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export function useJobRemediation(jobId: string | undefined, isFailedJob: boolean) {
   const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
@@ -42,6 +43,8 @@ export function useJobTracePanel(jobId: string | undefined) {
     try {
       const link = await getJobTraceLink(jobId);
       setTracePanel(link);
+    } catch (err) {
+      showErrorToast(err, 'Failed to load trace link');
     } finally {
       setTraceLoading(false);
     }

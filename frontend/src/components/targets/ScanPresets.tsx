@@ -240,7 +240,7 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
               </div>
             ))}
             {invalidPlugins.map((plugin) => (
-              <div key={plugin.id} className="scan-preset-card card border-[var(--warn)]/60">
+              <div key={plugin.id} className="scan-preset-card card border-warn/60">
                 <div className="scan-preset-info">
                   <span className="scan-preset-name">{plugin.name}</span>
                   <span className="scan-preset-desc">

@@ -10,6 +10,7 @@ import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 import { useApi } from '@/hooks/useApi';
 import { bulkUpdateFindings } from '@/api/findings';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface DiffBucket {
   newFindings: Finding[];
@@ -93,7 +94,7 @@ export function ScanDiffPage() {
       await bulkUpdateFindings(ids, { status: 'accepted' });
       toast.success(`Accepted ${ids.length} new finding(s)`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Bulk accept failed');
+      showErrorToast(e instanceof Error ? e.message : 'Failed to accept new findings in bulk');
     } finally {
       setBulkBusy(false);
     }
@@ -111,7 +112,7 @@ export function ScanDiffPage() {
       await bulkUpdateFindings(ids, { falsePositive: true, fpStatus: 'approved', fpJustification: 'No longer present in latest run' });
       toast.success(`Dismissed ${ids.length} removed finding(s) as false-positive`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Bulk dismiss failed');
+      showErrorToast(e instanceof Error ? e.message : 'Failed to dismiss removed findings in bulk');
     } finally {
       setBulkBusy(false);
     }
@@ -198,7 +199,7 @@ export function ScanDiffPage() {
 
       {(errorA || errorB) && (
         <div className="card error-card p-4" role="alert">
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-sm text-text-secondary">
             {errorA?.message || errorB?.message || 'Failed to load scan data'}
           </p>
           <button
@@ -217,7 +218,7 @@ export function ScanDiffPage() {
             id="scan-diff-runa"
             value={runA}
             onChange={(e) => setRunA(e.target.value)}
-            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm"
+            className="w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm"
           >
             <option value="">Select a target...</option>
             {targets.map((t) => (
@@ -231,7 +232,7 @@ export function ScanDiffPage() {
             id="scan-diff-runb"
             value={runB}
             onChange={(e) => setRunB(e.target.value)}
-            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm"
+            className="w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm"
           >
             <option value="">Select a target...</option>
             {targets.map((t) => (
@@ -243,8 +244,8 @@ export function ScanDiffPage() {
 
       {!ready && (
         <GlassCard hoverable={false} className="text-center py-16">
-          <ArrowLeftRight size={48} className="mx-auto mb-4 text-[var(--text-tertiary)]" />
-          <p className="text-sm text-[var(--text-secondary)]">
+          <ArrowLeftRight size={48} className="mx-auto mb-4 text-text-tertiary" />
+          <p className="text-sm text-text-secondary">
             Pick two targets to compare their latest runs side-by-side.
           </p>
           <p className="mt-2 text-xs text-muted">Looking for the same target twice? You can select it in both slots — the system will compare the two most recent runs.</p>
@@ -253,7 +254,7 @@ export function ScanDiffPage() {
 
       {ready && (loadingA || loadingB) && (
         <GlassCard hoverable={false} className="text-center py-12">
-          <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-xs text-muted">Loading findings for both runs...</p>
         </GlassCard>
       )}
@@ -278,7 +279,7 @@ export function ScanDiffPage() {
               {SEVERITY_ORDER.map((sev) => {
                 const entry = severityBreakdown.get(sev) ?? { new: 0, removed: 0, changed: 0 };
                 return (
-                  <div key={sev} className={`rounded border border-white/5 bg-white/5 p-2 text-center`}>
+                  <div key={sev} className={`rounded border border-line bg-surface-hover p-2 text-center`}>
                     <div className={`text-[10px] font-black uppercase severity-badge sev-${sev}`}>{sev}</div>
                     <div className="mt-1 text-xs font-mono">
                       <span className="text-ok">+{entry.new}</span>{' / '}
@@ -300,7 +301,7 @@ export function ScanDiffPage() {
                 className={`px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest border transition-all ${
                   filter === f
                     ? 'bg-accent text-black border-accent'
-                    : 'border-white/10 text-muted hover:text-white'
+                    : 'border-line text-muted hover:text-text-primary'
                 }`}
                 onClick={() => { setFilter(f); setPage(1); }}
               >
@@ -352,7 +353,7 @@ export function ScanDiffPage() {
                   </tr>
                 )}
                 {paged.map((row, i) => (
-                  <tr key={`${row.kind}-${(row.finding.id ?? i)}`} className="hover:bg-white/5">
+                  <tr key={`${row.kind}-${(row.finding.id ?? i)}`} className="hover:bg-surface-hover">
                     <td className="text-xs font-medium">{row.finding.type || '—'}</td>
                     <td>
                       <span className={`severity-badge sev-${row.finding.severity}`}>

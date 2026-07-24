@@ -112,7 +112,7 @@ export function BloomMeshHealthPanel() {
         <Metric label="FP Prob" value={`${(aggregate.fp * 100).toFixed(3)}%`} tone={aggregate.fp > 0.001 ? 'bad' : 'ok'} />
       </div>
 
-      <div className="h-32 rounded-xl border border-white/5 bg-black/10 p-2">
+      <div className="h-32 rounded-xl border border-line bg-surface-2 p-2">
         <svg viewBox="0 0 320 112" role="img" aria-label="Bloom filter saturation over time" className="h-full w-full overflow-visible">
           <defs>
             <linearGradient id="bloomSaturation" x1="0" y1="0" x2="0" y2="1">
@@ -121,7 +121,7 @@ export function BloomMeshHealthPanel() {
             </linearGradient>
           </defs>
           {[24, 56, 88].map((y) => (
-            <line key={y} x1="0" x2="320" y1={y} y2={y} stroke="rgba(255,255,255,0.06)" />
+            <line key={y} x1="0" x2="320" y1={y} y2={y} stroke="var(--line)" />
           ))}
           {chartPath.fill ? <path d={chartPath.fill} fill="url(#bloomSaturation)" /> : null}
           {chartPath.line ? (
@@ -158,7 +158,7 @@ export function BloomMeshHealthPanel() {
 function Metric({ label, value, tone = 'text' }: { label: string; value: string; tone?: 'text' | 'ok' | 'bad' }) {
   const toneClass = tone === 'ok' ? 'text-ok' : tone === 'bad' ? 'text-bad' : 'text-white';
   return (
-    <div className="p-3 bg-white/5 rounded-xl border border-white/5 min-w-0">
+    <div className="p-3 bg-surface-hover rounded-xl border border-line min-w-0">
       <div className="text-[9px] text-muted font-bold uppercase mb-1">{label}</div>
       <div className={`text-lg font-black truncate ${toneClass}`}>{value}</div>
     </div>
@@ -168,7 +168,7 @@ function Metric({ label, value, tone = 'text' }: { label: string; value: string;
 function NodeRow({ node }: { node: BloomNodeHealth }) {
   return (
    
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-hover px-3 py-2">
       <div className="flex items-center gap-2 min-w-0">
         {node.stale ? <RadioTower size={13} className="text-bad" /> : <Activity size={13} className="text-ok" />}
         <span className="text-[10px] font-black text-text font-mono truncate">{node.node_id}</span>

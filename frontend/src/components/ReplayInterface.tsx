@@ -106,7 +106,7 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
   const findingId = searchParams.get('finding');
 
   return (
-    <div className="section">
+    <main className="section" aria-label="Replay Request">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
         <div className="section-title mb-0">🔄 Replay Request</div>
         {findingId && (
@@ -127,8 +127,12 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
         )}
       </div>
 
-      <form onSubmit={handleReplay} className="card card-padded">
-        {error && <div className="banner error" role="alert">{error}</div>}
+      <form onSubmit={handleReplay} className="card card-padded" noValidate>
+        {error && (
+          <div className="banner error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
 
         <div className="replay-form-grid">
           <div>
@@ -231,13 +235,18 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
           </div>
         </div>
 
-        <button type="submit" className={`btn w-full ${loading ? 'btn-loading' : ''}`} disabled={loading}>
+        <button
+          type="submit"
+          className={`btn w-full ${loading ? 'btn-loading' : ''}`}
+          disabled={loading}
+          aria-busy={loading}
+        >
           {loading ? 'Replaying...' : '🔄 Replay Request'}
         </button>
       </form>
 
       {result && (
-        <div className="card card-padded mt-16 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="card card-padded mt-16 animate-in fade-in slide-in-from-top-4 duration-300" role="region" aria-label="Replay results">
           <h3 className="mb-16 text-accent">📊 Replay Results</h3>
 
           <div className="replay-stat-grid">
@@ -283,13 +292,13 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
             </div>
           </div>
 
-          {result.redirect_chain && result.redirect_chain.length > 0 && (
+          {result && result.redirect_chain && result.redirect_chain.length > 0 && (
             <div className="mb-16">
               <h4 className="text-md text-accent mb-8">Redirect Chain</h4>
-              <div className="redirect-chain">
+              <div className="redirect-chain" role="list" aria-label="Redirect chain">
                 {result.redirect_chain.map((url, i) => (
-                  <div key={i} className="redirect-chain-item">
-                    {i > 0 && <span className="redirect-arrow"> → </span>}
+                  <div key={i} className="redirect-chain-item" role="listitem">
+                    {i > 0 && <span className="redirect-arrow" aria-hidden="true"> → </span>}
                     {url}
                   </div>
                 ))}
@@ -312,6 +321,6 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

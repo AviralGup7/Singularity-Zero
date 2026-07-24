@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from src.core.telemetry import build_telemetry_event, normalize_telemetry_event
+from src.dashboard.error_classification import _classify_stderr
 from src.dashboard.job_state_helpers import (
     EVENT_LOG_LIMIT,
     PROGRESS_HISTORY_LIMIT,
@@ -31,12 +32,18 @@ def _get_stage_baseline() -> dict[str, int]:
     baseline = get_stage_baseline()
     if baseline is not None and callable(baseline):
         try:
-            return baseline()
+            res = baseline()
+            if res:
+                return res
         except TypeError:
-            return {}
-    elif baseline is not None:
+            pass
+    elif baseline is not None and isinstance(baseline, dict) and baseline:
         return baseline
-    return {}
+    try:
+        from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
+        return STAGE_BASELINE_PERCENT
+    except ImportError:
+        return {}
 
 
 def _infer_percent(job: dict[str, Any], stage: str, payload: dict[str, Any]) -> int:
@@ -526,11 +533,21 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
         sp["reason"] = reason_text
     if error_text:
         sp["error"] = error_text
+    if stage_status == "error":
+        stderr_content = error_text or str(payload.get("stderr") or "")
+        returncode = _coerce_int(payload.get("returncode"))
+        if returncode is not None:
+            classification = _classify_stderr(stderr_content, returncode)
+            if classification:
+                sp["classification"] = classification
     retry_count = _coerce_int(payload.get("retry_count")) or _coerce_int(
         payload.get("retry_attempt")
     )
     if retry_count is not None:
         sp["retry_count"] = max(int(sp.get("retry_count", 0) or 0), max(0, retry_count))
+    retry_max = _coerce_int(payload.get("retry_max_attempts"))
+    if retry_max is not None:
+        sp["retry_max_attempts"] = max(0, retry_max)
     incoming_message = str(payload.get("message", "")).strip()
     if incoming_message:
         sp["last_event"] = incoming_message

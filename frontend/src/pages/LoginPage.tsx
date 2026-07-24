@@ -83,7 +83,7 @@ export function LoginPage() {
     }
   };
 
-  const inputFocusClass = 'focus-within:shadow-[0_0_0_2px_var(--accent-soft),0_0_12px_rgba(59,130,246,0.15)] transition-shadow duration-200';
+  const inputFocusClass = 'focus-within:shadow-[0_0_0_2px_var(--accent-soft),0_0_12px_color-mix(in_srgb,var(--accent)_15%,transparent)] transition-shadow duration-200';
 
   return (
     <main className="auth-canvas" aria-label="Sign in">

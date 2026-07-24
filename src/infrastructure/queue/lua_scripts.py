@@ -53,7 +53,6 @@ local queue_key = KEYS[3]
 local dlq_key = KEYS[4]
 local metrics_key = KEYS[5]
 local error_msg = ARGV[1]
-local retries = tonumber(ARGV[2])
 local max_retries = tonumber(ARGV[3])
 local now = tonumber(ARGV[4])
 
@@ -64,7 +63,11 @@ end
 redis.call('SREM', worker_key, job_key)
 redis.call('HSET', job_key, 'error', error_msg)
 
-if retries < max_retries then
+local retries = tonumber(redis.call('HGET', job_key, 'retries')) or 0
+redis.call('HINCRBY', job_key, 'retries', 1)
+local new_retries = retries + 1
+
+if new_retries <= max_retries then
     local backoff = math.floor(math.min(tonumber(ARGV[5]) * math.pow(tonumber(ARGV[6]), retries), tonumber(ARGV[7])))
     local retry_at = now + backoff
     local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or retry_at

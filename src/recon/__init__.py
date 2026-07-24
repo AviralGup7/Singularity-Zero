@@ -7,9 +7,166 @@ Uses lazy imports via __getattr__ to avoid circular import cascades
 through the pipeline/tools chain at module load time.
 """
 
+from __future__ import annotations
+
+import threading
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Module self-description
+# ---------------------------------------------------------------------------
+
+MODULE_META: dict[str, Any] = {
+    "name": "recon",
+    "version": "3.1.0",
+    "description": (
+        "Reconnaissance: subdomains, DNS, ports, JS parsing, API specs, "
+        "cloud recon, takeover detection, and WAF/CDN fingerprinting."
+    ),
+    "layer": "recon",
+    "submodules": (
+        "api_specs",
+        "cloud_recon",
+        "collectors",
+        "graphql",
+        "js_parsers",
+        "live_hosts",
+        "sources",
+    ),
+    "public_api": (
+        "subdomains",
+        "live_hosts",
+        "urls",
+        "parameters",
+        "ranked_urls",
+        "candidates",
+        "enumerate_subdomains",
+        "run_recon_layer",
+        "run_enhanced_recon_layer",
+        "run_port_scan",
+        "probe_live_hosts",
+        "collect_urls",
+        "prioritize_urls",
+        "rank_urls",
+        "score_url",
+        "score_url_weighted",
+        "discover_api_specs",
+        "merge_openapi_specs",
+        "detect_wildcard_async",
+        "detect_wildcard_sync",
+        "run_nuclei",
+        "run_nuclei_with_parsing",
+        "run_aggregated_archive",
+        "standardize_recon_outputs",
+        "cross_reference_domain",
+        "fetch_favicons",
+        "identify_origin_stack",
+        "infer_target_profile",
+        "build_nuclei_plan",
+        "spa_aware_extra_urls",
+        "generate_permutations",
+        "subdomain_permutator",
+        "waf_cdn_detector",
+        "drift_detection",
+        "target_index",
+        "url_weighting",
+        "url_validation",
+        "domain_validation",
+        "host_utils",
+        "port_scanner",
+        "dns_enumerator",
+        "js_parsers_v2",
+        "api_reconstructor",
+        "api_spec_discovery",
+        "graphql_introspection",
+        "ja3_fingerprint",
+        "favicon_fingerprint",
+        "scoring",
+        "nuclei",
+        "collectors",
+        "cloud_recon",
+        "takeover",
+        "preview_deployments",
+        "origin_discovery",
+        "shodan_censys",
+        "archive",
+        "alienurl",
+        "dnsx_wildcard",
+        "cvps",
+        "asn_expansion",
+        "azure_sas",
+        "headless_crawler",
+        "katana",
+        "filters",
+        "fp_watchlist",
+        "focused_rescan",
+        "ranking_support",
+        "spa_detection",
+        "models",
+        "common",
+        "discovery",
+        "standardize",
+        "pipeline",
+        "urls",
+        "nuclei_schema",
+        "nuclei_template_validation",
+        "api_specs",
+        "graphql",
+        "live_hosts",
+        "sources",
+        "js_parsers",
+        "fingerprinting",
+        "health",
+    ),
+    "depends_on": ("core",),
+    "entry_points": (),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify recon subsystem health.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``details`` / ``errors``.
+    """
+    try:
+        import src.recon.port_scanner as _ps  # noqa: F401
+        import src.recon.subdomains as _sub  # noqa: F401
+
+        return {
+            "status": "ok",
+            "module": "recon",
+            "version": "3.1.0",
+            "details": {
+                "subdomain_collector": "available",
+                "port_scanner": "available",
+            },
+        }
+    except ImportError as exc:
+        return {
+            "status": "degraded",
+            "module": "recon",
+            "version": "3.1.0",
+            "errors": [str(exc)],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Register self in the global module registry
+# ---------------------------------------------------------------------------
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
+
+# ---------------------------------------------------------------------------
+# Lazy facade (unchanged)
+# ---------------------------------------------------------------------------
+
 _LAZY_CACHE: dict[str, Any] = {}
+_LAZY_CACHE_LOCK = threading.Lock()
 
 _LAZY_IMPORT_MAP: dict[str, tuple[str, str]] = {
     "AzureReconResult": ("src.recon.azure_sas", "AzureReconResult"),
@@ -115,13 +272,24 @@ def __getattr__(name: str) -> Any:
 
         module = importlib.import_module(module_path)
         value = getattr(module, attr)
-        _LAZY_CACHE[name] = value
+        with _LAZY_CACHE_LOCK:
+            _LAZY_CACHE[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def __dir__() -> list[str]:
     return list(__all__)
+
+
+def clear_lazy_cache() -> None:
+    """Clear the lazy import cache.
+
+    This is primarily intended for test teardown so that monkeypatches
+    to underlying modules are visible on the next access.
+    """
+    with _LAZY_CACHE_LOCK:
+        _LAZY_CACHE.clear()
 
 
 __all__ = [

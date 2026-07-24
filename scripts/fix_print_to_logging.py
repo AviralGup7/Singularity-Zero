@@ -1,5 +1,4 @@
 """Replace debug print() calls with logger.*() calls in non-CLI files."""
-import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1] / "src"
@@ -7,7 +6,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 def fix_bin_downloader():
     fp = SRC / "core" / "utils" / "bin_downloader.py"
     content = fp.read_text(encoding="utf-8")
-    
+
     # Lines that have a print() mirroring a logger call just before
     # Line 143: print(f"\n[*] {message}") -> already has logger.info(message) at 141
     content = content.replace(
@@ -51,14 +50,14 @@ def fix_runtime():
 def fix_http_profiler():
     fp = SRC / "core" / "utils" / "http_profiler.py"
     content = fp.read_text(encoding="utf-8")
-    
+
     # Add logging import
     if "import logging" not in content:
         content = content.replace(
             '"""HTTP request profiling utilities."""\n',
             '"""HTTP request profiling utilities."""\n\nimport logging\nlogger = logging.getLogger(__name__)\n',
         )
-    
+
     # Replace all print() calls with logger.info()
     replacements = [
         ('print("  No HTTP profiling data collected.")', 'logger.info("No HTTP profiling data collected.")'),
@@ -77,10 +76,10 @@ def fix_http_profiler():
         ('print("\\n  Slowest requests:")', 'logger.info("  Slowest requests:")'),
         ('print(f"    {req[\'label\'][:50]:<50} {req[\'duration_ms\']:.1f}ms")', 'logger.info("    %s %s", req["label"][:50], f\'{req["duration_ms"]:.1f}ms\')'),
     ]
-    
+
     for old, new in replacements:
         content = content.replace(old, new)
-    
+
     fp.write_text(content, encoding="utf-8")
     print(f"Fixed: {fp}")
 

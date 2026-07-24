@@ -6,7 +6,7 @@ and focused.
 
 from __future__ import annotations
 
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 
 
 def replace_gau_provider_args(extra_args: list[str], providers: str) -> list[str]:
@@ -34,7 +34,7 @@ def replace_gau_provider_args(extra_args: list[str], providers: str) -> list[str
     return result
 
 
-def resolve_gau_extra_args(config: Config) -> list[str]:
+def resolve_gau_extra_args(config: PipelineConfig) -> list[str]:
     extra_args = [str(arg) for arg in config.gau.get("extra_args", [])]
     filters = config.filters or {}
     auto_expand = bool(filters.get("gau_auto_expand_providers", True))

@@ -137,6 +137,7 @@ export interface Job {
   failure_reason_code?: string;
   failure_step?: string;
   failure_reason?: string;
+  classification?: string;
   progress_percent: number;
   has_eta: boolean;
   eta_label: string;
@@ -207,7 +208,9 @@ export interface StageProgressEntry {
   percent: number;
   reason?: string;
   error?: string;
+  classification?: string;
   retry_count?: number;
+  retry_max_attempts?: number;
   last_event?: string;
   started_at?: number;
   updated_at?: number;
@@ -279,7 +282,7 @@ export interface ProgressTelemetry {
 }
 
 export interface DurationForecast {
-  per_stage: Record<string, { mean: number; p50: number; p90: number; count: number }>;
+  per_stage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>;
   total_mean_seconds: number;
 }
 

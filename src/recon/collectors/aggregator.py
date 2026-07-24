@@ -34,7 +34,7 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-from src.core.models.config import Config
+from src.core.config.typed_config import PipelineConfig
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.health import (
@@ -190,7 +190,7 @@ def _invoke_provider(
 def collect_urls(
     live_hosts: set[str],
     scope_entries: list[str],
-    config: Config,
+    config: PipelineConfig,
     progress_callback: Any = None,
     stage_meta: dict[str, Any] | None = None,
 ) -> set[str]:

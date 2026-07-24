@@ -364,13 +364,21 @@ SCOPE_VALIDATORS = (
 def _version_satisfies(version: str, spec: str) -> bool:
     """Check if a version string satisfies a PEP 440-style spec like >=2.0.0."""
     version = version.strip()
+    # Strip ANSI escape sequences and surrounding noise so version parsing
+    # doesn't crash on tool output like "[\x1b[34mINF\x1b[0m] Current Version: v2".
+    version = re.sub(r"\x1b\[[0-9;]*m", "", version)
+    version = re.sub(r"[^\d\.]+", "", version)
+    if not version:
+        return True
     m = re.match(r"^(>=|<=|==|!=|~=|>|<)(.+)$", spec.strip())
     if not m:
         return True
     op, required = m.group(1), m.group(2).strip()
     try:
-        v_parts = [int(x) for x in version.split(".")[:3]]
-        r_parts = [int(x) for x in required.split(".")[:3]]
+        v_parts = [int(x) for x in version.split(".")[:3] if x.isdigit()]
+        r_parts = [int(x) for x in required.split(".")[:3] if x.isdigit()]
+        if not v_parts or not r_parts:
+            return True
         while len(v_parts) < len(r_parts):
             v_parts.append(0)
         while len(r_parts) < len(v_parts):

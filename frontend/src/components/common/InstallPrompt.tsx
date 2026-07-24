@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePWA } from '@/hooks/usePWA';
 import { Button } from '@/components/ui/Button';
 
@@ -9,12 +9,20 @@ interface InstallPromptProps {
 export function InstallPrompt({ variant = 'floating' }: InstallPromptProps) {
   const { isInstallable, isInstalled, install } = usePWA();
   const [dismissed, setDismissed] = useState(false);
+  const installBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isInstalled && isInstallable && !dismissed && variant === 'floating') {
+      const timer = setTimeout(() => installBtnRef.current?.focus(), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isInstalled, isInstallable, dismissed, variant]);
 
   if (isInstalled || dismissed || !isInstallable) return null;
 
   if (variant === 'inline') {
     return (
-      <div className="pwa-install-prompt">
+      <div className="pwa-install-prompt" role="status" aria-label="Install app for offline access">
         <span>Install app for offline access</span>
         <button className="btn btn-sm btn-primary" onClick={install}>
           Install
@@ -35,26 +43,27 @@ export function InstallPrompt({ variant = 'floating' }: InstallPromptProps) {
       }}
       role="dialog"
       aria-label="Install application"
+      aria-modal="false"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontSize: 'var(--text-small)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <h3 className="font-mono text-accent text-sm font-bold uppercase tracking-wider">
             Install App
           </h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-small)', marginTop: '4px' }}>
+          <p className="text-text-secondary text-sm mt-1">
             Install CyberPipeline for quick access and offline support.
           </p>
         </div>
         <button
           onClick={() => setDismissed(true)}
-          className="modal-close"
+          className="modal-close hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
           aria-label="Dismiss install prompt"
         >
           ×
         </button>
       </div>
       <div className="flex gap-2 mt-3">
-        <Button variant="primary" onClick={install} className="flex-1 text-xs">
+        <Button ref={installBtnRef} variant="primary" onClick={install} className="flex-1 text-xs">
           Install
         </Button>
         <Button variant="ghost" onClick={() => setDismissed(true)} className="flex-1 text-xs">

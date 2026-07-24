@@ -28,24 +28,35 @@ export function ProgressBar({
   };
 
   const variantClasses = {
-    default: 'bg-primary',
-    glow: 'bg-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.8)]',
-    success: 'bg-emerald-500',
-    warning: 'bg-amber-500',
-    danger: 'bg-rose-500',
+    default: 'bg-accent',
+    glow: 'bg-accent shadow-glow-accent-md',
+    success: 'bg-ok',
+    warning: 'bg-warn',
+    danger: 'bg-bad',
   };
 
   return (
-    <div className={cn("w-full space-y-1.5", className)}>
+    <div className={cn("w-full space-y-1.5", className)} role="group" aria-label={label || 'Progress'}>
       {(label || showPercentage) && (
         <div className="flex justify-between text-xs font-medium text-muted-foreground">
-          {label && <span>{label}</span>}
-          {showPercentage && <span>{percentage}%</span>}
+          {label && <span id={`progress-label-${label}`}>{label}</span>}
+          {showPercentage && <span aria-hidden="true">{percentage}%</span>}
         </div>
       )}
-      <div className={cn("w-full bg-muted rounded-full overflow-hidden", sizeClasses[size])}>
+      <div
+        className={cn("w-full bg-muted rounded-full overflow-hidden", sizeClasses[size])}
+        role="progressbar"
+        aria-valuenow={percentage}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label ? `${label}: ${percentage}%` : `${percentage}% complete`}
+      >
         <div
-          className={cn("h-full transition-all duration-300 ease-out rounded-full", variantClasses[variant])}
+          className={cn(
+            "h-full transition-all duration-500 ease-out rounded-full",
+            variantClasses[variant],
+            percentage > 0 && "motion-safe:animate-[shimmer_2s_infinite]"
+          )}
           style={{ width: `${percentage}%` }}
         />
       </div>

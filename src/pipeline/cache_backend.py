@@ -1,6 +1,7 @@
 """Lazy-loaded persistent cache backed by SQLite."""
 
 import logging
+
 logger = logging.getLogger(__name__)
 import json
 import os
@@ -28,7 +29,6 @@ from src.infrastructure.db.sqlite_utils import (
     SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
 )
 from src.infrastructure.db.sqlite_utils import (
-
     safe_close,
 )
 

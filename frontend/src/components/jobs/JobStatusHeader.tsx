@@ -37,16 +37,16 @@ export function JobStatusHeader({
           : 'empty';
 
   return (
-    <div className="page-header page-header--job-detail">
+    <div className="page-header page-header--job-detail" role="banner">
       <div className="job-header-main">
-        <Link to={ROUTES.JOBS} className="back-link">Back to Jobs</Link>
+        <Link to={ROUTES.JOBS} className="back-link focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded">Back to Jobs</Link>
         <h2 data-focus-heading className="job-header-title">
-          <span className={`status-badge status-${statusClass}`}>{job.status}</span>
+          <span className={`status-badge status-${statusClass}`} role="status">{job.status}</span>
           <span>Job {job.id}</span>
-          <StatePulse state={pulseState} className="job-status-pulse" />
+          <StatePulse state={pulseState} className="job-status-pulse" aria-hidden="true" />
         </h2>
 
-        <div className="job-connection-badges">
+        <div className="job-connection-badges" role="status" aria-live="polite">
           {job.status === 'running' && (
             <span className={`ws-status ws-${connectionState}`}>
               <Icon name="activity" size={12} aria-hidden="true" />
@@ -64,7 +64,7 @@ export function JobStatusHeader({
             </span>
           )}
           {job.status === 'running' && (sseState === 'failed' || sseState === 'reconnecting') && (
-            <button className="btn btn-sm" onClick={onReconnect}>Retry Stream</button>
+            <button className="btn btn-sm focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none" onClick={onReconnect}>Retry Stream</button>
           )}
         </div>
       </div>
@@ -72,7 +72,7 @@ export function JobStatusHeader({
       <div className="job-actions">
         {job.status === 'running' && (
           <button
-            className="btn btn-danger"
+            className="btn btn-danger focus-visible:ring-2 focus-visible:ring-bad/50 focus-visible:outline-none"
             onClick={onStop}
             disabled={actionLoading === 'stop'}
           >
@@ -81,7 +81,7 @@ export function JobStatusHeader({
         )}
         {(job.status === 'failed' || job.status === 'stopped') && (
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
             onClick={onRestart}
             disabled={actionLoading === 'restart'}
           >

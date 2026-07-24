@@ -28,11 +28,14 @@ and subdomain sources when needed.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Generator, Iterable
 from typing import Any, Protocol, runtime_checkable
 
 from src.recon.collectors.types import CollectorMeta
 from src.recon.common import run_async_in_sync_context
+
+logger = logging.getLogger(__name__)
 
 # A "host list" is any iterable of strings (we normalise inside each
 # provider to be defensive against ``set``/``list``/``tuple``/generator

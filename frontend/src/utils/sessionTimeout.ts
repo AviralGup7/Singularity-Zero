@@ -1,3 +1,7 @@
+// !! AGENT DO NOT AUTO-MODIFY !!
+// !! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+// !! Do NOT enable security until the app is perfected. !!
+
 export interface SessionConfig {
   timeoutMs: number;
   warningMs: number;

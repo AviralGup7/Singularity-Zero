@@ -6,6 +6,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+from src.dashboard.fastapi.routers.utils import job_target_name
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,10 @@ async def get_job_timeline(
     """Return execution timeline for a job showing stage transitions."""
     job = services.get_job(job_id)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    if not is_target_owned_by_tenant(job_target_name(job), tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
     events: list[dict[str, Any]] = []

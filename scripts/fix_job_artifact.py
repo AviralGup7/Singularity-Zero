@@ -1,6 +1,6 @@
 """Fix print -> logger in job_artifact_packager.py"""
 path = r"D:\cyber security test pipeline - Copy\src\pipeline\services\job_artifact_packager.py"
-with open(path, "r", encoding="utf-8") as f:
+with open(path, encoding="utf-8") as f:
     content = f.read()
 
 # Only fix the success output prints in main(), not the CLI usage/error messages

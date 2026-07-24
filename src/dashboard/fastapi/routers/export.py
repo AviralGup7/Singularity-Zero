@@ -35,7 +35,8 @@ def _load_findings(run_dir: Path) -> list[dict[str, Any]]:
     try:
         data = json.loads(findings_path.read_text(encoding="utf-8"))
         return data if isinstance(data, list) else []
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to load findings from %s: %s", findings_path, exc)
         return []
 
 

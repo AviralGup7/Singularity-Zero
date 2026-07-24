@@ -1,4 +1,5 @@
-import { useMemo, type ComponentType } from 'react';
+import { useMemo  } from 'react';
+import type {ComponentType} from 'react';
 import RawLottiePlayer from 'lottie-react';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 
@@ -72,10 +73,10 @@ const baseAnimation = {
 };
 
 const stateColor: Record<PulseState, string> = {
-  loading: '#37f6ff',
-  success: '#1fe28a',
-  error: '#ff5568',
-  empty: '#8a96ad',
+  loading: 'var(--neon-cyan)',
+  success: 'var(--ok)',
+  error: 'var(--bad)',
+  empty: 'var(--text-tertiary)',
 };
 
 export function StatePulse({ state, className }: StatePulseProps) {

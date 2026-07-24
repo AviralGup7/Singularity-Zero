@@ -46,7 +46,7 @@ export async function getGapAnalysis(target?: string | null | AbortSignal, signa
   }
   
   const params = targetStr ? { target: targetStr } : undefined;
-  return cachedGet<DetectionGapResponse>('/api/gap-analysis', { signal: abortSignal, params });
+  return cachedGet<DetectionGapResponse>('/api/gap-analysis', { signal: abortSignal, params, bypassCache: true });
 }
 
 export async function refreshGapAnalysis(signal?: AbortSignal): Promise<{ status: string }> {

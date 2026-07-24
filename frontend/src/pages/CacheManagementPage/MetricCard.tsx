@@ -17,15 +17,15 @@ export function MetricCard({ icon, label, value, helper, progress, tone = 'accen
     <section className="card p-4 min-h-[132px]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs text-[var(--muted)] font-mono uppercase tracking-wider">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-[var(--text)]">{value}</p>
+          <p className="text-xs text-muted font-mono uppercase tracking-wider">{label}</p>
+          <p className="mt-2 text-2xl font-bold text-text">{value}</p>
         </div>
-        <div className="rounded border border-[var(--line)] p-2 text-[var(--accent)]" aria-hidden="true">
+        <div className="rounded border border-line p-2 text-accent" aria-hidden="true">
           {icon}
         </div>
       </div>
       {progress !== undefined && <Progress className="mt-4" value={clampPercent(progress)} variant={variant} size="sm" />}
-      {helper && <p className="mt-3 text-xs text-[var(--muted)]">{helper}</p>}
+      {helper && <p className="mt-3 text-xs text-muted">{helper}</p>}
     </section>
   );
 }

@@ -7,9 +7,9 @@ from typing import Any
 import httpx
 
 from src.reporting.platforms.base import (
-    _BaseClient,
     SubmissionEnvelope,
     SubmissionResult,
+    _BaseClient,
     logger,
     to_envelope,
 )

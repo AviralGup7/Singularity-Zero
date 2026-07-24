@@ -27,9 +27,9 @@ from collections.abc import Iterable
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
+from src.core.config.typed_config import PipelineConfig
 from src.core.contracts.param_categories import ParamCategory
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.models import Config
 from src.core.parsers.nuclei_parser import NucleiFindingParser
 from src.pipeline.tools import build_retry_policy, tool_available, try_command
 from src.recon.scoring import query_parameter_names
@@ -381,7 +381,7 @@ def _host_from_url(url: str) -> str:
 
 
 def _build_nuclei_command(
-    config: Config,
+    config: PipelineConfig,
     tags: list[str] | None,
     threads: int,
     output_file: str | None,
@@ -404,7 +404,7 @@ def _build_nuclei_command(
 
 def run_nuclei_adaptive(
     priority_urls: Iterable[str],
-    config: Config,
+    config: PipelineConfig,
     tags: list[str] | None = None,
     waf_cdn_report: dict[str, Any] | None = None,
     scope_hosts: set[str] | None = None,
@@ -496,7 +496,7 @@ def run_nuclei_adaptive(
     return parser.to_pipeline_findings(findings)
 
 
-def _verify_templates(config: Config) -> None:
+def _verify_templates(config: PipelineConfig) -> None:
     """Run template provenance check; raises ValueError on failure.
 
     The previous implementation only checked templates that were explicitly
@@ -598,7 +598,7 @@ def _verify_templates(config: Config) -> None:
 # ---------------------------------------------------------------------------
 
 
-def run_nuclei(priority_urls: Iterable[str], config: Config, tags: list[str] | None = None) -> str:
+def run_nuclei(priority_urls: Iterable[str], config: PipelineConfig, tags: list[str] | None = None) -> str:
     """Run nuclei scanning and return raw stdout text.
 
     .. deprecated::
@@ -631,7 +631,7 @@ def run_nuclei(priority_urls: Iterable[str], config: Config, tags: list[str] | N
 
 def run_nuclei_jsonl(
     priority_urls: Iterable[str],
-    config: Config,
+    config: PipelineConfig,
     tags: list[str] | None = None,
     output_file: str | None = None,
 ) -> str:
@@ -659,7 +659,7 @@ def run_nuclei_jsonl(
 
 def run_nuclei_with_parsing(
     priority_urls: Iterable[str],
-    config: Config,
+    config: PipelineConfig,
     tags: list[str] | None = None,
     scope_hosts: set[str] | None = None,
     output_file: str | None = None,

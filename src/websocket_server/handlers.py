@@ -185,16 +185,17 @@ class WebSocketHandler:
         """Handle WebSocket connection for job status notifications.
 
         Clients receive status change events for jobs they subscribe to.
-        Supports subscribing to specific job IDs via the query parameter
-        ``?job_id=<id>``.
-
-        Args:
-            websocket: The incoming WebSocket connection.
+        Supports subscribing to a specific job ID via the query parameter
+        ``?job_id=<id>``. The job id is sanitized before being used in a
+        channel name to prevent channel injection.
         """
-        job_id = websocket.query_params.get("job_id")
+        raw_job_id = websocket.query_params.get("job_id", "")
+        safe_job_id = (
+            raw_job_id.replace(":", "").replace("\r", "").replace("\n", "")[:256]
+        )
         default_channels: set[str] = {self._tenant_global_channel()}
-        if job_id:
-            default_channels.add(f"job:{job_id}")
+        if safe_job_id:
+            default_channels.add(f"job:{safe_job_id}")
 
         await self._handle_connection(
             websocket,

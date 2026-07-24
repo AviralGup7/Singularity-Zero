@@ -1,5 +1,3 @@
-import type { LazyExoticComponent, ComponentType } from 'react';
-
 export interface PageMeta {
   title: string;
   subtitle: string;
@@ -12,10 +10,12 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/pipeline': { title: 'Pipeline Overview', subtitle: 'Stage flow and scanner telemetry' },
   '/findings': { title: 'Findings', subtitle: 'Security issues and evidence' },
   '/bug-bounty': { title: 'Bounty Dashboard', subtitle: 'Bug bounty submission pipeline and yields' },
+  '/risk': { title: 'Risk', subtitle: 'Exposure scoring, remediation, and acceptance' },
   '/risk-score': { title: 'Risk Score', subtitle: 'Target exposure scoring' },
   '/findings-timeline': { title: 'Timeline', subtitle: 'Findings activity over time' },
   '/target-comparison': { title: 'Compare', subtitle: 'Target posture comparison' },
   '/gap-analysis': { title: 'Gap Analysis', subtitle: 'Detection coverage review' },
+  '/detection-quality': { title: 'Detection Quality', subtitle: 'Coverage review and feedback calibration' },
   '/learning': { title: 'Autonomous Learning', subtitle: 'Neural feedback and threshold calibration' },
   '/replay': { title: 'Replay', subtitle: 'Request replay tooling' },
   '/cache-management': { title: 'Cache', subtitle: 'Backend cache controls' },
@@ -29,6 +29,8 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/compliance': { title: 'Security Compliance', subtitle: 'Regulatory GRC mapping and attestations' },
   '/reports': { title: 'Reports', subtitle: 'Signed report artefacts and attestations' },
   '/access-logs': { title: 'Access Logs', subtitle: 'Compliance audit trail' },
+  '/governance': { title: 'Governance', subtitle: 'Compliance, audit trails, and evidence' },
+  '/evasion': { title: 'Evasion Metrics', subtitle: 'WAF/IDS bypass success rates' },
 };
 
 export const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
@@ -41,27 +43,29 @@ export const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   '/cockpit': () => import('@/pages/CockpitPage'),
   '/replay': () => import('@/components/ReplayInterface'),
   '/pipeline': () => import('@/pages/PipelineOverviewPage'),
-  '/risk-score': () => import('@/pages/RiskScorePage'),
+  '/risk': () => import('@/pages/RiskHubPage'),
+  '/risk-score': () => import('@/pages/RiskHubPage'),
   '/findings-timeline': () => import('@/pages/FindingsTimelinePage'),
   '/target-comparison': () => import('@/pages/TargetComparison'),
   '/scan-diff': () => import('@/pages/ScanDiffPage'),
-  '/remediation-planner': () => import('@/pages/RemediationPlanner'),
-  '/gap-analysis': () => import('@/pages/GapAnalysisPage'),
-  '/learning': () => import('@/pages/LearningPage'),
+  '/remediation-planner': () => import('@/pages/RiskHubPage'),
+  '/gap-analysis': () => import('@/pages/DetectionQualityPage'),
+  '/learning': () => import('@/pages/DetectionQualityPage'),
+  '/detection-quality': () => import('@/pages/DetectionQualityPage'),
   '/mesh': () => import('@/pages/MeshHealthPage'),
+  '/security': () => import('@/pages/SecurityResiliencePage'),
   '/tracing': () => import('@/pages/TracingPage'),
-  '/security': () => import('@/pages/SecurityPage'),
-  '/cache-management': () => import('@/pages/CacheManagementPage'),
   '/audit-logs': () => import('@/components/AuditLogViewer'),
-  '/compliance': () => import('@/pages/ComplianceDashboard'),
+  '/compliance': () => import('@/pages/GovernanceHubPage'),
   '/reports': () => import('@/pages/ReportLibraryPage'),
   '/reports/builder': () => import('@/pages/ReportBuilderPage'),
   '/access-logs': () => import('@/components/ComplianceLogViewer'),
   '/evidence-custody': () => import('@/pages/EvidenceCustodyPage'),
-  '/self-healing': () => import('@/pages/SelfHealingPage'),
+  '/self-healing': () => import('@/pages/SecurityResiliencePage'),
   '/evasion': () => import('@/pages/EvasionMetricsPage'),
-  '/risk/acceptance': () => import('@/pages/AcceptancePage'),
-  '/risk/assets': () => import('@/pages/AssetCriticalityPage'),
+  '/risk/acceptance': () => import('@/pages/RiskHubPage'),
+  '/risk/assets': () => import('@/pages/RiskHubPage'),
+  '/governance': () => import('@/pages/GovernanceHubPage'),
 };
 
 export function prefetchRoute(path: string) {

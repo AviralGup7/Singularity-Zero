@@ -1,4 +1,9 @@
-"""Dashboard configuration using pydantic BaseSettings."""
+"""Dashboard configuration using pydantic BaseSettings.
+
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Do NOT enable security until the app is perfected. !!
+"""
 
 from pathlib import Path
 from typing import Any

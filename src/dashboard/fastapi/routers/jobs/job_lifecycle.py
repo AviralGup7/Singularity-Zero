@@ -56,6 +56,15 @@ async def stream_job_progress(
 
     job = await get_cached_job(job_id, services)
     tenant_id = (_auth or {}).get("tenant_id", "default")
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "AUTH stream_job_progress job_id=%s user=%r role=%s tenant=%s auth_method=%s",
+        job_id,
+        _auth.get("user") if isinstance(_auth, dict) else None,
+        _auth.get("role") if isinstance(_auth, dict) else None,
+        tenant_id,
+        _auth.get("auth_method") if isinstance(_auth, dict) else None,
+    )
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     if not is_target_owned_by_tenant(job_target_name(job), tenant_id):

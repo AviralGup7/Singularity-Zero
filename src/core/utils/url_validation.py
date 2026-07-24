@@ -1,8 +1,8 @@
-import logging
 
 """URL validation for SSRF prevention."""
 
 import ipaddress
+import logging
 import re
 import socket
 import threading
@@ -10,6 +10,8 @@ import time
 from collections import OrderedDict as _OrderedDict
 from typing import Any
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
 PRIVATE_NETWORKS = [
@@ -239,8 +241,8 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
     try:
         ipaddress.ip_address(hostname)
         return not _is_ip_private(hostname)
-    except ValueError as exc:
-        logging.warning("Operation failed in url_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
+    except ValueError:
+        pass
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104  # nosec B104  (this is a banned-hostname check, not a bind)
         return False
     if hostname == "169.254.169.254":
@@ -311,8 +313,8 @@ def detect_dns_rebinding(hostname: str, *, rounds: int = 8, timeout: float = 2.0
                 private_ips.append(ip_str)
             else:
                 public_ips.append(ip_str)
-        except ValueError as exc:
-            logging.warning("Operation failed in url_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
+        except ValueError:
+            logger.debug("Skipping unparseable IP %r in DNS rebinding check", ip_str)
 
     if is_rebinding and private_ips and public_ips:
         risk_level = "critical"

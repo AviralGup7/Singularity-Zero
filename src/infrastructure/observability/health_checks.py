@@ -1,4 +1,5 @@
 import logging
+
 """Health check system for the cyber security test pipeline.
 
 Provides component-level health checks, aggregate health status,

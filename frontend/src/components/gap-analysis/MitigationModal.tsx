@@ -178,16 +178,16 @@ export function MitigationModal({ activeMitigation, selectedTarget, onClose, onC
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-panel backdrop-blur-sm animate-in fade-in duration-300">
       <motion.div
         initial={{ opacity: 0, y: 50, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 50, scale: 0.95 }}
-        className="relative w-full max-w-2xl bg-panel border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-2xl bg-panel border border-line rounded-2xl overflow-hidden shadow-2xl"
       >
         <div className="absolute top-0 right-0 w-48 h-48 bg-accent/5 -rotate-45 translate-x-24 -translate-y-24 pointer-events-none" />
 
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+        <div className="p-6 border-b border-line flex items-center justify-between">
           <div>
             <span
               className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
@@ -206,7 +206,7 @@ export function MitigationModal({ activeMitigation, selectedTarget, onClose, onC
             onClick={() => {
               onClose();
             }}
-            className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-muted hover:text-text"
+            className="p-1.5 hover:bg-surface-hover rounded-lg transition-colors text-muted hover:text-text"
           >
             <Icon name="x" size={20} />
           </button>
@@ -225,7 +225,7 @@ export function MitigationModal({ activeMitigation, selectedTarget, onClose, onC
                 {activeMitigation.missing.map((check, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-3 bg-black/40 border border-white/5 p-2.5 rounded-lg text-xs font-mono text-muted"
+                    className="flex items-start gap-3 bg-surface-2 border border-line p-2.5 rounded-lg text-xs font-mono text-muted"
                   >
                     <span className="text-accent">•</span>
                     <span className="text-left">{check}</span>
@@ -248,7 +248,7 @@ export function MitigationModal({ activeMitigation, selectedTarget, onClose, onC
               <Icon name="terminal" size={12} className="text-muted" />
               Ad-Hoc Execution Command
             </div>
-            <div className="relative bg-black/60 rounded-lg p-3 border border-white/10 font-mono text-xs text-ok overflow-x-auto text-left select-all">
+            <div className="relative bg-panel rounded-lg p-3 border border-line font-mono text-xs text-ok overflow-x-auto text-left select-all">
               {runCmd}
             </div>
           </div>
@@ -264,13 +264,13 @@ export function MitigationModal({ activeMitigation, selectedTarget, onClose, onC
                 {copied ? 'Copied!' : 'Copy Patch'}
               </button>
             </div>
-            <pre className="bg-black/60 rounded-lg p-3 border border-white/10 font-mono text-xs text-text overflow-x-auto text-left text-muted/95">
+            <pre className="bg-panel rounded-lg p-3 border border-line font-mono text-xs text-text overflow-x-auto text-left text-muted/95">
               {patchJson}
             </pre>
           </div>
         </div>
 
-        <div className="p-4 border-t border-white/5 bg-white/[0.01] flex justify-end gap-3">
+        <div className="p-4 border-t border-line bg-surface-hover flex justify-end gap-3">
           <button
             onClick={() => onClose()}
             className="btn btn-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider"

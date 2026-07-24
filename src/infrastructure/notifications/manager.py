@@ -147,7 +147,7 @@ class NotificationManager:
         metadata: dict[str, Any] | None = None,
         correlation_id: str | None = None,
     ) -> list[NotificationResult]:
-        if self._is_duplicate(event, priority, title, correlation_id):
+        if self._is_duplicate(event, priority, title, correlation_id, metadata):
             self._logger.debug("Duplicate notification suppressed: %s", title)
             return []
 
@@ -250,11 +250,18 @@ class NotificationManager:
         priority: NotificationPriority,
         title: str,
         correlation_id: str | None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         if self._config.deduplication_window_seconds <= 0:
             return False
 
-        key = f"{event.value}:{priority.value}:{title}:{correlation_id or ''}"
+        # Bug fix: Include metadata context (especially target) in dedup key
+        # to prevent collisions between notifications with same event/priority/title
+        # but different contexts (e.g., two different scan targets).
+        target_hint = ""
+        if metadata:
+            target_hint = str(metadata.get("target", ""))
+        key = f"{event.value}:{priority.value}:{title}:{correlation_id or target_hint or ''}"
         now = datetime.now(UTC).timestamp()
 
         with self._sent_hashes_lock:

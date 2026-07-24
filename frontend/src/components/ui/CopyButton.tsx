@@ -52,7 +52,7 @@ export function CopyButton({ text, size = 'sm', className = '', onClick }: CopyB
       title={copied ? 'Copied!' : `Copy: ${text}`}
     >
       {copied ? (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: 'var(--ok)', animation: 'scale-in 200ms var(--easing-spring) both' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-ok" style={{ animation: 'scale-in 200ms var(--easing-spring) both' }}>
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       ) : (

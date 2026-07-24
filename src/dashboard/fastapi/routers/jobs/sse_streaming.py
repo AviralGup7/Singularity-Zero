@@ -51,7 +51,16 @@ async def stream_job_logs(
     services: Any = Depends(get_queue_client),
 ) -> StreamingResponse:
     """Stream process logs in real-time, optionally enriched with progress metadata."""
+    import logging as _logging
     tenant_id = (_auth or {}).get("tenant_id", "default")
+    _logging.getLogger(__name__).info(
+        "AUTH stream_job_logs job_id=%s user=%r role=%s tenant=%s auth_method=%s",
+        job_id,
+        _auth.get("user") if isinstance(_auth, dict) else None,
+        _auth.get("role") if isinstance(_auth, dict) else None,
+        tenant_id,
+        _auth.get("auth_method") if isinstance(_auth, dict) else None,
+    )
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     job = await get_cached_job(job_id, services)
@@ -90,7 +99,7 @@ async def stream_job_logs(
 
         async def typed_event_stream() -> Any:
             nonlocal last_count, last_stage
-            from src.dashboard.job_state import _coerce_epoch
+            from src.dashboard.job_state_helpers import _coerce_epoch
 
             _tracker_key = f"{job_id}:logs"
             _global_tracker.register_client(_tracker_key)

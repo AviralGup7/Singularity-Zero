@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useJobs } from '../hooks';
+import { useJobsContext } from '../context/JobsContext';
 import type { Job } from '../types/api';
 import { useSSEProgress } from '../hooks/useSSEProgress';
 
@@ -12,15 +12,15 @@ const CONNECTION_LABELS: Record<string, string> = {
 };
 
 const CONNECTION_COLORS: Record<string, string> = {
-  connecting: 'var(--color-warning, #f59e0b)',
-  connected: 'var(--color-success, #22c55e)',
-  reconnecting: 'var(--color-warning, #f59e0b)',
-  failed: 'var(--color-error, #ef4444)',
-  closed: 'var(--color-muted, #6b7280)',
+  connecting: 'var(--warn)',
+  connected: 'var(--ok)',
+  reconnecting: 'var(--warn)',
+  failed: 'var(--bad)',
+  closed: 'var(--text-tertiary)',
 };
 
 export function LivePipelineStatus() {
-  const { data: jobs, loading } = useJobs({ refetchInterval: 5000 });
+  const { jobs, loading } = useJobsContext();
 
   const runningJobs = useMemo(() => {
     return (jobs ?? []).filter((j: Job) => j.status === 'running');

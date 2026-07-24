@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { CockpitNode, CockpitEdge } from '@/api/cockpit';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface GraphUpdateOptions {
   signal?: AbortSignal;
@@ -40,7 +41,7 @@ export function useCockpitGraph(
         .then((res) => applyGraph(res.data))
         .catch((err) => {
           if ((err as Error)?.name === 'AbortError') return;
-          console.error('Failed to update graph on telemetry:', err);
+          showErrorToast(err, 'Failed to update cockpit graph');
         })
         .finally(() => {
           inFlightRef.current = false;

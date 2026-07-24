@@ -25,32 +25,39 @@ export function WebVitalsDashboard() {
     const rating = value !== null ? getRating(name, value) : null;
     const color =
       rating === 'good'
-   
-        ? 'text-[var(--ok)]'
+        ? 'text-ok'
         : rating === 'needs-improvement'
-   
-          ? 'text-[var(--warn)]'
+          ? 'text-warn'
           : rating === 'poor'
-   
-            ? 'text-[var(--bad)]'
-   
-            : 'text-[var(--muted)]';
+            ? 'text-bad'
+            : 'text-muted';
+
+    const thresholds = getThresholds(name);
 
     return (
-      <div className="vital-metric">
+      <div className="vital-metric" role="group" aria-label={`${name}: ${value !== null ? `${value.toFixed(2)}${unit}` : 'N/A'}, rating: ${rating ?? 'unknown'}`}>
         <span className="vital-name">{name}</span>
-        <span className={`vital-value ${color}`}>
+        <span className={`vital-value ${color} tabular-nums`}>
           {value !== null ? `${value.toFixed(2)}${unit}` : 'N/A'}
         </span>
-        {rating && <span className={`vital-rating vital-${rating}`}>{rating}</span>}
+        {rating && (
+          <span className={`vital-rating vital-${rating}`} aria-label={rating.replace('-', ' ')}>
+            {rating}
+          </span>
+        )}
+        {value !== null && (
+          <span className="sr-only">
+            Good threshold: {thresholds.good}{unit}, needs improvement above: {thresholds.needsImprovement}{unit}
+          </span>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="web-vitals-dashboard">
+    <div className="web-vitals-dashboard" role="region" aria-label="Web Vitals dashboard">
       <h4 className="vitals-title">Web Vitals</h4>
-      <div className="vitals-grid">
+      <div className="vitals-grid" role="list">
         {renderMetric('CLS', vitals.CLS, '')}
         {renderMetric('LCP', vitals.LCP, 'ms')}
         {renderMetric('FCP', vitals.FCP, 'ms')}

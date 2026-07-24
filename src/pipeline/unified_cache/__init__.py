@@ -81,8 +81,12 @@ def get_unified_cache() -> UnifiedCache:
     return _unified_cache
 
 
-def cache_enabled(settings: dict[str, Any]) -> bool:
-    return bool(settings.get("enabled", True))
+def cache_enabled(settings: Any) -> bool:
+    if isinstance(settings, dict):
+        return bool(settings.get("enabled", True))
+    if hasattr(settings, "enabled"):
+        return bool(getattr(settings, "enabled", True))
+    return True
 
 
 def load_cached_json(path: Path) -> dict[str, Any] | None:
@@ -107,3 +111,20 @@ def load_cached_set(path: Path) -> set[str]:
 
 def save_cached_set(path: Path, items: Iterable[str], *, compress: bool = True) -> None:
     save_cached_json(path, list(items), compress=compress)
+
+
+def reset_unified_cache() -> None:
+    """Reset the unified cache singleton.
+
+    Closes the current cache instance (if any) and resets the
+    class-level singleton pointer so the next call to
+    :func:`get_unified_cache` creates a fresh instance.
+    """
+    global _unified_cache
+    if _unified_cache is not None:
+        try:
+            _unified_cache.close()
+        except Exception:
+            pass
+        _unified_cache = None
+    UnifiedCache._instance = None

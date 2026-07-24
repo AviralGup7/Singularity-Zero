@@ -22,10 +22,12 @@ function JobWarningsBase({ warnings, expanded, onToggle }: JobWarningsProps) {
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between text-left focus:outline-none"
+        className="w-full flex items-center justify-between text-left focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded"
+        aria-expanded={expanded}
+        aria-controls="job-warnings-list"
       >
         <h3>Warnings ({warnings.length})</h3>
-        <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${expanded ? 'rotate-180 text-[var(--bad)]' : ''}`} />
+        <ChevronDown size={18} className={`transform transition-transform duration-200 text-text-secondary ${expanded ? 'rotate-180 text-bad' : ''}`} aria-hidden="true" />
       </button>
       <AnimatePresence initial={false}>
         {expanded && (
@@ -35,6 +37,7 @@ function JobWarningsBase({ warnings, expanded, onToggle }: JobWarningsProps) {
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: EASE_OUT }}
             className="overflow-hidden"
+            id="job-warnings-list"
           >
             <ul className="warnings-list mt-4 space-y-1.5">
               {warnings.map((w, idx) => (

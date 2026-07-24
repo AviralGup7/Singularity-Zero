@@ -1,3 +1,82 @@
+"""Fuzzing orchestration, generators, mutators, and strategies."""
+
+from __future__ import annotations
+
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Module self-description
+# ---------------------------------------------------------------------------
+
+MODULE_META: dict[str, Any] = {
+    "name": "fuzzing",
+    "version": "3.1.0",
+    "description": (
+        "Fuzzing orchestration, generators, mutators, and strategies "
+        "for AST, coverage-guided, differential, stateful, and workflow fuzzing."
+    ),
+    "layer": "fuzzing",
+    "submodules": ("generators", "mutators", "strategies"),
+    "public_api": (
+        "CorpusManager",
+        "CoverageTracker",
+        "ForkServer",
+        "WorkflowFuzzer",
+        "EndpointNode",
+        "StopCondition",
+        "run_coverage_guided_campaign",
+        "run_differential_fuzzing_campaign",
+        "run_framing_fuzzing_campaign",
+        "run_h2_fuzzing_campaign",
+        "run_stateful_fuzzing_campaign",
+    ),
+    "depends_on": ("core",),
+    "entry_points": (),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify fuzzing subsystem health.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``errors``.
+    """
+    try:
+        from src.fuzzing.coverage_guided import CorpusManager  # noqa: F401
+        from src.fuzzing.orchestrator import FuzzingOrchestrator  # noqa: F401
+
+        return {
+            "status": "ok",
+            "module": "fuzzing",
+            "version": "3.1.0",
+            "details": {
+                "coverage_guided": "available",
+                "orchestrator": "available",
+            },
+        }
+    except ImportError as exc:
+        return {
+            "status": "degraded",
+            "module": "fuzzing",
+            "version": "3.1.0",
+            "errors": [str(exc)],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Register self in the global module registry
+# ---------------------------------------------------------------------------
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
+
+# ---------------------------------------------------------------------------
+# Public API re-exports (unchanged)
+# ---------------------------------------------------------------------------
+
 from .coverage_guided import CorpusManager, CoverageTracker, run_coverage_guided_campaign
 from .diff_utils import compute_diff_ratio, find_byte_level_diffs, normalize_response
 from .differential_fuzzer import GoldenResponseStore, run_differential_fuzzing_campaign

@@ -1,11 +1,8 @@
 import { GitMerge, XCircle, GitBranch } from 'lucide-react';
 
 interface DetailFooterProps {
-  findingId: string;
   target: string;
   url: string | undefined;
-  severity: string;
-  confidence: number;
   triageStatus: string;
   duplicates: string[];
   onReplay: () => void;
@@ -21,11 +18,8 @@ interface DetailFooterProps {
 }
 
 export function DetailFooter({
-  findingId,
   target,
   url,
-  severity,
-  confidence,
   triageStatus,
   duplicates,
   onReplay,
@@ -40,7 +34,7 @@ export function DetailFooter({
   onPromoteToIndependent,
 }: DetailFooterProps) {
   return (
-    <div className="px-8 py-6 bg-white/5 border-t border-white/5 flex justify-between items-center">
+    <div className="px-8 py-6 bg-surface-hover border-t border-line flex justify-between items-center">
       <div className="flex gap-4">
         <button
           type="button"

@@ -26,7 +26,6 @@ from src.pipeline.retry import (
     sleep_before_retry,
     sleep_before_retry_async,
 )
-from src.pipeline.runtime import main
 from src.pipeline.storage import (
     DISK_SPACE_WARN_BYTES,
     check_disk_space,
@@ -45,6 +44,8 @@ from src.pipeline.storage import (
     write_lines,
     write_ranked_lines,
 )
+
+from src.pipeline.runtime import main
 
 __all__ = [
     "AdaptiveBackoffHeuristic",

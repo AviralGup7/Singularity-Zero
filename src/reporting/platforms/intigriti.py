@@ -8,9 +8,9 @@ from typing import Any
 import httpx
 
 from src.reporting.platforms.base import (
-    _BaseClient,
     SubmissionEnvelope,
     SubmissionResult,
+    _BaseClient,
     to_envelope,
 )
 from src.reporting.sarif_exporter import _intigriti_weakness_id

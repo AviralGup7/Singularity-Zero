@@ -12,7 +12,6 @@ import asyncio
 import time
 from typing import TYPE_CHECKING, Any
 
-from src.core.checkpoint import StageCheckpointGuard
 from src.core.events import EventType
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
@@ -154,6 +153,8 @@ async def run_parallel_group(
         paral_timeout = orchestrator._resolve_stage_timeout(paral_stage, config, ctx)
 
         async def _wrapped(name: str, meth: Any, ts: int) -> None:
+            from src.core.checkpoint import StageCheckpointGuard
+
             started = time.time()
             findings_before = len(ctx.result.reportable_findings)
             try:

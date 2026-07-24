@@ -7,11 +7,16 @@ falling back to ``dict.get(...)`` heuristics.
 All TypedDicts are ``total=False`` by default so callers only need to
 populate the fields they actually have; downstream readers should use
 ``.get()`` with sensible defaults.
+
+Also defines ``ModuleHealth`` — a Protocol every ``src/*/__init__.py``
+``health_check()`` function must satisfy.  This allows the orchestrator
+and the test suite to call any module's health check uniformly without
+importing its sub-packages.
 """
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict
 
 # ---------------------------------------------------------------------------
 # Recon → Analysis / Intelligence
@@ -209,3 +214,56 @@ class SeverityModelInput(TypedDict, total=False):
     injectable_header: str
     missing_idempotency_hint: bool
     asset_type: str
+
+
+# ---------------------------------------------------------------------------
+# Module self-description layer
+# ---------------------------------------------------------------------------
+
+
+class ModuleLayer:
+    """Architectural layer constants for ``ModuleMeta.layer``.
+
+    Used by ``ModuleMeta`` and the module registry to categorise each
+    ``src/*`` package without importing it.
+    """
+
+    CORE = "core"
+    RECON = "recon"
+    ANALYSIS = "analysis"
+    DETECTION = "detection"
+    INTELLIGENCE = "intelligence"
+    DECISION = "decision"
+    EXECUTION = "execution"
+    REPORTING = "reporting"
+    EXPLOITATION = "exploitation"
+    FUZZING = "fuzzing"
+    INFRASTRUCTURE = "infrastructure"
+    PIPELINE = "pipeline"
+    DASHBOARD = "dashboard"
+    WEBSOCKET = "websocket"
+    LEARNING = "learning"
+    API_TESTS = "api_tests"
+    CLI = "cli"
+    BOOTSTRAP = "bootstrap"
+
+
+class ModuleHealth(Protocol):
+    """Structural contract for ``src/*/__init__.py`` ``health_check()``.
+
+    Every module ``__init__.py`` that participates in the module registry
+    MUST expose a ``health_check() -> dict[str, Any]`` function that
+    satisfies this Protocol.
+
+    The returned dict MUST contain:
+        ``"status"``: one of ``"ok"``, ``"degraded"``, or ``"error"``.
+        ``"module"``: the canonical module name string.
+        ``"version"``: the module version string.
+
+    May optionally contain:
+        ``"details"``: dict[str, Any] with extra diagnostic information.
+        ``"warnings"``: list[str] of non-fatal warnings.
+        ``"errors"``: list[str] of errors detected during the check.
+    """
+
+    def health_check(self) -> dict[str, Any]: ...

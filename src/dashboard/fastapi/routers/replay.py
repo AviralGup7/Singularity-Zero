@@ -70,24 +70,6 @@ async def replay_request(
     services: Any = Depends(get_queue_client),
 ) -> ReplayResponse:
     """Replay a previously captured request and compare responses."""
-    from src.core.contracts.protocol_registry import (
-        get_fetch_response_provider,
-        get_plugin_artifact_loader,
-        get_response_comparator,
-    )
-
-    compare_response_records = get_response_comparator()
-    artifact_loader = get_plugin_artifact_loader()
-    fetch_response_provider = get_fetch_response_provider()
-
-    if fetch_response_provider is None:
-        raise HTTPException(status_code=500, detail="Fetch response provider not available")
-    fetch_response = fetch_response_provider()
-
-    from src.core.contracts.protocol_registry import get_exploit_replay
-
-    replay_headers_for_mode = get_exploit_replay()
-
     # Refuse to even process the request if the caller put credentials in
     # the URL; this stops the leak before any handler logic runs. The
     # guard is a no-op when the function is invoked outside an HTTP
@@ -102,60 +84,24 @@ async def replay_request(
     if not validate_replay_id(replay_id):
         raise HTTPException(status_code=400, detail="Invalid replay ID.")
 
-    output_root = services.query.output_root
-    run_dir = (output_root / target / run).resolve()
-    if artifact_loader is not None and hasattr(artifact_loader, "plugin_artifact_path"):
-        behavior_path = artifact_loader.plugin_artifact_path(
-            run_dir, "behavior_analysis_layer"
-        ).resolve()
-    else:
-        behavior_path = (run_dir / "behavior_analysis_layer.json").resolve()
-    legacy_path = (run_dir / "behavior_analysis_layer.json").resolve()
+    from src.core.contracts.protocol_registry import get_exploit_replay
 
-    # Bug #35 fix: previously only ``run_dir`` was checked against
-    # ``output_root`` for path-traversal. A symlink under ``run_dir``
-    # pointing outside ``output_root`` would be followed by
-    # ``load_plugin_artifact`` / ``Path.open``, giving an authenticated
-    # user arbitrary file read on the server. We now also verify the
-    # resolved ``behavior_path`` and ``legacy_path`` are within
-    # ``output_root``.
-    if (
-        not is_within_directory(output_root, run_dir)
-        or not is_within_directory(output_root, behavior_path)
-        or not is_within_directory(output_root, legacy_path)
-    ) or (not behavior_path.exists() and not legacy_path.exists()):
-        raise HTTPException(status_code=404, detail="Replay context not found.")
+    replay_headers_for_mode = get_exploit_replay()
+    if replay_headers_for_mode is None:
+        try:
+            from src.bootstrap.startup_registration import ensure_protocol_bindings_registered
+            ensure_protocol_bindings_registered()
+            replay_headers_for_mode = get_exploit_replay()
+        except Exception:
+            pass
 
-    if artifact_loader is not None and hasattr(artifact_loader, "load_plugin_artifact"):
-        records = artifact_loader.load_plugin_artifact(run_dir, "behavior_analysis_layer")
-    else:
-        records = (
-            json.loads(behavior_path.read_text(encoding="utf-8")) if behavior_path.exists() else []
-        )
-    if not isinstance(records, list):
-        raise HTTPException(status_code=500, detail="Replay context could not be loaded.")
+    if replay_headers_for_mode is None:
+        try:
+            from src.execution.exploiters.exploit_automation import replay_headers_for_mode as _r_headers
+            replay_headers_for_mode = _r_headers
+        except Exception:
+            raise HTTPException(status_code=500, detail="Exploit replay protocol not available")
 
-    item = next(
-        (entry for entry in records if str(entry.get("replay", {}).get("id", "")) == replay_id),
-        None,
-    )
-    if not isinstance(item, dict):
-        raise HTTPException(status_code=404, detail="Replay id not found.")
-
-    request_context = item.get("request_context", {})
-    baseline_url = str(request_context.get("baseline_url", "")).strip()
-    mutated_url = str(request_context.get("mutated_url", "")).strip()
-
-    if not mutated_url:
-        raise HTTPException(status_code=400, detail="Stored request context is incomplete.")
-
-    # Pull auth headers from the caller's actual request headers (not the URL)
-    # so credentials never appear in query strings or access logs. The
-    # explicit query parameters ``authorization`` and ``cookie`` take
-    # precedence when supplied - this lets a caller force the replay
-    # into ``anonymous`` mode by passing empty strings, or supply a
-    # fresh token in ``bearer`` mode without having to overwrite the
-    # inbound ``Authorization`` header.
     inbound_authorization = ""
     inbound_cookie = ""
     if request is not None:
@@ -172,6 +118,96 @@ async def replay_request(
     except ValueError as exc:
         logger.exception("Replay header generation failed: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
+
+    from src.core.contracts.protocol_registry import (
+        get_fetch_response_provider,
+        get_plugin_artifact_loader,
+        get_response_comparator,
+    )
+
+    compare_response_records = get_response_comparator()
+    artifact_loader = get_plugin_artifact_loader()
+    fetch_response_provider = get_fetch_response_provider()
+
+    if fetch_response_provider is None:
+        try:
+            from src.bootstrap.startup_registration import ensure_protocol_bindings_registered
+            ensure_protocol_bindings_registered()
+            fetch_response_provider = get_fetch_response_provider()
+            artifact_loader = get_plugin_artifact_loader()
+            compare_response_records = get_response_comparator()
+        except Exception:
+            pass
+
+    if fetch_response_provider is None:
+        try:
+            from src.analysis.passive.runtime import _get_fetch_response
+            fetch_response_provider = _get_fetch_response
+        except Exception:
+            raise HTTPException(status_code=500, detail="Fetch response provider not available")
+
+    fetch_response = fetch_response_provider()
+
+    output_root = services.query.output_root.resolve()
+    run_dir = (output_root / target / run).resolve()
+    if not is_within_directory(output_root, run_dir):
+        raise HTTPException(status_code=404, detail="Replay context not found.")
+
+    if artifact_loader is not None and hasattr(artifact_loader, "plugin_artifact_path"):
+        try:
+            behavior_path = artifact_loader.plugin_artifact_path(
+                run_dir, "behavior_analysis_layer"
+            ).resolve()
+        except Exception:
+            behavior_path = (run_dir / "analysis_plugins" / "behavior_analysis.json").resolve()
+    else:
+        behavior_path = (run_dir / "analysis_plugins" / "behavior_analysis.json").resolve()
+    legacy_path = (run_dir / "behavior_analysis_layer.json").resolve()
+
+    if is_within_directory(output_root, behavior_path) and not behavior_path.exists():
+        # Fall back to checking legacy or alternate plugin path
+        alt_path = (run_dir / "analysis_plugins" / "behavior_analysis_layer.json").resolve()
+        if alt_path.exists():
+            behavior_path = alt_path
+
+    records: list[Any] | None = None
+    if behavior_path.exists():
+        try:
+            records = json.loads(behavior_path.read_text(encoding="utf-8"))
+        except Exception:
+            records = None
+
+    if (records is None or len(records) == 0) and legacy_path.exists():
+        try:
+            records = json.loads(legacy_path.read_text(encoding="utf-8"))
+        except Exception:
+            records = None
+
+    if (records is None or len(records) == 0) and artifact_loader is not None and hasattr(artifact_loader, "load_plugin_artifact"):
+        try:
+            records = artifact_loader.load_plugin_artifact(run_dir, "behavior_analysis_layer")
+        except Exception:
+            records = None
+
+    if isinstance(records, dict):
+        records = [records]
+
+    if records is None or not isinstance(records, list) or len(records) == 0:
+        raise HTTPException(status_code=404, detail="Replay context not found.")
+
+    item = next(
+        (entry for entry in records if str(entry.get("replay", {}).get("id", "")) == replay_id),
+        None,
+    )
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=404, detail="Replay id not found.")
+
+    request_context = item.get("request_context", {})
+    baseline_url = str(request_context.get("baseline_url", "")).strip()
+    mutated_url = str(request_context.get("mutated_url", "")).strip()
+
+    if not mutated_url:
+        raise HTTPException(status_code=400, detail="Stored request context is incomplete.")
 
     if baseline_url and not is_safe_replay_url(baseline_url):
         raise HTTPException(status_code=400, detail="Replay URL targets a restricted network.")
@@ -200,6 +236,13 @@ async def replay_request(
 
     if not replay:
         raise HTTPException(status_code=502, detail="Replay request did not return a response.")
+
+    if compare_response_records is None:
+        try:
+            from src.analysis.behavior.analysis_support import compare_response_records as _comp
+            compare_response_records = _comp
+        except Exception:
+            compare_response_records = lambda b, r: {}
 
     diff = compare_response_records(baseline, replay) if baseline else {}
 

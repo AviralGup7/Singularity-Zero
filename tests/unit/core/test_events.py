@@ -7,7 +7,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.events import EventBus, EventType, PipelineEvent
+import sys
+from pathlib import Path
+
+# Explicitly import root file module src/core/events.py
+import importlib.util
+spec = importlib.util.spec_from_file_location("root_events", Path(__file__).resolve().parent.parent.parent.parent / "src" / "core" / "events.py")
+root_events = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(root_events)
+
+EventBus = root_events.EventBus
+EventType = root_events.EventType
+PipelineEvent = root_events.PipelineEvent
+logger = root_events.logger
 
 
 @pytest.mark.unit
@@ -59,7 +71,7 @@ class TestEventBusUnsubscribe(unittest.TestCase):
         handler.assert_not_called()
 
     def test_unsubscribe_nonexistent_id_logs_warning(self) -> None:
-        with patch("src.core.events.logger") as mock_logger:
+        with patch.object(root_events, "logger") as mock_logger:
             self.bus.unsubscribe("nonexistent-id")
             mock_logger.warning.assert_called_once()
 

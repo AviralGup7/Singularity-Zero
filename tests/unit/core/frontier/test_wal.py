@@ -167,8 +167,7 @@ def test_wal_recovery_redis_failed_or_corrupt(monkeypatch, tmp_path):
 
 def test_wal_recovery_aof_failed_or_corrupt(tmp_path):
     run_id = "test_run_aof_corrupt"
-    wal = FrontierWAL(None, run_id)
-    wal._aof_path = tmp_path / f"local_wal_{run_id}.aof"
+    wal = FrontierWAL(None, run_id, aof_dir=tmp_path)
 
     # Write AOF entries:
     # 1. Invalid JSON line (causes JSONDecodeError)

@@ -788,6 +788,19 @@ class StageCheckpointGuard:
                     "elapsed_seconds": elapsed,
                 },
             )
+            # Bug fix: Also mark the stage as failed in the in-memory
+            # CheckpointState so downstream code sees consistent state
+            # without re-reading from persistence.
+            try:
+                current = self.manager.ensure_state()
+                if hasattr(current, "module_metrics"):
+                    current.module_metrics[self.stage_name] = {
+                        "status": "failed",
+                        "error": error_msg,
+                        "elapsed_seconds": elapsed,
+                    }
+            except Exception:
+                pass
             logger.error("Stage failed: %s (%s)", self.stage_name, error_msg)
             return None
 

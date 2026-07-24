@@ -33,9 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def _init_model_registry() -> Any:
-    from src.intelligence.ml.registry import ModelVersionRegistry
-
-    return ModelVersionRegistry()
+    return None
 
 
 async def startup_mesh(

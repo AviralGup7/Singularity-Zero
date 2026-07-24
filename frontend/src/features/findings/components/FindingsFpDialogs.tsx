@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import type { Finding } from '../../types/api';
+import type { Finding } from '@/types/api';
 
 interface FindingsFpDialogsProps {
   fpDialogFinding: Finding | null;

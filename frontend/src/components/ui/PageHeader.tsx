@@ -25,7 +25,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
           'flex items-center justify-between gap-4 pb-5 mb-1',
-          'border-b border-[var(--border-soft)] relative',
+          'border-b border-line-muted relative',
           className
         )}
         {...props}
@@ -39,7 +39,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
             <div
               className={cn(
                 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl relative overflow-hidden',
-                'bg-gradient-to-br from-[var(--accent-soft)] to-[var(--accent-muted)] text-[var(--accent)] border border-[var(--accent)]/10'
+                'bg-gradient-to-br from-[var(--accent-soft)] to-[var(--accent-muted)] text-accent border border-[var(--accent)]/10'
               )}
             >
               {icon}
@@ -49,7 +49,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
           <div className="min-w-0">
             <h1
               className={cn(
-                'text-[length:var(--text-page-title)] font-[var(--weight-title)] text-[var(--text-primary)]',
+                'text-[length:var(--text-page-title)] font-[var(--weight-title)] text-text-primary',
                 'truncate leading-tight tracking-tight'
               )}
             >
@@ -59,7 +59,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
             {subtitle && (
               <div
                 className={cn(
-                  'text-[length:var(--text-page-subtitle)] text-[var(--text-secondary)]',
+                  'text-[length:var(--text-page-subtitle)] text-text-secondary',
                   'mt-0.5 truncate'
                 )}
               >

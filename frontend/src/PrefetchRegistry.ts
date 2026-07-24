@@ -1,4 +1,5 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import { lazy   } from 'react';
+import type {ComponentType, LazyExoticComponent} from 'react';
 
 const prefetchMap = new Map<string, () => Promise<unknown>>();
 
@@ -15,8 +16,10 @@ export function prefetchRoute(path: string) {
 
 export function lazyWithPrefetch(
   path: string,
-  importFn: () => Promise<{ default: ComponentType }>,
-): LazyExoticComponent<ComponentType> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  importFn: () => Promise<{ default: ComponentType<any> }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): LazyExoticComponent<ComponentType<any>> {
   registerRoutePrefetch(path, importFn);
   return lazy(importFn);
 }

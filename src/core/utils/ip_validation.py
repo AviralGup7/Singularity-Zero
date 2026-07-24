@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 """IP address validation helpers.
 
 A previous version of the project used a regex like
@@ -70,8 +68,8 @@ def indicator_type_for(host: str | None) -> str:
     try:
         ipaddress.IPv4Address(candidate)
         return "IPv4"
-    except (ipaddress.AddressValueError, ValueError) as exc:
-        logging.warning("Operation failed in ip_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
+    except (ipaddress.AddressValueError, ValueError):
+        pass
     try:
         ipaddress.IPv6Address(candidate)
         return "IPv6"

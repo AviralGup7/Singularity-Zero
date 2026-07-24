@@ -65,7 +65,7 @@ export function SavedFilterPresets({ currentFilters, onLoadPreset, className }: 
       </div>
 
       {isSaving && (
-        <div className="absolute top-full left-0 mt-2 z-50 bg-panel border border-white/10 rounded-xl shadow-2xl p-4 min-w-[280px]">
+        <div className="absolute top-full left-0 mt-2 z-50 bg-panel border border-line rounded-xl shadow-2xl p-4 min-w-[280px]">
           <h4 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Save Filter Preset</h4>
           <div className="flex gap-2">
               <input
@@ -73,7 +73,7 @@ export function SavedFilterPresets({ currentFilters, onLoadPreset, className }: 
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
                 placeholder="Preset name..."
-                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-mono text-text focus:border-accent/50 outline-none"
+                className="flex-1 bg-surface-2 border border-line rounded-lg px-3 py-1.5 text-xs font-mono text-text focus:border-accent/50 outline-none"
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
               />
             <button
@@ -96,7 +96,7 @@ export function SavedFilterPresets({ currentFilters, onLoadPreset, className }: 
       )}
 
           {isOpen && (
-        <div className="absolute top-full left-0 mt-2 z-50 bg-panel border border-white/10 rounded-xl shadow-2xl min-w-[280px] max-h-[300px] overflow-y-auto">
+        <div className="absolute top-full left-0 mt-2 z-50 bg-panel border border-line rounded-xl shadow-2xl min-w-[280px] max-h-[300px] overflow-y-auto">
           {presets.length === 0 ? (
             <div className="p-4 text-center text-muted text-xs">
               <Bookmark size={24} className="mx-auto mb-2 opacity-40" />
@@ -111,7 +111,7 @@ export function SavedFilterPresets({ currentFilters, onLoadPreset, className }: 
                   role="option"
                   aria-selected={false}
                   tabIndex={0}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-white/5 cursor-pointer group"
+                  className="flex items-center justify-between px-3 py-2 hover:bg-surface-hover cursor-pointer group"
                   onClick={() => handleLoad(preset.id)}
                   onKeyDown={(e) => e.key === 'Enter' && handleLoad(preset.id)}
                 >

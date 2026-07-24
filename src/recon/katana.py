@@ -10,14 +10,14 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.pipeline.tools import build_retry_policy
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import parse_plain_lines, run_commands_parallel_outcomes
 from src.recon.filters import apply_url_filters
 
 
-def _resolve_katana_path(config: Config) -> str | None:
+def _resolve_katana_path(config: PipelineConfig) -> str | None:
     katana_cfg = getattr(config, "katana", None) or {}
     candidates: list[str] = []
     env_path = os.environ.get("KATANA_BIN", "").strip()
@@ -38,7 +38,7 @@ def _resolve_katana_path(config: Config) -> str | None:
     return fallback
 
 
-def _collect_katana_flags(config: Config) -> tuple[list[str], str | None]:
+def _collect_katana_flags(config: PipelineConfig) -> tuple[list[str], str | None]:
     katana_cfg = getattr(config, "katana", None) or {}
     flags: list[str] = ["-headless", "-jc", "-timeout", "30", "-concurrency", "10", "-depth", "5"]
     har_path = (katana_cfg.get("har_output_path") or "").strip()
@@ -60,7 +60,7 @@ def _collect_katana_flags(config: Config) -> tuple[list[str], str | None]:
 
 def run_katana(
     live_hosts: set[str],
-    config: Config,
+    config: PipelineConfig,
     progress_callback: Any = None,
     runtime_budget_seconds: int | None = None,
 ) -> tuple[set[str], dict[str, Any]]:

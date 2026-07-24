@@ -1,4 +1,5 @@
-import React, { useId } from 'react';
+import { useId } from 'react';
+import type { ReactNode } from 'react';
 
 export function SettingToggle({ label, checked, onChange, description, id }: { label: string; checked: boolean; onChange: (v: boolean) => void; description?: string; id?: string }) {
   const generatedId = useId();
@@ -61,7 +62,7 @@ export function SettingNumberInput({ label, value, onChange, min, max, descripti
   );
 }
 
-export function SettingsSectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+export function SettingsSectionCard({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
   return (
     <div className="settings-section-card">
       <h3 className="settings-section-title">

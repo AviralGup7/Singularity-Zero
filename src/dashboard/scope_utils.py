@@ -195,7 +195,7 @@ def estimate_remaining(
         return 0.0
 
     baseline_remaining: float | None = None
-    if progress_percent >= 8:
+    if progress_percent >= 2:
         estimated_total = elapsed_seconds / (progress_percent / 100)
         baseline_remaining = max(0.0, estimated_total - elapsed_seconds)
 

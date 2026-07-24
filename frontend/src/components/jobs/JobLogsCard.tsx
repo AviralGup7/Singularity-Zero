@@ -19,14 +19,18 @@ function JobLogsCardBase({ displayLines, wsFailed, jobStatus, expanded, onToggle
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       className="card"
+      role="region"
+      aria-label="Job logs"
     >
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between text-left focus:outline-none"
+        className="w-full flex items-center justify-between text-left focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded"
+        aria-expanded={expanded}
+        aria-controls="job-logs-panel"
       >
         <h3>Job Logs</h3>
-        <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${expanded ? 'rotate-180 text-[var(--accent)]' : ''}`} />
+        <ChevronDown size={18} className={`transform transition-transform duration-200 text-text-secondary ${expanded ? 'rotate-180 text-accent' : ''}`} aria-hidden="true" />
       </button>
       <AnimatePresence initial={false}>
         {expanded && (
@@ -36,6 +40,7 @@ function JobLogsCardBase({ displayLines, wsFailed, jobStatus, expanded, onToggle
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: EASE_OUT }}
             className="overflow-hidden"
+            id="job-logs-panel"
           >
             <div className="pt-4">
               <JobLogViewer

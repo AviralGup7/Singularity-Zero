@@ -107,7 +107,7 @@ const JobCard = memo(function JobCard({ job, onRefresh, shortcut }: { job: Job; 
       </div>
 
       <div className="job-url flex items-center gap-1" title={job.base_url}>
-        <span className="truncate flex-1">{job.base_url ?? '-'}</span>
+        <span className="truncate flex-1" title={job.base_url ?? ''}>{job.base_url ?? '-'}</span>
         {job.base_url && <CopyButton text={job.base_url} />}
       </div>
 
@@ -115,17 +115,17 @@ const JobCard = memo(function JobCard({ job, onRefresh, shortcut }: { job: Job; 
         Stage: {stageName(job.stage_label, job.stage)} · Mode: {job.mode ?? '-'}
       </div>
 
-      <div className="progress-bar">
+      <div className="progress-bar" role="progressbar" aria-valuenow={Math.round(job.progress_percent ?? 0)} aria-valuemin={0} aria-valuemax={100} aria-label={`Job progress: ${Math.round(job.progress_percent ?? 0)}%`}>
         <div
           className={`progress-fill${job.status === 'running' ? ' running' : ''}`}
           style={{ width: `${Math.min(100, job.progress_percent ?? 0)}%` }}
         />
       </div>
 
-      <div className="job-metrics-inline">
+      <div className="job-metrics-inline tabular-nums">
         <span><MicroPulseValue value={`${Math.round(job.progress_percent ?? 0)}%`} /></span>
         {job.has_eta && <span>ETA {job.eta_label ?? '--'}</span>}
-        {job.stalled && <span className="job-metric-bad">Stalled</span>}
+        {job.stalled && <span className="job-metric-bad" role="status">Stalled</span>}
       </div>
 
       {job.status_message && <div className="job-status-text">{job.status_message}</div>}
@@ -289,7 +289,8 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
             value={filter}
             onChange={(e) => setFilter(e.target.value as 'all' | 'running' | 'completed' | 'failed')}
    
-            className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-text focus:border-accent/50 outline-none appearance-none cursor-pointer min-w-[120px]"
+            className="bg-surface-2 border border-line rounded-lg px-3 py-1.5 text-xs text-text focus:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/30 outline-none appearance-none cursor-pointer min-w-[120px]"
+            aria-label="Filter jobs by status"
           >
             <option value="all">All Jobs</option>
             <option value="running">Running</option>

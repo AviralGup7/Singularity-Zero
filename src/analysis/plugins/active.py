@@ -98,12 +98,7 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "Detect GraphQL endpoints, test schema introspection exposure, query depth abuse, batch aliasing, and mutation surfaces.",
         "active",
     ),
-    spec(
-        "http_smuggling_probe",
-        "HTTP Smuggling Probe",
-        "Actively probe for CL.TE, TE.CL, and double Content-Length smuggling via header conflict requests.",
-        "active",
-    ),
+
     spec(
         "http2_probe",
         "HTTP/2 Probe",
@@ -116,12 +111,7 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "Analyze OAuth/SAML endpoints for implicit flow, missing PKCE, open redirect, and token exposure.",
         "active",
     ),
-    spec(
-        "websocket_message_probe",
-        "WebSocket Probe",
-        "Probe WebSocket endpoints for missing auth, origin bypass, and arbitrary message acceptance.",
-        "active",
-    ),
+
     spec(
         "path_traversal_active_probe",
         "Path Traversal Probe",
@@ -141,7 +131,7 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "active",
     ),
     spec(
-        "application_ssrf_vector_detector",
+        "app_ssrf_scan",
         "Application SSRF Vector Detector",
         "Detect Grafana, Kibana, Jenkins, GitLab, and other apps with known SSRF-prone endpoints.",
         "active",
@@ -243,7 +233,7 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "active",
     ),
     spec(
-        "xpath_injection_probe",
+        "xpath_injection_active_probe",
         "XPath Injection Probe",
         "Send XPath injection payloads to XML-backed endpoint parameters and detect error patterns, auth bypass, and response divergence.",
         "active",
@@ -303,7 +293,7 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "active",
     ),
     spec(
-        "hidden_parameter_miner",
+        "param_mining_probe",
         "Hidden Parameter Miner",
         "Actively discover hidden parameters like ?debug=1 or ?admin=true using common wordlists to find hidden inputs.",
         "active",

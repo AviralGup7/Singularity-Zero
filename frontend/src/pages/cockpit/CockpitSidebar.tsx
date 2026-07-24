@@ -52,28 +52,32 @@ function CockpitSidebarBase({
   if (!sidebarOpen) return null;
 
   return (
-    <div className="w-96 flex-shrink-0 z-20 flex flex-col border-l border-white/10 bg-[#06080c]/90 backdrop-blur-2xl shadow-2xl">
-      <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+    <div className="w-96 flex-shrink-0 z-20 flex flex-col border-l border-line-strong bg-surface/90 backdrop-blur-2xl shadow-2xl" role="complementary" aria-label="Cockpit inspector sidebar">
+      <div className="flex items-center justify-between border-b border-line-muted px-6 py-4">
         <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent">
           Inspector Telemetry
         </h3>
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className="text-muted transition-colors hover:text-accent"
+          className="text-text-secondary transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded"
+          aria-label="Close inspector sidebar"
         >
-          <Icon name="x" size={18} />
+          <Icon name="x" size={18} aria-hidden="true" />
         </button>
       </div>
 
-      <div className="flex border-b border-white/5 bg-white/5">
+      <div className="flex border-b border-line-muted bg-surface-2" role="tablist" aria-label="Inspector tabs">
         {(['intel', 'forensics'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => setSidebarTab(tab)}
+            role="tab"
+            aria-selected={sidebarTab === tab}
+            aria-controls={`sidebar-panel-${tab}`}
             className={`flex-1 text-center py-3 font-mono text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
-              sidebarTab === tab ? 'border-accent text-white' : 'border-transparent text-muted hover:text-text'
+              sidebarTab === tab ? 'border-accent text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab === 'intel' ? 'Findings' : 'Forensics'}
@@ -81,7 +85,7 @@ function CockpitSidebarBase({
         ))}
       </div>
 
-      <div className="scrollbar-cyber flex-1 overflow-y-auto p-6">
+      <div className="scrollbar-cyber flex-1 overflow-y-auto p-6" role="tabpanel" id={`sidebar-panel-${sidebarTab}`}>
         {sidebarTab === 'intel' && selectedNode && (
           <IntelSidebar
             selectedNode={selectedNode}

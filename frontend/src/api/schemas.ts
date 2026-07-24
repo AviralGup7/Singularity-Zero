@@ -177,12 +177,12 @@ export const AppSettingsSchema = z.object({
     parallelModules: true,
   }),
   api: z.object({
-    baseUrl: z.string().default('http://localhost:8000'),
+    baseUrl: z.string().default(''),
     timeout: z.number().default(30),
     apiKey: z.string().default(''),
     enableGuestLogin: z.boolean().default(true),
   }).default({
-    baseUrl: 'http://localhost:8000',
+    baseUrl: '',
     timeout: 30,
     apiKey: '',
     enableGuestLogin: true,

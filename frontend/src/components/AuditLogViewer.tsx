@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { ShieldCheck, ShieldAlert, RefreshCw, Fingerprint } from 'lucide-react';
-import { getBackendAuditEntries, verifyAuditIntegrity, type BackendAuditEntry } from '@/api/audit';
+import { getBackendAuditEntries, verifyAuditIntegrity  } from '@/api/audit';
 import { useToast } from '@/hooks/useToast';
 import { useLogFetcher, LogTableShell } from '@/components/common/TelemetryLogTable';
 
@@ -69,25 +69,28 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder="FILTER EVENTS..."
-            className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-mono uppercase focus:border-accent/40 outline-none"
+            className="bg-surface-hover border border-line rounded px-3 py-1.5 text-xs font-mono uppercase focus:border-accent/40 outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
+            aria-label="Filter audit events"
           />
-          <button onClick={() => refetch()} className="btn-secondary btn-small p-2" title="Refresh">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <button onClick={() => refetch()} className="btn-secondary btn-small p-2" title="Refresh" aria-label="Refresh audit log">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
           </button>
           <button 
             onClick={handleVerify} 
             disabled={verifying}
+            aria-busy={verifying}
+            aria-label={verifying ? 'Verifying integrity' : 'Verify audit log integrity'}
             className={`btn-small flex items-center gap-2 font-black uppercase tracking-widest text-[9px] px-3 py-2 rounded border transition-all ${
                 integrity?.is_valid === false 
                 ? 'bg-danger/20 border-danger/40 text-danger' 
                 : integrity?.is_valid === true
                 ? 'bg-ok/20 border-ok/40 text-ok'
-                : 'bg-white/5 border-white/10 text-muted'
+                : 'bg-surface-hover border-line text-muted'
             }`}
           >
             {verifying ? 'Verifying...' : (
                 <>
-                    <Fingerprint size={12} />
+                    <Fingerprint size={12} aria-hidden="true" />
                     Verify Integrity
                 </>
             )}
@@ -96,8 +99,8 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
       </div>
 
       {integrity && !integrity.is_valid && (
-          <div className="banner error flex items-center gap-3">
-              <ShieldAlert size={18} />
+          <div className="banner error flex items-center gap-3" role="alert" aria-live="assertive">
+              <ShieldAlert size={18} aria-hidden="true" />
               <div>
                 <p className="font-bold">Log Integrity Compromised</p>
                 <p className="text-xs opacity-80">Tampering detected at IDs: {integrity.compromised_ids.join(', ')}</p>
@@ -106,18 +109,18 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
       )}
 
       {integrity?.is_valid && (
-          <div className="banner info flex items-center gap-3 bg-ok/10 border-ok/20 text-ok">
-              <ShieldCheck size={18} />
+          <div className="banner info flex items-center gap-3 bg-ok/10 border-ok/20 text-ok" role="status" aria-live="polite">
+              <ShieldCheck size={18} aria-hidden="true" />
               <p className="font-bold">Audit chain integrity verified via HMAC-SHA256.</p>
           </div>
       )}
 
-      <div className="glass-panel overflow-hidden border border-white/5">
-        <div className="grid grid-cols-[80px_1fr_120px_140px] gap-4 px-4 py-2 bg-white/5 text-[9px] font-black uppercase tracking-widest text-muted border-b border-white/5">
-           <span>ID</span>
-           <span>Event / Resource</span>
-           <span>User / IP</span>
-           <span className="text-right">Timestamp</span>
+      <div className="glass-panel overflow-hidden border border-line" role="region" aria-label="Audit log entries">
+        <div className="grid grid-cols-[80px_1fr_120px_140px] gap-4 px-4 py-2 bg-surface-hover text-[9px] font-black uppercase tracking-widest text-muted border-b border-line" role="row">
+           <span role="columnheader">ID</span>
+           <span role="columnheader">Event / Resource</span>
+           <span role="columnheader">User / IP</span>
+           <span role="columnheader" className="text-right">Timestamp</span>
         </div>
         
         <LogTableShell loading={loading && entries.length === 0} isEmpty={filtered.length === 0} loadingLabel="Synchronizing ledger..." emptyLabel="No matching audit entries.">
@@ -125,7 +128,7 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
             {filtered.map(entry => (
               <div
                 key={entry.id}
-                className={`group border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors ${expandedId === entry.id ? 'bg-white/[0.03]' : ''}`}
+                className={`group border-b border-line last:border-0 hover:bg-surface-hover transition-colors ${expandedId === entry.id ? 'bg-surface-hover' : ''}`}
               >
                 <div 
                     className="grid grid-cols-[80px_1fr_120px_140px] gap-4 px-4 py-3 items-center cursor-pointer"
@@ -149,7 +152,7 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
                 
                 {expandedId === entry.id && (
                   <div className="px-4 pb-4 pt-1 space-y-3">
-                    <div className="bg-black/40 p-3 rounded border border-white/5">
+                    <div className="bg-surface-2 p-3 rounded border border-line">
                         <p className="text-[9px] font-black uppercase text-muted mb-2 tracking-widest">Entry Metadata</p>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -165,7 +168,7 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
                         </div>
                     </div>
                     {entry.details && Object.keys(entry.details).length > 0 && (
-                        <div className="bg-black/40 p-3 rounded border border-white/5">
+                        <div className="bg-surface-2 p-3 rounded border border-line">
                             <p className="text-[9px] font-black uppercase text-muted mb-2 tracking-widest">Raw Payload</p>
                             <pre className="text-[10px] font-mono text-text overflow-x-auto">
                                 {JSON.stringify(entry.details, null, 2)}

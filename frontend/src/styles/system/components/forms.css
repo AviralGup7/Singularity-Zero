@@ -123,7 +123,7 @@ select.form-input {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 700;
 }
@@ -138,7 +138,7 @@ select.form-input {
   appearance: none;
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--surface-2);
   outline: none;
   cursor: pointer;
 }

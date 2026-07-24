@@ -1,7 +1,7 @@
 import type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest, NoteDeleteResponse } from '@/types/extended';
-export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest, NoteDeleteResponse };
 import { apiClient } from './core';
 import { apiCache } from './cache';
+export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest, NoteDeleteResponse };
 
 export async function getNotes(targetName: string, signal?: AbortSignal): Promise<NoteListResponse> {
   const res = await apiClient.get<NoteListResponse>(`/api/notes/${targetName}`, { signal });

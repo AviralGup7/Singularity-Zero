@@ -19,11 +19,14 @@ import {
   evaluateSelfHealing,
   getCircuitBreakers,
   forceOpenCircuitBreaker,
-  resetCircuitBreaker,
-  type SelfHealingSnapshot,
-  type CircuitBreakerSnapshot,
+  resetCircuitBreaker
+  
+  
 } from '@/api/selfHealing';
+import type {SelfHealingSnapshot, CircuitBreakerSnapshot} from '@/api/selfHealing';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 interface StatBlockProps {
   label: string;
@@ -35,13 +38,13 @@ interface StatBlockProps {
 function StatBlock({ label, value, colorClass, icon }: StatBlockProps) {
   return (
     <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group cyber-glow-card">
-      <div className="absolute top-0 right-0 w-20 h-20 bg-white/[0.01] rounded-bl-full pointer-events-none group-hover:bg-white/[0.02] transition-colors" />
+      <div className="absolute top-0 right-0 w-20 h-20 bg-surface-hover rounded-bl-full pointer-events-none group-hover:bg-surface-hover transition-colors" />
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <span className="text-[10px] font-black text-muted uppercase tracking-widest block mb-1">{label}</span>
           <span className={`text-xl font-black ${colorClass} cyber-text-glow uppercase`}>{value}</span>
         </div>
-        <div className={`p-2.5 rounded-xl bg-white/5 border border-white/10 ${colorClass}`}>
+        <div className={`p-2.5 rounded-xl bg-surface-hover border border-line ${colorClass}`}>
           {icon}
         </div>
       </div>
@@ -58,22 +61,22 @@ function RadarGraphic({ status }: { status: string }) {
       <div className="absolute inset-0 cyber-grid-overlay opacity-30 pointer-events-none" />
       
       {/* Dynamic Animated Radar Screen */}
-      <div className="relative w-48 h-48 rounded-full border border-white/5 bg-black/40 overflow-hidden flex items-center justify-center shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
+      <div className="relative w-48 h-48 rounded-full border border-line-muted bg-surface/40 overflow-hidden flex items-center justify-center inset-deep">
         {/* Radar grids */}
-        <div className="absolute inset-0 rounded-full border border-white/10 scale-75" />
-        <div className="absolute inset-0 rounded-full border border-white/10 scale-50" />
-        <div className="absolute inset-0 rounded-full border border-white/15 scale-25" />
+        <div className="absolute inset-0 rounded-full border border-line scale-75" />
+        <div className="absolute inset-0 rounded-full border border-line scale-50" />
+        <div className="absolute inset-0 rounded-full border border-line-strong scale-25" />
         
         {/* Crosshair lines */}
-        <div className="absolute w-full h-[1px] bg-white/10" />
-        <div className="absolute h-full w-[1px] bg-white/10" />
+        <div className="absolute w-full h-[1px] bg-line" />
+        <div className="absolute h-full w-[1px] bg-line" />
         
         {/* Rotating sweep */}
         <svg className="absolute inset-0 w-full h-full radar-sweep-indicator pointer-events-none">
           <defs>
             <linearGradient id="radarSweep" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={isHealthy ? '#10B981' : status === 'degraded' ? '#F59E0B' : '#EF4444'} stopOpacity="0.4" />
-              <stop offset="50%" stopColor={isHealthy ? '#10B981' : status === 'degraded' ? '#F59E0B' : '#EF4444'} stopOpacity="0.1" />
+              <stop offset="0%" stopColor={isHealthy ? 'var(--ok)' : status === 'degraded' ? 'var(--warn)' : 'var(--bad)'} stopOpacity="0.4" />
+              <stop offset="50%" stopColor={isHealthy ? 'var(--ok)' : status === 'degraded' ? 'var(--warn)' : 'var(--bad)'} stopOpacity="0.1" />
               <stop offset="100%" stopColor="transparent" stopOpacity="0" />
             </linearGradient>
           </defs>
@@ -117,8 +120,7 @@ export function SelfHealingPage() {
       const data = await getSelfHealingSnapshot();
       setSnapshot(data);
     } catch (error) {
-      console.error('Failed to load self-healing snapshot:', error);
-      toast.error('Failed to load self-healing snapshot');
+      showErrorToast(error instanceof Error ? error.message : 'Failed to load self-healing snapshot');
     } finally {
       setLoading(false);
     }
@@ -145,7 +147,7 @@ export function SelfHealingPage() {
       toast.success(`Circuit breaker for ${toolName} tripped`);
       await loadCircuitBreakers();
     } catch {
-      toast.error(`Failed to trip circuit breaker for ${toolName}`);
+      showErrorToast(`Failed to trip circuit breaker for ${toolName}`);
     } finally {
       setCbAction(null);
     }
@@ -158,7 +160,7 @@ export function SelfHealingPage() {
       toast.success(`Circuit breaker for ${toolName} reset`);
       await loadCircuitBreakers();
     } catch {
-      toast.error(`Failed to reset circuit breaker for ${toolName}`);
+      showErrorToast(`Failed to reset circuit breaker for ${toolName}`);
     } finally {
       setCbAction(null);
     }
@@ -171,8 +173,7 @@ export function SelfHealingPage() {
       setSnapshot(data);
       toast.success('Self-healing evaluation completed successfully');
     } catch (error) {
-      console.error('Failed to trigger evaluation:', error);
-      toast.error('Failed to trigger evaluation');
+      showErrorToast(error instanceof Error ? error.message : 'Failed to trigger self-healing evaluation');
     } finally {
       setEvaluating(false);
     }
@@ -206,39 +207,32 @@ export function SelfHealingPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 bg-bg min-h-full space-y-8 cyber-grid-overlay">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl border border-accent/30 bg-accent/10 flex items-center justify-center text-accent shadow-[0_0_15px_rgba(59,130,246,0.2)]">
-            <Zap size={26} className="animate-bounce" />
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Zap size={20} />}
+        title="Self-Healing Command"
+        subtitle="Autonomous micro-posture recovery controller telemetry"
+        actions={
+          <div className="flex gap-3">
+            <button 
+              className="btn btn-secondary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-surface-hover border border-line rounded-lg hover:bg-surface-2 hover:border-line-strong transition-all duration-200" 
+              onClick={loadData} 
+              disabled={loading}
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 
+              Sync Telemetry
+            </button>
+            <button 
+              className="btn btn-primary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-accent text-black rounded-lg hover:bg-surface-raised transition-all duration-200 shadow-glow-accent-md" 
+              onClick={handleEvaluate} 
+              disabled={evaluating}
+            >
+              <Play size={14} className={evaluating ? 'animate-pulse' : ''} /> 
+              {evaluating ? 'Evaluating...' : 'Evaluate Now'}
+            </button>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-text uppercase tracking-widest mb-1 cyber-text-glow">Self-Healing Command</h1>
-            <p className="text-xs text-muted font-mono uppercase tracking-wider flex items-center gap-2">
-              <span className="pulse-dot" />
-              Autonomous micro-posture recovery controller telemetry
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <button 
-            className="btn btn-secondary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-white/20 transition-all duration-200" 
-            onClick={loadData} 
-            disabled={loading}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 
-            Sync Telemetry
-          </button>
-          <button 
-            className="btn btn-primary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-accent text-black rounded-lg hover:bg-white transition-all duration-200 shadow-[0_0_15px_rgba(59,130,246,0.25)]" 
-            onClick={handleEvaluate} 
-            disabled={evaluating}
-          >
-            <Play size={14} className={evaluating ? 'animate-pulse' : ''} /> 
-            {evaluating ? 'Evaluating...' : 'Evaluate Now'}
-          </button>
-        </div>
-      </header>
+        }
+      />
 
       {snapshot && (
         <motion.div 
@@ -282,8 +276,8 @@ export function SelfHealingPage() {
           <div className="grid md:grid-cols-2 gap-8">
             {/* Active Health Findings Column */}
             <section className="glass-panel p-6 rounded-2xl relative overflow-hidden group cyber-glow-card border-l-3 border-l-warn/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.01] -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
-              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-white/5 pb-3 text-text">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-surface-hover -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
+              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-line pb-3 text-text">
                 <AlertTriangle size={16} className="text-warn animate-pulse" /> 
                 Active Posture Deficiencies
               </h3>
@@ -296,14 +290,14 @@ export function SelfHealingPage() {
                         key={i} 
                         variants={itemVariants}
                         layout
-                        className="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-white/10 transition-colors"
+                        className="bg-surface-2 p-4 rounded-xl border border-line hover:border-line transition-colors"
                       >
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-[10px] font-mono font-black uppercase tracking-widest text-accent bg-accent/5 px-2 py-0.5 rounded border border-accent/10">
                             {String(f.component)}
                           </span>
                           <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
-                            String(f.status) === 'critical' ? 'bg-bad text-white' : 'bg-warn/10 text-warn border border-warn/25'
+                            String(f.status) === 'critical' ? 'bg-bad text-text-primary' : 'bg-warn/10 text-warn border border-warn/25'
                           }`}>
                             {String(f.status)}
                           </span>
@@ -327,8 +321,8 @@ export function SelfHealingPage() {
 
             {/* Recent Corrections Column */}
             <section className="glass-panel p-6 rounded-2xl relative overflow-hidden group cyber-glow-card border-l-3 border-l-accent/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.01] -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
-              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-white/5 pb-3 text-text">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-surface-hover -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
+              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-line pb-3 text-text">
                 <Settings size={16} className="text-accent animate-pulse" /> 
                 Autonomous Corrections Journal
               </h3>
@@ -341,7 +335,7 @@ export function SelfHealingPage() {
                         key={i} 
                         variants={itemVariants}
                         layout
-                        className="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-white/10 transition-colors"
+                        className="bg-surface-2 p-4 rounded-xl border border-line hover:border-line transition-colors"
                       >
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-[10px] font-mono font-black uppercase tracking-wider text-text truncate max-w-[180px]" title={String(c.action)}>
@@ -379,14 +373,14 @@ export function SelfHealingPage() {
           {/* --- Circuit Breakers Section --- */}
           {cbTools.length > 0 && (
             <section className="glass-panel p-6 rounded-2xl relative overflow-hidden group cyber-glow-card border-l-3 border-l-bad/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.01] -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
-              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-white/5 pb-3 text-text">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-surface-hover -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
+              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-line pb-3 text-text">
                 <Power size={16} className="text-bad" />
                 Tool Circuit Breakers
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {cbTools.map(([name, state]) => (
-                  <div key={name} className="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                  <div key={name} className="bg-surface-2 p-4 rounded-xl border border-line hover:border-line transition-colors">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[10px] font-mono font-black uppercase tracking-wider text-text truncate" title={name}>
                         {name}

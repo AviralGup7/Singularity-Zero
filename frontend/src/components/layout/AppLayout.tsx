@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense  } from 'react';
+import type {ReactNode} from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { APP_VERSION } from '../../config';
@@ -12,7 +13,6 @@ import { useCommandPaletteItems, useCommandItems } from '../../hooks/useCommandP
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
 import { useDisplayStore } from '@/stores/displayStore';
-const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
 import type { SearchableItem } from './CommandPalette';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -24,94 +24,49 @@ import { Header } from './Header';
 import { Footer } from './Footer';
 import { ShortcutsModal } from './ShortcutsModal';
 import { ScanStatusBar } from '@/components/ScanStatusBar';
+const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
 
 interface NavSection {
   label: string;
   items: { path: string; label: string; icon: string; key?: string; count?: string }[];
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }
 
 function useNavSections(): NavSection[] {
   const { t } = useTranslation();
   const workflowMode = useDisplayStore((state) => state.workflowMode);
+
   return useMemo(() => {
-    const overview = [
-      { path: ROUTES.DASHBOARD, label: 'Dashboard', icon: 'barChart', count: '1' },
-      { path: ROUTES.TARGETS, label: t('navigation.targets'), icon: 'target', count: '2' },
-      { path: ROUTES.JOBS, label: t('navigation.jobs'), icon: 'zap', count: '3' },
-      { path: ROUTES.FINDINGS, label: t('navigation.findings'), icon: 'shield', count: '4' },
-      { path: ROUTES.BUG_BOUNTY, label: 'Bounty Dashboard', icon: 'bug', count: '6' },
+    const main = [
+      { path: ROUTES.DASHBOARD, label: 'Dashboard', icon: 'barChart' },
+      { path: ROUTES.TARGETS, label: t('navigation.targets'), icon: 'target' },
+      { path: ROUTES.JOBS, label: t('navigation.jobs'), icon: 'zap' },
+      { path: ROUTES.FINDINGS, label: t('navigation.findings'), icon: 'shield' },
+      { path: ROUTES.SETTINGS, label: t('navigation.settings'), icon: 'settings' },
     ];
 
-    if (workflowMode === 'pentest') {
-      return [
-        { label: t('navigation.overview'), items: overview },
-        {
-          label: 'Analysis',
-          items: [
-            { path: ROUTES.PIPELINE, label: 'Pipeline Overview', icon: 'activity' },
-            { path: ROUTES.COCKPIT, label: 'Security Cockpit', icon: 'target' },
-            { path: ROUTES.REMEDIATION_PLANNER, label: 'Remediation Planner', icon: 'checkCircle' },
-            { path: ROUTES.RISK_SCORE, label: 'Risk Score', icon: 'alertTriangle' },
-            { path: ROUTES.SCAN_DIFF, label: 'Scan Diff', icon: 'activity' },
-            { path: ROUTES.FINDINGS_TIMELINE, label: 'Findings Timeline', icon: 'activity' },
-            { path: ROUTES.TARGET_COMPARISON, label: t('navigation.compare'), icon: 'activity' },
-            { path: ROUTES.GAP_ANALYSIS, label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
-            { path: ROUTES.LEARNING, label: 'Autonomous Learning', icon: 'zap' },
-            { path: ROUTES.EVASION, label: 'Evasion Metrics', icon: 'shield' },
-          ],
-        },
-        {
-          label: t('navigation.system'),
-          items: [
-            { path: ROUTES.MESH, label: 'Mesh Command', icon: 'server' },
-            { path: ROUTES.SELF_HEALING, label: 'Self-Healing', icon: 'zap' },
-            { path: ROUTES.TRACING, label: 'Tracing', icon: 'activity' },
-            { path: ROUTES.CACHE_MANAGEMENT, label: 'Cache', icon: 'database' },
-            { path: ROUTES.AUDIT_LOGS, label: 'Audit Logs', icon: 'file' },
-            { path: ROUTES.COMPLIANCE, label: 'Compliance', icon: 'shieldCheck' },
-            { path: ROUTES.REPORTS, label: 'Reports', icon: 'fileText' },
-            { path: ROUTES.ACCESS_LOGS, label: 'Access Logs', icon: 'fileText' },
-            { path: ROUTES.EVIDENCE_CUSTODY, label: 'Evidence Chain', icon: 'link' },
-            { path: ROUTES.SECURITY, label: 'Security', icon: 'shieldCheck' },
-            { path: ROUTES.SETTINGS, label: t('navigation.settings'), icon: 'settings', count: 'S' },
-          ],
-        },
-      ];
-    }
-
-    return [
-      { label: t('navigation.overview'), items: overview },
-      {
-        label: 'Analysis',
-        items: [
-          { path: ROUTES.PIPELINE, label: 'Pipeline Overview', icon: 'activity' },
-          { path: ROUTES.COCKPIT, label: 'Security Cockpit', icon: 'target' },
-          { path: ROUTES.REMEDIATION_PLANNER, label: 'Remediation Planner', icon: 'checkCircle' },
-          { path: ROUTES.RISK_SCORE, label: 'Risk Score', icon: 'alertTriangle' },
-          { path: ROUTES.TARGET_COMPARISON, label: t('navigation.compare'), icon: 'activity' },
-          { path: ROUTES.SCAN_DIFF, label: 'Scan Diff', icon: 'activity' },
-          { path: ROUTES.GAP_ANALYSIS, label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
-          { path: ROUTES.LEARNING, label: 'Autonomous Learning', icon: 'zap' },
-          { path: ROUTES.EVASION, label: 'Evasion Metrics', icon: 'shield' },
-        ],
-      },
-      {
-        label: t('navigation.system'),
-        items: [
-          { path: ROUTES.MESH, label: 'Mesh Command', icon: 'server' },
-          { path: ROUTES.SELF_HEALING, label: 'Self-Healing', icon: 'zap' },
-          { path: ROUTES.TRACING, label: 'Tracing', icon: 'activity' },
-          { path: ROUTES.CACHE_MANAGEMENT, label: 'Cache', icon: 'database' },
-          { path: ROUTES.AUDIT_LOGS, label: 'Audit Logs', icon: 'file' },
-          { path: ROUTES.COMPLIANCE, label: 'Compliance', icon: 'shieldCheck' },
-          { path: ROUTES.REPORTS, label: 'Reports', icon: 'fileText' },
-          { path: ROUTES.ACCESS_LOGS, label: 'Access Logs', icon: 'fileText' },
-          { path: ROUTES.EVIDENCE_CUSTODY, label: 'Evidence Chain', icon: 'link' },
-          { path: ROUTES.SECURITY, label: 'Security', icon: 'shieldCheck' },
-          { path: ROUTES.SETTINGS, label: t('navigation.settings'), icon: 'settings', count: 'S' },
-        ],
-      },
+    const security = [
+      { path: ROUTES.COCKPIT, label: 'Cockpit', icon: 'target' },
+      { path: ROUTES.RISK_HUB, label: 'Risk', icon: 'alertTriangle' },
+      { path: ROUTES.SECURITY, label: 'Security', icon: 'shieldCheck' },
+      { path: ROUTES.GOVERNANCE_HUB, label: 'Governance', icon: 'shieldCheck' },
+      { path: ROUTES.DETECTION_QUALITY, label: 'Detection Quality', icon: 'shieldCheck' },
     ];
+
+    const analytics = [
+      { path: ROUTES.PIPELINE, label: 'Pipeline', icon: 'activity' },
+      { path: ROUTES.BUG_BOUNTY, label: 'Bug Bounty', icon: 'bug' },
+      { path: ROUTES.ANALYTICS_HUB, label: 'Analytics', icon: 'activity' },
+    ];
+
+    const sections = [
+      { label: 'Main', items: main, collapsible: false },
+      { label: 'Security', items: security, collapsible: false },
+      { label: 'Analytics', items: analytics, collapsible: true, defaultCollapsed: workflowMode !== 'pentest' },
+    ];
+
+    return sections;
   }, [t, workflowMode]);
 }
 
@@ -204,6 +159,22 @@ function buildDefaultActionItems(
       action: () => navigate(ROUTES.COCKPIT),
     },
     {
+      id: 'action-go-risk',
+      type: 'action',
+      title: 'Open Risk',
+      subtitle: 'View risk scores, remediation, and acceptance',
+      meta: 'Navigate',
+      action: () => navigate(ROUTES.RISK_HUB),
+    },
+    {
+      id: 'action-go-security',
+      type: 'action',
+      title: 'Open Security',
+      subtitle: 'API security and self-healing controls',
+      meta: 'Navigate',
+      action: () => navigate(ROUTES.SECURITY),
+    },
+    {
       id: 'action-reopen-palette',
       type: 'action',
       title: 'Show Keyboard Shortcuts',
@@ -262,7 +233,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   );
   const { policy, strategy } = useMotionPolicy('layout');
 
-  useCommandPaletteItems([...defaultNavItems, ...defaultActionItems]);
+  const commandPaletteItems = useMemo(() => [...defaultNavItems, ...defaultActionItems], [defaultNavItems, defaultActionItems]);
+  useCommandPaletteItems(commandPaletteItems);
 
   // Reactively track all registered command items
   const allCommandItems = useCommandItems();
@@ -346,6 +318,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     } else if (e.key === '6') {
       e.preventDefault();
       navigate(ROUTES.BUG_BOUNTY);
+    } else if (e.key === '7') {
+      e.preventDefault();
+      navigate(ROUTES.RISK_HUB);
+    } else if (e.key === '8') {
+      e.preventDefault();
+      navigate(ROUTES.SECURITY);
     } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       emitRefresh();
@@ -386,7 +364,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const mobilePrimary = useMemo(() => navSections
     .flatMap(section => section.items)
-    .filter(item => [ROUTES.DASHBOARD, ROUTES.TARGETS, ROUTES.JOBS, ROUTES.FINDINGS, ROUTES.BUG_BOUNTY, ROUTES.COCKPIT, ROUTES.REPORTS, ROUTES.SETTINGS].includes(item.path)), [navSections]);
+    .filter(item => [ROUTES.DASHBOARD, ROUTES.TARGETS, ROUTES.JOBS, ROUTES.FINDINGS, ROUTES.COCKPIT, ROUTES.SETTINGS].some((route) => route === item.path)), [navSections]);
 
   const motionDuration = strategy.duration || 0.2;
   const isLogin = location.pathname === ROUTES.LOGIN;
@@ -404,7 +382,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="app-shell app-shell--hud">
-      <a href="#main" className="skip-link">Skip to content</a>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
+        Skip to content
+      </a>
 
       <Sidebar
         sidebarRef={sidebarRef}
@@ -441,14 +421,13 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {(!healthStatus.loading && !healthStatus.ready) && (
           <div
-            className="flex items-center gap-2 px-4 py-2 text-xs border-b border-[var(--line)]"
-            style={{ background: 'var(--warning-bg, rgba(234, 179, 8, 0.08))', color: 'var(--warning-text, #eab308)' }}
+            className="flex items-center gap-2 px-4 py-2 text-xs border-b border-line bg-warn/8 text-warn"
             role="alert"
-            aria-live="polite"
+            aria-live="assertive"
           >
             <Icon name="alertTriangle" size={14} aria-hidden="true" />
             <span className="font-medium">System Degraded</span>
-            <span className="text-[var(--text-secondary)]">
+            <span className="text-text-secondary">
               {healthStatus.error
                 ? 'Unable to reach backend'
                 : healthStatus.degradedReasons.length > 0
@@ -459,10 +438,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         )}
 
         <motion.main
-          id="main"
+          id="main-content"
           role="main"
           tabIndex={-1}
           className="app-main-content flex-1"
+          aria-label={pageMeta.title}
           style={{ scrollMarginTop: 'var(--topbar-height, 64px)' }}
           initial={policy.allowFramer ? { opacity: 0, y: strategy.distance } : false}
           animate={policy.allowFramer ? { opacity: 1, y: 0 } : undefined}
@@ -480,7 +460,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <ScanStatusBar />
       </div>
 
-      <nav className="mobile-dock" aria-label="Primary sections">
+      <nav className="mobile-dock" aria-label="Primary navigation">
         {mobilePrimary.map(item => {
           const isActive = location.pathname === item.path;
           return (
@@ -489,6 +469,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               to={item.path}
               className={`mobile-dock-item ${isActive ? 'mobile-dock-item--active' : ''}`}
               aria-current={isActive ? 'page' : undefined}
+              aria-label={item.label}
             >
               <Icon name={item.icon} size={16} aria-hidden="true" />
               <span>{item.label}</span>

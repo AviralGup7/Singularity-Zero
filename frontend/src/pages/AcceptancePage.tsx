@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, ShieldCheck, RefreshCcw, Plus, X } from 'lucide-react';
 import { apiClient } from '@/api/core';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface RiskAcceptance {
   acceptance_id: string;
@@ -34,7 +35,9 @@ export function AcceptancePage() {
       const { data } = await apiClient.get<RiskAcceptance[]>('/api/risk-domain/acceptances', { params: { limit: 200 } });
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(`Failed to load: ${(err as Error).message}`);
+      const msg = `Failed to load risk acceptances: ${(err as Error).message}`;
+      setError(msg);
+      showErrorToast(msg);
     } finally {
       setLoading(false);
     }
@@ -59,7 +62,9 @@ export function AcceptancePage() {
       setForm({ finding_id: '', accepted_by: 'analyst', justification: '', accepted_until: '', scope: 'global' });
       await load();
     } catch (err) {
-      setError(`Create failed: ${(err as Error).message}`);
+      const msg = `Failed to create risk acceptance: ${(err as Error).message}`;
+      setError(msg);
+      showErrorToast(msg);
     } finally {
       setCreating(false);
     }
@@ -71,7 +76,9 @@ export function AcceptancePage() {
         await apiClient.post(`/api/risk-domain/acceptances/${encodeURIComponent(acceptanceId)}/revoke`);
         await load();
       } catch (err) {
-        setError(`Revoke failed: ${(err as Error).message}`);
+        const msg = `Failed to revoke risk acceptance: ${(err as Error).message}`;
+        setError(msg);
+        showErrorToast(msg);
       }
     },
     [load],
@@ -79,7 +86,7 @@ export function AcceptancePage() {
 
   return (
     <div className="flex flex-col h-full bg-bg font-sans" data-testid="acceptance-page">
-      <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between glass-panel sticky top-0 z-20">
+      <div className="px-8 py-6 border-b border-line flex items-center justify-between glass-panel sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <div className="p-2 bg-accent/10 rounded-lg border border-accent/20">
             <ShieldCheck size={20} className="text-accent" />
@@ -101,33 +108,33 @@ export function AcceptancePage() {
         </button>
       </div>
 
-      <div className="px-8 py-4 grid grid-cols-1 md:grid-cols-5 gap-3 bg-black/30 border-b border-white/5">
+      <div className="px-8 py-4 grid grid-cols-1 md:grid-cols-5 gap-3 bg-surface-2 border-b border-line">
         <input
           type="text"
           placeholder="Finding ID"
           value={form.finding_id}
           onChange={(e) => setForm((f) => ({ ...f, finding_id: e.target.value }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <input
           type="text"
           placeholder="Accepted by"
           value={form.accepted_by}
           onChange={(e) => setForm((f) => ({ ...f, accepted_by: e.target.value }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <input
           type="date"
           value={form.accepted_until}
           onChange={(e) => setForm((f) => ({ ...f, accepted_until: e.target.value }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <input
           type="text"
           placeholder="Justification (required)"
           value={form.justification}
           onChange={(e) => setForm((f) => ({ ...f, justification: e.target.value }))}
-          className="md:col-span-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="md:col-span-1 bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <button
           type="button"
@@ -155,7 +162,7 @@ export function AcceptancePage() {
         ) : (
           <div className="grid gap-3">
             {rows.map((row) => (
-              <div key={row.acceptance_id} className="glass-panel border border-white/5 rounded-lg p-4 space-y-2">
+              <div key={row.acceptance_id} className="glass-panel border border-line rounded-lg p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] uppercase tracking-widest font-mono text-muted">

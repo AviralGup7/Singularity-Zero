@@ -1,5 +1,6 @@
 import { linkVertical } from 'd3-shape';
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo  } from 'react';
+import type {CSSProperties} from 'react';
 import { useVisual } from '@/hooks/useVisual';
 import type { StageTheaterNode } from '@/lib/stageTheaterUtils';
 import { TREE_LEVELS, TREE_EDGES, AMBIENT_LOG_LINES } from './constants';

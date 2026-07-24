@@ -197,7 +197,7 @@ class TestPipelineRunWithMockConfig:
             "src.recon.build_nuclei_plan": lambda *a, **k: {},
             "src.recon.run_nuclei": lambda *a, **k: "",
             "src.pipeline.screenshots.capture_screenshots": lambda *a, **k: [],
-            "src.analysis.behavior.analysis.annotate_behavior_history": lambda *a, **k: [],
+            "src.analysis.behavior.analysis_support.annotate_behavior_history": lambda *a, **k: [],
             "src.analysis.intelligence.decision_engine.annotate_finding_decisions": lambda x: x,
             "src.analysis.intelligence.findings._history.annotate_finding_history": lambda *a, **k: [],
             "src.analysis.intelligence.findings._merge_orchestrator.merge_findings": lambda *a, **k: [],

@@ -43,7 +43,7 @@ class ProgressSubscriber:
         payload.pop("event_schema_version", None)
 
         print(
-            PROGRESS_PREFIX + json.dumps(payload, ensure_ascii=True),
+            PROGRESS_PREFIX + json.dumps(payload, ensure_ascii=True, default=lambda o: dict(o) if hasattr(o, "items") else str(o)),
             flush=True,
         )
 

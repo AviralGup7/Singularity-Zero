@@ -1,7 +1,7 @@
 import {
   Palette, Monitor, LayoutDashboard, Bell, Shield, Settings as SettingsIcon,
   Link, FileText, Plug, Target, FlaskConical, Accessibility, Zap,
-  ScrollText, TrafficCone, User, Keyboard, Database, Info, Globe, X,
+  User, Keyboard, Database, Info, Globe, X,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useDisplay } from '@/hooks/useDisplay';
@@ -12,7 +12,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { useAutoBreadcrumbs } from '@/hooks/useAutoBreadcrumbs';
-import { SettingsSectionCard } from '@/components/settings/SettingsComponents';
 import { UserProfileSection } from '@/components/settings/UserProfileSection';
 import { PageHeader } from '@/components/ui';
 import {
@@ -36,7 +35,7 @@ import {
   WorkflowModeSection,
 } from '@/components/settings/sections';
 
-type SettingsSection = 'theme' | 'display' | 'dashboard' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'logging' | 'rateLimiting' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language' | 'workflowMode';
+type SettingsSection = 'theme' | 'display' | 'dashboard' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language' | 'workflowMode';
 
 type SettingsTab = 'appearance' | 'dashboard' | 'pipeline' | 'advanced' | 'data';
 
@@ -44,7 +43,7 @@ const settingsTabs: { id: SettingsTab; label: string; icon: React.ReactNode; sec
   { id: 'appearance', label: 'Appearance', icon: <Palette size={18} />, sections: ['theme', 'display', 'language', 'accessibility', 'workflowMode'] },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, sections: ['dashboard', 'notifications'] },
   { id: 'pipeline', label: 'Pipeline', icon: <SettingsIcon size={18} />, sections: ['pipeline', 'api', 'security'] },
-  { id: 'advanced', label: 'Advanced', icon: <Zap size={18} />, sections: ['reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'logging', 'rateLimiting', 'profiles', 'shortcuts'] },
+  { id: 'advanced', label: 'Advanced', icon: <Zap size={18} />, sections: ['reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'profiles', 'shortcuts'] },
   { id: 'data', label: 'Data', icon: <Database size={18} />, sections: ['data', 'about'] },
 ];
 
@@ -71,8 +70,6 @@ const settingsNavItems: SettingsNavItem[] = [
   { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> },
   { id: 'accessibility', label: 'Accessibility', icon: <Accessibility size={18} /> },
   { id: 'performance', label: 'Performance', icon: <Zap size={18} /> },
-  { id: 'logging', label: 'Logging', icon: <ScrollText size={18} /> },
-  { id: 'rateLimiting', label: 'Rate Limiting', icon: <TrafficCone size={18} /> },
   { id: 'profiles', label: 'Profiles', icon: <User size={18} /> },
   { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={18} /> },
   { id: 'data', label: 'Data', icon: <Database size={18} /> },
@@ -88,6 +85,7 @@ export function SettingsPage() {
   const setWorkflowMode = useDisplayStore(s => s.setWorkflowMode);
 
   const setThemeMode = themeUpdater.setThemeMode;
+  const setThemePreset = themeUpdater.setThemePreset;
   const setAccentColor = themeUpdater.setAccentColor;
   const setMotionIntensity = themeUpdater.setMotionIntensity;
   const setEffectCapability = themeUpdater.setEffectCapability;
@@ -300,7 +298,7 @@ export function SettingsPage() {
   }, [visibleSections, searchQuery]);
 
   const sectionRenderers = useMemo<Record<SettingsSection, React.ReactNode>>(() => ({
-    theme: <ThemeSection themeMode={theme.mode} accentColor={theme.accentColor} onThemeModeChange={setThemeMode} onAccentColorChange={setAccentColor} />,
+    theme: <ThemeSection themeMode={theme.mode} themePreset={theme.preset} accentColor={theme.accentColor} onThemeModeChange={setThemeMode} onThemePresetChange={setThemePreset} onAccentColorChange={setAccentColor} />,
     display: <DisplaySection density={display.density} fontSize={display.fontSize} animations={display.animations} gridBackground={display.gridBackground} motionIntensity={theme.motionIntensity} effectCapability={theme.effectCapability} onDensityChange={setDensity} onFontSizeChange={setFontSize} onAnimationsChange={setAnimations} onGridBackgroundChange={setGridBackground} onMotionIntensityChange={setMotionIntensity} onEffectCapabilityChange={setEffectCapability} />,
     accessibility: <AccessibilitySection reduceMotion={display.reduceMotion} highContrast={display.highContrast} focusIndicators={display.focusIndicators} screenReaderOptimizations={display.screenReaderOptimizations} onReduceMotionChange={setReduceMotion} onHighContrastChange={setHighContrast} onFocusIndicatorsChange={setFocusIndicators} onScreenReaderOptimizationsChange={setScreenReaderOptimizations} />,
     language: <LanguageSection />,
@@ -315,17 +313,15 @@ export function SettingsPage() {
     scanProfiles: <ScanProfilesSection defaultScanProfile={settings.scanProfiles.defaultProfile} includeNuclei={settings.scanProfiles.includeNuclei} includePassiveAnalysis={settings.scanProfiles.includePassiveAnalysis} includeActiveProbes={settings.scanProfiles.includeActiveProbes} includeIntelligence={settings.scanProfiles.includeIntelligence} onDefaultScanProfileChange={setDefaultScanProfile} onIncludeNucleiChange={setIncludeNuclei} onIncludePassiveAnalysisChange={setIncludePassiveAnalysis} onIncludeActiveProbesChange={setIncludeActiveProbes} onIncludeIntelligenceChange={setIncludeIntelligence} />,
     experimental: <ExperimentalSection experimentalEnabled={settings.experimental.enabled} behaviorAnalysis={settings.experimental.behaviorAnalysis} attackValidation={settings.experimental.attackValidation} graphIntelligence={settings.experimental.graphIntelligence} polymorphicEvasion={settings.experimental.polymorphicEvasion} antiForensicMode={settings.experimental.antiForensicMode} onExperimentalEnabledChange={setExperimentalEnabled} onBehaviorAnalysisChange={setBehaviorAnalysis} onAttackValidationChange={setAttackValidation} onGraphIntelligenceChange={setGraphIntelligence} onPolymorphicEvasionChange={setPolymorphicEvasion} onAntiForensicModeChange={setAntiForensicMode} />,
     performance: <PerformanceSection enableCaching={settings.performance.enableCaching} cacheDuration={settings.performance.cacheDuration} lazyLoadModules={settings.performance.lazyLoadModules} maxConcurrentRequests={settings.performance.maxConcurrentRequests} onEnableCachingChange={setEnableCaching} onCacheDurationChange={setCacheDuration} onLazyLoadModulesChange={setLazyLoadModules} onMaxConcurrentRequestsChange={setMaxConcurrentRequests} />,
-    logging: <SettingsSectionCard title="Logging" icon="📝"><p className="text-xs text-[var(--text-secondary)] font-mono leading-relaxed bg-[var(--surface-2)] p-3 border border-[var(--border)] rounded">Logging telemetry settings are dynamically resolved by system context environment flags on system runtime boot stages.</p></SettingsSectionCard>,
-    rateLimiting: <SettingsSectionCard title="Rate Limiting" icon="🚧"><p className="text-xs text-[var(--text-secondary)] font-mono leading-relaxed bg-[var(--surface-2)] p-3 border border-[var(--border)] rounded">Traffic burst quotas are automatically calibrated by rate limit enforcement modules on backend proxy gateway bounds.</p></SettingsSectionCard>,
     profiles: <UserProfileSection />,
     shortcuts: <ShortcutsSection toggleThemeShortcut={settings.shortcuts.toggleTheme} openSettingsShortcut={settings.shortcuts.openSettings} refreshDashboardShortcut={settings.shortcuts.refreshDashboard} quickScanShortcut={settings.shortcuts.quickScan} onToggleThemeShortcutChange={setToggleThemeShortcut} onOpenSettingsShortcutChange={setOpenSettingsShortcut} onRefreshDashboardShortcutChange={setRefreshDashboardShortcut} onQuickScanShortcutChange={setQuickScanShortcut} />,
     data: <DataSection onExport={handleExport} onImport={handleImport} onReset={handleReset} importError={importError} saveConfirmation={saveConfirmation} />,
     about: <AboutSection />,
   }), [
-    theme.mode, theme.accentColor, theme.motionIntensity, theme.effectCapability, 
+    theme.mode, theme.preset, theme.accentColor, theme.motionIntensity, theme.effectCapability, 
     display.density, display.fontSize, display.animations, display.gridBackground, display.reduceMotion, display.highContrast, display.focusIndicators, display.screenReaderOptimizations,
     settings, handleExport, handleImport, handleReset, importError, saveConfirmation,
-    setThemeMode, setAccentColor, setMotionIntensity, setEffectCapability, workflowMode, setWorkflowMode,
+    setThemeMode, setThemePreset, setAccentColor, setMotionIntensity, setEffectCapability, workflowMode, setWorkflowMode,
     setDensity, setFontSize, setAnimations, setGridBackground, setReduceMotion, setHighContrast, setFocusIndicators, setScreenReaderOptimizations,
     setAutoRefresh, setRefreshInterval, setJobCompleteNotification, setJobFailedNotification, setCriticalFindingsNotification, setSoundEnabled, setConfirmDestructiveActions, setShowSensitiveData, setAutoLogoutMinutes,
     setPipelineConcurrency, setPipelineTimeout, setPipelineMaxRetries, setPipelineVerboseLogging, setPipelineParallelModules,
@@ -366,7 +362,7 @@ export function SettingsPage() {
             role="status"
           >
             <span>{saveConfirmation}</span>
-            <button type="button" onClick={() => setSaveConfirmation(null)} className="text-xs hover:text-[var(--text-primary)]">
+            <button type="button" onClick={() => setSaveConfirmation(null)} className="text-xs hover:text-text-primary">
               <X size={14} />
             </button>
           </motion.div>
@@ -374,7 +370,7 @@ export function SettingsPage() {
       </AnimatePresence>
 
       {/* Sliding Tab Highlight Selector */}
-      <div className="settings-tabs relative flex bg-[var(--surface-2)] p-1 rounded-lg border border-[var(--border)]" role="tablist" aria-label="Settings categories">
+      <div className="settings-tabs relative flex bg-surface-2 p-1 rounded-lg border border-line" role="tablist" aria-label="Settings categories">
         {settingsTabs.map(tab => {
           const isActive = activeTab === tab.id;
           return (
@@ -386,7 +382,7 @@ export function SettingsPage() {
               aria-selected={isActive}
               aria-controls={`settings-panel-${tab.id}`}
               className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors duration-200 cursor-pointer ${
-                isActive ? 'text-[var(--accent)] font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                isActive ? 'text-accent font-bold' : 'text-text-secondary hover:text-text-primary'
               }`}
               onClick={() => setActiveTab(tab.id)}
               style={{ background: 'transparent' }}
@@ -394,7 +390,7 @@ export function SettingsPage() {
               {isActive && (
                 <motion.div
                   layoutId="activeSettingsTabHighlight"
-                  className="absolute inset-0 bg-[var(--accent-soft)] border border-[var(--accent)]/20 rounded-md z-[-1]"
+                  className="absolute inset-0 bg-accent-dim border border-accent/20 rounded-md z-[-1]"
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 />
               )}
@@ -412,12 +408,12 @@ export function SettingsPage() {
           type="search"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="settings-search-input w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-4 py-2.5 pl-10 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
+          className="settings-search-input w-full bg-surface border border-line rounded-lg px-4 py-2.5 pl-10 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
           placeholder="🔍 Search settings by name or keyword..."
           aria-label="Search settings"
         />
         {searchQuery && (
-          <button type="button" className="absolute right-3 top-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" onClick={() => setSearchQuery('')} aria-label="Clear search">
+          <button type="button" className="absolute right-3 top-3 text-text-secondary hover:text-text-primary" onClick={() => setSearchQuery('')} aria-label="Clear search">
             <X size={16} />
           </button>
         )}
@@ -442,8 +438,8 @@ export function SettingsPage() {
                   type="button"
                   className={`settings-nav-item flex items-center gap-2.5 px-3 py-2 w-full text-left rounded-lg transition-colors cursor-pointer text-xs font-semibold ${
                     activeSection === item.id 
-                      ? 'bg-[var(--accent-soft)]/20 text-[var(--accent)] font-bold border border-[var(--accent)]/10' 
-                      : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)] border border-transparent'
+                      ? 'bg-accent-dim/20 text-accent font-bold border border-accent/10' 
+                      : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary border border-transparent'
                   }`}
                   onClick={() => scrollToSection(item.id)}
                 >

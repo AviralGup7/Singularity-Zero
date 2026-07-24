@@ -21,7 +21,7 @@ export const IterationProgressBar = memo(function IterationProgressBar({
     <div
       className={cn(
    
-        'relative bg-[var(--panel)] border border-[var(--line)] p-4 transition-all duration-200',
+        'relative bg-panel border border-line p-4 transition-all duration-200',
    
         '[clip-path:polygon(0_0,calc(100%_-_8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%_-_8px))]'
       )}
@@ -31,7 +31,7 @@ export const IterationProgressBar = memo(function IterationProgressBar({
       aria-live="polite"
     >
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-mono text-[length:var(--text-lg)] font-bold text-[var(--accent)] uppercase tracking-wider">
+        <h3 className="font-mono text-[length:var(--text-lg)] font-bold text-accent uppercase tracking-wider">
           🔄 Passive Analysis
         </h3>
         <span
@@ -40,9 +40,9 @@ export const IterationProgressBar = memo(function IterationProgressBar({
             'inline-flex items-center px-2 py-0.5 text-[length:var(--text-xs)] font-mono font-bold uppercase tracking-wider border rounded-sm',
             isComplete
    
-              ? 'bg-[var(--ok)]/20 text-[var(--ok)] border-[var(--ok)]/40'
+              ? 'bg-ok/20 text-ok border-ok/40'
    
-              : 'bg-[var(--accent)]/20 text-[var(--accent)] border-[var(--accent)]/40'
+              : 'bg-accent/20 text-accent border-accent/40'
           )}
           role="status"
           aria-label={`Iteration ${currentIteration} of ${maxIterations}`}
@@ -53,7 +53,7 @@ export const IterationProgressBar = memo(function IterationProgressBar({
 
       <div className="mb-2">
         <div
-          className="progress-bar"
+          className="progress-bar h-2.5 bg-muted/20 rounded-full overflow-hidden"
           role="progressbar"
           aria-valuenow={clampedPercent}
           aria-valuemin={0}
@@ -62,14 +62,14 @@ export const IterationProgressBar = memo(function IterationProgressBar({
         >
           <div
             className={cn(
-              'progress-fill',
-              isComplete ? 'complete' : 'running'
+              'h-full rounded-full transition-all duration-500 ease-out',
+              isComplete ? 'bg-ok' : 'bg-accent'
             )}
             style={{ width: `${clampedPercent}%` }}
           />
         </div>
-        <div className="flex items-center justify-between mt-1 text-[length:var(--text-xs)] font-mono text-[var(--muted)]">
-          <span>{Math.round(clampedPercent)}% complete</span>
+        <div className="flex items-center justify-between mt-1 text-[length:var(--text-xs)] font-mono text-muted">
+          <span className="tabular-nums">{Math.round(clampedPercent)}% complete</span>
           {previousFindings !== undefined && previousFindings > 0 && (
             <span aria-label={`${previousFindings} findings in previous iteration`}>
               Previous: {previousFindings} finding{previousFindings !== 1 ? 's' : ''}
@@ -90,11 +90,11 @@ export const IterationProgressBar = memo(function IterationProgressBar({
                 className={cn(
                   'flex-1 h-1.5 rounded-sm transition-all duration-300',
    
-                  isPast && 'bg-[var(--ok)]/60',
+                  isPast && 'bg-ok/60',
    
-                  isCurrent && 'bg-[var(--accent)] animate-pulse',
+                  isCurrent && 'bg-accent animate-pulse',
    
-                  !isPast && !isCurrent && 'bg-[var(--muted)]/20'
+                  !isPast && !isCurrent && 'bg-muted/20'
                 )}
                 role="img"
                 aria-label={

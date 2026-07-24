@@ -16,8 +16,13 @@ function toDay(value: string): string {
 export function useRiskHistory(filters: RiskHistoryFilters) {
   const history = useApi<RiskHistoryEntry[]>('/api/risk/history', {
     params: { days: filters.days, group_by: 'target' },
+    autoToast: true,
+    errorContext: 'Failed to load risk history',
   });
-  const factors = useApi<RiskFactorsResponse>('/api/risk/factors');
+  const factors = useApi<RiskFactorsResponse>('/api/risk/factors', {
+    autoToast: true,
+    errorContext: 'Failed to load risk factors',
+  });
 
   const filteredHistory = useMemo(() => {
     const selected = new Set(filters.targetIds ?? []);

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { type ZodSchema } from 'zod';
+import { useState, useEffect, useRef   } from 'react';
+import type {Dispatch, SetStateAction} from 'react';
+import type {ZodSchema} from 'zod';
 
 /**
  * A hook that syncs state to localStorage with debounced writes.

@@ -1,4 +1,5 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 
 export interface LogLineProps {
   line: string;
@@ -7,13 +8,19 @@ export interface LogLineProps {
 }
 
 export const LogLine = memo(function LogLine({ line, index, style }: LogLineProps) {
-  const cssClass = classifyLogLine(line);
+  const cssClass = useMemo(() => classifyLogLine(line), [line]);
 
   return (
     <div
-      className={cssClass}
+      className={cn(
+        "px-2 py-0.5 font-mono text-xs leading-relaxed",
+        "hover:bg-muted/30 transition-colors duration-100",
+        cssClass
+      )}
       style={style}
       data-line-index={index}
+      role="log"
+      aria-label={`Log line ${index ?? ''}: ${line}`}
     >
       {line}
     </div>
@@ -21,7 +28,7 @@ export const LogLine = memo(function LogLine({ line, index, style }: LogLineProp
 });
 
 function classifyLogLine(line: string): string {
-  if (typeof line !== 'string') return 'log-line';
+  if (typeof line !== 'string') return 'text-text';
   const lower = line.toLowerCase();
   if (
     lower.includes('error') ||
@@ -29,24 +36,24 @@ function classifyLogLine(line: string): string {
     lower.includes('fatal') ||
     lower.includes('traceback')
   ) {
-    return 'log-line log-line-error';
+    return 'text-rose-400 bg-rose-500/5';
   }
   if (lower.includes('warn')) {
-    return 'log-line log-line-warn';
+    return 'text-amber-400 bg-amber-500/5';
   }
   if (
     lower.includes('success') ||
     lower.includes('complete') ||
     lower.includes('done')
   ) {
-    return 'log-line log-line-success';
+    return 'text-emerald-400 bg-emerald-500/5';
   }
   if (
     lower.includes('info') ||
     lower.includes('starting') ||
     lower.includes('loading')
   ) {
-    return 'log-line log-line-info';
+    return 'text-sky-400 bg-sky-500/5';
   }
-  return 'log-line';
+  return 'text-text';
 }

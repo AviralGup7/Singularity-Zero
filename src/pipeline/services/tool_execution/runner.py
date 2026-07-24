@@ -19,6 +19,7 @@ from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import classify_stderr_lines
 from src.core.utils.subprocess_utils import (
+    SHELL_META,
     _clean_env,
     _coerce_output_text,
     _get_creationflags,

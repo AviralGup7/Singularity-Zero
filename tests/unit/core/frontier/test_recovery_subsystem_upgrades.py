@@ -95,9 +95,8 @@ def test_radix_sort_timestamps_helper():
 
 def test_wal_dual_commit_and_integrity(tmp_path):
     run_id = "test-run-wal"
-    wal = FrontierWAL(None, run_id)
-    aof_file = tmp_path / f"local_wal_{run_id}.aof"
-    wal._aof_path = aof_file
+    wal = FrontierWAL(None, run_id, aof_dir=tmp_path)
+    aof_file = wal._aof_path
 
     stage = "subdomain_scan"
     delta = {"subdomains": ["example.com"]}

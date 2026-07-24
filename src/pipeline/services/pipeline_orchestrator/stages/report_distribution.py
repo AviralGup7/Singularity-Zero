@@ -204,7 +204,7 @@ class ReportDistributor:
                 NotificationPriority,
             )
             from src.infrastructure.notifications.email import EmailConfig, EmailNotifier
-        except Exception:
+        except Exception as exc:
             logger.warning("Email infrastructure unavailable", exc_info=True)
             return [
                 DistributionRecord(

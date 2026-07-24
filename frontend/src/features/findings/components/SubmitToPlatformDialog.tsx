@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   listPlatformClients,
-  pushFindingToPlatform,
-  type Platform,
-  type PlatformClientSummary,
-  type SubmissionResult,
+  pushFindingToPlatform
+  
+  
+  
 } from '@/api/platforms';
+import type {Platform, PlatformClientSummary, SubmissionResult} from '@/api/platforms';
 
 interface SubmitToPlatformDialogProps {
   runId: string;
@@ -81,7 +82,7 @@ export function SubmitToPlatformDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-panel p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="submit-platform-title"
@@ -237,7 +238,7 @@ export function SubmitToPlatformDialog({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!selected || submitting}
-                className="rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+                className="rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-cyan-500 disabled:opacity-50"
               >
                 {submitting ? 'Submitting…' : draft ? 'Save as draft' : 'Submit now'}
               </button>

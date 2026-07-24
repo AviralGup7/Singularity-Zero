@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Finding } from '../../types/api';
+import type { Finding } from '@/types/api';
 
 interface UseBulkActionsInput {
   addAuditLog: (findingId: string, action: string, details?: string) => void;

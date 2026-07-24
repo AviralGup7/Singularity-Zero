@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getThreatIntel, getEPSSLabel, getEPSSColor, type ThreatIntelData } from '@/utils/threatIntelligence';
+import { getThreatIntel, getEPSSLabel, getEPSSColor  } from '@/utils/threatIntelligence';
+import type {ThreatIntelData} from '@/utils/threatIntelligence';
 
 interface ThreatIntelPanelProps {
   cveId?: string;
@@ -35,7 +36,7 @@ export function ThreatIntelPanel({ cveId, cweId }: ThreatIntelPanelProps) {
 
   if (!cveId && !cweId) return null;
    
-  if (loading) return <div className="text-[var(--muted)] text-xs font-mono">Loading threat intel...</div>;
+  if (loading) return <div className="text-muted text-xs font-mono">Loading threat intel...</div>;
   if (!data) return null;
 
   return (
@@ -52,7 +53,7 @@ export function ThreatIntelPanel({ cveId, cweId }: ThreatIntelPanelProps) {
             </div>
             {data.cve.cvssV3 && (
    
-              <div className="text-xs text-[var(--muted)]">
+              <div className="text-xs text-muted">
                 CVSS v3: {data.cve.cvssV3} ({data.cve.severity})
               </div>
             )}
@@ -78,11 +79,11 @@ export function ThreatIntelPanel({ cveId, cweId }: ThreatIntelPanelProps) {
                 {(data.epss.epss * 100).toFixed(2)}%
               </span>
               {' '}
-              <span className="text-xs text-[var(--muted)]">
+              <span className="text-xs text-muted">
                 ({getEPSSLabel(data.epss.epss)})
               </span>
             </div>
-            <div className="text-xs text-[var(--muted)]">
+            <div className="text-xs text-muted">
               Percentile: {data.epss.percentile}%
             </div>
           </div>

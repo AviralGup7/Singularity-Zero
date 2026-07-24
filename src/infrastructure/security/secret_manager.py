@@ -1,4 +1,9 @@
-"""Environment variable and cache-based secret management."""
+"""Environment variable and cache-based secret management.
+
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Do NOT enable security until the app is perfected. !!
+"""
 
 from __future__ import annotations
 

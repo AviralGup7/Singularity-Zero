@@ -1,4 +1,5 @@
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva  } from 'class-variance-authority';
+import type {VariantProps} from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const statusBadgeVariants = cva(
@@ -27,13 +28,30 @@ const statusBadgeVariants = cva(
 export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof statusBadgeVariants> {
   label?: string;
   showDot?: boolean;
+  /** Render as a dot-only indicator (no text), useful for compact UIs */
+  dotOnly?: boolean;
 }
 
-export function StatusBadge({ status, label, showDot = true, className, children, ...props }: StatusBadgeProps) {
+export function StatusBadge({ status, label, showDot = true, dotOnly = false, className, children, ...props }: StatusBadgeProps) {
+  const textContent = label || (typeof children === 'string' ? children : undefined);
+  const ariaLabel: string | undefined = textContent ? `${status}: ${textContent}` : status ?? undefined;
   return (
-    <span className={cn(statusBadgeVariants({ status }), className)} {...props}>
-      {showDot && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
-      {label || children}
+    <span
+      className={cn(statusBadgeVariants({ status }), dotOnly && 'px-1.5', className)}
+      role="status"
+      aria-label={ariaLabel}
+      {...props}
+    >
+      {showDot && (
+        <span
+          className={cn(
+            "w-1.5 h-1.5 rounded-full bg-current",
+            (status === 'critical' || status === 'active') && "motion-safe:animate-pulse"
+          )}
+          aria-hidden="true"
+        />
+      )}
+      {!dotOnly && textContent || children}
     </span>
   );
 }

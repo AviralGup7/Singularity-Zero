@@ -1,25 +1,14 @@
 """Centralized progress constants for stage execution and job tracking."""
 
+from src.pipeline.services.stage_registry import PIPELINE_STAGES
+
 STAGE_BASELINE_PERCENT = {
-    "startup": 2,
-    "subdomains": 12,
-    "live_hosts": 30,
-    "urls": 50,
-    "parameters": 62,
-    "ranking": 74,
-    "priority": 78,
-    "passive_scan": 86,
-    "active_scan": 88,
-    "nuclei": 90,
-    "semgrep": 91,
-    "access_control": 92,
-    "validation": 94,
-    "intelligence": 96,
-    "reporting": 98,
-    "completed": 100,
-    # Aliases for backward compatibility
-    "analysis": 86,
+    stage.key: stage.percent_start
+    for stage in PIPELINE_STAGES
 }
+STAGE_BASELINE_PERCENT["completed"] = 100
+# Aliases for backward compatibility
+STAGE_BASELINE_PERCENT["analysis"] = STAGE_BASELINE_PERCENT.get("passive_scan", 86)
 
 # Sibling mapping for orchestrator stage baseline lookups
 _STAGE_BASELINE_PROGRESS = {

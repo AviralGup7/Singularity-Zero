@@ -1,4 +1,5 @@
-import { useRef, useEffect, type ReactNode } from 'react';
+import { useRef, useEffect  } from 'react';
+import type {ReactNode} from 'react';
 import { cn } from '@/lib/utils';
 import { StatusBadge } from './StatusBadge';
 
@@ -59,16 +60,24 @@ export function LogViewer({
 
   return (
     <div
-      className={cn("overflow-y-auto font-mono text-xs space-y-0.5 p-3 bg-black/40 rounded-lg border", className)}
+      className={cn("overflow-y-auto font-mono text-xs space-y-0.5 p-3 bg-surface-2 rounded-lg border", className)}
       style={{ maxHeight }}
+      role="log"
+      aria-label="Log entries"
+      aria-live="off"
     >
       {entries.map((entry, i) => {
         if (renderEntry) return <div key={`${entry.timestamp}-${entry.message}-${i}`}>{renderEntry(entry, i)}</div>;
 
         return (
-          <div key={`${entry.timestamp}-${entry.message}-${i}`} className="flex items-start gap-2 py-0.5 hover:bg-white/5 rounded px-1 transition-colors">
+          <div
+            key={`${entry.timestamp}-${entry.message}-${i}`}
+            className="flex items-start gap-2 py-0.5 hover:bg-surface-hover rounded px-1 transition-colors"
+            role="listitem"
+            aria-label={`${entry.level ?? ''} ${entry.source ? `from ${entry.source}` : ''} ${entry.message}`}
+          >
             {showTimestamp && entry.timestamp && (
-              <span className="shrink-0 text-muted-foreground/60 w-16">{entry.timestamp}</span>
+              <span className="shrink-0 text-muted-foreground/60 w-16 tabular-nums">{entry.timestamp}</span>
             )}
             {showLevel && entry.level && (
               <span className={cn("shrink-0 uppercase w-12", levelColors[entry.level.toLowerCase()] ?? 'text-muted-foreground')}>
@@ -82,7 +91,7 @@ export function LogViewer({
           </div>
         );
       })}
-      <div ref={bottomRef} />
+      <div ref={bottomRef} aria-hidden="true" />
     </div>
   );
 }

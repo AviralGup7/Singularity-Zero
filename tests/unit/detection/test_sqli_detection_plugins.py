@@ -64,7 +64,7 @@ def test_sqli_plugins_are_discovered_with_runtime_metadata() -> None:
     active_plugin = get_detection_plugin("sqli_safe_probe")
     passive_plugin = get_detection_plugin("sql_error_exposure_detector")
 
-    assert active_plugin.phase == "validate"
+    assert active_plugin.phase == "discover"
     assert active_plugin.consumes == ("priority_urls", "response_cache")
     assert passive_plugin.input_kind == "responses_only"
 

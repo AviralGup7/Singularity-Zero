@@ -6,7 +6,6 @@ from src.core.events import EventBus, EventType
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.infrastructure.frontier.bloom_mesh import BloomMeshSynchronizer
 from src.infrastructure.observability.health_subscriber import register_health_subscriber
-from src.intelligence.ml.registry import ModelVersion, ModelVersionRegistry
 from src.pipeline.self_healing import (
     CorrectionEvent,
     CorrectiveAction,
@@ -97,17 +96,3 @@ async def test_bloom_mesh_flush_resets_saturated_filter() -> None:
     assert result["status"] == "flushed"
     assert bloom.get_stats()["element_count"] == 0
     assert bloom.get_stats()["fill_ratio"] == 0.0
-
-
-def test_model_registry_rolls_back_bad_active_version() -> None:
-    registry = ModelVersionRegistry(max_error_rate=0.1)
-    registry.register(ModelVersion(name="severity", version="1.0.0"))
-    registry.register(ModelVersion(name="severity", version="2.0.0"))
-    registry.record_health("severity", error_rate=0.5)
-
-    metrics = registry.health_metrics()
-    rollback = registry.rollback_bad_model_version("severity")
-
-    assert metrics[0].status == HealthStatus.CRITICAL
-    assert rollback["rolled_back"] is True
-    assert registry.snapshot()["active"]["severity"]["version"] == "1.0.0"

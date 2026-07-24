@@ -7,6 +7,7 @@ new pipeline stages without modifying core graph-building code.
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -31,29 +32,44 @@ class StageNodeDefinition:
 
 @dataclass
 class StageRegistry:
+    """Thread-safe registry of pipeline stage definitions.
+
+    All mutations and reads acquire ``_lock`` so that stages can be
+    registered and queried concurrently from multiple threads (e.g.
+    the plugin loader thread and the orchestrator thread) without
+    risking ``RuntimeError: dictionary changed size during iteration``
+    or silently lost registrations.
+    """
+
     _definitions: dict[str, StageNodeDefinition] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def register(self, defn: StageNodeDefinition) -> None:
-        if defn.name in self._definitions:
-            logger.warning("Stage '%s' already registered, overwriting", defn.name)
-        self._definitions[defn.name] = defn
+        with self._lock:
+            if defn.name in self._definitions:
+                logger.warning("Stage '%s' already registered, overwriting", defn.name)
+            self._definitions[defn.name] = defn
 
     def unregister(self, name: str) -> None:
-        if name not in self._definitions:
-            raise KeyError(f"Stage '{name}' is not registered")
-        del self._definitions[name]
+        with self._lock:
+            if name not in self._definitions:
+                raise KeyError(f"Stage '{name}' is not registered")
+            del self._definitions[name]
 
     def get_all(self) -> list[StageNodeDefinition]:
-        return list(self._definitions.values())
+        with self._lock:
+            return list(self._definitions.values())
 
     def get_by_group(self, group: str) -> list[StageNodeDefinition]:
-        return [d for d in self._definitions.values() if d.group == group]
+        with self._lock:
+            return [d for d in self._definitions.values() if d.group == group]
 
     def get_by_capability(self, capability: str) -> list[StageNodeDefinition]:
-        result = []
-        for defn in self._definitions.values():
-            if defn.when is not None and _condition_references_capability(defn.when, capability):
-                result.append(defn)
+        result: list[StageNodeDefinition] = []
+        with self._lock:
+            for defn in self._definitions.values():
+                if defn.when is not None and _condition_references_capability(defn.when, capability):
+                    result.append(defn)
         return result
 
 

@@ -174,9 +174,9 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
 
   if (!pairs || pairs.length === 0) {
     return (
-      <div className={cn('rr-viewer', className)}>
-        <div className="rr-empty">
-          <Icon name="shield" size={24} className="text-muted" />
+      <div className={cn('rr-viewer', className)} role="region" aria-label="Request/Response viewer">
+        <div className="rr-empty" role="status">
+          <Icon name="shield" size={24} className="text-muted" aria-hidden="true" />
           <span>No request/response data available</span>
         </div>
       </div>
@@ -192,14 +192,18 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
   };
 
   return (
-    <div className={cn('rr-viewer', className)}>
+    <div className={cn('rr-viewer', className)} role="region" aria-label="Request/Response viewer">
       <div className="rr-header">
-        <div className="rr-tabs">
+        <div className="rr-tabs" role="tablist" aria-label="Request pairs">
           {pairs.map((pair, idx) => (
             <button
               key={pair.id || idx}
               className={cn('rr-tab', activeIndex === idx && 'active')}
               onClick={() => setActiveIndex(idx)}
+              role="tab"
+              aria-selected={activeIndex === idx}
+              aria-controls={`rr-panel-${idx}`}
+              id={`rr-tab-${idx}`}
             >
               Request {idx + 1}
               {pair.response && (
@@ -214,17 +218,21 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
           ))}
         </div>
 
-        <div className="rr-controls">
-          <div className="rr-view-toggle">
+        <div className="rr-controls" role="toolbar" aria-label="Viewer controls">
+          <div className="rr-view-toggle" role="radiogroup" aria-label="View mode">
             <button
               className={cn('rr-control-btn', viewMode === 'request' && 'active')}
               onClick={() => setViewMode('request')}
+              role="radio"
+              aria-checked={viewMode === 'request'}
             >
               Request
             </button>
             <button
               className={cn('rr-control-btn', viewMode === 'response' && 'active')}
               onClick={() => setViewMode('response')}
+              role="radio"
+              aria-checked={viewMode === 'response'}
             >
               Response
             </button>
@@ -232,6 +240,8 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
               <button
                 className={cn('rr-control-btn', viewMode === 'diff' && 'active')}
                 onClick={() => setViewMode('diff')}
+                role="radio"
+                aria-checked={viewMode === 'diff'}
               >
                 Diff
               </button>
@@ -241,6 +251,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
           <button
             className={cn('rr-control-btn', decoded && 'active')}
             onClick={() => setDecoded(prev => !prev)}
+            aria-pressed={decoded}
           >
             Decode
           </button>
@@ -248,14 +259,16 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
           <button
             className={cn('rr-control-btn', redacted && 'active')}
             onClick={() => setRedacted(prev => !prev)}
+            aria-pressed={redacted}
           >
-            <Icon name="eye-off" size={14} />
+            <Icon name="eye-off" size={14} aria-hidden="true" />
             Redact
           </button>
 
           <button
             className="rr-control-btn rr-curl-btn"
             onClick={handleCopyCurl}
+            aria-label={copied ? 'Copied to clipboard' : 'Copy as curl command'}
           >
             {copied ? 'Copied!' : 'Copy as curl'}
           </button>
@@ -263,7 +276,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
       </div>
 
       {currentPair && viewMode !== 'diff' && (
-        <div className="rr-content">
+        <div className="rr-content" id={`rr-panel-${activeIndex}`} role="tabpanel" aria-labelledby={`rr-tab-${activeIndex}`}>
           {(viewMode === 'request' || viewMode === 'response') && (
             <div className={cn('rr-panel', viewMode === 'request' ? 'rr-request' : 'rr-response')}>
               {viewMode === 'request' && (
@@ -279,6 +292,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
                         <button
                           className="rr-copy-btn"
                           onClick={() => handleCopyBody(processedRequest.headers)}
+                          aria-label="Copy request headers"
                         >
                           Copy
                         </button>
@@ -293,6 +307,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
                         <button
                           className="rr-copy-btn"
                           onClick={() => handleCopyBody(processedRequest.body)}
+                          aria-label="Copy request body"
                         >
                           Copy
                         </button>
@@ -322,6 +337,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
                         <button
                           className="rr-copy-btn"
                           onClick={() => handleCopyBody(processedResponse.headers)}
+                          aria-label="Copy response headers"
                         >
                           Copy
                         </button>
@@ -336,6 +352,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
                         <button
                           className="rr-copy-btn"
                           onClick={() => handleCopyBody(processedResponse.body)}
+                          aria-label="Copy response body"
                         >
                           Copy
                         </button>

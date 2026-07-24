@@ -18,11 +18,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={id}
-            className="font-mono text-[length:var(--text-sm)] text-[var(--muted)] uppercase tracking-wider"
+            className="font-mono text-[length:var(--text-sm)] text-muted uppercase tracking-wider"
           >
             {label}
             {required && (
-              <span className="text-[var(--bad)] ml-1" aria-hidden="true">
+              <span className="text-bad ml-1" aria-hidden="true">
                 *
               </span>
             )}
@@ -35,19 +35,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={!!error}
           aria-describedby={helperId}
           className={cn(
-            'bg-[var(--input-bg)] border-[var(--line)] text-[var(--text)] font-mono focus:border-[var(--accent)] focus:ring-[var(--accent)] placeholder:text-[var(--muted)]/50',
-            error && 'border-[var(--bad)] focus:border-[var(--bad)] focus:ring-[var(--bad)]',
+            'bg border-line text-text font-mono focus:border-accent focus:ring-accent placeholder:text-muted/50',
+            error && 'border-bad focus:border-bad focus:ring-bad',
             className
           )}
           {...props}
         />
         {error && (
-          <p id={`${id}-error`} className="text-[var(--bad)] text-[length:var(--text-xs)] font-mono" role="alert">
+          <p id={`${id}-error`} className="text-bad text-[length:var(--text-xs)] font-mono" role="alert">
             {error}
           </p>
         )}
         {helperText && !error && (
-          <p id={`${id}-helper`} className="text-[var(--muted)] text-[length:var(--text-xs)] font-mono">
+          <p id={`${id}-helper`} className="text-muted text-[length:var(--text-xs)] font-mono">
             {helperText}
           </p>
         )}

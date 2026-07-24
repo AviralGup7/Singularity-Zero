@@ -16,14 +16,6 @@
 import { create } from 'zustand';
 import { useDisplayStore } from './displayStore';
 
-function getMaxLogLines(): number {
-  return useDisplayStore.getState().display.constrainedDevice ? 5_000 : 10_000;
-}
-
-function getMaxStreamingFindings(): number {
-  return useDisplayStore.getState().display.constrainedDevice ? 2_500 : 5_000;
-}
-
 import type {
   Job,
   PluginProgressEntry,
@@ -37,6 +29,14 @@ import {
   normalizeActiveTimeline,
 } from '../hooks/useJobMonitorUtils';
 import type { DurationForecastData } from '../hooks/useJobMonitorReducer';
+
+function getMaxLogLines(): number {
+  return useDisplayStore.getState().display.constrainedDevice ? 5_000 : 10_000;
+}
+
+function getMaxStreamingFindings(): number {
+  return useDisplayStore.getState().display.constrainedDevice ? 2_500 : 5_000;
+}
 
 const MAX_CACHED_JOBS = 10;
 

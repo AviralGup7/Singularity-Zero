@@ -88,8 +88,8 @@ def _extract_shadow_links(page: Any) -> list[str]:
         }""")
         if isinstance(links, list):
             return [link for link in links if isinstance(link, str)]
-        except Exception:
-            logger.warning("Operation failed in headless_crawler.py", exc_info=True)
+    except Exception:
+        logger.warning("Operation failed in headless_crawler.py", exc_info=True)
     return []
 
 

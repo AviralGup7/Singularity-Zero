@@ -44,7 +44,7 @@ export function TargetStep({
           placeholder="https://example.com
 https://example.net, https://example.org"
           rows={3}
-          className={`form-input form-input-lg${baseUrlError ? ' form-input--error' : ''}`}
+          className={`form-input form-input-lg${baseUrlError ? ' form-input--error' : ''} focus-visible:ring-2 focus-visible:ring-accent/30`}
           required
           aria-required="true"
           aria-invalid={!!baseUrlError}
@@ -66,7 +66,7 @@ https://example.net, https://example.org"
           value={scopeText}
           onChange={e => { onScopeTextChange(e.target.value); if (scopeTextError) onScopeTextError(null); }}
           placeholder="example.com&#10;*.example.com&#10;api.example.com"
-          className={`form-textarea form-input-lg${scopeTextError ? ' form-input--error' : ''}`}
+          className={`form-textarea form-input-lg${scopeTextError ? ' form-input--error' : ''} focus-visible:ring-2 focus-visible:ring-accent/30`}
           rows={4}
           aria-invalid={!!scopeTextError}
           aria-describedby={scopeTextError ? 'start-job-scope-error' : undefined}

@@ -114,6 +114,11 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+# Bug fix: Use contextvars instead of threading.local() for depth tracking.
+# threading.local() shares depth across all async tasks on the same thread,
+# causing depth corruption when multiple handlers publish concurrently.
+_event_depth_var: contextvars.ContextVar[int] = contextvars.ContextVar("event_depth", default=0)
+
 logger = logging.getLogger(__name__)
 
 EVENT_SCHEMA_VERSION = "v1"
@@ -218,7 +223,15 @@ class EventBus:
         )
         self._fanout_timestamps: list[float] = []
         self._fanout_lock = threading.Lock()
-        self._depth_local = threading.local()
+
+        # Bug fix: Global event budget tracking. The per-publish rate limit
+        # only limits the initial publish call, not recursive publishes from
+        # subscribers. This counter tracks total events across the entire
+        # event graph to prevent cascading amplification storms.
+        self._global_event_count: int = 0
+        self._global_event_budget: int = 10000
+        self._global_event_window: float = 60.0
+        self._global_event_window_start: float = 0.0
 
         # Bug #11: dropped event tracking and critical event buffer
         self._dropped_events: dict[str, int] = {}  # reason -> count
@@ -294,22 +307,40 @@ class EventBus:
                 )
                 return True
             self._fanout_timestamps.append(now)
+
+            # Bug fix: Global budget check across recursive publishes
+            now_mono = time.monotonic()
+            if self._global_event_window_start == 0.0:
+                self._global_event_window_start = now_mono
+            elapsed = now_mono - self._global_event_window_start
+            if elapsed > self._global_event_window:
+                self._global_event_count = 0
+                self._global_event_window_start = now_mono
+            self._global_event_count += 1
+            if self._global_event_count > self._global_event_budget:
+                logger.warning(
+                    "Event bus global budget exceeded: %d events in %.1fs window. "
+                    "This indicates recursive event amplification.",
+                    self._global_event_count,
+                    elapsed,
+                )
+                return True
         return False
 
     def _get_depth(self) -> int:
         """Get current event handler recursion depth."""
-        return getattr(self._depth_local, "depth", 0)
+        return _event_depth_var.get(0)
 
     def _increment_depth(self) -> int:
         """Increment and return current depth."""
-        current = self._get_depth()
-        self._depth_local.depth = current + 1
+        current = _event_depth_var.get(0)
+        _event_depth_var.set(current + 1)
         return current + 1
 
     def _decrement_depth(self) -> None:
         """Decrement recursion depth."""
-        current = self._get_depth()
-        self._depth_local.depth = max(0, current - 1)
+        current = _event_depth_var.get(0)
+        _event_depth_var.set(max(0, current - 1))
 
     def _record_drop(self, reason: str, event: PipelineEvent) -> None:
         """Bug #11: Record a dropped event and buffer critical events for retry."""
@@ -363,6 +394,13 @@ class EventBus:
         """Publish event to all subscribers (fire-and-forget)."""
         depth = self._increment_depth()
         try:
+            # Bug fix: Drain critical buffer on every publish regardless of
+            # backpressure state. Previously, the drain only triggered when
+            # _pending_tasks dropped below half capacity, which could starve
+            # critical events under sustained load.
+            if self._critical_buffer:
+                self._drain_critical_buffer()
+
             if depth > self._fanout_max_depth:
                 logger.warning(
                     "Event fan-out depth limit exceeded (%d). "
@@ -620,13 +658,19 @@ class EventBus:
         # coordination sees all tasks from all subsystems.
         try:
             from src.core.task_registry import get_task_registry
+
             registry = get_task_registry()
+            # DEADLOCK FIX: _next_id() must be called BEFORE acquiring the
+            # registry lock, because _next_id() itself acquires the same lock.
+            # Calling it inside `with registry._lock:` caused a self-deadlock
+            # whenever EventBus scheduled an async handler during pipeline
+            # startup (the first PIPELINE_STARTED event blocked forever).
+            task_id = f"task-{registry._next_id()}"
             with registry._lock:
-                task_id = f"task-{registry._next_id()}"
                 registry._tasks[task_id] = task
                 registry._owner_tasks.setdefault("event_bus", set()).add(task_id)
             task.add_done_callback(
-                lambda t, _id=task_id: registry._on_done(_id, "event_bus")
+                lambda t, _id=task_id, _owner="event_bus": registry._on_done(_id, _owner)
             )
         except Exception:
             logger.exception("Failed to register task with TaskRegistry")

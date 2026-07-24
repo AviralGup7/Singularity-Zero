@@ -15,11 +15,8 @@ from typing import TYPE_CHECKING, Any
 import requests
 from PIL import Image
 
+from src.core.config.typed_config import PipelineConfig
 from src.core.logging.pipeline_logging import emit_warning
-
-if TYPE_CHECKING:
-    import numpy as np  # noqa: F401
-from src.core.models import Config
 from src.pipeline.baseline_store import ScreenshotBaselineStore
 from src.pipeline.storage import ensure_dir
 from src.pipeline.tools import RetryPolicy, build_retry_policy, run_command
@@ -217,7 +214,7 @@ def _capture_single(
 
 
 def capture_screenshots(
-    live_hosts: set[str], run_dir: Path, config: Config
+    live_hosts: set[str], run_dir: Path, config: PipelineConfig
 ) -> list[dict[str, Any]]:
     settings = config.screenshots
     if not settings.get("enabled"):

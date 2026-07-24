@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { SearchableItem } from '@/components/layout/CommandPalette';
 import { commandRegistry } from '@/lib/CommandRegistry';
 
@@ -14,10 +14,36 @@ export function getAllItems(): SearchableItem[] {
   return commandRegistry.getAll();
 }
 
+function itemsKey(items: SearchableItem[]): string {
+  return items.map(i => i.id).join(',');
+}
+
 export function useCommandPaletteItems(items: SearchableItem[]) {
+  const prevKeyRef = useRef<string>('');
+  
   useEffect(() => {
-    commandRegistry.registerMany(items);
-    return () => commandRegistry.unregisterMany(items.map(i => i.id));
+    const currentKey = itemsKey(items);
+    const prevKey = prevKeyRef.current;
+    
+    // Only re-register if the item IDs actually changed
+    if (currentKey !== prevKey) {
+      // Unregister previous items
+      if (prevKey) {
+        const prevIds = prevKey.split(',').filter(Boolean);
+        prevIds.forEach(id => commandRegistry.unregister(id));
+      }
+      // Register new items
+      if (items.length > 0) {
+        commandRegistry.registerMany(items);
+      }
+      prevKeyRef.current = currentKey;
+    }
+    
+    return () => {
+      const ids = currentKey.split(',').filter(Boolean);
+      ids.forEach(id => commandRegistry.unregister(id));
+      prevKeyRef.current = '';
+    };
   }, [items]);
 }
 

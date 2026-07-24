@@ -1,3 +1,53 @@
+/* ══════════════════════════════════════════════════════════════
+   Shadow & Glow Utility Classes (token-driven, no hardcoded colors)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Accent Glow Shadows ──────────────────────────────────── */
+.shadow-glow-accent-sm {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.shadow-glow-accent-md {
+  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.shadow-glow-accent-lg {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* ── Status Glow Shadows ──────────────────────────────────── */
+.shadow-glow-ok-sm {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 15%, transparent);
+}
+.shadow-glow-ok-md {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ok) 30%, transparent);
+}
+.shadow-glow-warn-md {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--warn) 20%, transparent);
+}
+.shadow-glow-bad-md {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--bad) 20%, transparent);
+}
+
+/* ── Panel / Overlay Shadows ──────────────────────────────── */
+.shadow-panel-glass {
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+}
+.shadow-overlay-lg {
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Surface Glow (for cards with accent border) ──────────── */
+.surface-glow-accent {
+  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.surface-glow-accent-hover {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ── Inset Glow (for circular progress / meters) ──────────── */
+.inset-deep {
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
 .page-transition {
   width: 100%;
 }
@@ -9,8 +59,8 @@
 }
 
 @keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(74, 142, 255, 0.20); }
-  50% { box-shadow: 0 0 0 1px rgba(74, 142, 255, 0.50), 0 0 20px rgba(74, 142, 255, 0.15); }
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent); }
+  50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent), 0 0 20px color-mix(in srgb, var(--accent) 15%, transparent); }
 }
 
 @keyframes throughput-sweep {
@@ -20,9 +70,9 @@
 
 @keyframes glitch-jitter {
   0%, 100% { transform: translateX(0); text-shadow: 0 0 0 transparent; }
-  20% { transform: translateX(-1px); text-shadow: -1px 0 rgba(255, 45, 85, 0.6); }
-  40% { transform: translateX(1px); text-shadow: 1px 0 rgba(255, 45, 85, 0.75); }
-  60% { transform: translateX(-1px); text-shadow: -1px 0 rgba(255, 45, 85, 0.55); }
+  20% { transform: translateX(-1px); text-shadow: -1px 0 color-mix(in srgb, var(--bad) 60%, transparent); }
+  40% { transform: translateX(1px); text-shadow: 1px 0 color-mix(in srgb, var(--bad) 75%, transparent); }
+  60% { transform: translateX(-1px); text-shadow: -1px 0 color-mix(in srgb, var(--bad) 55%, transparent); }
 }
 
 @keyframes breathe {

@@ -65,6 +65,7 @@ export function ConfigStep({
                 type="checkbox"
                 checked={value}
                 onChange={() => onToggleExecutionOption(key)}
+                aria-label={key.replace(/_/g, ' ')}
               />
               <span className="toggle-track"><span className="toggle-thumb" /></span>
               <span>{key.replace(/_/g, ' ')}</span>
@@ -83,7 +84,7 @@ export function ConfigStep({
                 label={opt.label ?? opt.name}
               >
                 <input
-                  className="form-input"
+                  className="form-input focus-visible:ring-2 focus-visible:ring-accent/30"
                   placeholder={opt.placeholder}
                   type={opt.type ?? 'text'}
    

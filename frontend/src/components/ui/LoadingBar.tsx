@@ -5,7 +5,8 @@ export function LoadingBar() {
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prevPathRef = useRef(location.pathname);
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function LoadingBar() {
 
       const finishTimer = setTimeout(() => {
         setProgress(100);
-        setTimeout(() => {
+        hideTimerRef.current = setTimeout(() => {
           setLoading(false);
           setProgress(0);
         }, 200);
@@ -36,6 +37,7 @@ export function LoadingBar() {
       return () => {
         clearInterval(timerRef.current);
         clearTimeout(finishTimer);
+        clearTimeout(hideTimerRef.current);
       };
     }
   }, [location.pathname]);
@@ -49,7 +51,7 @@ export function LoadingBar() {
       aria-valuenow={Math.round(progress)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-hidden="true"
+      aria-label="Page loading"
     >
       <div
         className="h-full transition-all duration-300 ease-out"

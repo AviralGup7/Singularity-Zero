@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Database, Trash2, Plus } from 'lucide-react';
 import { apiClient } from '@/api/core';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface AssetRecord {
   asset_id: string;
@@ -48,7 +49,9 @@ export function AssetCriticalityPage() {
       const { data } = await apiClient.get<AssetRecord[]>('/api/risk-domain/assets', { params: { limit: 200 } });
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(`Failed to load: ${(err as Error).message}`);
+      const msg = `Failed to load assets: ${(err as Error).message}`;
+      setError(msg);
+      showErrorToast(msg);
     } finally {
       setLoading(false);
     }
@@ -76,7 +79,9 @@ export function AssetCriticalityPage() {
       });
       await load();
     } catch (err) {
-      setError(`Save failed: ${(err as Error).message}`);
+      const msg = `Failed to save asset: ${(err as Error).message}`;
+      setError(msg);
+      showErrorToast(msg);
     } finally {
       setSaving(false);
     }
@@ -88,7 +93,9 @@ export function AssetCriticalityPage() {
         await apiClient.delete(`/api/risk-domain/assets/${encodeURIComponent(assetId)}`);
         await load();
       } catch (err) {
-        setError(`Delete failed: ${(err as Error).message}`);
+        const msg = `Failed to delete asset: ${(err as Error).message}`;
+        setError(msg);
+        showErrorToast(msg);
       }
     },
     [load],
@@ -96,7 +103,7 @@ export function AssetCriticalityPage() {
 
   return (
     <div className="flex flex-col h-full bg-bg font-sans" data-testid="asset-criticality-page">
-      <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between glass-panel sticky top-0 z-20">
+      <div className="px-8 py-6 border-b border-line flex items-center justify-between glass-panel sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <div className="p-2 bg-accent/10 rounded-lg border border-accent/20">
             <Database size={20} className="text-accent" />
@@ -110,32 +117,32 @@ export function AssetCriticalityPage() {
         </div>
       </div>
 
-      <div className="px-8 py-4 grid grid-cols-1 md:grid-cols-7 gap-3 bg-black/30 border-b border-white/5">
+      <div className="px-8 py-4 grid grid-cols-1 md:grid-cols-7 gap-3 bg-surface-2 border-b border-line">
         <input
           type="text"
           placeholder="Name"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <input
           type="text"
           placeholder="Host pattern (e.g. *.payments.example.com)"
           value={form.host_pattern}
           onChange={(e) => setForm((f) => ({ ...f, host_pattern: e.target.value }))}
-          className="md:col-span-2 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="md:col-span-2 bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <input
           type="text"
           placeholder="Asset type"
           value={form.asset_type}
           onChange={(e) => setForm((f) => ({ ...f, asset_type: e.target.value }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <select
           value={form.tier}
           onChange={(e) => setForm((f) => ({ ...f, tier: e.target.value }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         >
           {TIER_OPTIONS.map((tier) => (
             <option key={tier} value={tier}>
@@ -151,7 +158,7 @@ export function AssetCriticalityPage() {
           placeholder="Criticality"
           value={form.criticality}
           onChange={(e) => setForm((f) => ({ ...f, criticality: Number(e.target.value) }))}
-          className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+          className="bg-surface-hover border border-line rounded px-2 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
         />
         <button
           type="button"
@@ -181,7 +188,7 @@ export function AssetCriticalityPage() {
         ) : (
           <div className="grid gap-3">
             {rows.map((row) => (
-              <div key={row.asset_id} className="glass-panel border border-white/5 rounded-lg p-4">
+              <div key={row.asset_id} className="glass-panel border border-line rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-text font-bold">{row.name}</div>

@@ -73,7 +73,6 @@ class JobQueueConsumerGroupsMixin:
             logger.warning("Job %s not found for fail operation", job_id)
             return False, "not_found"
         job = Job.from_redis_hash(job_data)
-        retries = job.retries
         max_retries = job.max_retries
         ret = await asyncio.to_thread(
             self.redis.execute_script,
@@ -87,7 +86,6 @@ class JobQueueConsumerGroupsMixin:
             ],
             args=[
                 error,
-                str(retries),
                 str(max_retries),
                 str(time.time()),
                 str(self.retry_policy.initial_delay),
@@ -98,7 +96,7 @@ class JobQueueConsumerGroupsMixin:
         if ret and ret[0] in (1, 2):
             outcome = "retrying" if ret[0] == 1 else "dead_letter"
             logger.info(
-                "Job %s failed, outcome=%s (retries=%d/%d)", job_id, outcome, retries, max_retries
+                "Job %s failed, outcome=%s (max_retries=%d)", job_id, outcome, max_retries
             )
             return True, outcome
         logger.warning("Failed to process job failure for %s", job_id)

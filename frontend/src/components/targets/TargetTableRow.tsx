@@ -19,8 +19,8 @@ export function TargetTableRow({
   return (
     <tr
       key={target.name || target.href || `target-${currentPage}-${target.name}`}
-      className={`transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/5 ${
-        selectedTargets.has(target.name || '') ? 'row-selected bg-white/5' : ''
+      className={`transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-hover ${
+        selectedTargets.has(target.name || '') ? 'row-selected bg-surface-hover' : ''
       }`}
     >
       <td className="bulk-select-col">

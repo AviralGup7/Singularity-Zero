@@ -114,5 +114,43 @@ def list_plugins(kind: str) -> tuple[PluginRegistration[Any], ...]:
     return GLOBAL_PLUGIN_REGISTRY.list_plugins(kind=kind)
 
 
+def module_plugin(
+    module: str,
+    kind: str,
+    key: str,
+    *,
+    contract: Any | None = None,
+    **metadata: Any,
+) -> Callable[[Any], Any]:
+    """Register a plugin and auto-annotate it with the registering module.
+
+    This is a thin wrapper around :func:`register_plugin` that pre-fills
+    the ``module`` metadata field so downstream tooling (the dashboard,
+    audit log, reporting) can attribute every plugin to the module that
+    owns it without the plugin author having to repeat that information.
+
+    Args:
+        module: Canonical module name (e.g. ``"analysis"``, ``"recon"``).
+        kind: Plugin kind (``"analysis"``, ``"validator"``, ``"scanner"``,
+              ``"enrichment"``, ``"exporter"``, ``"recon"``).
+        key: Unique plugin key within *kind* (lowercase dotted identifier).
+        contract: Optional Protocol the provider must satisfy.
+        **metadata: Additional metadata stored in the PluginRegistration.
+
+    Returns:
+        A decorator that registers the decorated callable and returns it
+        unchanged so it can still be used directly.
+
+    Example::
+
+        @module_plugin(module="analysis", kind="analysis", key="xss_reflected")
+        def xss_reflected_probe(ctx):
+            ...
+    """
+    if "module" not in metadata:
+        metadata["module"] = module
+    return GLOBAL_PLUGIN_REGISTRY.decorator(kind=kind, key=key, contract=contract, **metadata)
+
+
 def unregister_plugin(kind: str, key: str) -> bool:
     return GLOBAL_PLUGIN_REGISTRY.unregister(kind=kind, key=key)

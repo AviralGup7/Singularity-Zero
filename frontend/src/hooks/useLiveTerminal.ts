@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getJobs, getJobLogs } from '../api/client';
 import type { Job, PipelineTelemetryEvent } from '../types/api';
+import { showErrorToast } from '../utils/extractErrorMessage';
 
 export interface LiveTerminalLine {
   id: number;
@@ -190,7 +191,7 @@ export function useLiveTerminal(options: {
       if (!currentJobId && running.length > 0) setCurrentJobId(running[0].id);
       setIsLoading(false);
     } catch (e) {
-      console.error('Failed to sync mesh workers:', e);
+      showErrorToast(e, 'Failed to sync mesh workers');
       setError('Failed to sync mesh workers');
     }
    
@@ -264,7 +265,7 @@ export function useLiveTerminal(options: {
           const logs = await getJobLogs(activeId);
           if (logs?.logs) addLinesToBuffer(logs.logs);
         } catch (_e) {
-          addLinesToBuffer([]);
+          // Polling failure is non-critical; SSE is primary source
         }
       }, pollInterval);
       return () => {

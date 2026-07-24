@@ -51,9 +51,11 @@ class CapacityManager:
         self,
         reserve_ram_mb: int = _DEFAULT_RESERVE_RAM_MB,
         in_flight_avg_ram_mb: int = _DEFAULT_IN_FLIGHT_AVG_RAM_MB,
+        resource_guard: Any | None = None,
     ) -> None:
         self.reserve_ram_mb = reserve_ram_mb
         self.in_flight_avg_ram_mb = in_flight_avg_ram_mb
+        self._resource_guard = resource_guard
         self._lock = threading.Lock()
         self._denied_count: int = 0
         self._allowed_count: int = 0
@@ -79,9 +81,12 @@ class CapacityManager:
         # 1. RAM check via ResourceGuard
         if estimated_ram_mb > 0:
             try:
-                from src.infrastructure.resource_guard import ResourceGuard
+                guard = self._resource_guard
+                if guard is None:
+                    from src.infrastructure.resource_guard import ResourceGuard
 
-                guard = ResourceGuard()
+                    guard = ResourceGuard()
+
                 ok, reason = guard.check_available_ram_for_dispatch(
                     estimated_ram_mb=estimated_ram_mb,
                     in_flight_count=self._get_in_flight_count(),
@@ -93,24 +98,42 @@ class CapacityManager:
             except ImportError:
                 logger.warning("Operation failed in capacity_manager.py", exc_info=True)
             except Exception as exc:
-                logger.debug("CapacityManager: ResourceGuard check failed: %s", exc)
+                logger.warning("CapacityManager: ResourceGuard check failed: %s", exc)
+                reason = f"ram_check_error: {exc}"
+                self._record_denial(reason)
+                return False, reason
 
         # 2. Concurrency slot check
+        # Bug fix: Check capacity WITHOUT acquiring the slot. Previously,
+        # governor.allow() acquired the slot during the check, but if the
+        # caller didn't dispatch (early return, exception), the slot leaked
+        # permanently, eventually stalling the pipeline.
         try:
             from src.core.concurrency_governor import get_governor
 
             governor = get_governor()
-            if not governor.allow(subsystem):
-                reason = f"concurrency_governor: global_max={governor.global_max} reached"
-                self._record_denial(reason)
-                # Release the slot we just acquired — we're only checking
+            # Use check_available() if it exists, otherwise fall back to allow/release
+            if hasattr(governor, "check_available"):
+                if not governor.check_available(subsystem):
+                    reason = f"concurrency_governor: global_max={governor.global_max} reached"
+                    self._record_denial(reason)
+                    return False, reason
+            else:
+                # Fallback: acquire then immediately release to check capacity
+                if not governor.allow(subsystem):
+                    reason = f"concurrency_governor: global_max={governor.global_max} reached"
+                    self._record_denial(reason)
+                    return False, reason
+                # Slot acquired by the check — release immediately so the
+                # caller can re-acquire when actually dispatching.
                 governor.release(subsystem)
-                return False, reason
-            # Slot acquired — caller is responsible for releasing it
         except ImportError:
             logger.warning("Operation failed in capacity_manager.py", exc_info=True)
         except Exception as exc:
-            logger.debug("CapacityManager: ConcurrencyGovernor check failed: %s", exc)
+            logger.warning("CapacityManager: ConcurrencyGovernor check failed: %s", exc)
+            reason = f"concurrency_check_error: {exc}"
+            self._record_denial(reason)
+            return False, reason
 
         # 3. TaskRegistry sanity check — if there are way more active tasks
         # than the concurrency governor allows, something is wrong.
@@ -137,9 +160,10 @@ class CapacityManager:
         except ImportError:
             logger.warning("Operation failed in capacity_manager.py", exc_info=True)
         except Exception as exc:
-            logger.debug("CapacityManager: TaskRegistry check failed: %s", exc)
+            logger.warning("CapacityManager: TaskRegistry check failed: %s", exc)
 
-        self._allowed_count += 1
+        with self._lock:
+            self._allowed_count += 1
         return True, None
 
     def release(self, subsystem: str) -> None:

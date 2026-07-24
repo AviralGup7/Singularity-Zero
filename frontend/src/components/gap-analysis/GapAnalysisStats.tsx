@@ -12,7 +12,7 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-panel border border-white/5 p-6 rounded-xl cyber-glow-sm"
+        className="bg-panel border border-line p-6 rounded-xl cyber-glow-sm"
       >
         <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Overall Coverage</div>
         <div
@@ -23,7 +23,7 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
         >
           {data.overall_coverage}%
         </div>
-        <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+        <div className="mt-4 h-1.5 w-full bg-surface-hover rounded-full overflow-hidden">
           <div
             className={`h-full transition-all duration-1000 ${
               data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'text-bad'
@@ -37,7 +37,7 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-panel border border-white/5 p-6 rounded-xl"
+        className="bg-panel border border-line p-6 rounded-xl"
       >
         <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Module Integrity</div>
         <div className="font-semibold text-text" style={{ fontSize: 'var(--text-card-value)' }}>
@@ -55,7 +55,7 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-panel border border-white/5 p-6 rounded-xl"
+        className="bg-panel border border-line p-6 rounded-xl"
       >
         <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Identified Gaps</div>
         <div

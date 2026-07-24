@@ -62,3 +62,10 @@ class EBPFHookManager:
     @staticmethod
     def unpin_memory(address_space: Any) -> None:
         pass
+
+
+# Alias for legacy or case-sensitive imports
+eBPFHookManager = EBPFHookManager
+
+
+ebpf_hook_manager = EBPFHookManager

@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from src.infrastructure.mesh.sync import MeshSync
-from src.intelligence.ml import ActiveLearningController
-from src.intelligence.severity_model import get_default_severity_model
 from src.learning.config import LearningConfig
 from src.learning.feedback_loop import FeedbackLoopEngine
 from src.learning.fp_tracker import FPTracker
@@ -92,14 +90,7 @@ class LearningIntegration:
         )
         self._mesh_sync_task: asyncio.Task | None = None
 
-        # Wire active learning retraining loops
-        self._active_learning: ActiveLearningController | None = None
-        try:
-            severity_model = get_default_severity_model(self.store.db_path)
-            self._active_learning = ActiveLearningController(severity_model.registry)
-        except Exception as e:
-            logger.warning("Active learning controller initialization failed: %s", e)
-            self._active_learning = None
+        self._active_learning = None
 
     @classmethod
     def get_or_create(
@@ -128,25 +119,53 @@ class LearningIntegration:
 
         new_fingerprint = _config_fingerprint(config)
 
-        if _integration_instance is not None:
-            # Check for config contamination (Bug #19)
-            if _integration_config_hash is not None and _integration_config_hash != new_fingerprint:
-                logger.warning(
-                    "Learning config changed (fingerprint %s -> %s); "
-                    "resetting singleton to prevent cross-target contamination",
-                    _integration_config_hash,
-                    new_fingerprint,
-                )
-                cls.reset()
+        # Bug fix: Use the lock for the entire check-then-act sequence to
+        # prevent a race where one thread creates the instance while another
+        # sees a config change and resets it, leaving the first with a stale ref.
+        with _integration_lock:
+            if _integration_instance is not None:
+                # Check for config contamination (Bug #19)
+                if _integration_config_hash is not None and _integration_config_hash != new_fingerprint:
+                    logger.warning(
+                        "Learning config changed (fingerprint %s -> %s); "
+                        "resetting singleton to prevent cross-target contamination",
+                        _integration_config_hash,
+                        new_fingerprint,
+                    )
+                    try:
+                        _integration_instance.close()
+                    except Exception:
+                        logger.warning(
+                            "LearningIntegration close failed during reset; forcing null",
+                            exc_info=True,
+                        )
+                    _integration_instance = None
+                    _integration_config_hash = None
 
-            target = (
-                ctx.get("target_name")
-                if isinstance(ctx, dict)
-                else getattr(ctx, "target_name", None)
-            )
-            if ctx and getattr(_integration_instance, "_current_target", None) != target:
-                _integration_instance._current_target = target
-            return _integration_instance
+                if _integration_instance is not None:
+                    target = (
+                        ctx.get("target_name")
+                        if isinstance(ctx, dict)
+                        else getattr(ctx, "target_name", None)
+                    )
+                    # Defect 7 fix: Reset singleton when the target changes
+                    # to prevent stale telemetry/adaptations from a previous
+                    # target from contaminating the new one.
+                    prev_target = getattr(_integration_instance, "_current_target", None)
+                    if ctx and target and prev_target and prev_target != target:
+                        logger.warning(
+                            "Learning target changed (%s -> %s); "
+                            "resetting singleton to prevent cross-target contamination",
+                            prev_target,
+                            target,
+                        )
+                        _integration_instance.close()
+                        _integration_instance = None
+                        _integration_config_hash = None
+                    elif ctx and getattr(_integration_instance, "_current_target", None) != target:
+                        _integration_instance._current_target = target
+                    if _integration_instance is not None:
+                        return _integration_instance
 
         with _integration_lock:
             if _integration_instance is not None:
@@ -155,9 +174,21 @@ class LearningIntegration:
                     if isinstance(ctx, dict)
                     else getattr(ctx, "target_name", None)
                 )
-                if ctx and getattr(_integration_instance, "_current_target", None) != target:
+                prev_target = getattr(_integration_instance, "_current_target", None)
+                if ctx and target and prev_target and prev_target != target:
+                    logger.warning(
+                        "Learning target changed (%s -> %s); "
+                        "resetting singleton to prevent cross-target contamination",
+                        prev_target,
+                        target,
+                    )
+                    _integration_instance.close()
+                    _integration_instance = None
+                    _integration_config_hash = None
+                elif ctx and getattr(_integration_instance, "_current_target", None) != target:
                     _integration_instance._current_target = target
-                return _integration_instance
+                if _integration_instance is not None:
+                    return _integration_instance
 
             if not config.enabled:
                 # Return a no-op instance
@@ -238,7 +269,11 @@ class LearningIntegration:
 
         Bug #20: Properly cancels and awaits the mesh sync background task
         before closing the connection, preventing ghost listeners.
+        Bug fix: Reset _current_target to prevent stale state leakage.
         """
+        # Bug fix: Reset current target to prevent cross-target contamination
+        self._current_target = None
+
         # Bug #20: Cancel mesh sync background task first
         if self._mesh_sync_task is not None and not self._mesh_sync_task.done():
             self._mesh_sync_task.cancel()
@@ -467,8 +502,14 @@ def _cleanup_learning_integration() -> None:
         _integration_instance = None
 
 
+_atexit_registered = False
+
+
 def _register_with_lifecycle() -> None:
     """Register cleanup with the lifecycle manager."""
+    global _atexit_registered
+    if _atexit_registered:
+        return
     try:
         from src.core.lifecycle import get_lifecycle_manager
 
@@ -477,6 +518,7 @@ def _register_with_lifecycle() -> None:
         )
     except ImportError:
         atexit.register(_cleanup_learning_integration)
+    _atexit_registered = True
 
 
 _register_with_lifecycle()

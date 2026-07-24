@@ -81,8 +81,10 @@ class TestTaskEnvelopeExclusivity:
             "src/dashboard/fastapi/routers/jobs.py",
             "src/pipeline/parallel_analysis/executor.py",
             "src/pipeline/services/pipeline_orchestrator/orchestrator.py",
+            "src/pipeline/services/pipeline_orchestrator/stage_dispatcher.py",
             "src/infrastructure/notifications/broadcaster.py",
             "src/core/frontier/ghost_actor_coordinator.py",
+            "src/infrastructure/frontier/ghost_actor_coordinator.py",
         }
 
         violations: list[str] = []

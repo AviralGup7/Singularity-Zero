@@ -1,12 +1,3 @@
-export type { 
-  RegistryData,
-  AnalysisCheckOption,
-  AnalysisControlGroup,
-  AnalysisFocusPreset,
-  DynamicPluginManifest,
-  ModePreset
-} from '@/types/api';
-
 import type { 
   RegistryData,
   AnalysisCheckOption,
@@ -17,6 +8,15 @@ import type {
 } from '@/types/api';
 
 import { cachedGet } from './core';
+
+export type { 
+  RegistryData,
+  AnalysisCheckOption,
+  AnalysisControlGroup,
+  AnalysisFocusPreset,
+  DynamicPluginManifest,
+  ModePreset
+} from '@/types/api';
 
 export interface ModuleRegistryEntry {
   name: string;

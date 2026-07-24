@@ -2,14 +2,156 @@
 
 Provides functions for normalizing scope entries, URLs, and parsing
 plain text line lists into deduplicated sets.
+
+Also provides the module-level self-description system: ``ModuleMeta``,
+``register_module_meta()``, and helpers that every ``src/*/__init__.py``
+uses to publish its version, purpose, public API surface, and a runtime
+health-check.  This makes each module independently updatable, auditable,
+and testable without cross-module coupling.
 """
 
+from __future__ import annotations
+
 import logging
+import threading
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["normalize_scope_entry", "normalize_url", "parse_plain_lines"]
+__all__ = [
+    "ModuleMeta",
+    "ModuleRegistry",
+    "GLOBAL_MODULE_REGISTRY",
+    "register_module_meta",
+    "get_module_meta",
+    "list_registered_modules",
+    "normalize_scope_entry",
+    "normalize_url",
+    "parse_plain_lines",
+]
+
+
+# ---------------------------------------------------------------------------
+# Module self-description system
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleMeta:
+    """Immutable description of a pipeline module published in its ``__init__.py``.
+
+    Each ``src/<module>/__init__.py`` should define a ``MODULE_META`` dict
+    (or directly instantiate ``ModuleMeta``) and then call
+    ``register_module_meta(MODULE_META)`` so the registry always has an
+    up-to-date picture of the module graph.
+
+    Attributes:
+        name: Short module identifier matching the directory name
+              (e.g. ``"analysis"``, ``"recon"``).
+        version: Semver-compatible module version string.
+        description: One-sentence human description of module purpose.
+        layer: Architectural layer the module belongs to (see
+               ``src/core/contracts/module_interfaces.ModuleLayer``).
+        submodules: Tuple of sub-package names exposed by this module.
+        public_api: Tuple of top-level symbol names this module re-exports.
+        depends_on: Tuple of other module names this module imports.
+        entry_points: Tuple of console_script names this module provides.
+        health_check: Name of a zero-argument function in this module's
+            ``__init__.py`` that returns a ``dict[str, Any]`` health status.
+            Omit or set to ``""`` if not applicable.
+    """
+
+    name: str
+    version: str
+    description: str
+    layer: str = "unknown"
+    submodules: tuple[str, ...] = ()
+    public_api: tuple[str, ...] = ()
+    depends_on: tuple[str, ...] = ()
+    entry_points: tuple[str, ...] = ()
+    health_check: str = ""
+
+
+class ModuleRegistry:
+    """Thread-safe registry of all pipeline modules.
+
+    Populated automatically when each ``src/*/__init__.py`` calls
+    ``register_module_meta`` at import time.  Consumers can call
+    ``list_registered_modules`` or ``get_module_meta`` to inspect the
+    module graph without importing every sub-package.
+
+    Usage::
+
+        from src.core.utils.shared import GLOBAL_MODULE_REGISTRY
+        meta = GLOBAL_MODULE_REGISTRY.get("analysis")
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._registry: dict[str, ModuleMeta] = {}
+
+    def register(self, meta: ModuleMeta) -> None:
+        with self._lock:
+            self._registry[meta.name] = meta
+            logger.debug("Registered module meta: %s v%s", meta.name, meta.version)
+
+    def get(self, name: str) -> ModuleMeta | None:
+        with self._lock:
+            return self._registry.get(name)
+
+    def all(self) -> dict[str, ModuleMeta]:
+        with self._lock:
+            return dict(self._registry)
+
+    def keys(self) -> list[str]:
+        with self._lock:
+            return list(self._registry.keys())
+
+
+GLOBAL_MODULE_REGISTRY: ModuleRegistry = ModuleRegistry()
+
+
+def register_module_meta(meta: ModuleMeta | dict[str, Any]) -> None:
+    """Register module metadata in the global registry.
+
+    Accepts either a ``ModuleMeta`` instance or a plain ``dict`` that can
+    be passed to the ``ModuleMeta`` constructor.  Called from each module's
+    ``__init__.py`` at import time.
+
+    Args:
+        meta: ModuleMeta instance or dict with ModuleMeta-compatible fields.
+    """
+    if isinstance(meta, dict):
+        meta = ModuleMeta(**{k: v for k, v in meta.items() if k in ModuleMeta.__dataclass_fields__})
+    GLOBAL_MODULE_REGISTRY.register(meta)
+
+
+def get_module_meta(name: str) -> ModuleMeta | None:
+    """Look up the ``ModuleMeta`` for *name*.
+
+    Args:
+        name: Module directory name (e.g. ``"analysis"``).
+
+    Returns:
+        ModuleMeta if registered, None otherwise.
+    """
+    return GLOBAL_MODULE_REGISTRY.get(name)
+
+
+def list_registered_modules() -> list[ModuleMeta]:
+    """Return a snapshot of all currently registered module metadata.
+
+    Returns:
+        List of ModuleMeta instances sorted by module name.
+    """
+    return sorted(GLOBAL_MODULE_REGISTRY.all().values(), key=lambda m: m.name)
+
+
+# ---------------------------------------------------------------------------
+# URL / text normalization (unchanged)
+# ---------------------------------------------------------------------------
 
 
 def normalize_scope_entry(entry: str) -> str:

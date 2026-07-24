@@ -1,6 +1,82 @@
 from importlib import import_module
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Module self-description
+# ---------------------------------------------------------------------------
+
+MODULE_META: dict[str, Any] = {
+    "name": "detection",
+    "version": "3.1.0",
+    "description": (
+        "Aggregates detection plugin specs and provides the runtime for "
+        "active probing, WAF detection, AST analysis, browser runtime, "
+        "and timing analysis."
+    ),
+    "layer": "detection",
+    "submodules": (
+        "api",
+        "ast",
+        "browser",
+        "timing",
+        "waf",
+    ),
+    "public_api": (
+        "DETECTION_PLUGINS",
+        "DETECTION_PLUGINS_BY_KEY",
+        "DetectionPlugin",
+        "DetectionFinding",
+        "detection_plugin_options",
+        "get_detection_plugin",
+        "list_detection_plugins",
+        "run_detection_plugin",
+        "coverage",
+        "handlers",
+        "signals",
+        "stateful",
+    ),
+    "depends_on": ("core", "recon"),
+    "entry_points": (),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify detection subsystem health.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``details`` / ``errors``.
+    """
+    try:
+        from src.detection.registry import list_detection_plugins  # noqa: F401
+        from src.detection.runtime import DetectionRuntime  # noqa: F401
+
+        return {
+            "status": "ok",
+            "module": "detection",
+            "version": "3.1.0",
+            "details": {
+                "detection_runtime": "available",
+            },
+        }
+    except ImportError as exc:
+        return {
+            "status": "degraded",
+            "module": "detection",
+            "version": "3.1.0",
+            "errors": [str(exc)],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Register self in the global module registry
+# ---------------------------------------------------------------------------
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
+
 
 def __getattr__(name: str) -> Any:
     if name in {

@@ -35,7 +35,7 @@ export function ImportModal({
                 onClose();
               }
             }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-panel backdrop-blur-sm"
           />
 
           <motion.div
@@ -43,39 +43,39 @@ export function ImportModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ duration: 0.3, ease: EASE_OUT }}
-            className="relative w-full max-w-md overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl"
+            className="relative w-full max-w-md overflow-hidden rounded-xl border border-line bg-surface p-6 shadow-2xl"
             style={{ backdropFilter: 'blur(20px)' }}
           >
             <button
               type="button"
               onClick={onClose}
               disabled={isImporting}
-              className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors"
             >
               <X size={18} />
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-dim text-accent">
                 <Upload size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">Import Semgrep Results</h3>
-                <p className="text-xs text-[var(--text-secondary)]">Upload scan results JSON to create/update target</p>
+                <h3 className="text-lg font-semibold text-text-primary">Import Semgrep Results</h3>
+                <p className="text-xs text-text-secondary">Upload scan results JSON to create/update target</p>
               </div>
             </div>
 
             <div className="space-y-4">
               {importFile && (
-                <div className="p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
-                  <span className="font-semibold block text-[var(--text-primary)] mb-1">Selected File:</span>
+                <div className="p-3 rounded-lg bg-surface-2 border border-line text-xs text-text-secondary">
+                  <span className="font-semibold block text-text-primary mb-1">Selected File:</span>
                   <span className="truncate block font-mono">{importFile.name}</span>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">({(importFile.size / 1024).toFixed(1)} KB)</span>
+                  <span className="text-[10px] text-text-tertiary">({(importFile.size / 1024).toFixed(1)} KB)</span>
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <label htmlFor="import-target-name" className="text-xs font-semibold text-[var(--text-secondary)]">
+                <label htmlFor="import-target-name" className="text-xs font-semibold text-text-secondary">
                   Target Name
                 </label>
                 <input
@@ -84,7 +84,7 @@ export function ImportModal({
                   placeholder="e.g. example.com"
                   value={importTargetName}
                   onChange={(e) => setImportTargetName(e.target.value)}
-                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
+                  className="w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
                   disabled={isImporting}
                 />
               </div>

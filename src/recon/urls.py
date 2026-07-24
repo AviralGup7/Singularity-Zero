@@ -12,10 +12,10 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
+from src.core.config.typed_config import PipelineConfig
 from src.core.contracts.capabilities import UrlCollectorProtocol
 from src.core.contracts.pipeline_runtime import StageInput
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.models import Config
 from src.core.models.stage_result import PipelineContext
 from src.core.plugins import list_plugins, register_plugin
 from src.pipeline.tools import build_retry_policy, tool_available
@@ -81,7 +81,7 @@ register_plugin(URL_COLLECTOR, "waybackurls", type="archive_command", args=["way
 def collect_urls(
     live_hosts: set[str],
     scope_entries: list[str],
-    config: Config,
+    config: PipelineConfig,
     progress_callback: Any = None,
     stage_meta: dict[str, Any] | None = None,
     runtime_budget_seconds: int | None = None,

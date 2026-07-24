@@ -308,20 +308,8 @@ async def get_cockpit_graph(
 
     predicted_links_count = 0
     optimal_probes = []
-    try:
-        from src.intelligence.ml.gnn_predict import GNNPredictor
-
-        predictor = GNNPredictor()
-        predicted_links = predictor.predict_links(graph["nodes"], graph["edges"], threshold=0.65)
-        graph["edges"].extend(predicted_links)
-        predicted_links_count = len(predicted_links)
-
-        from src.intelligence.ml.gnn_predict import ProbeSelectionRLAgent
-
-        rl_agent = ProbeSelectionRLAgent()
-        optimal_probes = rl_agent.get_optimal_probe_sequence(target)
-    except Exception as e:
-        logger.debug("GNN attack path prediction or RL probe selection failed: %s", e)
+    predicted_links_count = 0
+    optimal_probes = []
 
     severities: dict[str, int] = {}
     types: dict[str, int] = {}

@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import require_auth
@@ -98,13 +98,6 @@ async def create_access_log(
 
     with _access_log_lock:
         _access_log_entries.append(entry)
-
-    # Also forward to the audit logger if available (for dual-write)
-    try:
-        _ = Request(scope={"type": "http", "app": None})  # type: ignore[call-arg]
-    except Exception:
-        logger.debug("Failed to forward access log entry to audit logger", exc_info=True)
-        pass
 
     return entry
 

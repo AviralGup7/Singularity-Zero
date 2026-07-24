@@ -1,4 +1,4 @@
-import type { Finding } from '../../types/api';
+import type { Finding } from '@/types/api';
 
 interface FindingsBulkActionBarProps {
   selectedIds: Set<string>;

@@ -27,10 +27,87 @@ Usage:
 
 from __future__ import annotations
 
+import threading
 from importlib import import_module
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Module self-description
+# ---------------------------------------------------------------------------
+
+MODULE_META: dict[str, Any] = {
+    "name": "learning",
+    "version": "3.1.0",
+    "description": (
+        "ML-backed feedback loops, finding deduplication, baseline "
+        "tracking, and telemetry repositories for closed-loop severity "
+        "calibration and false-positive suppression."
+    ),
+    "layer": "learning",
+    "submodules": (
+        "config",
+        "integration",
+        "models",
+        "repositories",
+    ),
+    "public_api": (
+        "TelemetryStore",
+        "LearningConfig",
+        "FeedbackLoopEngine",
+        "ScanAdaptation",
+        "FPTracker",
+        "ThresholdTuner",
+        "MetricsCollector",
+    ),
+    "depends_on": ("core", "analysis", "intelligence"),
+    "entry_points": (),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify learning subsystem health.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``errors``.
+    """
+    try:
+        from src.learning.feedback_loop import FeedbackLoopEngine  # noqa: F401
+        from src.learning.telemetry_store import TelemetryStore  # noqa: F401
+
+        return {
+            "status": "ok",
+            "module": "learning",
+            "version": "3.1.0",
+            "details": {
+                "telemetry_store": "available",
+                "feedback_loop": "available",
+            },
+        }
+    except ImportError as exc:
+        return {
+            "status": "degraded",
+            "module": "learning",
+            "version": "3.1.0",
+            "errors": [str(exc)],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Register self in the global module registry
+# ---------------------------------------------------------------------------
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
+
+# ---------------------------------------------------------------------------
+# Lazy facade (unchanged)
+# ---------------------------------------------------------------------------
+
 _LAZY_CACHE: dict[str, Any] = {}
+_LAZY_CACHE_LOCK = threading.Lock()
 
 _EXPORTS: dict[str, str] = {
     "TelemetryStore": "src.learning.telemetry_store",
@@ -83,5 +160,16 @@ def __getattr__(name: str) -> Any:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     module = import_module(module_path)
     value = getattr(module, name)
-    _LAZY_CACHE[name] = value
+    with _LAZY_CACHE_LOCK:
+        _LAZY_CACHE[name] = value
     return value
+
+
+def clear_lazy_cache() -> None:
+    """Clear the lazy import cache.
+
+    This is primarily intended for test teardown so that monkeypatches
+    to underlying modules are visible on the next access.
+    """
+    with _LAZY_CACHE_LOCK:
+        _LAZY_CACHE.clear()

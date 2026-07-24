@@ -159,7 +159,7 @@ def _list_generated_run_dirs(target_root: Path) -> list[Path]:
     return sorted(
         path
         for path in target_root.iterdir()
-        if path.is_dir() and RUN_DIR_NAME_RE.fullmatch(path.name)
+        if path.is_dir() and not path.name.startswith("_") and path.name != "cache"
     )
 
 

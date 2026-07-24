@@ -25,15 +25,16 @@ interface CircularProgressProps {
   color?: string;
 }
 
-function CircularProgress({ value, label, color = '#38bdf8' }: CircularProgressProps) {
+function CircularProgress({ value, label, color = 'var(--neon-cyan)' }: CircularProgressProps) {
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (value * circumference);
+  const percentage = Math.round(value * 100);
 
   return (
-    <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-cyan-500/20 bg-black/45 shadow-[0_0_24px_rgba(56,189,248,0.04)] backdrop-blur-md">
+    <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-accent/20 bg-surface/45 shadow-sm backdrop-blur-md" role="meter" aria-label={`${label}: ${percentage}%`} aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100}>
       <div className="relative w-20 h-20 flex items-center justify-center">
-        <svg className="w-full h-full transform -rotate-90">
+        <svg className="w-full h-full transform -rotate-90" aria-hidden="true">
           <circle
             cx="40"
             cy="40"
@@ -56,7 +57,7 @@ function CircularProgress({ value, label, color = '#38bdf8' }: CircularProgressP
             style={{ filter: `drop-shadow(0 0 5px ${color}44)` }}
           />
         </svg>
-        <span className="absolute text-sm font-black text-white">{Math.round(value * 100)}%</span>
+        <span className="absolute text-sm font-black text-text-primary tabular-nums">{percentage}%</span>
       </div>
       <span className="mt-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 text-center">{label}</span>
     </div>
@@ -129,14 +130,14 @@ export function PerformanceDashboard() {
   };
 
   return (
-    <div className="performance-dashboard space-y-6">
+    <div className="performance-dashboard space-y-6" role="region" aria-label="Performance dashboard">
       <div>
         <h3 className="text-sm font-semibold text-text mb-4">Performance Metrics</h3>
-        <div className="metrics-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="metrics-grid grid grid-cols-1 sm:grid-cols-3 gap-4" role="list" aria-label="Navigation metrics">
           {metrics.map((m, i) => (
-            <div key={`${m.name}-${m.timestamp}-${i}`} className="metric-card p-3 rounded-lg border border-border bg-surface-2">
+            <div key={`${m.name}-${m.timestamp}-${i}`} className="metric-card p-3 rounded-lg border border-border bg-surface-2" role="listitem" aria-label={`${m.name}: ${m.name === 'CLS' ? m.value.toFixed(4) : formatMs(m.value)}`}>
               <span className="metric-name block text-xs text-muted mb-1">{m.name}</span>
-              <span className="metric-value text-lg font-semibold text-text">{m.name === 'CLS' ? m.value.toFixed(4) : formatMs(m.value)}</span>
+              <span className="metric-value text-lg font-semibold text-text tabular-nums">{m.name === 'CLS' ? m.value.toFixed(4) : formatMs(m.value)}</span>
             </div>
           ))}
         </div>
@@ -145,20 +146,20 @@ export function PerformanceDashboard() {
       <div className="border-t border-border/60 pt-6">
         <h3 className="text-sm font-semibold text-text mb-4">ML Intelligence & Calibration</h3>
         <div className="grid grid-cols-3 gap-4">
-          <CircularProgress value={kpis?.precision ?? 0.85} label="Precision" color="#38bdf8" />
-          <CircularProgress value={kpis?.recall ?? 0.78} label="Recall" color="#ff6b35" />
-          <CircularProgress value={kpis?.f1_score ?? 0.81} label="F1 Score" color="#4da3ff" />
+          <CircularProgress value={kpis?.precision ?? 0.85} label="Precision" color="var(--neon-cyan)" />
+          <CircularProgress value={kpis?.recall ?? 0.78} label="Recall" color="var(--severity-high)" />
+          <CircularProgress value={kpis?.f1_score ?? 0.81} label="F1 Score" color="var(--severity-low)" />
         </div>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="rounded-xl border border-cyan-500/20 bg-black/45 p-3 flex items-center justify-between">
+          <div className="rounded-xl border border-cyan-500/20 bg-surface-2 p-3 flex items-center justify-between">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Threshold State</span>
-            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${kpis?.threshold_convergence ? 'bg-ok/10 text-ok' : 'bg-accent/10 text-accent animate-pulse'}`}>
+            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${kpis?.threshold_convergence ? 'bg-ok/10 text-ok' : 'bg-accent/10 text-accent motion-safe:animate-pulse'}`} role="status" aria-live="polite">
               {kpis?.threshold_convergence ? 'Converged' : 'Calibrating'}
             </span>
           </div>
-          <div className="rounded-xl border border-cyan-500/20 bg-black/45 p-3 flex items-center justify-between">
+          <div className="rounded-xl border border-cyan-500/20 bg-surface-2 p-3 flex items-center justify-between">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Suppression Patterns</span>
-            <span className="text-xs font-black text-white">{kpis?.fp_pattern_count ?? 12} active</span>
+            <span className="text-xs font-black text-text-primary tabular-nums">{kpis?.fp_pattern_count ?? 12} active</span>
           </div>
         </div>
       </div>

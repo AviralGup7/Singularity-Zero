@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { importSemgrepReport } from '@/api/imports';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export function useSemgrepImport() {
   const [showImportModal, setShowImportModal] = useState(false);
@@ -31,7 +32,7 @@ export function useSemgrepImport() {
         setImportFile(null);
         setImportTargetName('');
       } catch (err) {
-        console.error('Import failed:', err);
+        showErrorToast(err, 'Semgrep report import failed');
       } finally {
         setIsImporting(false);
       }

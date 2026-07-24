@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, ExternalLink, RefreshCw, Zap, ChevronRight } from 'lucide-react';
-import { getTrace, getTraces, getTracingConfig, type TraceDetail, type TraceSpan, type TraceSummary, type TracingConfig } from '@/api/tracing';
+import { getTrace, getTraces, getTracingConfig     } from '@/api/tracing';
+import type {TraceDetail, TraceSpan, TraceSummary, TracingConfig} from '@/api/tracing';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const TIME_RANGES = [
   { label: '15m', value: 15 * 60 * 1000 },
@@ -58,8 +60,8 @@ function TraceWaterfall({ trace }: { trace: TraceDetail | null }) {
 
   if (!trace || spans.length === 0) {
     return (
-      <div className="trace-empty flex flex-col items-center justify-center py-16 text-[var(--text-secondary)] border border-[var(--border)] rounded-xl bg-[var(--surface-2)]">
-        <Zap size={32} className="text-[var(--text-tertiary)] mb-2 opacity-50" />
+      <div className="trace-empty flex flex-col items-center justify-center py-16 text-text-secondary border border-line rounded-xl bg-surface-2">
+        <Zap size={32} className="text-text-tertiary mb-2 opacity-50" />
         <span>Select a trace from the ledger to inspect the execution waterfall.</span>
       </div>
     );
@@ -72,13 +74,13 @@ function TraceWaterfall({ trace }: { trace: TraceDetail | null }) {
   const timelineWidth = width - labelWidth - 24;
 
   return (
-    <div className="trace-waterfall-shell card bg-[var(--surface)] border border-[var(--border)] p-4 rounded-xl shadow-lg">
-      <div className="trace-waterfall-head flex items-center justify-between pb-3 border-b border-[var(--border)] mb-4 font-mono text-xs">
+    <div className="trace-waterfall-shell card bg-surface border border-line p-4 rounded-xl shadow-lg">
+      <div className="trace-waterfall-head flex items-center justify-between pb-3 border-b border-line mb-4 font-mono text-xs">
         <div>
-          <strong className="text-[var(--text-primary)]">Trace ID: </strong>
-          <span className="text-[var(--accent)]">{trace.trace_id}</span>
+          <strong className="text-text-primary">Trace ID: </strong>
+          <span className="text-accent">{trace.trace_id}</span>
         </div>
-        <span className="bg-[var(--accent-soft)] text-[var(--accent)] px-2.5 py-0.5 rounded-full font-bold">{spans.length} spans</span>
+        <span className="bg-accent-dim text-accent px-2.5 py-0.5 rounded-full font-bold">{spans.length} spans</span>
       </div>
       <div className="trace-waterfall-scroll overflow-x-auto">
         <svg className="trace-waterfall" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Trace waterfall">
@@ -165,6 +167,8 @@ export function TracingPage() {
       setConfig(nextConfig);
       setTraces(nextTraces);
       if (!selectedTraceId && nextTraces[0]) setSelectedTraceId(nextTraces[0].trace_id);
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Failed to load tracing data');
     } finally {
       setLoading(false);
     }
@@ -172,9 +176,9 @@ export function TracingPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    refresh(controller.signal).catch(() => undefined);
+    refresh(controller.signal).catch(() => showErrorToast('Failed to refresh tracing data'));
     const timer = window.setInterval(() => {
-      refresh(controller.signal).catch(() => undefined);
+      refresh(controller.signal).catch(() => showErrorToast('Failed to refresh tracing data'));
     }, 10_000);
     return () => {
       controller.abort();
@@ -187,7 +191,7 @@ export function TracingPage() {
     const controller = new AbortController();
     getTrace(selectedTraceId, controller.signal)
       .then(setTraceDetail)
-      .catch(() => setTraceDetail(null));
+      .catch(() => { setTraceDetail(null); showErrorToast('Failed to load trace detail'); });
     return () => controller.abort();
   }, [selectedTraceId]);
 
@@ -239,25 +243,25 @@ export function TracingPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider">OTLP Exporter Status: {config.status}</h3>
-                  <p className="text-xs text-[var(--text-secondary)] font-mono">{config.endpoint}</p>
+                  <p className="text-xs text-text-secondary font-mono">{config.endpoint}</p>
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px] uppercase font-bold text-[var(--text-secondary)] font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px] uppercase font-bold text-text-secondary font-mono">
                 <div className="flex flex-col">
                   <span>OTEL Available</span>
-                  <span className={config.otel_available ? 'text-[var(--ok)]' : 'text-[var(--bad)]'}>{config.otel_available ? 'Yes' : 'No'}</span>
+                  <span className={config.otel_available ? 'text-ok' : 'text-bad'}>{config.otel_available ? 'Yes' : 'No'}</span>
                 </div>
                 <div className="flex flex-col">
                   <span>Local Span DB</span>
-                  <span className="text-[var(--text-primary)] truncate max-w-[120px]" title={config.local_span_db}>{config.local_span_db}</span>
+                  <span className="text-text-primary truncate max-w-[120px]" title={config.local_span_db}>{config.local_span_db}</span>
                 </div>
                 <div className="flex flex-col">
                   <span>Init Error</span>
-                  <span className="text-[var(--text-primary)] truncate max-w-[120px]" title={config.initialization_error || 'None'}>{config.initialization_error || 'None'}</span>
+                  <span className="text-text-primary truncate max-w-[120px]" title={config.initialization_error || 'None'}>{config.initialization_error || 'None'}</span>
                 </div>
                 {config.status === 'unreachable' && (
-                  <a href="https://opentelemetry.io/docs/collector/quick-start/" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--accent)] hover:underline">
+                  <a href="https://opentelemetry.io/docs/collector/quick-start/" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-accent hover:underline">
                     <span>Debug</span>
                     <ExternalLink size={10} />
                   </a>
@@ -269,9 +273,9 @@ export function TracingPage() {
       )}
 
       {/* Toolbar filters with sliding time highlight */}
-      <motion.section variants={itemVariants} className="trace-toolbar flex flex-wrap items-center justify-between gap-4 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow" aria-label="Trace filters">
+      <motion.section variants={itemVariants} className="trace-toolbar flex flex-wrap items-center justify-between gap-4 p-3 bg-surface border border-line rounded-xl shadow" aria-label="Trace filters">
         <div className="trace-field flex items-center gap-3">
-          <label htmlFor="trace-service" className="text-xs font-semibold text-[var(--text-secondary)] font-mono uppercase">Stage</label>
+          <label htmlFor="trace-service" className="text-xs font-semibold text-text-secondary font-mono uppercase">Stage</label>
           <div className="relative">
             <input
               id="trace-service"
@@ -279,7 +283,7 @@ export function TracingPage() {
               value={serviceName}
               onChange={event => setServiceName(event.target.value)}
               placeholder="All stages"
-              className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
+              className="bg-surface-2 border border-line rounded-lg px-3 py-1.5 text-xs text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
             />
             <datalist id="trace-services">
               {services.map(service => <option key={service} value={service} />)}
@@ -289,7 +293,7 @@ export function TracingPage() {
         
         <div className="flex items-center gap-3">
           {/* Time segments relative container with Framer Motion slide backdrop */}
-          <div className="trace-segments relative flex bg-[var(--surface-2)] p-1 rounded-lg border border-[var(--border)]" role="group" aria-label="Time range">
+          <div className="trace-segments relative flex bg-surface-2 p-1 rounded-lg border border-line" role="group" aria-label="Time range">
             {TIME_RANGES.map(range => {
               const isActive = range.value === rangeMs;
               return (
@@ -297,7 +301,7 @@ export function TracingPage() {
                   key={range.label}
                   type="button"
                   className={`relative z-10 px-3 py-1 text-xs font-semibold rounded transition-colors duration-200 ${
-                    isActive ? 'text-[var(--accent)] font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    isActive ? 'text-accent font-bold' : 'text-text-secondary hover:text-text-primary'
                   }`}
                   onClick={() => setRangeMs(range.value)}
                   style={{ background: 'transparent' }}
@@ -305,7 +309,7 @@ export function TracingPage() {
                   {isActive && (
                     <motion.div
                       layoutId="activeRangeHighlight"
-                      className="absolute inset-0 bg-[var(--accent-soft)] border border-[var(--accent)]/20 rounded z-[-1]"
+                      className="absolute inset-0 bg-accent-dim border border-accent/20 rounded z-[-1]"
                       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     />
                   )}
@@ -332,15 +336,15 @@ export function TracingPage() {
             exit={{ opacity: 0 }}
             className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse"
           >
-            <div className="lg:col-span-1 space-y-3 card p-4 border border-[var(--border)]">
+            <div className="lg:col-span-1 space-y-3 card p-4 border border-line">
               {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} className="h-10 bg-[var(--surface-3)] rounded" />
+                <div key={i} className="h-10 bg-surface-3 rounded" />
               ))}
             </div>
-            <div className="lg:col-span-2 space-y-4 card p-4 border border-[var(--border)]">
-              <div className="h-6 w-1/4 bg-[var(--surface-3)] rounded" />
-              <div className="h-4 w-1/3 bg-[var(--surface-3)] rounded" />
-              <div className="h-48 bg-[var(--surface-3)] rounded" />
+            <div className="lg:col-span-2 space-y-4 card p-4 border border-line">
+              <div className="h-6 w-1/4 bg-surface-3 rounded" />
+              <div className="h-4 w-1/3 bg-surface-3 rounded" />
+              <div className="h-48 bg-surface-3 rounded" />
             </div>
           </motion.div>
         ) : (
@@ -349,10 +353,10 @@ export function TracingPage() {
             variants={itemVariants}
             className="trace-grid-layout grid grid-cols-1 lg:grid-cols-3 gap-6"
           >
-            <div className="trace-table-shell card bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow">
+            <div className="trace-table-shell card bg-surface border border-line rounded-xl overflow-hidden shadow">
               <table className="trace-table w-full">
                 <thead>
-                  <tr className="bg-[var(--surface-2)] border-b border-[var(--border)] text-muted text-xs">
+                  <tr className="bg-surface-2 border-b border-line text-muted text-xs">
                     <th className="py-2.5 px-3 text-left">Root span</th>
                     <th className="py-2.5 px-3 text-left">Start</th>
                     <th className="py-2.5 px-3 text-left">Duration</th>
@@ -365,22 +369,22 @@ export function TracingPage() {
                     return (
                       <tr
                         key={trace.trace_id}
-                        className={`border-b border-[var(--border)] hover:bg-white/5 cursor-pointer transition-colors duration-150 ${
-                          isSelected ? 'bg-[var(--accent-soft)]/20' : ''
+                        className={`border-b border-line hover:bg-surface-hover cursor-pointer transition-colors duration-150 ${
+                          isSelected ? 'bg-accent-dim/20' : ''
                         }`}
                         onClick={() => setSelectedTraceId(trace.trace_id)}
                       >
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5">
-                            <ChevronRight size={14} className={`text-[var(--text-tertiary)] transform transition-transform ${isSelected ? 'rotate-90 text-[var(--accent)]' : ''}`} />
-                            <strong className="text-sm text-[var(--text-primary)]">{trace.stage_name || trace.name}</strong>
+                            <ChevronRight size={14} className={`text-text-tertiary transform transition-transform ${isSelected ? 'rotate-90 text-accent' : ''}`} />
+                            <strong className="text-sm text-text-primary">{trace.stage_name || trace.name}</strong>
                           </div>
-                          <span className="block text-[10px] text-[var(--text-secondary)] font-mono ml-5">
+                          <span className="block text-[10px] text-text-secondary font-mono ml-5">
                             {shortTrace(trace.trace_id)} · {trace.span_count} spans
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-xs text-[var(--text-secondary)] font-mono">{formatTime(trace.start_ns)}</td>
-                        <td className="py-3 px-3 text-xs text-[var(--text-secondary)] font-mono">{formatDuration(trace.duration_ms)}</td>
+                        <td className="py-3 px-3 text-xs text-text-secondary font-mono">{formatTime(trace.start_ns)}</td>
+                        <td className="py-3 px-3 text-xs text-text-secondary font-mono">{formatDuration(trace.duration_ms)}</td>
                         <td className="py-3 px-3">
                           <span className={`trace-status text-[10px] font-bold px-2 py-0.5 rounded ${
                             trace.status === 'ERROR' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -391,7 +395,7 @@ export function TracingPage() {
                   })}
                   {traces.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="trace-empty-cell py-8 text-center text-xs text-[var(--text-secondary)] font-mono">No traces found for the selected filters.</td>
+                      <td colSpan={4} className="trace-empty-cell py-8 text-center text-xs text-text-secondary font-mono">No traces found for the selected filters.</td>
                     </tr>
                   )}
                 </tbody>

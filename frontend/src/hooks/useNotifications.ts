@@ -16,6 +16,7 @@ import type {
 } from '@/types/notifications';
 import { sseEventToAppNotification, apiNotificationToAppNotification } from '@/types/notifications';
 import { getStreamToken } from '@/api/streamAuth';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -58,7 +59,10 @@ export function useNotifications(): UseNotificationsReturn {
       }
 
       const res = await fetch(url, { headers });
-      if (!res.ok) return;
+      if (!res.ok) {
+        showErrorToast(new Error(`Notifications request failed (${res.status})`), 'Failed to load notifications');
+        return;
+      }
 
       const data: NotificationListResponse = await res.json();
       if (!mountedRef.current) return;
@@ -73,7 +77,7 @@ export function useNotifications(): UseNotificationsReturn {
         seenIdsRef.current.add(n.id);
       }
     } catch (err) {
-      console.warn('Failed to fetch notifications:', err);
+      showErrorToast(err, 'Failed to fetch notifications');
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -153,8 +157,8 @@ export function useNotifications(): UseNotificationsReturn {
         const data = await res.json() as { unread_count: number };
         setUnreadCount(data.unread_count);
       }
-    } catch {
-      // Revert on failure
+    } catch (err) {
+      showErrorToast(err, 'Failed to mark notification as read');
       fetchNotifications();
     }
   }, [fetchNotifications]);
@@ -177,7 +181,8 @@ export function useNotifications(): UseNotificationsReturn {
         const data = await res.json() as { unread_count: number };
         setUnreadCount(data.unread_count);
       }
-    } catch {
+    } catch (err) {
+      showErrorToast(err, 'Failed to mark all notifications as read');
       fetchNotifications();
     }
   }, [fetchNotifications]);
@@ -196,7 +201,8 @@ export function useNotifications(): UseNotificationsReturn {
         setUnreadCount(prev.filter((n) => !n.read).length);
         return prev;
       });
-    } catch {
+    } catch (err) {
+      showErrorToast(err, 'Failed to dismiss notification');
       fetchNotifications();
     }
   }, [fetchNotifications]);
@@ -211,7 +217,8 @@ export function useNotifications(): UseNotificationsReturn {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       await fetch(API_BASE, { method: 'DELETE', headers });
-    } catch {
+    } catch (err) {
+      showErrorToast(err, 'Failed to clear all notifications');
       fetchNotifications();
     }
   }, [fetchNotifications]);

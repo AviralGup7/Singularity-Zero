@@ -27,7 +27,6 @@ from src.infrastructure.db.sqlite_utils import (
     SQLITE_LOCK_RETRY_ATTEMPTS as _LOCK_RETRY_ATTEMPTS,
 )
 from src.infrastructure.db.sqlite_utils import (
-
     SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
 )
 
@@ -194,7 +193,7 @@ class FallbackDB:
                         raise
 
             self._with_retry(_op, write=True)
-        except Exception:
+        except Exception as exc:
             self.last_error = str(exc)
             logger.exception("SQLite fallback set error for key '%s'", key)
 
@@ -220,7 +219,7 @@ class FallbackDB:
 
             deleted = self._with_retry(_op, write=True)
             return int(deleted)
-        except Exception:
+        except Exception as exc:
             self.last_error = str(exc)
             logger.exception("SQLite fallback del error for key '%s'", key)
             return 0
@@ -235,7 +234,7 @@ class FallbackDB:
 
             rows = self._with_retry(_op)
             return [row["key"] for row in rows]
-        except Exception:
+        except Exception as exc:
             self.last_error = str(exc)
             logger.exception("SQLite fallback scan error")
             return []

@@ -1,23 +1,37 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #080B12;
-  --color-panel: #0E121C;
-  --color-line: rgba(255, 255, 255, 0.06);
-  --color-text: #F2F4F8;
-  --color-muted: #8899B0;
+  --color-bg: var(--bg);
+  --color-panel: var(--surface);
+  --color-panel-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-muted: var(--line-muted);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text-primary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-muted: var(--text-secondary);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-muted: var(--surface-muted);
+  --color-glass-bg: var(--glass-bg);
+  --color-glass-border: var(--glass-border);
 
-  --color-accent: #4A8EFF;
-  --color-accent-dim: rgba(74, 142, 255, 0.10);
-  --color-bad: #FF2D55;
-  --color-warn: #FFC107;
-  --color-ok: #10C478;
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-soft);
+  --color-bad: var(--bad);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
 
-  --color-critical: #FF2D55;
-  --color-high: #FF6B35;
-  --color-medium: #FFC107;
-  --color-low: #4A8EFF;
-  --color-info: #5A6B85;
+  --color-critical: var(--severity-critical);
+  --color-high: var(--severity-high);
+  --color-medium: var(--severity-medium);
+  --color-low: var(--severity-low);
+  --color-info: var(--severity-info);
 
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
@@ -57,29 +71,29 @@
 
 /* ── Premium Card Glow Effects ────────────────────────────────── */
 .cyber-glow-card {
-  box-shadow: 0 0 20px rgba(74, 142, 255, 0.04);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 4%, transparent);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .cyber-glow-card:hover {
-  border-color: rgba(74, 142, 255, 0.25);
-  box-shadow: 0 0 30px rgba(74, 142, 255, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 12%, transparent), 0 4px 20px rgba(0, 0, 0, 0.3);
   transform: translateY(-2px);
 }
 
 .cyber-glow-card-ok:hover {
-  border-color: rgba(16, 196, 120, 0.25);
-  box-shadow: 0 0 30px rgba(16, 196, 120, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-color: color-mix(in srgb, var(--ok) 25%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--ok) 12%, transparent), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-glow-card-warn:hover {
-  border-color: rgba(255, 193, 7, 0.25);
-  box-shadow: 0 0 30px rgba(255, 193, 7, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-color: color-mix(in srgb, var(--warn) 25%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--warn) 12%, transparent), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-glow-card-bad:hover {
-  border-color: rgba(255, 45, 85, 0.25);
-  box-shadow: 0 0 30px rgba(255, 45, 85, 0.12), 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-color: color-mix(in srgb, var(--bad) 25%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--bad) 12%, transparent), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .cyber-text-glow {
@@ -89,8 +103,8 @@
 .cyber-grid-overlay {
   background-size: 20px 20px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    linear-gradient(to right, var(--line-muted) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line-muted) 1px, transparent 1px);
 }
 
 /* ── Shimmer Glow (for progress bars and loading states) ──── */
@@ -142,8 +156,8 @@
   background: linear-gradient(135deg, var(--neon-cyan), var(--accent), var(--accent-2));
   background-size: 200% 200%;
   animation: gradient-shift 6s ease infinite;
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   transition: all var(--motion-fast) var(--easing-out);
   position: relative;
   overflow: hidden;
@@ -153,15 +167,15 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.06) 50%, transparent 60%);
+  background: linear-gradient(135deg, transparent 40%, var(--line) 50%, transparent 60%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
   pointer-events: none;
 }
 
 .cyber-gradient-btn:hover {
-  box-shadow: 0 0 24px rgba(74, 142, 255, 0.25), 0 0 48px rgba(160, 120, 255, 0.10);
-  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent), 0 0 48px color-mix(in srgb, var(--accent-2) 10%, transparent);
+  border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
@@ -213,13 +227,13 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
   pointer-events: none;
 }
 
 .glass-stat-card:hover {
-  border-color: rgba(255, 255, 255, 0.10);
-  box-shadow: var(--glass-shadow), 0 0 24px rgba(74, 142, 255, 0.05);
+  border-color: var(--border-strong);
+  box-shadow: var(--glass-shadow), 0 0 24px color-mix(in srgb, var(--accent) 5%, transparent);
   transform: translateY(-2px);
 }
 
@@ -236,7 +250,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.03) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, var(--line-muted) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer-glow 2.5s ease-in-out infinite;
   pointer-events: none;
@@ -296,7 +310,7 @@
 
 /* ── Subtle Inner Highlight ───────────────────────────────────── */
 .inner-highlight {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 var(--line);
 }
 
 /* ── Fade In ──────────────────────────────────────────────────── */

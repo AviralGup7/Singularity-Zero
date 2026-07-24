@@ -265,6 +265,13 @@ class DynamicPluginCatalog:
     def _register_analysis(self, record: DynamicPluginRecord) -> None:
         registrar = get_analysis_registrar()
         if registrar is None:
+            try:
+                import src.analysis.plugin_registration  # noqa: F401
+                registrar = get_analysis_registrar()
+            except Exception as exc:
+                logger.debug("Failed to lazily load analysis plugin registration: %s", exc)
+
+        if registrar is None:
             logger.warning(
                 "Analysis plugin registrar not available, skipping analysis plugin registration for %s",
                 record.manifest.key,

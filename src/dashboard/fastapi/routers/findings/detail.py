@@ -62,22 +62,11 @@ async def explain_finding_severity(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
-    from src.intelligence.ml.shap_explainer import SHAPExplainer
-
     tenant_id = (_auth or {}).get("tenant_id", "default")
     finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
-
-    try:
-        explainer = SHAPExplainer()
-        explanation = explainer.explain(finding)
-        return explanation
-    except Exception as exc:
-        logger.exception("Failed to generate explainability analysis: %s", exc)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate explainability analysis: {exc}"
-        )
+    return {"finding_id": finding_id, "explanation": "ML explainability module removed."}
 
 
 @router.get(
@@ -95,13 +84,4 @@ async def explain_finding_ai(
     finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
-
-    try:
-        from src.intelligence.ml.llm_service import LLMService
-
-        service = LLMService.get_instance()
-        explanation = await service.explain_finding(finding)
-        return {"finding_id": finding_id, "explanations": explanation}
-    except Exception as exc:
-        logger.exception("Failed to generate AI explainability analysis: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Failed to generate AI explanations: {exc}")
+    return {"finding_id": finding_id, "explanations": "AI explanation module removed."}

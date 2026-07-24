@@ -7,21 +7,24 @@ import {
   Zap,
   Activity,
   Server,
-  Clock
+  Clock,
+  CloudOff
 } from 'lucide-react';
-import type { DashboardStats as StatsType, Job } from '../types/api';
+import { ROUTES } from '../config/paths';
+import { sectionVariants } from '../lib/animations';
+import { useJobsContext } from '../context/JobsContext';
+import type { DashboardStats as StatsType } from '../types/api';
 import { useApi } from '../hooks/useApi';
 import { DashboardStatsSchema } from '../api/schemas';
 import { formatDistanceToNow } from '../utils/time';
 import FindingsOverview from '@/features/findings/components/FindingsOverview';
-import { DashboardSkeleton, GlassCard, AnimatedCounter, GlowProgress, PageHeader } from '../components/ui';
+import { DashboardSkeleton, GlassCard, AnimatedCounter, GlowProgress, PageHeader, EmptyState, ErrorCard } from '../components/ui';
 
 interface TelemetryCounts {
   [key: string]: number;
 }
 
 const STORAGE_KEY_STATS = 'dashboard:stats';
-const STORAGE_KEY_JOBS = 'dashboard:jobs';
 const STORAGE_KEY_TIMESTAMP = 'dashboard:timestamp';
 
 function loadPersistedStats<T>(key: string): T | null {
@@ -31,6 +34,15 @@ function loadPersistedStats<T>(key: string): T | null {
     return JSON.parse(raw) as T;
   } catch {
     return null;
+  }
+}
+
+function loadPersistedTimestamp(): Date {
+  try {
+    const timestamp = Number(sessionStorage.getItem(STORAGE_KEY_TIMESTAMP));
+    return Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp) : new Date();
+  } catch {
+    return new Date();
   }
 }
 
@@ -46,8 +58,9 @@ function persistStats<T>(key: string, data: T): void {
 
 
 export function DashboardPage() {
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [tick, setTick] = useState(0);
+  const { jobs, loading: jobsLoading, error: jobsError } = useJobsContext();
+  const [lastUpdated, setLastUpdated] = useState<Date>(loadPersistedTimestamp);
+  const [, setTick] = useState(0);
 
   // Re-render every 30 seconds so the relative timestamp stays fresh
   useEffect(() => {
@@ -68,26 +81,13 @@ export function DashboardPage() {
       setIsStaleData(true);
     }
   });
-  
-  const { data: jobsResponse, loading: jobsLoading, error: jobsError } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
-    refetchInterval: 5000,
-    onSuccess: (data) => {
-      setLastUpdated(new Date());
-      persistStats(STORAGE_KEY_JOBS, data);
-      setIsStaleData(false);
-    },
-    onError: () => {
-      setIsStaleData(true);
-    }
-  });
 
   const persistedStats = (stats ?? loadPersistedStats<StatsType>(STORAGE_KEY_STATS)) ?? null;
-  const persistedJobs = (jobsResponse ?? loadPersistedStats<{ jobs: Job[]; total: number }>(STORAGE_KEY_JOBS)) ?? null;
 
   const effectiveStats = stats ?? persistedStats;
-  const effectiveJobs = jobsResponse ?? persistedJobs;
-  const offlineFallback = !stats && !jobsResponse && (persistedStats || persistedJobs);
-  const showStaleBanner = isStaleData && (effectiveStats || effectiveJobs);
+  const effectiveJobs = jobs ?? null;
+  const offlineFallback = !stats && !jobs && !!persistedStats;
+  const showStaleBanner = (isStaleData || !!jobsError) && (effectiveStats || effectiveJobs);
 
   // Show skeleton only on initial load (no data yet). If one source
   // loads first, render the partial UI rather than blocking on both.
@@ -103,15 +103,23 @@ export function DashboardPage() {
           title="Dashboard"
           subtitle="Security Operations Overview"
         />
-        <div className="card error" role="alert">
-          <p>Failed to load dashboard data. {(statsError || jobsError)?.message}</p>
-        </div>
+        <ErrorCard
+          message={`Failed to load dashboard data. ${(statsError || jobsError)?.message}`}
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
 
-  const recentJobs = (effectiveJobs?.jobs ?? []).slice(0, 5);
-  const telemetryTotals = (effectiveJobs?.jobs ?? []).reduce<Map<string, number>>((acc, job) => {
+  const criticalFindings = effectiveStats?.findings_summary?.severity_totals?.critical || 0;
+  const failedJobsCount = (effectiveJobs ?? []).filter(j => j.status === 'failed').length || 0;
+  const systemHealth = failedJobsCount > 0 ? 'Degraded' : criticalFindings > 0 ? 'Warning' : 'Optimal';
+  const healthColor = systemHealth === 'Optimal' ? 'text-ok' : systemHealth === 'Warning' ? 'text-warn' : 'text-bad';
+  const healthBg = systemHealth === 'Optimal' ? 'bg-ok' : systemHealth === 'Warning' ? 'bg-warn' : 'bg-bad';
+  const healthGlow = systemHealth === 'Optimal' ? 'var(--glow-ok)' : systemHealth === 'Warning' ? 'var(--glow-warn)' : 'var(--glow-bad)';
+
+  const recentJobs = (effectiveJobs ?? []).slice(0, 5);
+  const telemetryTotals = (effectiveJobs ?? []).reduce<Map<string, number>>((acc, job) => {
     const counts: TelemetryCounts = job.progress_telemetry?.event_counts ?? {};
     for (const [key, value] of Object.entries(counts)) {
       if (key === '__proto__' || key === 'constructor') continue;
@@ -121,15 +129,14 @@ export function DashboardPage() {
   }, new Map<string, number>());
   const telemetryEntries = Array.from(telemetryTotals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
-  const activeJobsCount = (effectiveJobs?.jobs ?? []).filter(j => j.status === 'running').length || 0;
-  const criticalFindings = effectiveStats?.findings_summary?.severity_totals?.critical || 0;
+  const activeJobsCount = (effectiveJobs ?? []).filter(j => j.status === 'running').length || 0;
   const totalFindings = effectiveStats?.findings_summary?.total_findings || 0;
   const totalTargets = effectiveStats?.total_targets || 0;
 
   return (
     <div className="space-y-6">
       {showStaleBanner && (
-        <div className="flex items-center gap-3 px-5 py-3 rounded-xl border border-[var(--warn)]/30 bg-[var(--warn)]/10 text-[var(--warn)] text-sm" role="alert">
+        <div className="flex items-center gap-3 px-5 py-3 rounded-xl border border-warn/30 bg-warn/10 text-warn text-sm" role="alert">
           <CloudOff size={16} />
           <span className="font-medium">Backend unreachable</span>
           <span className="opacity-80">— showing last-known data</span>
@@ -155,7 +162,7 @@ export function DashboardPage() {
             <Target size={16} className="text-muted" />
           </div>
           <div className="flex items-end gap-2">
-            <AnimatedCounter value={totalTargets} className="text-2xl font-semibold text-[var(--text-primary)]" />
+            <AnimatedCounter value={totalTargets} className="text-2xl font-semibold text-text-primary" />
             <span className="text-xs text-muted mb-1">assets</span>
           </div>
         </GlassCard>
@@ -166,7 +173,7 @@ export function DashboardPage() {
             <Activity size={16} className="text-accent" />
           </div>
           <div className="flex items-end gap-2">
-            <AnimatedCounter value={activeJobsCount} className="text-2xl font-semibold text-[var(--text-primary)]" />
+            <AnimatedCounter value={activeJobsCount} className="text-2xl font-semibold text-text-primary" />
             {activeJobsCount > 0 && <span className="text-xs text-accent mb-1">in progress</span>}
           </div>
         </GlassCard>
@@ -177,23 +184,23 @@ export function DashboardPage() {
             <ShieldAlert size={16} className={criticalFindings > 0 ? 'text-bad' : 'text-muted'} />
           </div>
           <div className="flex items-end gap-3">
-            <AnimatedCounter value={totalFindings} className="text-2xl font-semibold text-[var(--text-primary)]" />
+            <AnimatedCounter value={totalFindings} className="text-2xl font-semibold text-text-primary" />
             {criticalFindings > 0 && (
               <span className="text-xs font-medium text-bad mb-1">{criticalFindings} Critical</span>
             )}
           </div>
         </GlassCard>
 
-        <GlassCard variant="success" delay={0.3} hoverable>
+        <GlassCard variant={systemHealth === 'Optimal' ? 'success' : systemHealth === 'Warning' ? 'default' : 'error'} delay={0.3} hoverable>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">System Health</span>
-            <Server size={16} className="text-ok" />
+            <Server size={16} className={healthColor} />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-semibold text-ok">Optimal</span>
+            <span className={`text-2xl font-semibold ${healthColor}`}>{systemHealth}</span>
             <span
-              className="w-2.5 h-2.5 rounded-full bg-ok"
-              style={{ boxShadow: 'var(--glow-ok)', animation: 'glow-pulse 2s ease-in-out infinite' }}
+              className={`w-2.5 h-2.5 rounded-full ${healthBg}`}
+              style={{ boxShadow: healthGlow, animation: 'glow-pulse 2s ease-in-out infinite' }}
             />
           </div>
           <div className="flex items-center gap-1 mt-2">
@@ -222,7 +229,7 @@ export function DashboardPage() {
             <GlassCard key={name} delay={0.05 * idx} hoverable padding>
               <div className="text-[10px] uppercase tracking-wide text-muted truncate">{name}</div>
               <div className="mt-2 flex items-end gap-2">
-                <AnimatedCounter value={count as number} className="text-xl font-semibold text-[var(--text-primary)]" />
+                <AnimatedCounter value={count as number} className="text-xl font-semibold text-text-primary" />
                 <span className="text-xs text-muted mb-0.5">events</span>
               </div>
             </GlassCard>
@@ -248,7 +255,12 @@ export function DashboardPage() {
             
             <div className="space-y-4">
               {recentJobs.length === 0 ? (
-                <div className="py-8 text-center text-muted text-sm">No recent jobs found</div>
+                <EmptyState
+                  title="No recent jobs"
+                  description="No pipeline jobs have been run yet. Start a scan from the Targets page to see activity here."
+                  ctaLabel="Go to Targets"
+                  ctaHref={ROUTES.TARGETS}
+                />
               ) : recentJobs.map((job, idx) => (
                 <motion.div
                   key={job.id}
@@ -258,10 +270,10 @@ export function DashboardPage() {
                 >
                   <Link 
                     to={`${ROUTES.JOBS}/${job.id}`}
-                    className="flex items-center gap-4 p-3 rounded-lg border border-transparent hover:border-[var(--border)] transition-all duration-200 group hover:-translate-y-0.5 hover:bg-white/5 card--interactive"
+                    className="flex items-center gap-4 p-3 rounded-lg border border-transparent hover:border-line transition-all duration-200 group hover:-translate-y-0.5 hover:bg-surface-hover card--interactive"
                   >
                     <div className={`w-2.5 h-2.5 rounded-full ${
-                      job.status === 'running' ? 'bg-accent shadow-[0_0_8px_rgba(59,130,246,0.5)]' :
+                      job.status === 'running' ? 'bg-accent shadow-glow-accent-sm' :
                       job.status === 'completed' ? 'bg-ok' : 'bg-bad'
                     }`} />
                     
@@ -298,7 +310,7 @@ export function DashboardPage() {
           <GlassCard
             variant={criticalFindings > 0 ? 'error' : 'default'}
             hoverable={false}
-            className={criticalFindings > 0 ? 'border-[var(--bad)]/30' : ''}
+            className={criticalFindings > 0 ? 'border-bad/30' : ''}
             style={criticalFindings > 0 ? { animation: 'glow-pulse 3s ease-in-out infinite', color: 'var(--bad)' } : undefined}
           >
             <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${criticalFindings > 0 ? 'text-bad' : 'text-text'}`}>
@@ -328,7 +340,7 @@ export function DashboardPage() {
                 <Link 
                   key={action.label} 
                   to={action.href}
-                  className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] hover:bg-white/5 transition-all duration-200 group hover:-translate-y-0.5"
+                  className="flex items-center justify-between p-3 rounded-lg border border-line hover:border-accent hover:bg-surface-hover transition-all duration-200 group hover:-translate-y-0.5"
                 >
                   <div className="flex items-center gap-3">
                     <action.icon size={16} className="text-muted group-hover:text-accent transition-colors" />

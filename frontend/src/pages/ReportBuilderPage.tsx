@@ -8,8 +8,10 @@ import { ApiError } from '@/api/core';
 import type { Finding } from '@/types/api';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { exportReportBundle, type ReportFormat } from '@/utils/findingExport';
+import { exportReportBundle  } from '@/utils/findingExport';
+import type {ReportFormat} from '@/utils/findingExport';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -66,7 +68,9 @@ export function ReportBuilderPage() {
       setFindings(data);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      setError(err instanceof ApiError ? err.message : 'Unable to load findings');
+      const msg = err instanceof ApiError ? err.message : 'Unable to load findings';
+      setError(msg);
+      showErrorToast(msg);
     } finally {
       setLoading(false);
     }
@@ -142,7 +146,9 @@ export function ReportBuilderPage() {
         return u || f;
       }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to mark findings as reviewed');
+      const msg = err instanceof ApiError ? err.message : 'Failed to mark findings as reviewed';
+      setError(msg);
+      showErrorToast(msg);
     }
   }, [selectedFindings]);
 
@@ -260,12 +266,12 @@ export function ReportBuilderPage() {
                 <tbody>
                   {loading && (
                     <tr>
-                      <td colSpan={5} className="text-center py-12 text-[var(--text-secondary)]">Loading findings…</td>
+                      <td colSpan={5} className="text-center py-12 text-text-secondary">Loading findings…</td>
                     </tr>
                   )}
                   {!loading && filtered.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center py-12 text-[var(--text-secondary)]">No findings match the current filters.</td>
+                      <td colSpan={5} className="text-center py-12 text-text-secondary">No findings match the current filters.</td>
                     </tr>
                   )}
                   {!loading && filtered.map(f => {
@@ -273,7 +279,7 @@ export function ReportBuilderPage() {
                     return (
                       <tr
                         key={f.id}
-                        className={`transition-all duration-150 hover:bg-white/5 cursor-pointer ${isSelected ? 'bg-accent/5' : ''}`}
+                        className={`transition-all duration-150 hover:bg-surface-hover cursor-pointer ${isSelected ? 'bg-accent/5' : ''}`}
                         onClick={() => toggle(f.id)}
                       >
                         <td onClick={e => e.stopPropagation()}>
@@ -310,7 +316,7 @@ export function ReportBuilderPage() {
           className="space-y-4"
         >
           <GlassCard variant="glow" hoverable={false}>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Report metadata</h3>
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Report metadata</h3>
             <label className="block text-xs text-muted mb-2">
               Title
               <input
@@ -344,7 +350,7 @@ export function ReportBuilderPage() {
           </GlassCard>
 
           <GlassCard variant="default" hoverable={false}>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Selection</h3>
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Selection</h3>
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-muted">Findings</span>
@@ -371,7 +377,7 @@ export function ReportBuilderPage() {
           </GlassCard>
 
           <GlassCard variant="default" hoverable={false}>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Export</h3>
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Export</h3>
             <div className="space-y-2">
               <button
                 type="button"
@@ -401,7 +407,7 @@ export function ReportBuilderPage() {
                 {exporting === 'json' ? 'Exporting…' : 'JSON (.json)'}
               </button>
             </div>
-            <div className="mt-3 pt-3 border-t border-[var(--border)]">
+            <div className="mt-3 pt-3 border-t border-line">
               <button
                 type="button"
                 className="btn btn-ghost btn-sm w-full inline-flex items-center justify-center gap-2"

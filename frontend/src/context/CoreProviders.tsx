@@ -1,4 +1,5 @@
-import { type ReactNode, Suspense } from 'react';
+import {  Suspense } from 'react';
+import type {ReactNode} from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import { LazyMotion, domAnimation } from 'framer-motion';

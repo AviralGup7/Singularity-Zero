@@ -1,4 +1,5 @@
-import { Suspense, useState, useEffect, useRef, Component, type ReactNode } from 'react';
+import { Suspense, useState, useEffect, useRef, Component   } from 'react';
+import type {ReactNode} from 'react';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { lazyWithPrefetch } from '@/PrefetchRegistry';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -22,27 +23,21 @@ const SettingsPage = lazyWithPrefetch('/settings', () => import('@/pages/Setting
 const CockpitPage = lazyWithPrefetch('/cockpit', () => import('@/pages/CockpitPage').then(m => ({ default: m.CockpitPage })));
 const CacheManagementPage = lazyWithPrefetch('/cache-management', () => import('@/pages/CacheManagementPage').then(m => ({ default: m.CacheManagementPage })));
 const PipelineOverviewPage = lazyWithPrefetch('/pipeline', () => import('@/pages/PipelineOverviewPage').then(m => ({ default: m.PipelineOverviewPage })));
-const RiskScorePage = lazyWithPrefetch('/risk-score', () => import('@/pages/RiskScorePage').then(m => ({ default: m.RiskScorePage })));
+const RiskHubPage = lazyWithPrefetch('/risk', () => import('@/pages/RiskHubPage').then(m => ({ default: m.RiskHubPage })));
+const SecurityPage = lazyWithPrefetch('/security', () => import('@/pages/SecurityResiliencePage').then(m => ({ default: m.SecurityResiliencePage })));
+const DetectionQualityPage = lazyWithPrefetch('/detection-quality', () => import('@/pages/DetectionQualityPage').then(m => ({ default: m.DetectionQualityPage })));
+const GovernanceHubPage = lazyWithPrefetch('/governance', () => import('@/pages/GovernanceHubPage').then(m => ({ default: m.GovernanceHubPage })));
+const ReportLibraryPage = lazyWithPrefetch('/reports', () => import('@/pages/ReportLibraryPage').then(m => ({ default: m.ReportLibraryPage })));
+const ReportBuilderPage = lazyWithPrefetch('/reports/builder', () => import('@/pages/ReportBuilderPage').then(m => ({ default: m.ReportBuilderPage })));
+const AnalyticsHubPage = lazyWithPrefetch('/analytics', () => import('@/pages/AnalyticsHubPage').then(m => ({ default: m.AnalyticsHubPage })));
+const AuditLogViewer = lazyWithPrefetch('/audit-logs', () => import('@/components/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
+const EvidenceCustodyViewer = lazyWithPrefetch('/evidence-custody/:evidenceId', () => import('@/components/common/ChainOfCustodyViewer').then(m => ({ default: m.ChainOfCustodyViewer })));
 const FindingsTimelinePage = lazyWithPrefetch('/findings-timeline', () => import('@/pages/FindingsTimelinePage').then(m => ({ default: m.FindingsTimelinePage })));
 const TargetComparison = lazyWithPrefetch('/target-comparison', () => import('@/pages/TargetComparison').then(m => ({ default: m.TargetComparison })));
 const ScanDiffPage = lazyWithPrefetch('/scan-diff', () => import('@/pages/ScanDiffPage').then(m => ({ default: m.ScanDiffPage })));
-const RemediationPlanner = lazyWithPrefetch('/remediation-planner', () => import('@/pages/RemediationPlanner').then(m => ({ default: m.RemediationPlanner })));
-const GapAnalysisPage = lazyWithPrefetch('/gap-analysis', () => import('@/pages/GapAnalysisPage').then(m => ({ default: m.GapAnalysisPage })));
-const LearningPage = lazyWithPrefetch('/learning', () => import('@/pages/LearningPage').then(m => ({ default: m.LearningPage })));
 const MeshHealthPage = lazyWithPrefetch('/mesh', () => import('@/pages/MeshHealthPage').then(m => ({ default: m.MeshHealthPage })));
 const TracingPage = lazyWithPrefetch('/tracing', () => import('@/pages/TracingPage').then(m => ({ default: m.TracingPage })));
-const SecurityPage = lazyWithPrefetch('/security', () => import('@/pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
-const AuditLogViewer = lazyWithPrefetch('/audit-logs', () => import('@/components/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
-const ComplianceDashboard = lazyWithPrefetch('/compliance', () => import('@/pages/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })));
-const ReportLibraryPage = lazyWithPrefetch('/reports', () => import('@/pages/ReportLibraryPage').then(m => ({ default: m.ReportLibraryPage })));
-const ReportBuilderPage = lazyWithPrefetch('/reports/builder', () => import('@/pages/ReportBuilderPage').then(m => ({ default: m.ReportBuilderPage })));
-const AccessLogsPage = lazyWithPrefetch('/access-logs', () => import('@/components/ComplianceLogViewer').then(m => ({ default: m.ComplianceLogViewer })));
-const EvidenceCustodyViewer = lazyWithPrefetch('/evidence-custody/:evidenceId', () => import('@/components/common/ChainOfCustodyViewer').then(m => ({ default: m.ChainOfCustodyViewer })));
-const EvidenceCustodyPage = lazyWithPrefetch('/evidence-custody', () => import('@/pages/EvidenceCustodyPage').then(m => ({ default: m.EvidenceCustodyPage })));
-const SelfHealingPage = lazyWithPrefetch('/self-healing', () => import('@/pages/SelfHealingPage').then(m => ({ default: m.SelfHealingPage })));
 const EvasionMetricsPage = lazyWithPrefetch('/evasion', () => import('@/pages/EvasionMetricsPage').then(m => ({ default: m.EvasionMetricsPage })));
-const AcceptancePage = lazyWithPrefetch('/risk/acceptance', () => import('@/pages/AcceptancePage').then(m => ({ default: m.AcceptancePage })));
-const AssetCriticalityPage = lazyWithPrefetch('/risk/assets', () => import('@/pages/AssetCriticalityPage').then(m => ({ default: m.AssetCriticalityPage })));
 
 function ContentFallback() {
   return (
@@ -65,8 +60,8 @@ function ChunkLoadErrorFallback({ error, onRetry }: { error: Error; onRetry: () 
   return (
     <div className="flex flex-col items-center justify-center p-12 text-center" role="alert" aria-live="assertive">
       <div className="text-4xl mb-4" aria-hidden="true">📦</div>
-      <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">Failed to load page</h2>
-      <p className="text-sm text-[var(--text-secondary)] mb-3">
+        <h2 className="text-lg font-bold text-text-primary mb-2">Failed to load page</h2>
+        <p className="text-sm text-text-secondary mb-3">
         {isChunkError
           ? 'The page module could not be downloaded. This may be due to a network issue or a new deployment.'
           : 'An error occurred while loading this page.'}
@@ -91,13 +86,10 @@ class SuspenseErrorBoundary extends Component<
   { children: ReactNode; onRetry?: () => void },
   { hasError: boolean; error: Error | null }
 > {
-  state = { hasError: false, error: null as Error | null };
+  override state = { hasError: false, error: null as Error | null };
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
+    this.setState({ hasError: true, error });
     console.error('[SuspenseErrorBoundary]', error);
     errorTracker.track(error, {
       component: 'SuspenseErrorBoundary',
@@ -105,7 +97,7 @@ class SuspenseErrorBoundary extends Component<
     });
   }
 
-  render() {
+  override render() {
     if (this.state.hasError && this.state.error) {
       return <ChunkLoadErrorFallback error={this.state.error} onRetry={() => {
         this.setState({ hasError: false, error: null });
@@ -120,19 +112,16 @@ class RouteErrorBoundary extends Component<
   { children: ReactNode },
   { hasError: boolean; error: Error | null; retryCount: number; crashId: string }
 > {
-  state = { hasError: false, error: null as Error | null, retryCount: 0, crashId: '' };
+  override state = { hasError: false, error: null as Error | null, retryCount: 0, crashId: '' };
 
-  static getDerivedStateFromError(error: Error) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     const crashId = `RTE-${Date.now().toString(36).toUpperCase()}`;
-    return { hasError: true, error, crashId };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({ hasError: true, error, crashId });
     console.error('[RouteErrorBoundary]', error);
     errorTracker.track(error, {
       component: 'RouteErrorBoundary',
       action: 'route_crash',
-      metadata: { componentStack: errorInfo.componentStack, crashId: this.state.crashId },
+      metadata: { componentStack: errorInfo.componentStack, crashId },
     });
   }
 
@@ -145,16 +134,16 @@ class RouteErrorBoundary extends Component<
     }));
   };
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center p-12 text-center" role="alert" aria-live="assertive">
           <div className="text-4xl mb-4" aria-hidden="true">⚠️</div>
-          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">Something went wrong</h2>
-          <p className="text-sm text-[var(--text-secondary)] mb-3">
+          <h2 className="text-lg font-bold text-text-primary mb-2">Something went wrong</h2>
+          <p className="text-sm text-text-secondary mb-3">
             {this.state.error?.message || 'This section encountered an unexpected error.'}
           </p>
-          <p className="text-[11px] font-mono text-[var(--text-tertiary)] mb-4">
+          <p className="text-[11px] font-mono text-text-tertiary mb-4">
             Crash ID: {this.state.crashId}{this.state.retryCount > 0 ? ` · Retry #${this.state.retryCount}` : ''}
           </p>
           <div className="flex gap-2">
@@ -254,30 +243,23 @@ export function RouteConfig() {
       <Route path="/cockpit" element={<RouteGuard><RouteElement><CockpitPage /></RouteElement></RouteGuard>} />
       <Route path="/replay" element={<RouteGuard><RouteElement><ReplayPageRoute /></RouteElement></RouteGuard>} />
       <Route path="/cache-management" element={<RouteGuard requiredRole="admin"><RouteElement><CacheManagementPage /></RouteElement></RouteGuard>} />
-      <Route path="/risk-score" element={<RouteGuard><RouteElement><RiskScorePage /></RouteElement></RouteGuard>} />
+      <Route path="/risk" element={<RouteGuard><RouteElement><RiskHubPage /></RouteElement></RouteGuard>} />
       <Route path="/findings-timeline" element={<RouteGuard><RouteElement><FindingsTimelinePage /></RouteElement></RouteGuard>} />
       <Route path="/target-comparison" element={<RouteGuard><RouteElement><TargetComparison /></RouteElement></RouteGuard>} />
       <Route path="/scan-diff" element={<RouteGuard><RouteElement><ScanDiffPage /></RouteElement></RouteGuard>} />
-      <Route path="/remediation-planner" element={<RouteGuard><RouteElement><RemediationPlanner /></RouteElement></RouteGuard>} />
-      <Route path="/gap-analysis" element={<RouteGuard><RouteElement><GapAnalysisPage /></RouteElement></RouteGuard>} />
-      <Route path="/learning" element={<RouteGuard><RouteElement><LearningPage /></RouteElement></RouteGuard>} />
       <Route path="/mesh" element={<RouteGuard><RouteElement><MeshHealthPage /></RouteElement></RouteGuard>} />
-      <Route path="/security" element={<RouteGuard requiredRole="admin"><RouteElement><SecurityPage /></RouteElement></RouteGuard>} />
+      <Route path="/security" element={<RouteGuard><RouteElement><SecurityPage /></RouteElement></RouteGuard>} />
+      <Route path="/detection-quality" element={<RouteGuard><RouteElement><DetectionQualityPage /></RouteElement></RouteGuard>} />
       <Route path="/tracing" element={<RouteGuard><RouteElement><TracingPage /></RouteElement></RouteGuard>} />
       <Route path="/audit-logs" element={<RouteGuard requiredPermission="viewAuditLogs"><RouteElement><AuditLogViewer /></RouteElement></RouteGuard>} />
-      <Route path="/compliance" element={<RouteGuard><RouteElement><ComplianceDashboard /></RouteElement></RouteGuard>} />
       <Route path="/reports" element={<RouteGuard requiredPermission="viewAuditLogs"><RouteElement><ReportLibraryPage /></RouteElement></RouteGuard>} />
       <Route path="/reports/builder" element={<RouteGuard requiredPermission="viewAuditLogs"><RouteElement><ReportBuilderPage /></RouteElement></RouteGuard>} />
-      <Route path="/access-logs" element={<RouteGuard><RouteElement><AccessLogsPage /></RouteElement></RouteGuard>} />
-      <Route path="/evidence-custody" element={<RouteGuard><RouteElement><EvidenceCustodyPage /></RouteElement></RouteGuard>} />
       <Route path="/evidence-custody/:evidenceId" element={<RouteGuard><RouteElement><EvidenceCustodyViewerWrapper /></RouteElement></RouteGuard>} />
-      <Route path="/self-healing" element={<RouteGuard><RouteElement><SelfHealingPage /></RouteElement></RouteGuard>} />
       <Route path="/evasion" element={<RouteGuard><RouteElement><EvasionMetricsPage /></RouteElement></RouteGuard>} />
-      <Route path="/risk/acceptance" element={<RouteGuard><RouteElement><AcceptancePage /></RouteElement></RouteGuard>} />
-      <Route path="/risk/assets" element={<RouteGuard><RouteElement><AssetCriticalityPage /></RouteElement></RouteGuard>} />
-      <Route path="/trace" element={<Navigate to="/tracing" replace />} />
-      {/* Keeping /trace redirect hardcoded as it's a one-off redirect */}
+      <Route path="/governance" element={<RouteGuard><RouteElement><GovernanceHubPage /></RouteElement></RouteGuard>} />
+      <Route path="/analytics" element={<RouteGuard><RouteElement><AnalyticsHubPage /></RouteElement></RouteGuard>} />
       <Route path="*" element={<RouteGuard><RouteElement><NotFoundPage /></RouteElement></RouteGuard>} />
     </Routes>
+    </>
   );
 }

@@ -22,7 +22,7 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
       className={cn(
         'card',
    
-        'relative bg-[var(--panel)] border border-[var(--accent)]/60 p-4 transition-all duration-200',
+        'relative bg-panel border border-accent/60 p-4 transition-all duration-200',
    
         '[clip-path:polygon(0_0,calc(100%_-_8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%_-_8px))]'
       )}
@@ -30,14 +30,14 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
       role="region"
       aria-label="Scan summary"
     >
-      <h3 className="border-b border-[var(--line)] pb-2 mb-3 font-mono text-[length:var(--text-lg)] font-bold text-[var(--accent)] uppercase tracking-wider">
+      <h3 className="border-b border-line pb-2 mb-3 font-mono text-[length:var(--text-lg)] font-bold text-accent uppercase tracking-wider">
         ✅ Scan Complete
       </h3>
 
       <div className="summary-grid mb-4">
         <div className="summary-item">
           <span className="summary-label">Duration</span>
-          <span className="summary-value font-mono text-[var(--accent)]">{durationLabel}</span>
+          <span className="summary-value font-mono text-accent">{durationLabel}</span>
         </div>
         <div className="summary-item">
           <span className="summary-label">Target</span>
@@ -65,7 +65,7 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
 
       {totalFindings > 0 && (
         <div className="mb-4">
-          <h4 className="font-mono text-[length:var(--text-sm)] font-bold text-[var(--text)] uppercase tracking-wider mb-2">
+          <h4 className="font-mono text-[length:var(--text-sm)] font-bold text-text uppercase tracking-wider mb-2">
             Findings by Severity
           </h4>
           <div className="flex flex-wrap gap-2">
@@ -98,9 +98,9 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
             'p-3 rounded-sm font-mono text-[length:var(--text-sm)] border',
             comparison.faster
    
-              ? 'bg-[var(--ok)]/10 border-[var(--ok)]/30 text-[var(--ok)]'
+              ? 'bg-ok/10 border-ok/30 text-ok'
    
-              : 'bg-[var(--warn)]/10 border-[var(--warn)]/30 text-[var(--warn)]'
+              : 'bg-warn/10 border-warn/30 text-warn'
           )}
           role="status"
           aria-live="polite"
@@ -124,15 +124,15 @@ const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 function severityColorClass(sev: string): string {
   const map: Record<string, string> = {
    
-    critical: 'bg-[var(--severity-critical)]/20 text-[var(--severity-critical)] border-[var(--severity-critical)]/40',
+    critical: 'bg-critical/20 text-critical border-critical/40',
    
-    high: 'bg-[var(--severity-high)]/20 text-[var(--severity-high)] border-[var(--severity-high)]/40',
+    high: 'bg-high/20 text-high border-high/40',
    
-    medium: 'bg-[var(--severity-medium)]/20 text-[var(--severity-medium)] border-[var(--severity-medium)]/40',
+    medium: 'bg-medium/20 text-medium border-medium/40',
    
-    low: 'bg-[var(--severity-low)]/20 text-[var(--severity-low)] border-[var(--severity-low)]/40',
+    low: 'bg-low/20 text-low border-low/40',
    
-    info: 'bg-[var(--muted)]/20 text-[var(--muted)] border-[var(--muted)]/40',
+    info: 'bg-muted/20 text-muted border-muted/40',
   };
   return Reflect.get(map, sev) ?? Reflect.get(map, 'info');
 }

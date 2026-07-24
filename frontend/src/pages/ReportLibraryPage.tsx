@@ -4,12 +4,14 @@ import { ROUTES } from '@/config/paths';
 import { Link } from 'react-router-dom';
 import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus, Sparkles, TrendingUp } from 'lucide-react';
 
-import { getReportLibrary, type ReportLibraryItem, getAiExecutiveSummary, type AiExecutiveSummary, getSlaTrending, type SlaTrendingResponse } from '@/api/reports';
+import { getReportLibrary,  getAiExecutiveSummary,  getSlaTrending  } from '@/api/reports';
+import type {ReportLibraryItem, AiExecutiveSummary, SlaTrendingResponse} from '@/api/reports';
 import { ApiError } from '@/api/core';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SkeletonTable } from '@/components/ui/Skeleton';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 function shortHash(value: string): string {
   if (!value) return 'pending';
@@ -42,7 +44,9 @@ export function ReportLibraryPage() {
       setReports(response.reports);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      setError(err instanceof ApiError ? err.message : 'Unable to load report library');
+      const msg = err instanceof ApiError ? err.message : 'Unable to load report library';
+      setError(msg);
+      showErrorToast(msg);
     } finally {
       setLoading(false);
     }
@@ -54,7 +58,7 @@ export function ReportLibraryPage() {
     // Load SLA trending data in parallel
     getSlaTrending(controller.signal)
       .then(setSlaData)
-      .catch(() => {});
+      .catch(() => { showErrorToast('Failed to load SLA trending data'); });
     return () => controller.abort();
   }, []);
 
@@ -66,6 +70,7 @@ export function ReportLibraryPage() {
       setAiSummary(result);
     } catch {
       setAiSummary(null);
+      showErrorToast('Failed to generate AI executive summary');
     } finally {
       setAiLoading(false);
     }
@@ -104,7 +109,7 @@ export function ReportLibraryPage() {
             <span className="text-xs uppercase tracking-wider text-muted">Reports</span>
             <FileText size={16} className="text-accent" />
           </div>
-          <AnimatedCounter value={reports.length} className="text-2xl font-semibold text-[var(--text-primary)]" />
+          <AnimatedCounter value={reports.length} className="text-2xl font-semibold text-text-primary" />
         </GlassCard>
 
         <GlassCard variant="success" delay={0.1} hoverable>
@@ -120,7 +125,7 @@ export function ReportLibraryPage() {
             <span className="text-xs uppercase tracking-wider text-muted">Targets</span>
             <Shield size={16} className="text-accent" />
           </div>
-          <AnimatedCounter value={stats.targets} className="text-2xl font-semibold text-[var(--text-primary)]" />
+          <AnimatedCounter value={stats.targets} className="text-2xl font-semibold text-text-primary" />
         </GlassCard>
       </div>
 
@@ -135,24 +140,24 @@ export function ReportLibraryPage() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <TrendingUp size={16} className="text-accent" />
-                <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">SLA Compliance Trending</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">SLA Compliance Trending</h3>
               </div>
               <span className="text-[10px] font-mono text-muted uppercase">{slaData.sla_compliance_rate}% compliant</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-surface-hover border border-line">
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">MTTR</span>
-                <span className="font-mono font-bold text-[var(--text-primary)]">{slaData.mttr_days}d</span>
+                <span className="font-mono font-bold text-text-primary">{slaData.mttr_days}d</span>
               </div>
-              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-surface-hover border border-line">
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">Active Breaches</span>
                 <span className={`font-mono font-bold ${slaData.active_breaches > 0 ? 'text-bad' : 'text-ok'}`}>{slaData.active_breaches}</span>
               </div>
-              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-surface-hover border border-line">
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">Open</span>
                 <span className="font-mono font-bold text-warn">{slaData.open_findings_count}</span>
               </div>
-              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-surface-hover border border-line">
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">Remediated</span>
                 <span className="font-mono font-bold text-ok">{slaData.remediated_findings_count}</span>
               </div>
@@ -170,7 +175,7 @@ export function ReportLibraryPage() {
         <GlassCard variant="glow" hoverable={false}>
           <div className="flex items-center gap-2 mb-3">
             <Sparkles size={16} className="text-accent" />
-            <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">AI Executive Summary</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">AI Executive Summary</h3>
           </div>
           <div className="flex items-center gap-2 mb-3">
             <input
@@ -179,7 +184,7 @@ export function ReportLibraryPage() {
               value={aiTarget}
               onChange={e => setAiTarget(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleLoadAiSummary(); }}
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+              className="flex-1 bg-surface-hover border border-line rounded-lg px-3 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
             />
             <button
               type="button"
@@ -191,7 +196,7 @@ export function ReportLibraryPage() {
             </button>
           </div>
           {aiSummary && (
-            <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-xs text-muted/80 font-mono leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto scrollbar-cyber">
+            <div className="p-4 rounded-xl bg-surface-2 border border-line text-xs text-muted/80 font-mono leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto scrollbar-cyber">
               <div className="text-[9px] text-accent uppercase tracking-widest mb-2">
                 Target: {aiSummary.target} · Run: {aiSummary.run_id}
               </div>
@@ -236,7 +241,7 @@ export function ReportLibraryPage() {
               )}
               {!loading && reports.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-[var(--text-secondary)]">
+                  <td colSpan={6} className="text-center py-12 text-text-secondary">
                     No signed reports have been generated yet.
                   </td>
                 </tr>
@@ -247,7 +252,7 @@ export function ReportLibraryPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.03, duration: 0.25 }}
-                  className="transition-all duration-200 hover:bg-white/5"
+                  className="transition-all duration-200 hover:bg-surface-hover"
                 >
                   <td>
                     <div className="font-medium">{report.target}</div>
@@ -261,7 +266,7 @@ export function ReportLibraryPage() {
                   <td>
                     <span
                       className={`status-badge ${report.signature_valid ? 'status-completed' : 'status-stopped'}`}
-                      style={report.signature_valid ? { boxShadow: '0 0 8px rgba(16,185,129,0.3)' } : undefined}
+                      style={report.signature_valid ? { boxShadow: '0 0 8px color-mix(in srgb, var(--ok) 30%, transparent)' } : undefined}
                     >
                       <ShieldCheck size={12} aria-hidden="true" />
                       {report.signature_valid ? 'Verified' : 'Review'}

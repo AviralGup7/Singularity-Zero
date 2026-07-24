@@ -67,7 +67,8 @@ class ContinuousScanMode:
             return []
 
     async def _alert_new_high_severity(self, new_findings: list[dict[str, Any]]) -> int:
-        if self._alert_callback is None:
+        notification_mgr = getattr(self, "_notification_manager", None)
+        if self._alert_callback is None and notification_mgr is None:
             return 0
         alerts_sent = 0
         for finding in new_findings:
@@ -75,14 +76,21 @@ class ContinuousScanMode:
             if severity not in ("high", "critical"):
                 continue
             try:
-                count = await self._alert_callback(
-                    finding.get("title", "High/Critical Finding"),
-                    f"Asset: {finding.get('url', 'unknown')}",
-                    severity,
-                    finding.get("target"),
-                    finding.get("url"),
-                )
-                alerts_sent += count
+                if self._alert_callback is not None:
+                    count = await self._alert_callback(
+                        finding.get("title", "High/Critical Finding"),
+                        f"Asset: {finding.get('url', 'unknown')}",
+                        severity,
+                        finding.get("target"),
+                        finding.get("url"),
+                    )
+                    alerts_sent += count
+                elif notification_mgr is not None:
+                    results = await notification_mgr.send_finding(finding)
+                    if isinstance(results, list):
+                        alerts_sent += sum(1 for r in results if getattr(r, "success", True))
+                    else:
+                        alerts_sent += 1
             except Exception as exc:
                 logger.warning("Failed to send alert for finding: %s", exc)
         return alerts_sent

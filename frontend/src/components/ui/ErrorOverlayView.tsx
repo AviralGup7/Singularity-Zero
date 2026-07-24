@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot  } from 'react-dom/client';
+import type {Root} from 'react-dom/client';
 
 let errorRoot: Root | null = null;
 let currentOverlay: HTMLDivElement | null = null;
@@ -51,7 +52,7 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.85)',
+        background: 'var(--modal-overlay)',
         zIndex: 2147483647,
         display: 'flex',
         alignItems: 'center',
@@ -63,35 +64,35 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
     >
       <div
         style={{
-          background: '#161b22',
-          border: '1px solid #f85149',
+          background: 'var(--surface-2)',
+          border: '1px solid var(--bad)',
           borderRadius: 8,
           maxWidth: 800,
           width: '100%',
           maxHeight: '90vh',
           overflow: 'auto',
-          boxShadow: '0 0 40px rgba(248,81,73,0.3)',
+          boxShadow: '0 0 40px color-mix(in srgb, var(--bad) 30%, transparent)',
         }}
       >
         <div
           style={{
             padding: '1rem 1.5rem',
-            borderBottom: '1px solid #30363d',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <h2 style={{ color: '#f85149', margin: 0, fontSize: '1.1rem' }}>⚠️ {title}</h2>
+          <h2 className="text-bad text-lg">⚠️ {title}</h2>
           <button
             type="button"
             onClick={() => {
               removeOverlayRoot();
             }}
             style={{
-              background: '#21262d',
-              border: '1px solid #30363d',
-              color: '#8b949e',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-secondary)',
               padding: '0.25rem 0.75rem',
               borderRadius: 4,
               cursor: 'pointer',
@@ -103,17 +104,17 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
         <div style={{ padding: '1.5rem' }}>
           <div
             style={{
-              background: '#0d1117',
-              border: '1px solid #30363d',
+              background: 'var(--surface-muted)',
+              border: '1px solid var(--border)',
               borderRadius: 6,
               padding: '1rem',
               marginBottom: '1rem',
             }}
           >
-            <p style={{ color: '#f85149', margin: '0 0 0.5rem', fontWeight: 600 }}>Error Details:</p>
+            <p className="text-bad mb-2 font-semibold">Error Details:</p>
             <pre
               style={{
-                color: '#c9d1d9',
+                color: 'var(--text-primary)',
                 margin: 0,
                 fontSize: '0.85rem',
                 whiteSpace: 'pre-wrap',
@@ -128,7 +129,7 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
             <details style={{ marginTop: '1rem' }}>
               <summary
                 style={{
-                  color: '#8b949e',
+                  color: 'var(--text-secondary)',
                   cursor: 'pointer',
                   fontSize: '0.85rem',
                   padding: '0.5rem 0',
@@ -138,11 +139,11 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
               </summary>
               <pre
                 style={{
-                  background: '#0d1117',
-                  border: '1px solid #30363d',
+                  background: 'var(--surface-muted)',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '1rem',
-                  color: '#6e7681',
+                  color: 'var(--text-tertiary)',
                   fontSize: '0.75rem',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
@@ -159,10 +160,10 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
             style={{
               marginTop: '1rem',
               paddingTop: '1rem',
-              borderTop: '1px solid #30363d',
+              borderTop: '1px solid var(--border)',
             }}
           >
-            <p style={{ color: '#8b949e', fontSize: '0.8rem', margin: 0 }}>
+            <p className="text-text-secondary text-sm">
               💡 Tip: Check the browser console (F12) for more details.
             </p>
           </div>

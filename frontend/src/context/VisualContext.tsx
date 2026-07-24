@@ -1,5 +1,7 @@
-import { createContext, type ReactNode, useEffect, useMemo, useState } from 'react';
-import { DEFAULT_VISUAL_STATE, type VisualState } from '@/lib/visualState';
+import { createContext,  useEffect, useMemo, useState } from 'react';
+import type {ReactNode} from 'react';
+import { DEFAULT_VISUAL_STATE  } from '@/lib/visualState';
+import type {VisualState} from '@/lib/visualState';
 
 export interface VisualContextValue {
   state: VisualState;

@@ -72,40 +72,44 @@ export function ChainOfCustodyViewer({ evidenceId, compact = false, source = 'ch
   if (chain.length === 0) return null;
 
   return (
-    <section className="rounded border border-white/10 bg-black/35">
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+    <section className="rounded border border-line bg-surface-2" aria-label={`Chain of custody for ${evidenceId}`}>
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
-          <Fingerprint size={15} className="text-cyan-200" />
-          <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">Chain Of Custody</h4>
+          <Fingerprint size={15} className="text-cyan-200" aria-hidden="true" />
+          <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-text-secondary">Chain Of Custody</h4>
         </div>
-        <div className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest ${verified ? 'text-emerald-300' : 'text-amber-300'}`}>
-          <CheckCircle2 size={12} />
+        <div
+          className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest ${verified ? 'text-emerald-300' : 'text-amber-300'}`}
+          role="status"
+          aria-label={verified ? 'Chain verified' : 'Chain partially verified'}
+        >
+          <CheckCircle2 size={12} aria-hidden="true" />
           {verified ? 'Verified' : 'Partial'}
         </div>
       </div>
 
-      <div className={compact ? 'max-h-56 overflow-y-auto' : ''}>
+      <div className={compact ? 'max-h-56 overflow-y-auto' : ''} role="list" aria-label="Custody chain entries">
         {chain.map((entry, index) => (
-          <div key={entry.id} className="grid grid-cols-[24px_1fr] gap-3 border-b border-white/5 px-4 py-3 last:border-b-0">
+          <div key={entry.id} className="grid grid-cols-[24px_1fr] gap-3 border-b border-line px-4 py-3 last:border-b-0" role="listitem">
             <div className="flex flex-col items-center">
-              <div className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-300/10">
+              <div className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-300/10" aria-hidden="true">
                 <GitCommitHorizontal size={12} className="text-cyan-200" />
               </div>
-              {index < chain.length - 1 && <div className="mt-1 h-full min-h-8 w-px bg-white/10" />}
+              {index < chain.length - 1 && <div className="mt-1 h-full min-h-8 w-px bg-surface-2" aria-hidden="true" />}
             </div>
             <div className="min-w-0">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className={`rounded border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${ACTION_CLASS[entry.action] || 'border-white/15 bg-white/5 text-white/70'}`}>
+                <span className={`rounded border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${ACTION_CLASS[entry.action] || 'border-line bg-surface-hover text-text-secondary'}`}>
                   {entry.action}
                 </span>
-                <span className="flex items-center gap-1 text-[9px] font-mono text-muted">
-                  <Clock3 size={11} />
-                  {new Date(entry.timestamp).toLocaleString()}
+                <span className="flex items-center gap-1 text-[9px] font-mono text-muted" title={entry.timestamp}>
+                  <Clock3 size={11} aria-hidden="true" />
+                  <time dateTime={entry.timestamp}>{new Date(entry.timestamp).toLocaleString()}</time>
                 </span>
               </div>
               <div className="text-xs font-bold text-text">{entry.user}</div>
-              <div className="mt-1 truncate font-mono text-[10px] text-white/45">
-                {entry.previousHash ? `${entry.previousHash.slice(0, 16)} -> ${entry.hash.slice(0, 16)}` : entry.hash.slice(0, 24)}
+              <div className="mt-1 truncate font-mono text-[10px] text-white/45" title={entry.previousHash ? `${entry.previousHash} → ${entry.hash}` : entry.hash}>
+                {entry.previousHash ? `${entry.previousHash.slice(0, 16)} → ${entry.hash.slice(0, 16)}` : entry.hash.slice(0, 24)}
               </div>
             </div>
           </div>

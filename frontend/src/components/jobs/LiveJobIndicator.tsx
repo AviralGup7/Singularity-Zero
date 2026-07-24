@@ -40,7 +40,7 @@ export function LiveJobIndicator() {
   return (
     <Link
       to={ROUTES.JOBS}
-      className="live-job-indicator group relative"
+      className="live-job-indicator group relative focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none rounded-full"
       aria-label={`${runningJobs.length} ${runningJobs.length === 1 ? 'job' : 'jobs'} running`}
       aria-live="polite"
       title={`Active Scans: ${tooltip}`}
@@ -48,7 +48,7 @@ export function LiveJobIndicator() {
       <span className="pulse-dot" aria-hidden="true" />
       <span className="running-count">{runningJobs.length}</span>
       
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 border border-white/10 rounded text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 border border-line rounded text-[9px] text-text-primary whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
         {runningJobs.length} ACTIVE {runningJobs.length === 1 ? 'SCAN' : 'SCANS'}
       </div>
     </Link>

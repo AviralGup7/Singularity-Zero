@@ -2,6 +2,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+
+def _emit_deprecation_warning() -> None:
+    import warnings
+
+    warnings.warn(
+        "src.core.models.config.Config is deprecated. "
+        "Use src.core.config.typed_config.PipelineConfig instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
 DEFAULT_USER_AGENT = "target-specific-pipeline/2.0"
 TOOL_NAMES = [
     "subfinder",
@@ -23,6 +35,13 @@ DIFF_TARGETS = {
 
 @dataclass
 class Config:
+    """Legacy configuration dataclass.
+
+    .. deprecated::
+        Use :class:`src.core.config.typed_config.PipelineConfig` instead.
+        This class is retained as a compatibility shim during the v2 config
+        unification and will be removed in a future release.
+    """
     target_name: str
     output_dir: Path
     http_timeout_seconds: int
@@ -45,6 +64,9 @@ class Config:
     output: dict[str, Any]
     notifications: dict[str, Any]
     _resume_from: str | None = None
+
+    def __post_init__(self) -> None:
+        _emit_deprecation_warning()
 
     def to_dict(self) -> dict[str, Any]:
         """Convert Config dataclass to a dictionary representation."""

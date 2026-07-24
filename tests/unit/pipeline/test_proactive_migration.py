@@ -13,6 +13,7 @@ async def test_proactive_migration_handler_evacuates_on_pressure():
     mock_coordinator = MagicMock()
     # Mock migrate_if_needed to return True (migration triggered)
     mock_coordinator.migrate_if_needed = AsyncMock(return_value=True)
+    mock_coordinator.verify_actor_alive = AsyncMock(return_value=True)
 
     handler = ProactiveMigrationHandler(coordinator=mock_coordinator, check_interval_seconds=0.1)
 

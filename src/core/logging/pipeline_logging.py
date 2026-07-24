@@ -96,8 +96,11 @@ def emit_info(message: str) -> None:
     Args:
         message: Message text to display.
     """
-    sys.stdout.write(f"{message}\n")
-    sys.stdout.flush()
+    try:
+        sys.stdout.write(f"{message}\n")
+        sys.stdout.flush()
+    except (UnicodeEncodeError, OSError):
+        pass
 
 
 def emit_summary(payload: dict[str, Any]) -> None:
@@ -115,8 +118,11 @@ def emit_warning(message: str) -> None:
     Args:
         message: Warning text to display.
     """
-    sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{message}\n")
-    sys.stderr.flush()
+    try:
+        sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{message}\n")
+        sys.stderr.flush()
+    except (UnicodeEncodeError, OSError):
+        pass
 
 
 def emit_error(message: str, *parts: object) -> None:
@@ -127,8 +133,11 @@ def emit_error(message: str, *parts: object) -> None:
     """
     if parts:
         message = " ".join([str(message), *(str(part) for part in parts)])
-    sys.stderr.write(f"{LOGGING_FORMAT['error_prefix']}{message}\n")
-    sys.stderr.flush()
+    try:
+        sys.stderr.write(f"{LOGGING_FORMAT['error_prefix']}{message}\n")
+        sys.stderr.flush()
+    except (UnicodeEncodeError, OSError):
+        pass
 
 
 def emit_retry_warning(
@@ -152,5 +161,8 @@ def emit_retry_warning(
         f"Retrying {target} (attempt {attempt}/{max_attempts}) "
         f"after {delay:.2f}s — reason: {reason}"
     )
-    sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{msg}\n")
-    sys.stderr.flush()
+    try:
+        sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{msg}\n")
+        sys.stderr.flush()
+    except (UnicodeEncodeError, OSError):
+        pass

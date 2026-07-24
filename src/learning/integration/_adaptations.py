@@ -105,7 +105,7 @@ def apply_adaptations(
         ctx["active_exploit_queue"] = adaptations["active_exploit_queue"]
 
     if config:
-        from src.core.config.loader import apply_adaptive_overrides
+        from src.core.config.typed_config import apply_adaptive_overrides
 
         # Construct nested adaptive_dict for merge logic
         adaptive_dict: dict[str, Any] = {}

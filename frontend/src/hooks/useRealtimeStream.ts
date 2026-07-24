@@ -29,7 +29,8 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useSSEProgress, type SseEvent } from './useSSEProgress';
+import { useSSEProgress  } from './useSSEProgress';
+import type {SseEvent} from './useSSEProgress';
 import { useWebSocket } from './useWebSocket';
 
 export type RealtimeTransport = 'sse' | 'ws' | 'auto';

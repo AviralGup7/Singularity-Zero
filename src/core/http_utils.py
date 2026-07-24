@@ -22,6 +22,7 @@ from src.core.utils.shared_sessions import (
 )
 from src.core.utils.shared_sessions import (
     get_shared_sync_session,
+    get_shared_sync_session as _get_sync_session,
 )
 from src.core.utils.url_validation import is_safe_url
 
@@ -136,7 +137,7 @@ def safe_request(
 
     try:
         start_time = time.monotonic()
-        resp = get_shared_sync_session().request(
+        resp = _get_sync_session().request(
             method=method,
             url=url,
             headers=req_headers,

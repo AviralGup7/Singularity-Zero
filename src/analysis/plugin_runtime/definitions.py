@@ -12,7 +12,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "header_checker": (
         "src.analysis.checks.passive._detectors",
         "header_checker",
-        "responses_only",
+        "header_targets_and_cache",
     ),
     "cookie_security_checker": (
         "src.analysis.checks.passive._detectors",
@@ -47,7 +47,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "debug_artifact_checker": (
         "src.analysis.checks.passive._detectors",
         "debug_artifact_checker",
-        "responses_only",
+        "urls_and_responses",
     ),
     # ---- Active detectors (existing) ----
     "stored_xss_signal_detector": (
@@ -109,7 +109,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "ssrf_oob_validator": (
         "src.analysis.checks.active.ssrf_oob_validator",
         "ssrf_oob_validator",
-        "priority_urls_and_cache",
+        "urls_and_responses",
     ),
     "xml_bomb_detector": (
         "src.analysis.checks.active.xml_bomb_detector",
@@ -125,32 +125,32 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "clickjacking_detector": (
         "src.analysis.passive.detectors.detector_clickjacking",
         "clickjacking_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "csrf_protection_checker": (
         "src.analysis.passive.detectors.detector_csrf",
         "csrf_protection_checker",
-        "responses_only",
+        "urls_and_responses",
     ),
     "graphql_introspection_detector": (
         "src.analysis.passive.detectors.detector_graphql",
         "graphql_introspection_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "logging_security_detector": (
         "src.analysis.passive.detectors.detector_logging",
         "logging_security_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "oauth_misconfiguration_detector": (
         "src.analysis.passive.detectors.detector_oauth",
         "oauth_misconfiguration_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "open_redirect_detector": (
         "src.analysis.passive.detectors.detector_open_redirect",
         "open_redirect_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "sql_error_exposure_detector": (
         "src.analysis.passive.detectors.detector_sqli",
@@ -160,12 +160,12 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "ssti_surface_detector": (
         "src.analysis.passive.detectors.detector_ssti",
         "ssti_surface_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "file_upload_surface_detector": (
         "src.analysis.passive.detectors.detector_upload",
         "file_upload_surface_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     "vulnerable_component_detector": (
         "src.analysis.passive.detectors.detector_vulnerable_components",
@@ -175,7 +175,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "xxe_surface_detector": (
         "src.analysis.passive.detectors.detector_xxe",
         "xxe_surface_detector",
-        "responses_only",
+        "urls_and_responses",
     ),
     # ---- JSON analysis (existing) ----
     "access_boundary_tracker": (
@@ -186,7 +186,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "bulk_endpoint_detector": (
         "src.analysis.json._core.json_analysis",
         "bulk_endpoint_detector",
-        "responses_only",
+        "urls_only",
     ),
     "cross_tenant_pii_risk_analyzer": (
         "src.analysis.json._core.json_analysis",
@@ -201,7 +201,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "endpoint_resource_groups": (
         "src.analysis.json._core.json_analysis",
         "endpoint_resource_groups",
-        "responses_only",
+        "urls_only",
     ),
     "json_response_parser": (
         "src.analysis.json._core.json_analysis",
@@ -424,7 +424,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "token_lifetime_analyzer": (
         "src.analysis.checks.passive.token_lifetime_analyzer",
         "token_lifetime_analyzer",
-        "responses_only",
+        "urls_and_responses",
     ),
     # ---- Passive detectors (separate module, previously inline) ----
     "token_leak_detector": (
@@ -501,12 +501,22 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "multi_step_flow_breaking_probe": (
         "src.analysis.response._core.response_analysis._flow_detection",
         "multi_step_flow_breaking_probe",
-        "behavior_analysis",
+        "flow_items_and_cache",
     ),
     "redirect_chain_analyzer": (
         "src.analysis.response._core.response_analysis._redirect_analysis",
         "redirect_chain_analyzer",
         "priority_urls_and_cache",
+    ),
+    "auth_boundary_redirect_detection": (
+        "src.analysis.response._core.response_analysis._redirect_analysis",
+        "auth_boundary_redirect_detection",
+        "priority_urls_and_cache",
+    ),
+    "subdomain_takeover_indicator_checker": (
+        "src.analysis.checks.exposure._detectors",
+        "subdomain_takeover_indicator_checker",
+        "urls_and_responses",
     ),
     # ---- JSON analysis (previously inline stubs) ----
     "session_reuse_detection": (
@@ -567,7 +577,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
     "flow_integrity_checker": (
         "src.analysis.json.active_probes",
         "flow_integrity_checker",
-        "behavior_analysis",
+        "flow_items_only",
     ),
     "version_diffing": (
         "src.analysis.json.version_diff",
@@ -812,7 +822,7 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
         "payment_provider_detection",
         "responses_only",
     ),
-    "run_cognitive_flow_analysis": (
+    "cognitive_flow_analysis": (
         "src.analysis.behavior.flow_prober",
         "run_cognitive_flow_analysis",
         "urls_and_cache",

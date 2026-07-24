@@ -97,18 +97,12 @@ def _row_to_dict(cursor: sqlite3.Cursor, row: tuple) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/access-logs",
-    summary="List compliance access log entries",
-)
-async def list_access_logs(
-    request: Request,
-    limit: int = Query(200, ge=1, le=2000),
-    user: str | None = None,
-    action: str | None = None,
-    _auth: Any = Depends(require_auth),
+def _fetch_access_logs_sync(
+    conn: sqlite3.Connection,
+    user: str | None,
+    action: str | None,
+    limit: int,
 ) -> list[dict[str, Any]]:
-    conn = _get_conn(request)
     query = 'SELECT id, timestamp, "user", action, resource, reason, details, outcome, created_at FROM compliance_access_logs'
     clauses: list[str] = []
     params: list[Any] = []
@@ -134,6 +128,42 @@ async def list_access_logs(
     return rows
 
 
+def _insert_access_log_sync(
+    conn: sqlite3.Connection,
+    log_id: str,
+    timestamp: str,
+    user: str,
+    action: str,
+    resource: str,
+    reason: str,
+    details_json: str,
+    outcome: str,
+    now: float,
+) -> None:
+    conn.execute(
+        'INSERT INTO compliance_access_logs (id, timestamp, "user", action, resource, reason, details, outcome, created_at) '
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [log_id, timestamp, user, action, resource, reason, details_json, outcome, now],
+    )
+    conn.commit()
+
+
+@router.get(
+    "/access-logs",
+    summary="List compliance access logs",
+    dependencies=[Depends(require_auth)],
+)
+async def list_access_logs(
+    request: Request,
+    limit: int = Query(200, ge=1, le=2000),
+    user: str | None = None,
+    action: str | None = None,
+    _auth: Any = Depends(require_auth),
+) -> list[dict[str, Any]]:
+    conn = _get_conn(request)
+    return await run_in_threadpool(_fetch_access_logs_sync, conn, user, action, limit)
+
+
 @router.post(
     "/access-logs",
     summary="Record a compliance access log entry",
@@ -146,22 +176,26 @@ async def create_access_log(
     log_id = str(payload.get("id") or f"alog-{uuid.uuid4().hex[:12]}")
     now = time.time()
     conn = _get_conn(request)
-    conn.execute(
-        'INSERT INTO compliance_access_logs (id, timestamp, "user", action, resource, reason, details, outcome, created_at) '
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-            log_id,
-            payload.get("timestamp") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
-            str(payload.get("user") or "anonymous"),
-            str(payload.get("action") or ""),
-            str(payload.get("resource") or ""),
-            str(payload.get("reason") or ""),
-            json.dumps(payload.get("details") or {}),
-            str(payload.get("outcome") or "success"),
-            now,
-        ],
+    timestamp = payload.get("timestamp") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
+    user_str = str(payload.get("user") or "anonymous")
+    action_str = str(payload.get("action") or "")
+    resource_str = str(payload.get("resource") or "")
+    reason_str = str(payload.get("reason") or "")
+    details_json = json.dumps(payload.get("details") or {})
+    outcome_str = str(payload.get("outcome") or "success")
+    await run_in_threadpool(
+        _insert_access_log_sync,
+        conn,
+        log_id,
+        timestamp,
+        user_str,
+        action_str,
+        resource_str,
+        reason_str,
+        details_json,
+        outcome_str,
+        now,
     )
-    conn.commit()
     return {"id": log_id, "status": "created"}
 
 

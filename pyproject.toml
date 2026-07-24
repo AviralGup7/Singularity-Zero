@@ -84,10 +84,6 @@ dev = [
 ]
 ml = [
     "scipy>=1.14.0",
-    "kuzu==0.11.3",
-    "xgboost==2.0.0",
-    "scikit-learn==1.5.0",
-    "zstandard==0.22.0",
 ]
 wasm = [
     "pykka==4.0.0",
@@ -110,6 +106,7 @@ markers = [
     "security: marks tests as security tests",
     "chaos: marks chaos tests requiring infrastructure (docker, redis, etc.)",
     "mock_heavy: marks tests that use heavy mocking or extensive fixtures",
+    "asyncio: marks tests as asynchronous",
 ]
 filterwarnings = []
 
@@ -235,9 +232,6 @@ module = [
     "botocore.*",
     "azure.*",
     "kuzu",
-    "xgboost",
-    "sklearn.*",
-    "zstandard",
     "pykka",
     "wasmtime",
     "crcmod",

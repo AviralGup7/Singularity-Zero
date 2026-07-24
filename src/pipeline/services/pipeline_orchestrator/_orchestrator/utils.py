@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from collections.abc import Awaitable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -653,13 +654,14 @@ async def record_stage_post_run(
 ) -> None:
     """Record post-stage metrics, alerts, and checkpoint persistence."""
     try:
-        import resource
+        if sys.platform != "win32":
+            import resource
 
-        getrusage = getattr(resource, "getrusage", None)
-        rusage_self = getattr(resource, "RUSAGE_SELF", None)
-        if getrusage is not None and rusage_self is not None:
-            mem_usage = getrusage(rusage_self).ru_maxrss / 1024
-            ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
+            getrusage = getattr(resource, "getrusage", None)
+            rusage_self = getattr(resource, "RUSAGE_SELF", None)
+            if getrusage is not None and rusage_self is not None:
+                mem_usage = getrusage(rusage_self).ru_maxrss / 1024
+                ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
     except (ImportError, AttributeError) as exc:
         logger.warning("Operation failed in utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 

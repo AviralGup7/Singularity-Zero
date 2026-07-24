@@ -2,8 +2,8 @@ export function InfoItem({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
     <div className="info-item">
-      <span className="info-label">{label}:</span>
-      <span className="info-value">{value}</span>
+      <dt className="info-label">{label}:</dt>
+      <dd className="info-value" title={value}>{value}</dd>
     </div>
   );
 }

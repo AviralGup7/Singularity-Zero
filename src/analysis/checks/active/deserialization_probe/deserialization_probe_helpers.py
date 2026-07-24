@@ -1,6 +1,7 @@
 """Helper functions for deserialization probing."""
 
 import logging
+
 logger = logging.getLogger(__name__)
 import base64
 import time
@@ -18,7 +19,6 @@ from src.core.utils.scoring import severity_score
 from src.core.utils.url_validation import is_safe_url
 
 from ._constants import (
-
     DESERIALIZATION_ERRORS,
     DOTNET_MARKERS,
     DOTNET_PAYLOAD,

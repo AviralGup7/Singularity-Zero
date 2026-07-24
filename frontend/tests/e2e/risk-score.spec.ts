@@ -84,8 +84,8 @@ test.describe('Risk Score Page', () => {
       });
     });
 
-    await page.goto('/risk-score');
-    await expect(page).toHaveURL(/\/risk-score/);
+    await page.goto('/risk');
+    await expect(page).toHaveURL(/\/risk/);
     await expect(page.getByTestId('risk-heatmap')).toBeVisible();
     await expect(page.locator('.risk-heat-cell').filter({ hasText: '8' }).first()).toBeVisible();
   });

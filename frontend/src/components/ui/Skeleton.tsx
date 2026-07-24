@@ -10,12 +10,12 @@ export interface SkeletonProps {
 }
 
 const shimmerAnimation =
-  'relative overflow-hidden bg-[var(--panel-2)] before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/[0.06] before:to-transparent';
+  'relative overflow-hidden bg-surface-2 before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/[0.06] before:to-transparent';
 
 export function Skeleton({ variant = 'text', width, height, lines = 1, className }: SkeletonProps) {
   if (variant === 'card') {
     return (
-      <div className={cn('p-4 border border-[var(--line)] bg-[var(--panel)] rounded-sm', className)}>
+      <div className={cn('p-4 border border-line bg-panel rounded-sm', className)}>
         <ShadcnSkeleton className={cn(shimmerAnimation, 'h-4 w-3/4 mb-3 rounded-sm')} />
         <ShadcnSkeleton className={cn(shimmerAnimation, 'h-3 w-full mb-2 rounded-sm')} />
         <ShadcnSkeleton className={cn(shimmerAnimation, 'h-3 w-1/2 rounded-sm')} />
@@ -96,7 +96,7 @@ export function SkeletonTable({ rows = 5, className }: { rows?: number; classNam
 export function PageSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-6', className)} aria-label="Loading page content" role="status">
-      <div className="flex items-center justify-between pb-4 border-b border-[var(--border-soft)]">
+      <div className="flex items-center justify-between pb-4 border-b border-line-muted">
         <div className="flex items-center gap-3">
           <ShadcnSkeleton className={cn(shimmerAnimation, 'h-10 w-10 rounded-xl shrink-0')} />
           <div className="space-y-1.5">
@@ -108,13 +108,13 @@ export function PageSkeleton({ className }: { className?: string }) {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
+          <div key={i} className="rounded-xl border border-glass-border bg-glass-bg backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
             <ShadcnSkeleton className={cn(shimmerAnimation, 'h-3 w-20 mb-3 rounded-sm')} />
             <ShadcnSkeleton className={cn(shimmerAnimation, 'h-7 w-14 rounded-sm')} />
           </div>
         ))}
       </div>
-      <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
+      <div className="rounded-xl border border-glass-border bg-glass-bg backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
         <ShadcnSkeleton className={cn(shimmerAnimation, 'h-4 w-1/3 mb-4 rounded-sm')} />
         <div className="space-y-3">
           <Skeleton variant="card" />
@@ -129,7 +129,7 @@ function SkeletonGlassCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)]',
+        'rounded-xl border border-glass-border bg-glass-bg',
         'backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)]',
         'p-5',
         className
@@ -157,7 +157,7 @@ export function DashboardSkeleton({ className }: { className?: string }) {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
+          <div className="rounded-xl border border-glass-border bg-glass-bg backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
             <div className="flex items-center justify-between mb-6">
               <ShadcnSkeleton className={cn(shimmerAnimation, 'h-4 w-40 rounded-sm')} />
               <ShadcnSkeleton className={cn(shimmerAnimation, 'h-3 w-16 rounded-sm')} />
@@ -178,7 +178,7 @@ export function DashboardSkeleton({ className }: { className?: string }) {
         </div>
         <div className="space-y-6">
           <SkeletonGlassCard />
-          <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
+          <div className="rounded-xl border border-glass-border bg-glass-bg backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] p-5">
             <ShadcnSkeleton className={cn(shimmerAnimation, 'h-3 w-28 mb-4 rounded-sm')} />
             <div className="space-y-3">
               {Array.from({ length: 2 }).map((_, i) => (
@@ -202,8 +202,8 @@ export function TableSkeleton({ rows = 5, className }: { rows?: number; classNam
           <ShadcnSkeleton className={cn(shimmerAnimation, 'h-8 w-24 rounded-lg')} />
         </div>
       </div>
-      <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] overflow-hidden">
-        <div className="grid grid-cols-5 gap-4 p-4 border-b border-[var(--border)]">
+      <div className="rounded-xl border border-glass-border bg-glass-bg backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)] overflow-hidden">
+        <div className="grid grid-cols-5 gap-4 p-4 border-b border-line">
           {Array.from({ length: 5 }).map((_, i) => (
             <ShadcnSkeleton key={i} className={cn(shimmerAnimation, 'h-3 rounded-sm')} style={{ width: `${60 + i * 8}px` }} />
           ))}

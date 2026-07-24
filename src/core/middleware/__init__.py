@@ -209,8 +209,8 @@ class ScopeValidator:
             try:
                 ipaddress.ip_address(ipv6_match.group(1))
                 return True
-            except ValueError as exc:
-                logger.warning("Operation failed in __init__.py: %s", exc, exc_info=True)  # noqa: BLE001
+            except ValueError:
+                pass
         return False
 
     @staticmethod

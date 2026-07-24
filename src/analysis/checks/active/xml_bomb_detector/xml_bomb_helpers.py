@@ -1,20 +1,17 @@
 """Helper functions for XML bomb detection."""
 
-logger = logging.getLogger(__name__)
 import logging
+
+logger = logging.getLogger(__name__)
 import time
 from typing import Any
 
 import requests
 
-
-
-
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url
 
 from ._constants import (
-
     XML_BOMB_PAYLOADS,
     XML_CONTENT_TYPES,
     XML_DECLARATION_RE,

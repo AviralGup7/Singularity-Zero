@@ -186,7 +186,8 @@ apiClient.interceptors.response.use(
     if (schema) {
       const result = schema.safeParse(response.data);
       if (!result.success) {
-        if (import.meta.env.DEV && process.env?.NODE_ENV !== 'test') {          console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+        if (import.meta.env.DEV) {
+          console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
             errors: result.error.format(),
             received: response.data
           });
@@ -203,8 +204,7 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (import.meta.env.DEV && process.env?.NODE_ENV !== 'test') {
-   
+    if (import.meta.env.DEV) {
       console.debug(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${responseTime}ms`);
     }
      
@@ -227,24 +227,23 @@ apiClient.interceptors.response.use(
     }
 
     if (axios.isCancel(error)) {
-      captureException(error instanceof Error ? error : new Error(String(error)), {
-        component: 'apiClient',
-        action: 'cancel',
-      });
       return Promise.reject(error);
     }
     const responseTime = error.config?.metadata?.startTime
       ? Date.now() - error.config.metadata.startTime
       : null;
        
-    if (import.meta.env.DEV && process.env?.NODE_ENV !== 'test' && responseTime !== null) {
-   
+    if (import.meta.env.DEV && responseTime !== null) {
       console.debug(`[API] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${responseTime}ms (error)`);
     }
 
     let message = i18n.t('errors.unexpectedError');
     const status = error.response?.status;
     const serverDetail = error.response?.data?.detail;
+
+    if (status === 404 && error.config?.url) {
+      console.warn(`[404 DEBUG] URL=${error.config.url} status=${status} detail=${JSON.stringify(error.response?.data)}`);
+    }
 
     if (status && status < 500) {
       message = serverDetail || error.message || i18n.t('errors.unexpectedError');

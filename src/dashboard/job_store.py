@@ -305,6 +305,7 @@ class JobStore:
 
     def load_all(self) -> dict[str, dict[str, Any]]:
         """Load all jobs, returning a dict keyed by job_id."""
+        import logging as _logging
         try:
             rows = self._with_retry(
                 lambda conn: conn.execute(
@@ -319,6 +320,11 @@ class JobStore:
                 except (json.JSONDecodeError, TypeError, KeyError) as exc:
                     logger.debug("Failed to decode job data from row: %s", exc)
                     continue
+            _logging.getLogger(__name__).info(
+                "LOADED jobs from persistence: keys=%s count=%d",
+                list(result.keys()),
+                len(result),
+            )
             return result
         except Exception:
             logger.exception("Failed to load jobs")

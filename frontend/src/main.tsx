@@ -102,11 +102,26 @@ function showErrorOverlay(title: string, message: string, stack?: string) {
 
 // Global JavaScript errors (bubbling phase)
 window.addEventListener('error', (e) => {
-  console.error('Global Error:', e.error || e.message);
+  const error = e.error || new Error(e.message);
+  const message = error.message || '';
+  const lowered = String(message).toLowerCase();
+
+  // Ignore request cancellation errors — these are normal during navigation/unmount
+  if (
+    lowered === 'canceled' ||
+    lowered === 'abort' ||
+    error.name === 'CanceledError' ||
+    error.name === 'AbortError'
+  ) {
+    e.preventDefault();
+    return;
+  }
+
+  console.error('Global Error:', error);
   showErrorOverlay(
     'JavaScript Error',
-    e.error?.message || e.message || 'Unknown error',
-    e.error?.stack
+    error.message || 'Unknown error',
+    error.stack
   );
 });
 

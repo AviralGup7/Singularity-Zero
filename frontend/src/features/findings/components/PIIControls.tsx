@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { isPIIVisible, setPIIVisible, getPIIAuditLog, type PIIMatch } from '@/utils/piiRedactor';
+import { isPIIVisible, setPIIVisible, getPIIAuditLog  } from '@/utils/piiRedactor';
+import type {PIIMatch} from '@/utils/piiRedactor';
 import { useAuth } from '@/hooks/useAuth';
 
 interface PIIControlsProps {
@@ -55,21 +56,21 @@ export function PIIAuditLogViewer() {
 
   return (
    
-    <div className="border border-[var(--line)] p-3 mt-2">
-      <h4 className="font-mono text-[var(--accent)] text-xs font-bold uppercase tracking-wider mb-2">
+    <div className="border border-line p-3 mt-2">
+      <h4 className="font-mono text-accent text-xs font-bold uppercase tracking-wider mb-2">
         PII Audit Log ({logs.length})
       </h4>
       <div className="max-h-48 overflow-y-auto">
         {logs.slice(0, 50).map((entry) => (
    
-          <div key={entry.id} className="text-xs font-mono py-1 border-b border-[var(--table-border)]">
-            <span className={entry.action === 'revealed' ? 'text-[var(--warn)]' : 'text-[var(--ok)]'}>
+          <div key={entry.id} className="text-xs font-mono py-1 border-b border-line">
+            <span className={entry.action === 'revealed' ? 'text-warn' : 'text-ok'}>
               {entry.action}
             </span>
             {' '}
-            <span className="text-[var(--text)]">{entry.category}</span>
+            <span className="text-text">{entry.category}</span>
             {' '}
-            <span className="text-[var(--muted)]">
+            <span className="text-muted">
               by {entry.user} at {new Date(entry.timestamp).toLocaleString()}
             </span>
           </div>

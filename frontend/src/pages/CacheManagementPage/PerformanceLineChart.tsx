@@ -7,7 +7,7 @@ interface PerformanceLineChartProps {
 
 export function PerformanceLineChart({ data, animate }: PerformanceLineChartProps) {
   if (data.length === 0) {
-    return <div className="grid h-full place-items-center text-sm text-[var(--muted)]">No samples yet</div>;
+    return <div className="grid h-full place-items-center text-sm text-muted">No samples yet</div>;
   }
 
   const width = 800;

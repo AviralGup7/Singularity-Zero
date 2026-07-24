@@ -28,6 +28,10 @@ from src.core.contracts.cross_package_protocols import (  # noqa: F401
     WASMExecutorProtocol,
 )
 from src.core.contracts.finding_lifecycle import apply_lifecycle  # noqa: F401
+from src.core.contracts.module_interfaces import (  # noqa: F401
+    ModuleHealth,
+    ModuleLayer,
+)
 from src.core.contracts.param_categories import ParamCategory  # noqa: F401
 from src.core.contracts.pipeline import (  # noqa: F401
     CONFIG_DEFAULTS,

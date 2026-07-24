@@ -14,6 +14,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from collections import defaultdict
@@ -23,6 +24,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Match
+
+logger = logging.getLogger(__name__)
 
 # Path normalization patterns: replace high-cardinality segments with placeholders
 _PATH_NORMALIZERS: list[tuple[re.Pattern[str], str]] = [

@@ -15,19 +15,46 @@ def is_target_owned_by_tenant(target_name: str, tenant_id: str | None) -> bool:
     When ``tenant_id`` is ``None`` or empty, access is denied (fail-closed)
     to prevent cross-tenant leakage when the job-metadata resolver fails.
     """
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "TENANT_CHECK target=%r tenant=%r", target_name, tenant_id
+    )
     if not tenant_id:
+        _logging.getLogger(__name__).warning(
+            "TENANT_CHECK REJECTED empty tenant target=%r", target_name
+        )
         return False
 
-    if target_name.startswith(f"{tenant_id}_"):
+    # Normalize common aliases so frontends sending "tenant-default" still match
+    # the canonical default tenant used by backend principals and job metadata.
+    normalized_tenant = tenant_id
+    if normalized_tenant == "tenant-default":
+        normalized_tenant = "default"
+
+    if target_name.startswith(f"{normalized_tenant}_"):
+        _logging.getLogger(__name__).info(
+            "TENANT_CHECK ALLOWED prefix match target=%r tenant=%r", target_name, tenant_id
+        )
         return True
 
-    if tenant_id == "default":
+    if normalized_tenant == "default":
         if target_name.startswith("tenant") and "_" in target_name:
             parts = target_name.split("_", 1)
             if parts[0] != "default":
+                _logging.getLogger(__name__).warning(
+                    "TENANT_CHECK REJECTED default tenant mismatch target=%r parts=%r",
+                    target_name,
+                    parts,
+                )
                 return False
+        _logging.getLogger(__name__).info(
+            "TENANT_CHECK ALLOWED default tenant target=%r", target_name
+        )
         return True
 
+    _logging.getLogger(__name__).warning(
+        "TENANT_CHECK REJECTED no match target=%r tenant=%r", target_name, tenant_id
+    )
     return False
 
 

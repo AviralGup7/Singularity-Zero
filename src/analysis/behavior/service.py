@@ -12,14 +12,14 @@ from src.analysis.behavior.service_runtime import (
     merge_live_records,
     probe_open_services,
 )
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.recon.common import normalize_url
 
 
 def run_service_enrichment(
     subdomains: set[str],
     live_records: list[dict[str, Any]],
-    config: Config,
+    config: PipelineConfig,
     runtime_budget_seconds: int | None = None,
 ) -> tuple[list[dict[str, Any]], set[str], dict[str, list[dict[str, Any]]]]:
     settings = config.analysis or {}

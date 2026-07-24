@@ -51,7 +51,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={asChild ? undefined : disabled || loading}
         className={cn(
           buttonVariants({ variant: variantToShadcn[variant], size: sizeToShadcn[size] }),
-          variant === 'gradient' && 'text-white border-0 bg-[linear-gradient(135deg,var(--neon-cyan),var(--accent),var(--accent-2))] [background-size:200%_200%] hover:[background-position:100%_100%] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)]',
+          variant === 'gradient' && 'text-text-primary border-0 bg-[linear-gradient(135deg,var(--neon-cyan),var(--accent),var(--accent-2))] [background-size:200%_200%] hover:[background-position:100%_100%] hover:shadow-glow-accent-md',
           loading && 'relative',
           className
         )}

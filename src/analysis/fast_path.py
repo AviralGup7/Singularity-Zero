@@ -44,6 +44,7 @@ class ScopeViolation(RuntimeError):
 
 
 # Response cache for identical probes across targets
+_CACHE_LOCK = asyncio.Lock()
 _RESPONSE_CACHE: dict[str, dict[str, Any]] = {}
 _RESPONSE_CACHE_EXPIRY: dict[str, float] = {}
 _MAX_CACHE_SIZE = 1000
@@ -53,7 +54,13 @@ _CACHE_MISS_KEY = "cache_miss"
 _cache_stats = {_CACHE_HIT_KEY: 0, _CACHE_MISS_KEY: 0}
 
 
-def _evict_cache_if_needed() -> None:
+async def _evict_cache_if_needed() -> None:
+    """Evict expired and excess entries from the response cache.
+
+    Must be called with ``_CACHE_LOCK`` already held by the
+    caller, or from within the lock's ``async with`` block in
+    :meth:`FastPathDispatcher.dispatch`.
+    """
     now = time.monotonic()
     # Evict expired entries
     expired = [k for k, expiry in list(_RESPONSE_CACHE_EXPIRY.items()) if now > expiry]
@@ -338,23 +345,24 @@ class FastPathDispatcher:
         start = time.monotonic()
 
         # Check cache first (fastest possible path)
-        if cache_key and cache_key in _RESPONSE_CACHE:
-            expiry = _RESPONSE_CACHE_EXPIRY.get(cache_key, 0.0)
-            if start <= expiry:
-                self._stats.cache_hits += 1
-                self._stats.fast_path_count += 1
-                self._stats.total_time_ms += (time.monotonic() - start) * 1000
-                cached = _RESPONSE_CACHE[cache_key]
-                return httpx.Response(
-                    status_code=cached.get("status_code", 200),
-                    headers=cached.get("headers", {}),
-                    content=cached.get("content", b""),
-                    request=httpx.Request(method, url),
-                )
-            else:
-                # Expired, clean up
-                _RESPONSE_CACHE.pop(cache_key, None)
-                _RESPONSE_CACHE_EXPIRY.pop(cache_key, None)
+        async with _CACHE_LOCK:
+            if cache_key and cache_key in _RESPONSE_CACHE:
+                expiry = _RESPONSE_CACHE_EXPIRY.get(cache_key, 0.0)
+                if start <= expiry:
+                    self._stats.cache_hits += 1
+                    self._stats.fast_path_count += 1
+                    self._stats.total_time_ms += (time.monotonic() - start) * 1000
+                    cached = _RESPONSE_CACHE[cache_key]
+                    return httpx.Response(
+                        status_code=cached.get("status_code", 200),
+                        headers=cached.get("headers", {}),
+                        content=cached.get("content", b""),
+                        request=httpx.Request(method, url),
+                    )
+                else:
+                    # Expired, clean up
+                    _RESPONSE_CACHE.pop(cache_key, None)
+                    _RESPONSE_CACHE_EXPIRY.pop(cache_key, None)
 
         client = await self._ensure_client()
 
@@ -372,14 +380,15 @@ class FastPathDispatcher:
 
             # Cache the response if cache_key provided
             if cache_key:
-                _evict_cache_if_needed()
-                _RESPONSE_CACHE[cache_key] = {
-                    "status_code": response.status_code,
-                    "headers": dict(response.headers),
-                    "content": response.content[:10240],  # Cache first 10KB
-                }
-                _RESPONSE_CACHE_EXPIRY[cache_key] = time.monotonic() + _CACHE_TTL_SECONDS
-                self._stats.cache_hits += 1
+                async with _CACHE_LOCK:
+                    await _evict_cache_if_needed()
+                    _RESPONSE_CACHE[cache_key] = {
+                        "status_code": response.status_code,
+                        "headers": dict(response.headers),
+                        "content": response.content[:10240],  # Cache first 10KB
+                    }
+                    _RESPONSE_CACHE_EXPIRY[cache_key] = time.monotonic() + _CACHE_TTL_SECONDS
+                    self._stats.cache_hits += 1
 
             self._stats.fast_path_count += 1
             return response

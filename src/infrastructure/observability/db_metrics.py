@@ -1,7 +1,5 @@
 """Database latency metrics via SQLAlchemy event listeners.
 
-import logging
-logger = logging.getLogger(__name__)
 Instruments SQLAlchemy to record query execution time, connection pool
 utilization, and transaction metrics. Works with both sync and async
 engines.
@@ -15,12 +13,15 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+
+logger = logging.getLogger(__name__)
 
 # Bucket boundaries optimized for DB query latency (seconds)
 _DB_LATENCY_BUCKETS = (0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)

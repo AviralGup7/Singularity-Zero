@@ -99,6 +99,7 @@ export async function startJob(payload: StartJobPayload, signal?: AbortSignal): 
   apiCache.invalidatePrefix('/api/jobs');
   apiCache.invalidatePrefix('/api/targets');
   apiCache.invalidatePrefix('/api/findings');
+  console.debug(`[startJob] returned job id=${data.id} base_url=${data.base_url}`);
   return data;
 }
 

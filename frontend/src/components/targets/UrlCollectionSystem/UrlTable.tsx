@@ -1,4 +1,5 @@
-import { type UrlCollectionItem, statusTone, statusLabel } from './helpers';
+import {  statusTone, statusLabel } from './helpers';
+import type {UrlCollectionItem} from './helpers';
 
 interface UrlTableProps {
   items: UrlCollectionItem[];

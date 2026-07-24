@@ -12,18 +12,26 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-STAGE_ORDER = [
-    "startup",
-    "subdomains",
-    "live_hosts",
-    "urls",
-    "parameters",
-    "priority",
-    "analysis",
-    "nuclei",
-    "reporting",
-    "completed",
-]
+from src.pipeline.services.stage_registry import PIPELINE_STAGES
+
+STAGE_ORDER = [stage.key for stage in PIPELINE_STAGES] + ["completed"]
+
+STAGE_PRIOR_MEANS: dict[str, float] = {
+    "startup": 5.0,
+    "subdomains": 300.0,
+    "live_hosts": 450.0,
+    "urls": 450.0,
+    "parameters": 60.0,
+    "ranking": 30.0,
+    "passive_scan": 150.0,
+    "active_scan": 450.0,
+    "nuclei": 300.0,
+    "access_control": 300.0,
+    "validation": 150.0,
+    "intelligence": 90.0,
+    "reporting": 150.0,
+    "completed": 1.0,
+}
 
 
 def _percentile_index(n: int, p: float) -> int:
@@ -45,6 +53,13 @@ def _percentile_index(n: int, p: float) -> int:
     if idx > n - 1:
         idx = n - 1
     return idx
+
+
+def _prior_mean_for_stage(stage_index: int) -> float:
+    """Return the prior mean duration for a stage by its index in STAGE_ORDER."""
+    if 0 <= stage_index < len(STAGE_ORDER):
+        return STAGE_PRIOR_MEANS.get(STAGE_ORDER[stage_index], 300.0)
+    return 300.0
 
 
 class BayesianSimpleModel:
@@ -209,7 +224,9 @@ class ETAEngine:
             if job_id not in stage_models:
                 stage_models[job_id] = {}
             if stage_index not in stage_models[job_id]:
-                stage_models[job_id][stage_index] = BayesianSimpleModel()
+                stage_models[job_id][stage_index] = BayesianSimpleModel(
+                    prior_mean=_prior_mean_for_stage(stage_index),
+                )
             stage_models[job_id][stage_index].add_sample(float(duration))
 
     async def compute_eta(
@@ -278,7 +295,7 @@ class ETAEngine:
         return None
 
     def _get_aggregate_model(self, stage_index: int) -> BayesianSimpleModel | None:
-        agg = BayesianSimpleModel()
+        agg = BayesianSimpleModel(prior_mean=_prior_mean_for_stage(stage_index))
         found = False
         for job_models in self._models.values():
             if stage_index in job_models:

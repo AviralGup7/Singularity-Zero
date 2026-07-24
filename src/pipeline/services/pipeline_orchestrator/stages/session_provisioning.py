@@ -106,8 +106,13 @@ def _provision_static_credentials(auth_config: Any, scan_session: ScanSession) -
 async def _provision_oauth(auth_config: Any, scan_session: ScanSession, scan_id: str) -> list[str]:
     """Provision OAuth credentials via OAuthAuthenticator."""
     try:
-        from src.execution.auth import OAuthAuthenticator
+        from src.core.contracts.protocol_registry import get_oauth_authenticator_cls
         from src.execution.auth.oauth_authenticator import OAuthConfig
+
+        _oauth_cls = get_oauth_authenticator_cls()
+        if _oauth_cls is None:
+            logger.warning("OAuthAuthenticator not registered in protocol registry")
+            return []
 
         oauth_config_raw = getattr(auth_config, "oauth_config", None) or {}
         if not oauth_config_raw:
@@ -115,7 +120,7 @@ async def _provision_oauth(auth_config: Any, scan_session: ScanSession, scan_id:
             return []
 
         oauth_config = OAuthConfig.from_mapping(oauth_config_raw)
-        authenticator = OAuthAuthenticator(oauth_config)
+        authenticator = _oauth_cls(oauth_config)
         session_context = await authenticator.authenticate()
 
         cred = SessionCredential(

@@ -94,71 +94,75 @@ export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
   }, [diff, filter]);
 
   return (
-    <div className="run-diff-viewer">
+    <div className="run-diff-viewer" role="region" aria-label={`Run comparison: ${runA.runId} vs ${runB.runId}`}>
       <div className="run-diff-header">
         <h3 className="run-diff-title">Run Comparison</h3>
         <div className="run-diff-runs">
           <span className="run-diff-run-label">{runA.runId} ({runA.date})</span>
-          <span className="run-diff-vs">vs</span>
+          <span className="run-diff-vs" aria-hidden="true">vs</span>
           <span className="run-diff-run-label">{runB.runId} ({runB.date})</span>
         </div>
       </div>
 
-      <div className="run-diff-summary">
+      <div className="run-diff-summary" role="group" aria-label="Diff summary">
         <div className="run-diff-stat stat-new">
-          <span className="run-diff-stat-value">{diff.newFindings.length}</span>
+          <span className="run-diff-stat-value tabular-nums">{diff.newFindings.length}</span>
           <span className="run-diff-stat-label">New</span>
         </div>
         <div className="run-diff-stat stat-removed">
-          <span className="run-diff-stat-value">{diff.removedFindings.length}</span>
+          <span className="run-diff-stat-value tabular-nums">{diff.removedFindings.length}</span>
           <span className="run-diff-stat-label">Removed</span>
         </div>
         <div className="run-diff-stat stat-changed">
-          <span className="run-diff-stat-value">{diff.changedFindings.length}</span>
+          <span className="run-diff-stat-value tabular-nums">{diff.changedFindings.length}</span>
           <span className="run-diff-stat-label">Changed</span>
         </div>
       </div>
 
       <div className="run-diff-severity-breakdown">
         <h4 className="run-diff-subtitle">Severity Breakdown</h4>
-        <div className="severity-diff-grid">
+        <div className="severity-diff-grid" role="table" aria-label="Severity breakdown">
           {SEVERITY_ORDER.map(sev => {
             const entry = severityBreakdown.get(sev) || { new: 0, removed: 0, changed: 0 };
             return (
-              <div key={sev} className={`severity-diff-row severity-diff-${sev}`}>
-                <span className="severity-diff-name">{sev}</span>
-                <span className="severity-diff-new">+{entry.new}</span>
-                <span className="severity-diff-removed">-{entry.removed}</span>
-                <span className="severity-diff-changed">~{entry.changed}</span>
+              <div key={sev} className={`severity-diff-row severity-diff-${sev}`} role="row">
+                <span className="severity-diff-name" role="rowheader">{sev}</span>
+                <span className="severity-diff-new tabular-nums" role="cell">+{entry.new}</span>
+                <span className="severity-diff-removed tabular-nums" role="cell">-{entry.removed}</span>
+                <span className="severity-diff-changed tabular-nums" role="cell">~{entry.changed}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="run-diff-filters">
+      <div className="run-diff-filters" role="tablist" aria-label="Diff filter">
         {(['all', 'new', 'removed', 'changed'] as const).map(f => (
           <button
             key={f}
             className={`run-diff-filter-btn ${filter === f ? 'active' : ''}`}
             onClick={() => setFilter(f)}
+            role="tab"
+            aria-selected={filter === f}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
 
-      <div className="run-diff-results">
+      <div className="run-diff-results" role="tabpanel" aria-label={`${filter} findings`}>
         {filteredItems.length === 0 ? (
-          <div className="run-diff-empty">No findings in this category.</div>
+          <div className="run-diff-empty" role="status">No findings in this category.</div>
         ) : (
           filteredItems.map((item, idx) => (
             <div
               key={idx}
               className={`run-diff-item run-diff-item-${item.type}`}
+              role="listitem"
+              aria-label={`${item.type} finding: ${item.finding.type} on ${item.finding.target}, severity ${item.finding.severity}`}
             >
               <div className="run-diff-item-header">
-                <span className={`severity-badge sev-${item.finding.severity}`}>
+                <span className={`severity-badge sev-${item.finding.severity}`} aria-label={`Severity: ${item.finding.severity}`}>
                   {item.finding.severity}
                 </span>
                 <span className="run-diff-item-type">{item.finding.type}</span>

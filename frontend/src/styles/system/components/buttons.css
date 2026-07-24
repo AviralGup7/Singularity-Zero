@@ -45,8 +45,8 @@
   background-size: 200% 100%;
   background-position: 0% 0%;
   border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 3px 12px -3px hsla(217, 100%, 64%, 0.45);
+  color: var(--text-primary);
+  box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--accent) 45%, transparent);
   transition: all var(--motion-fast) var(--easing-out);
   position: relative;
   overflow: hidden;
@@ -86,7 +86,7 @@
 .btn-danger, .btn-error, .stop-btn {
   background: var(--bad);
   border-color: var(--bad);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover, .stop-btn:hover {
@@ -99,7 +99,7 @@
 .btn-warning, .restart-btn {
   background: var(--warn);
   border-color: var(--warn);
-  color: #000000;
+  color: var(--text-primary);
 }
 
 .btn-warning:hover, .restart-btn:hover {

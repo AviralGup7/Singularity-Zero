@@ -22,8 +22,8 @@ def _build_app(monkeypatch, env: dict | None = None):
     monkeypatch.setenv("APP_SECRET_KEY", "x" * 48)
     monkeypatch.setenv("GRAFANA_ADMIN_PASSWORD", "y" * 32)
     monkeypatch.setenv("REDIS_PASSWORD", "z" * 32)
-    # Disable auth so we test the gates themselves
-    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
+    if not env or "DASHBOARD_AUTH_DISABLED" not in env:
+        monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
 
     return create_app()
@@ -67,11 +67,15 @@ def test_csrf_endpoint_sets_httponly_samesite_cookie(monkeypatch):
 
 def test_security_events_requires_admin(monkeypatch):
     from fastapi.testclient import TestClient
+    from src.dashboard.fastapi import dependencies as deps
 
-    app = _build_app(monkeypatch)  # uses DASHBOARD_AUTH_DISABLED → role=read_only
+    async def _read_only_user():
+        return {"user": "test", "role": "read_only"}
+
+    app = _build_app(monkeypatch, {"DASHBOARD_AUTH_DISABLED": "false"})
+    app.dependency_overrides[deps.require_auth] = _read_only_user
     client = TestClient(app)
     r = client.get("/api/security/events")
-    # read_only is not admin → require_admin denies with 403
     assert r.status_code == 403
 
 
@@ -155,8 +159,13 @@ def test_security_headers_middleware_applies_csp_and_hsts(monkeypatch):
 
 def test_mesh_elect_leader_requires_admin(monkeypatch):
     from fastapi.testclient import TestClient
+    from src.dashboard.fastapi import dependencies as deps
 
-    app = _build_app(monkeypatch)  # read_only role
+    async def _read_only_user():
+        return {"user": "test", "role": "read_only"}
+
+    app = _build_app(monkeypatch, {"DASHBOARD_AUTH_DISABLED": "false"})
+    app.dependency_overrides[deps.require_auth] = _read_only_user
     client = TestClient(app)
     r = client.post("/api/mesh/elect-leader", json={})
     assert r.status_code == 403

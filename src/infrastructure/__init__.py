@@ -8,6 +8,105 @@ from __future__ import annotations
 
 from importlib import import_module
 from types import ModuleType
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Module self-description
+# ---------------------------------------------------------------------------
+
+MODULE_META: dict[str, Any] = {
+    "name": "infrastructure",
+    "version": "3.1.0",
+    "description": (
+        "Cross-cutting infrastructure: cache, execution engine, job queue, "
+        "observability, security, notifications, scheduling, and frontier/mesh."
+    ),
+    "layer": "infrastructure",
+    "submodules": (
+        "cache",
+        "checkpoint",
+        "db",
+        "discovery",
+        "execution_engine",
+        "frontier",
+        "health",
+        "mesh",
+        "notifications",
+        "observability",
+        "queue",
+        "scheduling",
+        "security",
+    ),
+    "public_api": (
+        "cache_manager",
+        "job_queue",
+        "redis_client",
+        "worker",
+        "metrics",
+        "structured_logging",
+        "encryption",
+    ),
+    "depends_on": ("core",),
+    "entry_points": (
+        "cyber-worker",
+        "cstp-worker",
+    ),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify infrastructure subsystem health.
+
+    Checks that the cache manager and notification manager are importable.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``details`` / ``errors``.
+    """
+    errors: list[str] = []
+    try:
+        from src.infrastructure.cache.cache_manager import (  # noqa: F401
+            CacheManager,
+        )
+        cache_ok = True
+    except ImportError as exc:
+        cache_ok = False
+        errors.append(f"CacheManager unavailable: {exc}")
+    try:
+        from src.infrastructure.notifications.manager import (  # noqa: F401
+            NotificationManager,
+        )
+        notify_ok = True
+    except ImportError as exc:
+        notify_ok = False
+        errors.append(f"NotificationManager unavailable: {exc}")
+    status = "ok" if (cache_ok and notify_ok) else "degraded"
+    result: dict[str, Any] = {
+        "status": status,
+        "module": "infrastructure",
+        "version": "3.1.0",
+        "details": {
+            "cache_manager": "available" if cache_ok else "unavailable",
+            "notification_manager": "available" if notify_ok else "unavailable",
+        },
+    }
+    if errors:
+        result["errors"] = errors
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Register self in the global module registry
+# ---------------------------------------------------------------------------
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
+
+# ---------------------------------------------------------------------------
+# Lazy facade (unchanged)
+# ---------------------------------------------------------------------------
 
 _EXPORTS: dict[str, str] = {
     # Cache

@@ -13,14 +13,14 @@ interface ModulePerformanceChartProps {
 }
 
 const BAR_COLORS = [
-  'var(--accent, #00f3ff)',
-  'var(--accent-2, #00ff88)',
-  'var(--severity-critical, #ff0040)',
-  'var(--severity-high, #ff8800)',
-  'var(--severity-medium, #ffcc00)',
-  'var(--severity-low, #00cc88)',
-  'var(--severity-info, #00aaff)',
-  'var(--accent-vibrant, #bf00ff)',
+  'var(--accent)',
+  'var(--accent-2)',
+  'var(--severity-critical)',
+  'var(--severity-high)',
+  'var(--severity-medium)',
+  'var(--severity-low)',
+  'var(--severity-info)',
+  'var(--accent-active)',
 ];
 
 export const ModulePerformanceChart = memo(function ModulePerformanceChart({ data }: ModulePerformanceChartProps) {
@@ -105,14 +105,14 @@ export const ModulePerformanceChart = memo(function ModulePerformanceChart({ dat
                   <line
                     y1={0}
                     y2={dimensions.innerHeight}
-                    stroke="var(--line, #333)"
+                    stroke="var(--line)"
                     strokeDasharray="4 5"
                     opacity={0.4}
                   />
                   <text
                     y={dimensions.innerHeight + 22}
                     textAnchor="middle"
-                    fill="var(--muted, #888)"
+                    fill="var(--text-secondary)"
                     fontSize={11}
                   >
                     {tick}
@@ -138,7 +138,7 @@ export const ModulePerformanceChart = memo(function ModulePerformanceChart({ dat
                     x={-12}
                     y={band / 2 + 4}
                     textAnchor="end"
-                    fill="var(--text, #f8f8ff)"
+                    fill="var(--text-primary)"
                     fontSize={11}
                   >
                     {entry.name}

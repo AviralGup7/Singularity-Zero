@@ -1,3 +1,82 @@
+"""API security test runner with key workflow and result modules."""
+
+from __future__ import annotations
+
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Module self-description
+# ---------------------------------------------------------------------------
+
+MODULE_META: dict[str, Any] = {
+    "name": "api_tests",
+    "version": "3.1.0",
+    "description": (
+        "API security test runner with workflow registry, API key "
+        "security checks, baseline-variant testing, and result formatting."
+    ),
+    "layer": "api_tests",
+    "submodules": ("apitester",),
+    "public_api": (
+        "main",
+        "run_api_key_checklist",
+        "test_api_key_security",
+        "advanced_api_key_test",
+        "detailed_api_key_test",
+        "test_api_baseline_vs_variant",
+        "build_api_test_result",
+        "list_workflows",
+        "get_workflow",
+    ),
+    "depends_on": ("core",),
+    "entry_points": (),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify api_tests subsystem health.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``errors``.
+    """
+    try:
+        from src.api_tests.apitester.api_key_workflows import (  # noqa: F401
+            list_workflows,
+        )
+        from src.api_tests.apitester.client import APITestClient  # noqa: F401
+
+        return {
+            "status": "ok",
+            "module": "api_tests",
+            "version": "3.1.0",
+            "details": {
+                "workflow_registry": "available",
+                "api_client": "available",
+            },
+        }
+    except ImportError as exc:
+        return {
+            "status": "degraded",
+            "module": "api_tests",
+            "version": "3.1.0",
+            "errors": [str(exc)],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Register self in the global module registry
+# ---------------------------------------------------------------------------
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
+
+# ---------------------------------------------------------------------------
+# Public API re-exports (unchanged)
+# ---------------------------------------------------------------------------
+
 from .apitester.api_key_checklist import run_api_key_checklist
 from .apitester.api_key_security import test_api_key_security
 from .apitester.api_key_workflows import (

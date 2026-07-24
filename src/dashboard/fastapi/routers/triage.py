@@ -122,19 +122,7 @@ async def ai_triage_finding(
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
 
-    from src.intelligence.ml.llm_service import LLMService
-
-    llm = LLMService.get_instance()
-
-    req_payload = (
-        finding.get("request_payload") or finding.get("payload") or finding.get("evidence")
-    )
-    resp_body = finding.get("response_body") or finding.get("response") or finding.get("body")
-
-    try:
-        review = await llm.triage_false_positive(finding, req_payload, resp_body)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"AI Triage failed: {exc}")
+    review = {"review": "AI triage module removed."}
 
     event = service.record_action(
         run_id=run_id,

@@ -4,11 +4,63 @@ from __future__ import annotations
 
 import sys
 
-if sys.platform.startswith("win") and "pytest" not in sys.modules:
-    import io
+# ---------------------------------------------------------------------------
+# Module self-description (before any conditional imports so it always runs)
+# ---------------------------------------------------------------------------
+from typing import Any
 
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+MODULE_META: dict[str, Any] = {
+    "name": "cli",
+    "version": "3.1.0",
+    "description": (
+        "Click-based CLI: scan, start (dashboard/worker), launch, "
+        "system (doctor/status/setup/cleanup), and plugin management."
+    ),
+    "layer": "cli",
+    "submodules": ("commands",),
+    "public_api": ("main", "console"),
+    "depends_on": ("core", "pipeline", "dashboard", "infrastructure"),
+    "entry_points": (
+        "cstp",
+        "cyber-pipeline",
+        "cstp-pipeline",
+    ),
+    "health_check": "health_check",
+}
+
+
+def health_check() -> dict[str, Any]:
+    """Verify CLI subsystem health.
+
+    Returns:
+        Dict with ``status`` (``"ok"`` / ``"degraded"``), ``module``,
+        ``version``, and optional ``errors``.
+    """
+    try:
+        from src.cli.commands.scan import handle_scan  # noqa: F401
+        from src.cli.commands.start import handle_dashboard  # noqa: F401
+
+        return {
+            "status": "ok",
+            "module": "cli",
+            "version": "3.1.0",
+            "details": {
+                "scan_command": "available",
+                "start_command": "available",
+            },
+        }
+    except ImportError as exc:
+        return {
+            "status": "degraded",
+            "module": "cli",
+            "version": "3.1.0",
+            "errors": [str(exc)],
+        }
+
+
+from src.core.utils.shared import register_module_meta  # noqa: E402
+
+register_module_meta(MODULE_META)
 
 import argparse
 
@@ -44,7 +96,16 @@ def _print_banner() -> None:
     [accent] █████████████████████   █████████   █████████████████████████████████████████ █████████████████████████████████  █████████[/accent]
     [dim]Unified Security Orchestration Engine v3.1.0[/dim]
     """
-    console.print(banner)
+    try:
+        console.print(banner)
+    except UnicodeEncodeError:
+        safe_banner = """
+    =========================================================================================
+    ===   Cyber Security Test Pipeline                                                    ===
+    =========================================================================================
+    Unified Security Orchestration Engine v3.1.0
+        """
+        print(safe_banner)
 
 
 def _build_parser() -> argparse.ArgumentParser:

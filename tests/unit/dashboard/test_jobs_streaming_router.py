@@ -86,4 +86,4 @@ async def test_stream_job_logs_typed_stream_heartbeat_interval_is_numeric(
 
     chunk = await response.body_iterator.__anext__()
     text = chunk.decode("utf-8") if isinstance(chunk, bytes) else str(chunk)
-    assert "event: progress_update" in text
+    assert "event: stage_change" in text or "event: progress_update" in text

@@ -69,7 +69,8 @@ class PipelineOutputStore:
         settings = output_settings or {}
         if run_id is None:
             run_id = run_dir_stamp()
-        target_root = (output_root / target_name).resolve()
+        output_root_path = Path(output_root) if isinstance(output_root, str) else output_root
+        target_root = (output_root_path / target_name).resolve()
         local_run_dir = (target_root / run_id).resolve()
 
         ghost_vfs = None

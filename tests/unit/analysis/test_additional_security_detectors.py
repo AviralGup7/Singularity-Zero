@@ -194,7 +194,7 @@ class AdditionalSecurityDetectorTests(unittest.TestCase):
     def test_xss_plugins_have_runtime_runners(self) -> None:
         from src.analysis.plugins import ANALYSIS_PLUGIN_SPECS_BY_KEY
 
-        bindings_source = Path("src/analysis/plugin_runtime/_bindings.py").read_text(
+        bindings_source = Path("src/analysis/plugin_runtime/definitions.py").read_text(
             encoding="utf-8"
         )
         for key in (
@@ -203,7 +203,7 @@ class AdditionalSecurityDetectorTests(unittest.TestCase):
             "reflected_xss_probe",
         ):
             self.assertIn(key, ANALYSIS_PLUGIN_SPECS_BY_KEY)
-            self.assertIn(f'"{key}": _binding(', bindings_source)
+            self.assertIn(f'"{key}": (', bindings_source)
 
     def test_public_repo_and_environment_exposure_checkers_flag_sensitive_artifacts(self) -> None:
         repo_findings = public_repo_exposure_checker(

@@ -9,10 +9,11 @@ const STAGE_ICONS: Record<string, string> = {
   live_hosts: 'LIVE',
   urls: 'URL',
   parameters: 'PARAM',
-  priority: 'RANK',
+  ranking: 'RANK',
   passive_scan: 'PASS',
   active_scan: 'ACT',
-  nuclei: 'NUC',
+  semgrep: 'SAST',
+  nuclei: 'VULN',
   access_control: 'AUTH',
   validation: 'VAL',
   intelligence: 'INTEL',
@@ -36,7 +37,20 @@ function getStatusClass(status: string): string {
 }
 
 function getStageIcon(stage: string): string {
-  return Reflect.get(STAGE_ICONS, stage) || 'STEP';
+  const aliased = stage === 'priority' ? 'ranking' : stage;
+  return Reflect.get(STAGE_ICONS, aliased) || 'STEP';
+}
+
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  oom_error: 'Out of memory (OOM)',
+  executable_not_found: 'Tool not found (exit 127)',
+  permission_denied: 'Permission denied (exit 126)',
+  sigint_or_sigterm: 'Interrupted (SIGINT/SIGTERM)',
+};
+
+function getClassificationLabel(classification: string | undefined): string {
+  if (!classification) return '';
+  return CLASSIFICATION_LABELS[classification] || classification;
 }
 
 function formatCount(processed: number, total: number | null): string {
@@ -82,10 +96,10 @@ export function StageProgressBars({ stages }: StageProgressBarsProps) {
   }
 
   return (
-    <div className="stage-progress-container">
+    <div className="stage-progress-container" role="region" aria-label="Stage progress">
       <div className="stage-progress-header">
         <span className="stage-progress-title">Stage Progress</span>
-        <span className="stage-progress-count">
+        <span className="stage-progress-count" role="status" aria-live="polite">
           {activeStages.length} active · {completedStages.length} completed
           {errorStages.length > 0 && ` · ${errorStages.length} error`}
           {skippedStages.length > 0 && ` · ${skippedStages.length} skipped`}
@@ -97,36 +111,51 @@ export function StageProgressBars({ stages }: StageProgressBarsProps) {
           )}
         </span>
       </div>
-      <div ref={gridRef} className="stage-progress-grid">
+      <div ref={gridRef} className="stage-progress-grid" role="list" aria-label="Pipeline stages">
         {safeStages.map((stage) => {
           const icon = getStageIcon(stage.stage);
           const statusClass = getStatusClass(stage.status);
           const countLabel = formatCount(stage.processed, stage.total);
 
           const card = (
-            <div className={`stage-progress-item ${statusClass}`}>
+            <div className={`stage-progress-item ${statusClass}`} role="listitem" aria-label={`${stage.stage_label}: ${stage.status}, ${stage.percent}%`}>
               <div className="stage-progress-item-header">
-                <span className="stage-icon">{icon}</span>
+                <span className="stage-icon" aria-hidden="true">{icon}</span>
                 <span className="stage-name">{stage.stage_label}</span>
-                <span className="stage-status-badge">{stage.status}</span>
+                <span className="stage-status-badge" role="status">{stage.status}</span>
               </div>
-              <div className="stage-progress-bar-track">
+              <div
+                className="stage-progress-bar-track"
+                role="progressbar"
+                aria-valuenow={stage.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${stage.stage_label} progress: ${stage.percent}%`}
+              >
                 <div
                   className="stage-progress-bar-fill"
                   style={{ width: `${Math.min(100, stage.percent)}%` }}
                 />
               </div>
               <div className="stage-progress-item-footer">
-                <span className="stage-percent">{stage.percent}%</span>
-                {countLabel && <span className="stage-count">{countLabel}</span>}
+                <span className="stage-percent tabular-nums">{stage.percent}%</span>
+                {countLabel && <span className="stage-count tabular-nums">{countLabel}</span>}
               </div>
-              {(stage.reason || stage.error || stage.last_event || (stage.retry_count || 0) > 0) && (
+              {(stage.reason || stage.error || stage.last_event || stage.classification || (stage.retry_count || 0) > 0) && (
                 <div className="stage-progress-meta">
                   {stage.reason && <div className="stage-reason">{stage.reason}</div>}
                   {stage.error && <div className="stage-error-text">{stage.error}</div>}
+                  {stage.classification && (
+                    <div className="stage-classification text-warn">
+                      {getClassificationLabel(stage.classification)}
+                    </div>
+                  )}
                   {stage.last_event && <div className="stage-last-event">{stage.last_event}</div>}
                   {(stage.retry_count || 0) > 0 && (
-                    <div className="stage-retry-count">Retries: {stage.retry_count}</div>
+                    <div className="stage-retry-count">
+                      Retries: {stage.retry_count}
+                      {stage.retry_max_attempts ? ` / ${stage.retry_max_attempts} max` : ''}
+                    </div>
                   )}
                 </div>
               )}
@@ -139,7 +168,7 @@ export function StageProgressBars({ stages }: StageProgressBarsProps) {
 
           return (
             <motion.div
-              key={`${stage.stage}-${stage.status}-${stage.updated_at ?? stage.started_at}`}
+              key={`${stage.stage}-${stage.status}-${stage.processed}-${stage.total}-${stage.updated_at ?? stage.started_at}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: strategy.duration, ease: 'easeOut' }}

@@ -6,6 +6,7 @@ consumes/produces metadata from analyzer bindings.
 """
 
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -17,6 +18,9 @@ DETECTOR_SPEC = "detector_spec"
 ANALYZER_BINDING = "analyzer_binding"
 
 _run_plugin_handler: Callable[[str, AnalysisExecutionContext], list[dict[str, Any]]] | None = None
+
+_DETECTION_PLUGIN_OPTIONS_LOCK = threading.Lock()
+_DETECTION_PLUGIN_OPTIONS: list[dict[str, object]] | None = None
 
 
 def register_run_plugin_handler(
@@ -239,8 +243,23 @@ def _classify_plugin(key: str) -> tuple[float, str, tuple[str, ...], tuple[str, 
 
 
 def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
-    specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
     bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
+    if not bindings:
+        try:
+            import src.analysis.plugin_registration  # noqa: F401
+            from src.analysis.plugins import get_analysis_plugin_specs
+            get_analysis_plugin_specs()
+        except ImportError:
+            pass
+        bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
+    specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
+    if len(specs) < len(bindings):
+        try:
+            from src.analysis.plugins import get_analysis_plugin_specs
+            get_analysis_plugin_specs()
+            specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
+        except ImportError:
+            pass
 
     plugins: list[DetectionPlugin] = []
     for key, binding in bindings.items():
@@ -310,32 +329,45 @@ def get_detection_plugin(plugin_key: str) -> DetectionPlugin:
 def run_detection_plugin(
     plugin_key: str, context: AnalysisExecutionContext
 ) -> list[dict[str, Any]]:
+    if _run_plugin_handler is None:
+        try:
+            import src.analysis.plugin_registration  # noqa: F401
+        except ImportError:
+            pass
     if _run_plugin_handler is not None:
         return _run_plugin_handler(plugin_key, context)
     raise RuntimeError("No run_plugin_handler registered in src.detection")
 
 
 def detection_plugin_options() -> list[dict[str, object]]:
+    """Return cached detection plugin option dicts.
+
+    The result is computed once and then cached.  The cache is protected
+    by ``_DETECTION_PLUGIN_OPTIONS_LOCK`` so that concurrent callers
+    never see a partially-built list.
+    """
     global _DETECTION_PLUGIN_OPTIONS
     if _DETECTION_PLUGIN_OPTIONS is None:
-        logger.info("Initializing detection plugin options cache")
-        specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
-        _DETECTION_PLUGIN_OPTIONS = [
-            {
-                "name": plugin.key,
-                "label": plugin.label,
-                "description": specs[plugin.key].description if plugin.key in specs else "",
-                "group": plugin.group,
-                "input_kind": plugin.input_kind,
-                "enabled_by_default": plugin.enabled_by_default,
-                "phase": plugin.phase,
-                "consumes": list(plugin.consumes),
-                "produces": list(plugin.produces),
-                "baseline_confidence": plugin.baseline_confidence,
-                "detection_tier": plugin.detection_tier,
-                "recommended_engines": list(plugin.recommended_engines),
-                "tags": list(plugin.tags),
-            }
-            for plugin in list_detection_plugins()
-        ]
+        with _DETECTION_PLUGIN_OPTIONS_LOCK:
+            if _DETECTION_PLUGIN_OPTIONS is None:  # double-check
+                logger.info("Initializing detection plugin options cache")
+                specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
+                _DETECTION_PLUGIN_OPTIONS = [
+                    {
+                        "name": plugin.key,
+                        "label": plugin.label,
+                        "description": specs[plugin.key].description if plugin.key in specs else "",
+                        "group": plugin.group,
+                        "input_kind": plugin.input_kind,
+                        "enabled_by_default": plugin.enabled_by_default,
+                        "phase": plugin.phase,
+                        "consumes": list(plugin.consumes),
+                        "produces": list(plugin.produces),
+                        "baseline_confidence": plugin.baseline_confidence,
+                        "detection_tier": plugin.detection_tier,
+                        "recommended_engines": list(plugin.recommended_engines),
+                        "tags": list(plugin.tags),
+                    }
+                    for plugin in list_detection_plugins()
+                ]
     return [opt.copy() for opt in _DETECTION_PLUGIN_OPTIONS]

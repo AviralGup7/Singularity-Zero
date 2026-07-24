@@ -2,8 +2,6 @@ import { useRef, memo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { LogLine } from '../LogLine';
 
-const LOG_LINE_HEIGHT = 20;
-
 const LogRowRenderer = memo(function LogRowRenderer({ line, index }: { line: string; index: number }) {
   return <LogLine line={line} index={index} />;
 });
@@ -19,11 +17,11 @@ export function JobLogViewer({ displayLines, wsFailed, jobStatus }: JobLogViewer
 
   if (displayLines.length > 50) {
     return (
-      <div className="card logs-card">
+      <div className="card logs-card" role="log" aria-label={`Job logs: ${displayLines.length} lines`}>
         <h3>
-          📜 Logs ({displayLines.length} lines)
+          📜 Logs (<span className="tabular-nums">{displayLines.length}</span> lines)
           {wsFailed && jobStatus === 'running' && (
-            <span className="ws-status ws-disconnected">Falling back to polling</span>
+            <span className="ws-status ws-disconnected" title="WebSocket connection failed, falling back to polling">Falling back to polling</span>
           )}
         </h3>
         <div className="logs-container" ref={logsContainerRef}>
@@ -42,11 +40,11 @@ export function JobLogViewer({ displayLines, wsFailed, jobStatus }: JobLogViewer
   }
 
   return (
-    <div className="card logs-card">
+    <div className="card logs-card" role="log" aria-label={`Job logs: ${displayLines.length} lines`}>
       <h3>
-        📜 Logs ({displayLines.length} lines)
+        📜 Logs (<span className="tabular-nums">{displayLines.length}</span> lines)
         {wsFailed && jobStatus === 'running' && (
-          <span className="ws-status ws-disconnected">Falling back to polling</span>
+          <span className="ws-status ws-disconnected" title="WebSocket connection failed, falling back to polling">Falling back to polling</span>
         )}
       </h3>
       <div className="logs-container" ref={logsContainerRef}>
@@ -54,7 +52,7 @@ export function JobLogViewer({ displayLines, wsFailed, jobStatus }: JobLogViewer
           <LogLine key={`${line}-${i}`} line={line} index={i} />
         ))}
         {displayLines.length === 0 && (
-          <div className="log-line log-line-info">Waiting for output...</div>
+          <div className="log-line log-line-info" role="status">Waiting for output...</div>
         )}
       </div>
     </div>

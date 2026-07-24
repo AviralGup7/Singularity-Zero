@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import inspect
 import os
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import parse_qsl, urlparse
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.execution.active_manifest import ActiveCheckManifest
 from src.pipeline.runner_support import emit_progress
+
+if TYPE_CHECKING:
+    from src.execution.active_manifest import ActiveCheckManifest
 
 logger = get_pipeline_logger(__name__)
 
@@ -266,35 +268,65 @@ async def _try_probe(
         return name, [], False
 
     try:
-        try:
-            from src.execution.active_manifest import get_active_manifest
+        from src.core.contracts.protocol_registry import get_active_manifest_registry
 
-            active_manifest = (manifest or get_active_manifest(name)).with_timeout(timeout_seconds)
-        except KeyError:
-            active_manifest = None
+        _registry = get_active_manifest_registry()
+        active_manifest = (manifest or (_registry.get(name) if _registry else None)).with_timeout(
+            timeout_seconds
+        )
+    except (AttributeError, KeyError):
+        active_manifest = None
 
         if (
             active_manifest is not None
             and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off"
         ):
-            from src.execution.active_manifest import ActiveCapability
-            from src.execution.isolated import (
-                replace_unpicklable_response_caches,
-                run_callable_isolated,
-            )
+            _RESPONSE_CACHE_CAP = "response_cache"
+            try:
+                from src.core.contracts.protocol_registry import get_isolated_execution
+
+                _isolated_fn = get_isolated_execution()
+            except ImportError:
+                _isolated_fn = None
+
+            if _isolated_fn is None:
+                # Fallback: try direct import if protocol not registered yet
+                try:
+                    from src.execution.isolated import (
+                        replace_unpicklable_response_caches,
+                        run_callable_isolated,
+                    )
+                except ImportError:
+                    replace_unpicklable_response_caches = None
+                    run_callable_isolated = None
+            else:
+                # The isolated execution protocol returns a callable that
+                # wraps the isolated runner. We use it directly.
+                run_callable_isolated = _isolated_fn
+                # replace_unpicklable_response_caches is not part of the
+                # protocol; fall back to direct import for it.
+                try:
+                    from src.execution.isolated import replace_unpicklable_response_caches
+                except ImportError:
+                    replace_unpicklable_response_caches = None
 
             isolated_args = args
             isolated_kwargs = kwargs
-            if ActiveCapability.RESPONSE_CACHE in active_manifest.required_capabilities:
-                isolated_args = replace_unpicklable_response_caches(args)
-                isolated_kwargs = replace_unpicklable_response_caches(kwargs)
-            result = await asyncio.to_thread(
-                run_callable_isolated,
-                probe_fn,
-                isolated_args,
-                isolated_kwargs,
-                active_manifest,
-            )
+            if (
+                active_manifest.required_capabilities
+                and _RESPONSE_CACHE_CAP in active_manifest.required_capabilities
+            ):
+                if replace_unpicklable_response_caches is not None:
+                    isolated_args = replace_unpicklable_response_caches(args)
+                    isolated_kwargs = replace_unpicklable_response_caches(kwargs)
+            if run_callable_isolated is not None:
+                result = await asyncio.to_thread(
+                    run_callable_isolated,
+                    probe_fn,
+                    isolated_args,
+                    isolated_kwargs,
+                    active_manifest,
+                )
             if result.reason == "serialization_error" and os.environ.get("PYTEST_CURRENT_TEST"):
                 logger.debug("Falling back to in-process probe execution for pytest-local callable")
             elif result.reason == "serialization_error":

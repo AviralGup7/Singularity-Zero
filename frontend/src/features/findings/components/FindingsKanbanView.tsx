@@ -1,6 +1,6 @@
 import { Virtuoso } from 'react-virtuoso';
-import type { Finding } from '../../types/api';
-import { formatFindingDate } from '../../lib/utils';
+import type { Finding } from '@/types/api';
+import { formatFindingDate } from '@/lib/utils';
 
 export type KanbanColumn =
   | 'new'
@@ -111,7 +111,7 @@ export function FindingsKanbanView({
                       )}
                       {expandedDuplicates.has(finding.id) && finding.duplicates && finding.duplicates.length > 0 && (
                         <div className="dup-list">
-                          {finding.duplicates.map(did => {
+                          {finding.duplicates.map((did: string) => {
                             const dup = getDuplicateById(did);
                             return dup ? (
                               <div key={did} className="dup-item">

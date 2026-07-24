@@ -1,7 +1,5 @@
 """Resource pool metrics for thread and connection pool monitoring.
 
-import logging
-logger = logging.getLogger(__name__)
 Tracks utilization, saturation, and exhaustion of concurrency pools
 (thread pools, async task pools, connection pools) to help operators
 identify bottlenecks before they cause cascading failures.
@@ -18,7 +16,10 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import threading
+
+logger = logging.getLogger(__name__)
 
 
 class ResourcePoolMetrics:

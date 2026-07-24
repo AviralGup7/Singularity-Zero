@@ -214,16 +214,9 @@ def _reset_singletons() -> None:
 
     # Reset unified cache singleton
     try:
-        import src.pipeline.unified_cache as _cache_mod
+        from src.pipeline.unified_cache import reset_unified_cache
 
-        if hasattr(_cache_mod, "_unified_cache") and _cache_mod._unified_cache is not None:
-            try:
-                _cache_mod._unified_cache.close()
-            except Exception:
-                    logger.debug("Non-critical cleanup error", exc_info=True)
-            _cache_mod._unified_cache = None
-            # Reset the class-level instance too
-            _cache_mod.UnifiedCache._instance = None
+        reset_unified_cache()
     except (ImportError, AttributeError):
         pass
 
@@ -294,15 +287,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     register_main_loop(asyncio.get_running_loop())
 
+    # Register all protocol implementations (CorrectiveActionRegistry, etc.)
+    from src.bootstrap.startup_registration import register_all_implementations
+
+    register_all_implementations()
+
     # Register plugin hooks from analysis and detection layers
-    try:
-        import src.analysis.plugin_registration  # noqa: F401
-    except ImportError:
-        pass
-    try:
-        import src.detection.cache_registration  # noqa: F401
-    except ImportError:
-        pass
+    from src.bootstrap.startup_registration import (
+        register_analysis_plugin_hooks,
+        register_detection_plugin_hooks,
+    )
+
+    register_analysis_plugin_hooks()
+    register_detection_plugin_hooks()
 
     config: Any = app.state.config
     ws_services = None

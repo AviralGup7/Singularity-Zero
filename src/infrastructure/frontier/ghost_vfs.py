@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from src.core.frontier.vfs_isolation import (
     DEFAULT_ROTATION_INTERVAL,
+    EBPFHookManager,
     HardwareEnclaveProvider,
     VFSEncryptionPolicy,
     eBPFHookManager,

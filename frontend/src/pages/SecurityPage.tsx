@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 import {
   generateApiKey,
@@ -16,12 +17,13 @@ import {
   getCspReports,
   getRateLimitStatus,
   getSecurityEvents,
-  revokeApiKey,
-  type ApiKeyRecord,
-  type CspReport,
-  type RateLimitStatus,
-  type SecurityEvent,
+  revokeApiKey
+  
+  
+  
+  
 } from '@/api/security';
+import type {ApiKeyRecord, CspReport, RateLimitStatus, SecurityEvent} from '@/api/security';
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return 'Never';
@@ -79,15 +81,21 @@ export function SecurityPage() {
     const load = async () => {
       try {
         await refresh();
-      } catch {
-        if (mounted) setMessage('Security telemetry is unavailable');
+      } catch (err) {
+        if (mounted) {
+          showErrorToast(err, 'Failed to load security telemetry');
+          setMessage('Security telemetry is unavailable');
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     };
     load();
     const interval = window.setInterval(() => {
-      refresh().catch(() => setMessage('Security telemetry refresh failed'));
+      refresh().catch((err) => {
+        showErrorToast(err, 'Security telemetry refresh failed');
+        setMessage('Security telemetry refresh failed');
+      });
     }, 5000);
     return () => {
       mounted = false;
@@ -107,7 +115,8 @@ export function SecurityPage() {
       setGeneratedKey(record.api_key);
       setMessage(`Generated ${record.role} key`);
       await refresh();
-    } catch {
+    } catch (err) {
+      showErrorToast(err, 'Failed to generate API key');
       setMessage('Unable to generate API key');
     }
   };
@@ -117,7 +126,8 @@ export function SecurityPage() {
       await revokeApiKey(id);
       setMessage('API key revoked');
       await refresh();
-    } catch {
+    } catch (err) {
+      showErrorToast(err, 'Failed to revoke API key');
       setMessage('Unable to revoke API key');
     }
   };
@@ -165,12 +175,12 @@ export function SecurityPage() {
         subtitle="API limits, scoped keys, and enforcement events"
         actions={
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-[var(--surface-2)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
+            <div className="flex items-center gap-2 bg-surface-2 px-3 py-1.5 rounded-lg border border-line">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[10px] text-[var(--text-secondary)] font-semibold font-mono tracking-wider">TELEMETRY LIVE</span>
+              <span className="text-[10px] text-text-secondary font-semibold font-mono tracking-wider">TELEMETRY LIVE</span>
             </div>
             <Button variant="secondary" onClick={() => refresh()} size="sm" className="flex items-center gap-1">
               <RefreshCw size={14} aria-hidden="true" />
@@ -198,10 +208,10 @@ export function SecurityPage() {
       {generatedKey && (
         <motion.section
           variants={itemVariants}
-          className="card p-4 border border-[var(--ok)]/40 relative bg-[var(--surface-2)]"
+          className="card p-4 border border-ok/40 relative bg-surface-2"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[var(--ok)] font-bold">
+            <div className="flex items-center gap-2 text-ok font-bold">
               <KeyRound size={16} aria-hidden="true" />
               New API key
             </div>
@@ -209,11 +219,11 @@ export function SecurityPage() {
               onClick={handleCopy}
               className="btn btn-xs btn-secondary flex items-center gap-1.5"
             >
-              {copied ? <Check size={12} className="text-[var(--ok)]" /> : <Copy size={12} />}
+              {copied ? <Check size={12} className="text-ok" /> : <Copy size={12} />}
               <span>{copied ? 'Copied' : 'Copy Key'}</span>
             </button>
           </div>
-          <code className="mt-3 block overflow-x-auto border border-[var(--border)] bg-[var(--surface)] p-3 text-xs rounded font-mono text-[var(--accent)]">
+          <code className="mt-3 block overflow-x-auto border border-line bg-surface p-3 text-xs rounded font-mono text-accent">
             {generatedKey}
           </code>
         </motion.section>
@@ -223,28 +233,28 @@ export function SecurityPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <GlassCard variant="glow" delay={0.05}>
           <div className="flex items-center gap-2 text-muted text-xs uppercase font-mono tracking-wider">
-            <ShieldCheck size={14} aria-hidden="true" className="text-[var(--accent)]" />
+            <ShieldCheck size={14} aria-hidden="true" className="text-accent" />
             API Security
           </div>
-          <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">
+          <p className="mt-2 text-2xl font-bold text-text-primary">
             {rateLimit?.enabled ? 'Enabled' : 'Disabled'}
           </p>
         </GlassCard>
         <GlassCard variant="glow" delay={0.1}>
           <div className="flex items-center gap-2 text-muted text-xs uppercase font-mono tracking-wider">
-            <KeyRound size={14} aria-hidden="true" className="text-[var(--accent)]" />
+            <KeyRound size={14} aria-hidden="true" className="text-accent" />
             Active Keys
           </div>
-          <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">
+          <p className="mt-2 text-2xl font-bold text-text-primary">
             <AnimatedCounter value={activeKeys} />
           </p>
         </GlassCard>
         <GlassCard variant="glow" delay={0.15}>
           <div className="flex items-center gap-2 text-muted text-xs uppercase font-mono tracking-wider">
-            <ShieldAlert size={14} aria-hidden="true" className="text-[var(--bad)]" />
+            <ShieldAlert size={14} aria-hidden="true" className="text-bad" />
             Recent Events
           </div>
-          <p className="mt-2 text-2xl font-bold text-[var(--bad)]">
+          <p className="mt-2 text-2xl font-bold text-bad">
             <AnimatedCounter value={recentFailures} />
           </p>
         </GlassCard>
@@ -259,7 +269,7 @@ export function SecurityPage() {
 
         {/* Recharts Mini Sparkline visualization */}
         {rateLimit?.buckets && rateLimit.buckets.length > 0 && (
-          <div className="h-32 w-full mt-2 mb-6 p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)]">
+          <div className="h-32 w-full mt-2 mb-6 p-2 rounded-lg bg-surface-2 border border-line">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={rateLimit.buckets} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <defs>
@@ -288,7 +298,7 @@ export function SecurityPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-              <tr className="border-b border-[var(--border)] text-muted">
+              <tr className="border-b border-line text-muted">
                 <th className="py-2 text-left">Endpoint</th>
                 <th className="py-2 text-right">Requests/sec</th>
                 <th className="py-2 text-right">Recent Count</th>
@@ -297,11 +307,11 @@ export function SecurityPage() {
             </thead>
             <tbody>
               {(rateLimit?.buckets ?? []).map(bucket => (
-                <tr key={bucket.endpoint} className="border-b border-[var(--border)] hover:bg-white/5 transition-colors">
-                  <td className="py-2 text-[var(--text-primary)]">{bucket.endpoint}</td>
-                  <td className="py-2 text-right text-[var(--accent)]">{bucket.requests_per_second.toFixed(2)}</td>
+                <tr key={bucket.endpoint} className="border-b border-line hover:bg-surface-hover transition-colors">
+                  <td className="py-2 text-text-primary">{bucket.endpoint}</td>
+                  <td className="py-2 text-right text-accent">{bucket.requests_per_second.toFixed(2)}</td>
                   <td className="py-2 text-right">{bucket.recent_count}</td>
-                  <td className="py-2 text-right text-[var(--text-secondary)]">{bucket.limit_per_second ?? 'Adaptive'}</td>
+                  <td className="py-2 text-right text-text-secondary">{bucket.limit_per_second ?? 'Adaptive'}</td>
                 </tr>
               ))}
               {(rateLimit?.buckets ?? []).length === 0 && (
@@ -318,7 +328,7 @@ export function SecurityPage() {
           <h2 className="text-lg font-semibold">Scoped API Keys</h2>
           <div className="flex items-center gap-2">
             <select
-              className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200 cursor-pointer"
+              className="bg-surface-2 border border-line rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200 cursor-pointer"
               value={newRole}
               onChange={event => setNewRole(event.target.value as ApiKeyRecord['role'])}
             >
@@ -335,7 +345,7 @@ export function SecurityPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-              <tr className="border-b border-[var(--border)] text-muted">
+              <tr className="border-b border-line text-muted">
                 <th className="py-2 text-left">Key</th>
                 <th className="py-2 text-left">Role</th>
                 <th className="py-2 text-left">Created</th>
@@ -345,14 +355,14 @@ export function SecurityPage() {
             </thead>
             <tbody>
               {apiKeys.map(key => (
-                <tr key={key.id} className="border-b border-[var(--border)] hover:bg-white/5 transition-colors">
-                  <td className="py-2 text-[var(--text-primary)]">{key.masked_key}</td>
+                <tr key={key.id} className="border-b border-line hover:bg-surface-hover transition-colors">
+                  <td className="py-2 text-text-primary">{key.masked_key}</td>
                   <td className="py-2"><Badge variant={roleTone(key.role)}>{key.role}</Badge></td>
-                  <td className="py-2 text-[var(--text-secondary)]">{formatDate(key.created_at)}</td>
-                  <td className="py-2 text-[var(--text-secondary)]">{formatDate(key.last_used_at)}</td>
+                  <td className="py-2 text-text-secondary">{formatDate(key.created_at)}</td>
+                  <td className="py-2 text-text-secondary">{formatDate(key.last_used_at)}</td>
                   <td className="py-2 text-right">
                     <Button variant="ghost" size="sm" disabled={!key.active} onClick={() => handleRevoke(key.id)} aria-label={`Revoke ${key.masked_key}`}>
-                      <Trash2 size={14} aria-hidden="true" className="text-[var(--bad)]" />
+                      <Trash2 size={14} aria-hidden="true" className="text-bad" />
                     </Button>
                   </td>
                 </tr>
@@ -375,7 +385,7 @@ export function SecurityPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-              <tr className="border-b border-[var(--border)] text-muted">
+              <tr className="border-b border-line text-muted">
                 <th className="py-2 text-left">Time</th>
                 <th className="py-2 text-left">Type</th>
                 <th className="py-2 text-left">Status</th>
@@ -385,13 +395,13 @@ export function SecurityPage() {
             </thead>
             <tbody>
               {events.map(event => (
-                <tr key={event.id} className="border-b border-[var(--border)] hover:bg-white/5 transition-colors align-top">
-                  <td className="py-2 whitespace-nowrap text-[var(--text-secondary)]">{formatDate(event.timestamp)}</td>
-                  <td className="py-2 text-[var(--text-primary)]">{event.event_type}</td>
+                <tr key={event.id} className="border-b border-line hover:bg-surface-hover transition-colors align-top">
+                  <td className="py-2 whitespace-nowrap text-text-secondary">{formatDate(event.timestamp)}</td>
+                  <td className="py-2 text-text-primary">{event.event_type}</td>
                   <td className="py-2">
                     <Badge variant={statusTone(event.status_code)}>{event.status_code ?? 'n/a'}</Badge>
                   </td>
-                  <td className="py-2 text-[var(--accent)]">{event.method ?? ''} {event.path ?? ''}</td>
+                  <td className="py-2 text-accent">{event.method ?? ''} {event.path ?? ''}</td>
                   <td className="py-2 max-w-[32rem] truncate" title={event.detail}>{event.detail}</td>
                 </tr>
               ))}
@@ -416,24 +426,24 @@ export function SecurityPage() {
             return (
               <article
                 key={report.id}
-                className="border border-[var(--border)] rounded-lg bg-[var(--surface-2)] overflow-hidden transition-all duration-200 hover:border-[var(--border-hover)]"
+                className="border border-line rounded-lg bg-surface-2 overflow-hidden transition-all duration-200 hover:border-line"
               >
                 <button
                   type="button"
                   onClick={() => setExpandedReportId(isExpanded ? null : report.id)}
-                  className="w-full flex items-center justify-between p-3 text-left text-xs font-mono hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center justify-between p-3 text-left text-xs font-mono hover:bg-surface-hover transition-colors"
                 >
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span className="text-[var(--text-secondary)]">{formatDate(report.timestamp)}</span>
-                    <span className="text-[var(--accent)] font-semibold">{report.client_ip ?? 'unknown'}</span>
-                    <span className="text-[var(--text-tertiary)] max-w-xs truncate">
+                    <span className="text-text-secondary">{formatDate(report.timestamp)}</span>
+                    <span className="text-accent font-semibold">{report.client_ip ?? 'unknown'}</span>
+                    <span className="text-text-tertiary max-w-xs truncate">
                       {(((report.report as Record<string, Record<string, unknown>>)['csp-report']?.['blocked-uri'] as string) || 'Violation').replace(/^javascript:/i, '[blocked]')}
                     </span>
                   </div>
                   <ChevronDown
                     size={14}
-                    className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${
-                      isExpanded ? 'rotate-180 text-[var(--accent)]' : ''
+                    className={`transform transition-transform duration-200 text-text-secondary ${
+                      isExpanded ? 'rotate-180 text-accent' : ''
                     }`}
                   />
                 </button>
@@ -445,8 +455,8 @@ export function SecurityPage() {
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.25, ease: EASE_OUT }}
                     >
-                      <div className="p-3 border-t border-[var(--border)] bg-[var(--surface)]">
-                        <pre className="overflow-x-auto text-[11px] font-mono leading-relaxed text-[var(--text-secondary)]">
+                      <div className="p-3 border-t border-line bg-surface">
+                        <pre className="overflow-x-auto text-[11px] font-mono leading-relaxed text-text-secondary">
                           {JSON.stringify(report.report, null, 2)}
                         </pre>
                       </div>

@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import logging
+import os
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -92,37 +96,29 @@ async def get_ai_executive_summary(
         raise HTTPException(status_code=404, detail="No completed scan runs found for target")
 
     # 3. Load findings
-    findings = []
+    _findings = []
     findings_path = run_dir / "findings.json"
     if findings_path.exists():
         try:
-            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+            _findings = json.loads(findings_path.read_text(encoding="utf-8"))
         except Exception:
             logger.warning(
                 "Failed to parse findings.json for AI summary at %s", findings_path, exc_info=True
             )
 
     # 4. Load compliance report if available
-    compliance_report = None
+    _compliance_report = None
     compliance_path = run_dir / "compliance_coverage.json"
     if compliance_path.exists():
         try:
-            compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
+            _compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
         except Exception:
             logger.warning(
                 "Failed to parse compliance_coverage.json at %s", compliance_path, exc_info=True
             )
 
-    # 5. Generate AI summary
-    try:
-        from src.intelligence.ml.llm_service import LLMService
-
-        llm = LLMService.get_instance()
-        summary_markdown = await llm.generate_executive_summary(findings, compliance_report)
-        return {"target": target, "run_id": run_dir.name, "summary": summary_markdown}
-    except Exception:
-        logger.exception("AI executive summary generation failed")
-        raise HTTPException(status_code=500, detail="Failed to generate AI executive summary")
+    # 5. AI summary removed
+    raise HTTPException(status_code=501, detail="AI executive summary module removed.")
 
 
 @router.get(
@@ -369,6 +365,12 @@ class SubmitFindingPayload(BaseModel):
 _PLATFORM_CLIENTS: dict[str, Any] = {}
 _PLATFORM_INIT_ERRORS: dict[str, str] = {}
 
+# Defect 4 fix: Per-finding submission lock and idempotency tracking.
+# Prevents duplicate submissions from concurrent requests and rapid clicks.
+_submission_locks: dict[str, threading.Lock] = {}
+_submission_locks_guard = threading.Lock()
+_submitted_findings: dict[str, str] = {}  # idempotency_key -> report_id
+
 
 def _get_clients() -> dict[str, Any]:
     """Lazy-init the platform-client singleton (reads tokens from env)."""
@@ -396,6 +398,25 @@ def _get_clients() -> dict[str, Any]:
                 _PLATFORM_INIT_ERRORS[platform] = str(exc)
                 _PLATFORM_CLIENTS[platform] = None
     return _PLATFORM_CLIENTS
+
+
+def _get_submission_lock(finding_id: str, platform: str) -> threading.Lock:
+    """Return a per-finding+platform lock to serialize submissions.
+
+    Defect 4 fix: Prevents concurrent duplicate submissions for the same
+    finding to the same platform.
+    """
+    key = f"{finding_id}:{platform}"
+    with _submission_locks_guard:
+        if key not in _submission_locks:
+            _submission_locks[key] = threading.Lock()
+        return _submission_locks[key]
+
+
+def _idempotency_key(finding_id: str, platform: str) -> str:
+    """Compute a stable idempotency key for a finding+platform pair."""
+    raw = f"{finding_id}:{platform}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 @router.get(
@@ -445,6 +466,43 @@ async def list_platforms(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
             }
         )
     return {"clients": out}
+
+
+def _mark_finding_reported_on_disk(
+    findings_path: Path, finding_id: str, platform: str
+) -> None:
+    """Atomically write already_reported flag to findings.json.
+
+    Defect 4 fix: Uses temp-file + rename for atomic write to prevent
+    corruption from concurrent writers.
+    """
+    findings_list = json.loads(findings_path.read_text(encoding="utf-8"))
+    modified = False
+    for f in findings_list:
+        if isinstance(f, dict) and str(f.get("id")) == finding_id:
+            reported = f.setdefault("already_reported_platforms", [])
+            if platform not in reported:
+                reported.append(platform)
+            f["already_reported"] = True
+            modified = True
+            break
+    if not modified:
+        return
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=findings_path.parent, suffix=".tmp", prefix="findings_"
+    )
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as tmp_f:
+            json.dump(findings_list, tmp_f, indent=2)
+            tmp_f.flush()
+            os.fsync(tmp_f.fileno())
+        Path(tmp_path).replace(findings_path)
+    except Exception:
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def _resolve_run_dir(services: Any, target: str, run_id: str) -> Path | None:
@@ -522,19 +580,53 @@ async def submit_finding_to_platform(
             detail=f"Platform client for {payload.platform!r} is not configured",
         )
 
-    try:
-        result: SubmissionResult = await client.submit(finding)
-    except Exception:
-        logger.exception("Platform submission failed")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Platform submission to {payload.platform!r} failed",
-        )
+    # Defect 4 fix: Idempotency check + per-finding serialization.
+    idem_key = _idempotency_key(finding_id, payload.platform)
+    sub_lock = _get_submission_lock(finding_id, payload.platform)
+    with sub_lock:
+        # Check if already submitted (idempotent return)
+        if idem_key in _submitted_findings:
+            existing_report_id = _submitted_findings[idem_key]
+            return {
+                "platform": payload.platform,
+                "submitted": True,
+                "report_id": existing_report_id or None,
+                "url": None,
+                "error": None,
+                "status_code": None,
+                "idempotent": True,
+            }
+
+        try:
+            result: SubmissionResult = await client.submit(finding)
+        except Exception:
+            logger.exception("Platform submission failed")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Platform submission to {payload.platform!r} failed",
+            )
+
+    report_id = getattr(result, "external_id", "") or None
+
+    # Defect 4 fix: Record submission idempotency key
+    if bool(getattr(result, "ok", False)):
+        _submitted_findings[idem_key] = report_id or ""
+
+    # Defect 4 fix: Write back already_reported=true to findings.json atomically
+    if bool(getattr(result, "ok", False)):
+        try:
+            _mark_finding_reported_on_disk(findings_path, finding_id, payload.platform)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to persist already_reported for finding %s: %s",
+                finding_id,
+                exc,
+            )
 
     return {
         "platform": result.platform,
         "submitted": bool(getattr(result, "ok", False)),
-        "report_id": getattr(result, "external_id", "") or None,
+        "report_id": report_id,
         "url": getattr(result, "url", "") or None,
         "error": getattr(result, "error", "") or None,
         "status_code": getattr(result, "status_code", 0) or None,

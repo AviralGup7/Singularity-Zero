@@ -1,4 +1,5 @@
-import { createContext, type ReactNode } from 'react';
+import { createContext  } from 'react';
+import type {ReactNode} from 'react';
 import { useDisplayStore } from '@/stores/displayStore';
 
 export type DensityMode = 'compact' | 'comfortable' | 'spacious';

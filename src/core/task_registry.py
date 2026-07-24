@@ -51,6 +51,7 @@ class TaskRegistry:
         self._owner_tasks: dict[str, set[str]] = {}
         self._lock = threading.Lock()
         self._counter: int = 0
+        self._reconcile_task: asyncio.Task[None] | None = None
 
     def _next_id(self) -> int:
         """Bug #6: Counter increment is now protected by the registry lock.
@@ -194,6 +195,9 @@ class TaskRegistry:
         """
         _BATCH_SIZE = 64
 
+        # Defect 8 fix: Stop periodic reconcile before cancelling tasks
+        await self.stop_periodic_reconcile()
+
         with self._lock:
             all_task_ids = list(self._tasks.keys())
 
@@ -298,13 +302,51 @@ class TaskRegistry:
             "remaining_tasks": self.active_count(),
         }
 
+    async def start_periodic_reconcile(self, interval_seconds: float = 30.0) -> None:
+        """Defect 8 fix: Start a background task that periodically reconciles ghost tasks.
+
+        Prevents unbounded memory growth from completed tasks whose done_callbacks
+        failed to fire (e.g. after SIGKILL, event loop stop, etc.).
+        """
+        if self._reconcile_task is not None and not self._reconcile_task.done():
+            return
+
+        async def _loop() -> None:
+            while True:
+                try:
+                    await asyncio.sleep(interval_seconds)
+                    self.reconcile()
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Periodic reconcile failed: %s", exc)
+
+        self._reconcile_task = asyncio.create_task(_loop(), name="task_registry/reconcile")
+        logger.info("Started periodic task registry reconcile (interval=%ss)", interval_seconds)
+
+    async def stop_periodic_reconcile(self) -> None:
+        """Stop the periodic reconcile background task."""
+        if self._reconcile_task is not None and not self._reconcile_task.done():
+            self._reconcile_task.cancel()
+            try:
+                await self._reconcile_task
+            except asyncio.CancelledError:
+                pass
+            self._reconcile_task = None
+
     def status(self) -> dict[str, Any]:
-        """Return diagnostic information, including reconciliation check."""
+        """Return diagnostic information, including reconciliation check.
+
+        Defect 8 fix: Auto-reconcile when ghost count exceeds threshold
+        to prevent unbounded memory growth from completed tasks.
+        """
         with self._lock:
-            # Proactively detect ghost tasks
             ghost_count = sum(
                 1 for t in self._tasks.values() if t.done() or t.cancelled()
             )
+        # Defect 8 fix: Proactively reconcile when ghosts accumulate
+        if ghost_count > 10:
+            self.reconcile()
         return {
             "active": self.active_count(),
             "by_owner": self.owner_counts(),
@@ -322,6 +364,17 @@ def get_task_registry() -> TaskRegistry:
     with _registry_lock:
         if _registry is None:
             _registry = TaskRegistry()
+            # Defect 8 fix: Start periodic reconcile in the background
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(
+                    _registry.start_periodic_reconcile(),
+                    name="task_registry/periodic_reconcile_start",
+                )
+            except RuntimeError:
+                # No running loop — periodic reconcile will need to be
+                # started explicitly later.
+                pass
         return _registry
 
 

@@ -23,9 +23,10 @@ import {
   verifyEvidenceIntegrity,
   logEvidenceAccess,
   createEvidenceRecord,
-  logEvidenceModification,
-  type EvidenceRecord,
+  logEvidenceModification
+  
 } from '@/utils/evidenceChain';
+import type {EvidenceRecord} from '@/utils/evidenceChain';
 import { useToast } from '@/hooks/useToast';
 
 export function EvidenceCustodyPage() {
@@ -262,7 +263,7 @@ export function EvidenceCustodyPage() {
                   placeholder="Filter by Finding ID, Operator, Payload..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-xs font-mono text-text placeholder-muted/50 focus:border-accent/40 focus:bg-white/[0.07] outline-none transition-all"
+                  className="w-full bg-surface-hover border border-line rounded-lg py-2.5 pl-10 pr-4 text-xs font-mono text-text placeholder-muted/50 focus:border-accent/40 focus:bg-surface-hover outline-none transition-all"
                 />
               </div>
 
@@ -281,8 +282,8 @@ export function EvidenceCustodyPage() {
                       onClick={() => setSelectedRecordId(record.id)}
                       className={`p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
                         isSelected
-                          ? 'bg-accent/10 border-accent/40 shadow-[0_0_12px_rgba(59,130,246,0.06)]'
-                          : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/[0.07]'
+                          ? 'bg-accent/10 border-accent/40 shadow-glow-accent-sm'
+                          : 'bg-surface-hover border-line-muted hover:border-line hover:bg-surface-2'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -295,7 +296,7 @@ export function EvidenceCustodyPage() {
                         <FileText size={12} className="text-muted" />
                         Finding Target: {record.findingId}
                       </h4>
-                      <p className="text-[10px] font-mono text-muted/80 truncate bg-black/20 p-1.5 rounded border border-white/5">
+                      <p className="text-[10px] font-mono text-text-secondary truncate bg-surface-muted p-1.5 rounded border border-line-muted">
                         {record.data.slice(0, 80)}
                       </p>
                     </motion.div>
@@ -303,7 +304,7 @@ export function EvidenceCustodyPage() {
                 })}
 
                 {filteredRecords.length === 0 && (
-                  <div className="text-center text-muted/60 italic text-xs py-8 bg-white/5 rounded-xl border border-white/5">
+                  <div className="text-center text-muted/60 italic text-xs py-8 bg-surface-hover rounded-xl border border-line">
                     No matching sealed records found.
                   </div>
                 )}
@@ -311,7 +312,7 @@ export function EvidenceCustodyPage() {
 
               <button
                 onClick={handleSeedDemo}
-                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-white/5 hover:border-accent/30 text-xs font-semibold text-muted hover:text-accent bg-white/5 hover:bg-accent/5 transition-all duration-200"
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-line hover:border-accent/30 text-xs font-semibold text-muted hover:text-accent bg-surface-hover hover:bg-accent/5 transition-all duration-200"
               >
                 <Sparkles size={14} />
                 Generate Demo Records
@@ -328,12 +329,12 @@ export function EvidenceCustodyPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="glass-panel p-6 rounded-2xl border border-white/5 space-y-6 relative overflow-hidden"
+                    className="glass-panel p-6 rounded-2xl border border-line space-y-6 relative overflow-hidden"
                   >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/[0.01] -rotate-45 translate-x-16 -translate-y-16 pointer-events-none" />
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-surface-hover -rotate-45 translate-x-16 -translate-y-16 pointer-events-none" />
 
                     {/* Record details */}
-                    <div className="flex justify-between items-start flex-wrap gap-4 border-b border-white/5 pb-4">
+                    <div className="flex justify-between items-start flex-wrap gap-4 border-b border-line pb-4">
                       <div>
                         <div className="text-[9px] font-mono text-muted uppercase tracking-widest mb-1">Evidence Envelope ID</div>
                         <h3 className="text-base font-black text-text font-mono flex items-center gap-1.5">
@@ -344,14 +345,14 @@ export function EvidenceCustodyPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleAddManualLog(selectedRecord.id)}
-                          className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 hover:bg-white/10 text-text rounded-lg transition-all flex items-center gap-1"
+                          className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-surface-hover border border-line hover:bg-surface-2 text-text-primary rounded-lg transition-all flex items-center gap-1"
                         >
                           <Plus size={12} /> Add Access Log
                         </button>
                         <button
                           onClick={() => handleVerifyIntegrity(selectedRecord.id)}
                           disabled={isVerifying}
-                          className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-accent hover:bg-white text-black rounded-lg transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(59,130,246,0.2)] disabled:opacity-50"
+                          className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-accent hover:bg-surface-raised text-black rounded-lg transition-all flex items-center gap-1.5 shadow-glow-accent-sm disabled:opacity-50"
                         >
                           {isVerifying ? (
                             <RefreshCw size={12} className="animate-spin" />
@@ -396,7 +397,7 @@ export function EvidenceCustodyPage() {
                     {/* Data payload display */}
                     <div className="space-y-2">
                       <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Evidence Payload</span>
-                      <pre className="bg-black/40 border border-white/5 p-4 rounded-xl font-mono text-[11px] text-text/90 overflow-x-auto whitespace-pre-wrap max-h-48 scrollbar-cyber leading-relaxed">
+                      <pre className="bg-surface-2 border border-line p-4 rounded-xl font-mono text-[11px] text-text/90 overflow-x-auto whitespace-pre-wrap max-h-48 scrollbar-cyber leading-relaxed">
                         {selectedRecord.data}
                       </pre>
                     </div>
@@ -408,7 +409,7 @@ export function EvidenceCustodyPage() {
                         Tamper-Evident Chain of Custody
                       </h4>
 
-                      <div className="relative pl-6 border-l border-white/10 space-y-6">
+                      <div className="relative pl-6 border-l border-line space-y-6">
                         {selectedRecord.custodyChain.map((entry) => {
                           const actionColors: Record<string, string> = {
                             created: 'text-ok bg-ok/10 border-ok/30',
@@ -418,7 +419,7 @@ export function EvidenceCustodyPage() {
                             deleted: 'text-bad bg-bad/10 border-bad/30'
                           };
 
-                          const colorClass = actionColors[entry.action] || 'text-muted bg-white/5 border-white/10';
+                          const colorClass = actionColors[entry.action] || 'text-muted bg-surface-hover border-line';
 
                           return (
                             <div key={entry.id} className="relative group">
@@ -429,7 +430,7 @@ export function EvidenceCustodyPage() {
                               </div>
 
                               {/* Content box */}
-                              <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 hover:bg-white/[0.04] hover:border-white/10 transition-colors">
+                              <div className="bg-surface-hover border border-line rounded-xl p-3 hover:bg-surface-hover hover:border-line transition-colors">
                                 <div className="flex justify-between items-center mb-1 flex-wrap gap-2">
                                   <div className="flex items-center gap-1.5">
                                     <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${colorClass}`}>
@@ -447,7 +448,7 @@ export function EvidenceCustodyPage() {
                                 <p className="text-xs text-muted/80 leading-relaxed mb-2 text-left">{entry.details}</p>
                                 
                                 {entry.hashAfter && (
-                                  <div className="flex items-center gap-1 font-mono text-[9px] text-muted/60 bg-black/20 px-2 py-1 rounded border border-white/5 w-fit max-w-full">
+                                  <div className="flex items-center gap-1 font-mono text-[9px] text-muted/60 bg-surface-2 px-2 py-1 rounded border border-line w-fit max-w-full">
                                     <Key size={10} className="text-accent flex-shrink-0" />
                                     <span className="truncate">Sealed Hash: {entry.hashAfter.slice(0, 18)}...</span>
                                   </div>
@@ -460,7 +461,7 @@ export function EvidenceCustodyPage() {
                     </div>
                   </motion.div>
                 ) : (
-                  <div className="h-full flex items-center justify-center border border-white/5 rounded-2xl bg-white/[0.02] p-8 text-center text-muted/60 italic text-xs">
+                  <div className="h-full flex items-center justify-center border border-line rounded-2xl bg-surface-hover p-8 text-center text-muted/60 italic text-xs">
                     Select an evidence envelope from the list to view its complete audit chain.
                   </div>
                 )}
@@ -472,7 +473,7 @@ export function EvidenceCustodyPage() {
       ) : (
         /* ── Empty State / Seeder ─────────────────────────────────── */
         <GlassCard variant="glow" className="py-16 max-w-xl mx-auto text-center space-y-6">
-          <div className="h-16 w-16 mx-auto rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shadow-[0_0_20px_rgba(59,130,246,0.15)] animate-pulse">
+          <div className="h-16 w-16 mx-auto rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shadow-glow-accent-md animate-pulse">
             <Lock size={32} />
           </div>
           <div className="space-y-2">
@@ -483,7 +484,7 @@ export function EvidenceCustodyPage() {
           </div>
           <button
             onClick={handleSeedDemo}
-            className="btn btn-primary px-6 py-2.5 text-xs font-bold uppercase tracking-wider bg-accent text-black rounded-lg hover:bg-white hover:text-black transition-all flex items-center gap-2 mx-auto shadow-[0_0_15px_rgba(59,130,246,0.25)]"
+            className="btn btn-primary px-6 py-2.5 text-xs font-bold uppercase tracking-wider bg-accent text-black rounded-lg hover:bg-surface-raised hover:text-black transition-all flex items-center gap-2 mx-auto shadow-glow-accent-md"
           >
             <Sparkles size={14} />
             Initialize Demo Ledger

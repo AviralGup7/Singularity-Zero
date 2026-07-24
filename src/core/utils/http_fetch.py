@@ -7,6 +7,7 @@ import them without violating the execution -> analysis contract.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -16,6 +17,8 @@ import urllib3
 from src.core.models import DEFAULT_USER_AGENT
 from src.core.utils import normalize_url
 from src.core.utils.url_validation import is_safe_url
+
+logger = logging.getLogger(__name__)
 
 # Shared pool for connection reuse
 _HTTP_POOL = urllib3.PoolManager(

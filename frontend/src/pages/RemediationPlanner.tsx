@@ -14,10 +14,12 @@ import {
   Clock
 } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
-import { remediationApi, type RemediationUnit } from '@/api/remediation';
+import { remediationApi  } from '@/api/remediation';
+import type {RemediationUnit} from '@/api/remediation';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-bad/10 text-bad border-bad/30',
@@ -40,13 +42,13 @@ function UnitCard({ unit }: { unit: RemediationUnit }) {
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-panel border border-white/5 rounded-2xl overflow-hidden"
+      className="glass-panel border border-line rounded-2xl overflow-hidden"
     >
       <button 
         type="button"
         aria-expanded={expanded}
         aria-controls="unit-card-content"
-        className="p-6 cursor-pointer flex items-center justify-between hover:bg-white/[0.02] transition-colors w-full text-left"
+        className="p-6 cursor-pointer flex items-center justify-between hover:bg-surface-hover transition-colors w-full text-left"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-6">
@@ -82,7 +84,7 @@ function UnitCard({ unit }: { unit: RemediationUnit }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/5 bg-black/40"
+            className="border-t border-line bg-surface-2"
           >
             <div className="p-8 space-y-8">
               {/* Fix Commands */}
@@ -93,16 +95,16 @@ function UnitCard({ unit }: { unit: RemediationUnit }) {
                 </div>
                 <div className="space-y-4">
                   {unit.suggestions.map((s, i) => (
-                    <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-3">
+                    <div key={i} className="p-4 bg-surface-hover border border-line rounded-xl space-y-3">
                       <div className="flex items-center justify-between">
                         <h5 className="text-xs font-bold text-text">{s.title}</h5>
                         <Badge variant="info" className="text-[8px] opacity-60">Verified via AEVE-WASM</Badge>
                       </div>
                       <p className="text-[11px] text-muted leading-relaxed">{s.rationale}</p>
-                      <div className="bg-black/60 p-3 rounded font-mono text-[10px] text-accent/80 border border-white/5 flex items-center justify-between group">
+                      <div className="bg-panel p-3 rounded font-mono text-[10px] text-accent/80 border border-line flex items-center justify-between group">
                         <code>{s.command}</code>
                         <button 
-                          className="opacity-0 group-hover:opacity-100 text-white hover:text-accent transition-all"
+                          className="opacity-0 group-hover:opacity-100 text-text-primary hover:text-accent transition-all"
                           onClick={() => { navigator.clipboard.writeText(s.command); toast.success('Command copied'); }}
                         >
                           <Icon name="link" size={14} />
@@ -127,7 +129,7 @@ function UnitCard({ unit }: { unit: RemediationUnit }) {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {unit.sample_findings.map((f) => (
-                    <div key={f.id} className="p-3 bg-black/20 border border-white/5 rounded-lg flex items-center justify-between hover:border-white/10 transition-colors">
+                    <div key={f.id} className="p-3 bg-surface-2 border border-line rounded-lg flex items-center justify-between hover:border-line transition-colors">
                       <div className="min-w-0">
                         <div className="text-[10px] font-bold text-text truncate">{f.title}</div>
                         <div className="text-[8px] text-muted font-mono truncate">{f.url}</div>
@@ -148,7 +150,7 @@ function UnitCard({ unit }: { unit: RemediationUnit }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {unit.targets.map(t => (
-                    <span key={t} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-muted">{t}</span>
+                    <span key={t} className="px-2 py-1 bg-surface-hover border border-line rounded text-[10px] font-mono text-muted">{t}</span>
                   ))}
                 </div>
               </section>
@@ -173,7 +175,7 @@ export function RemediationPlanner() {
         setUnits(data.units);
         setStats({ totalFindings: data.total_findings, totalUnits: data.total_units });
       } catch {
-        // Error handled by interceptor
+        showErrorToast('Failed to load remediation plan');
       } finally {
         setLoading(false);
       }
@@ -208,15 +210,15 @@ export function RemediationPlanner() {
         </div>
 
         <div className="flex gap-4">
-           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[160px]">
+           <div className="bg-surface-hover border border-line p-4 rounded-2xl min-w-[160px]">
               <div className="text-2xl font-black text-text">{stats.totalFindings}</div>
               <div className="text-[9px] text-muted uppercase font-bold tracking-widest mt-1">Pending Fixes</div>
            </div>
-           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[160px]">
+           <div className="bg-surface-hover border border-line p-4 rounded-2xl min-w-[160px]">
               <div className="text-2xl font-black text-accent">{stats.totalUnits}</div>
               <div className="text-[9px] text-muted uppercase font-bold tracking-widest mt-1">Tactical Fix Units</div>
            </div>
-           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[160px]">
+           <div className="bg-surface-hover border border-line p-4 rounded-2xl min-w-[160px]">
               <div className="text-2xl font-black text-ok">2.4d</div>
               <div className="text-[9px] text-muted uppercase font-bold tracking-widest mt-1 flex items-center gap-1">
                 <Clock size={10} /> MTTR

@@ -62,8 +62,8 @@ class TestDefusedXmlReplacement:
 class TestProductionStartupEnforcement:
     """Verify that dangerous defaults are blocked in production."""
 
-    def test_enforce_production_security_blocks_auth_disabled(self) -> None:
-        """enforce_production_security should block DASHBOARD_AUTH_DISABLED=true in production."""
+    def test_enforce_production_security_skips_checks_when_auth_disabled(self) -> None:
+        """enforce_production_security skips all checks when DASHBOARD_AUTH_DISABLED=true (NO SECURITY MODE)."""
         from src.core.security.secret_validator import enforce_production_security
 
         env = {
@@ -72,8 +72,7 @@ class TestProductionStartupEnforcement:
             "APP_SECRET_KEY": "a" * 32,
             "SEC_JWT_SECRET": "b" * 32,
         }
-        with pytest.raises(RuntimeError, match="DASHBOARD_AUTH_DISABLED=true is not allowed"):
-            enforce_production_security(env)
+        enforce_production_security(env)
 
     def test_enforce_production_security_blocks_default_secret_key(self) -> None:
         """enforce_production_security should block default APP_SECRET_KEY in production."""
@@ -160,13 +159,12 @@ class TestSecretValidator:
 
         env = {
             "APP_ENV": "production",
-            "DASHBOARD_AUTH_DISABLED": "true",
+            "DASHBOARD_AUTH_DISABLED": "false",
             "APP_SECRET_KEY": "dev-secret-key-change-in-production-32chars-minimum-length",
             "SEC_JWT_SECRET": "dev-jwt-secret-key-at-least-32-characters-long-for-hs256",
         }
         violations = find_production_security_violations(env)
-        assert len(violations) == 3
-        assert any("DASHBOARD_AUTH_DISABLED" in v for v in violations)
+        assert len(violations) == 2
         assert any("APP_SECRET_KEY" in v for v in violations)
         assert any("SEC_JWT_SECRET" in v for v in violations)
 

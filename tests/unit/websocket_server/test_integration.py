@@ -9,9 +9,9 @@ from starlette.websockets import WebSocketDisconnect
 from src.websocket_server.integration import setup_websocket_routes
 
 
-def _build_app() -> FastAPI:
+def _build_app(admin_api_key: str | None = "test-admin-key") -> FastAPI:
     app = FastAPI()
-    setup_websocket_routes(app)
+    setup_websocket_routes(app, admin_api_key=admin_api_key)
     return app
 
 
@@ -32,8 +32,11 @@ def test_websocket_routes_do_not_require_websocket_query_param() -> None:
         seen_paths.add(path)
         dependant = getattr(route, "dependant", None)
         assert dependant is not None
+        # WebSocket routes should not require any user-supplied query
+        # parameters. The websocket connection object is injected by
+        # Starlette/FastAPI and should not appear as a query param.
         query_param_names = {param.name for param in dependant.query_params}
-        assert "websocket" not in query_param_names
+        assert query_param_names == set()
 
     assert seen_paths == expected_paths
 
@@ -200,10 +203,10 @@ async def test_websocket_broadcast_metrics() -> None:
 
 def test_rest_endpoints() -> None:
     app = FastAPI()
-    services = setup_websocket_routes(app)
+    services = setup_websocket_routes(app, admin_api_key="test-admin-key")
     services.broadcaster._redis_enabled = False
 
-    admin_headers = {"X-User-Roles": "admin"}
+    admin_headers = {"X-API-Key": "test-admin-key"}
 
     with TestClient(app) as client:
         # Test health endpoint
@@ -218,12 +221,12 @@ def test_rest_endpoints() -> None:
         assert resp.status_code == 200
         assert "ws_active_connections" in resp.text
 
-        # Test stats endpoint (requires admin role)
+        # Test stats endpoint (requires admin API key)
         resp = client.get("/admin/websocket/stats", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["active_connections"] == 0
 
-        # Test config update endpoint (requires admin role)
+        # Test config update endpoint (requires admin API key)
         resp = client.post(
             "/admin/websocket/config",
             json={"max_connections_per_user": 15},
@@ -232,3 +235,7 @@ def test_rest_endpoints() -> None:
         assert resp.status_code == 200
         assert resp.json()["config"]["max_connections_per_user"] == 15
         assert services.manager.max_connections_per_user == 15
+
+        # Test that x-user-roles header alone is insufficient
+        resp = client.get("/admin/websocket/stats", headers={"X-User-Roles": "admin"})
+        assert resp.status_code == 403

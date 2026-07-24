@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import hmac as hmac_module
 import json
+import sqlite3
 import threading
 import time
 from datetime import UTC, datetime
@@ -276,7 +277,6 @@ class AuditLogger:
         Args:
             config: Security configuration.
         """
-        import sqlite3
 
         self.config = config
         self._counter = 0
@@ -490,10 +490,14 @@ class AuditLogger:
         if self._db is not None:
             try:
                 self._db.execute(
-                    "INSERT INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
                     (entry.id, entry.event, entry.user_id, entry.severity, line),
                 )
                 self._db.commit()
+            except sqlite3.IntegrityError:
+                # Duplicate audit entry ID — safe to ignore because the log
+                # file is the source of truth and the index is best-effort.
+                pass
             except Exception as e:
                 logger.error("Failed to index audit entry in SQLite: %s", e)
 

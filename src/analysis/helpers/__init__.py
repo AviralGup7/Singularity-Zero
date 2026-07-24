@@ -13,11 +13,11 @@ from src.core.utils.response_filters import classify_response_delta
 from src.core.utils.scoring import (
     PARAMETER_WEIGHTS,
     SIGNAL_WEIGHTS,
+    apply_bounded_confidence,
     normalized_confidence,
     parameter_weight,
-    signal_weight,
-    apply_bounded_confidence,
     severity_score,
+    signal_weight,
 )
 
 from ._classification import (

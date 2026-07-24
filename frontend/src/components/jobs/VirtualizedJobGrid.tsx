@@ -13,13 +13,13 @@ const ROW_HEIGHT = 280;
 const gridComponents = {
   List: memo(function GridList({ children, ...props }: React.HTMLProps<HTMLDivElement>) {
     return (
-      <div {...props} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div {...props} className="grid grid-cols-1 md:grid-cols-2 gap-4" role="grid" aria-label="Jobs grid">
         {children}
       </div>
     );
   }),
   Item: memo(function GridItem({ children, ...props }: React.HTMLProps<HTMLDivElement>) {
-    return <div {...props}>{children}</div>;
+    return <div {...props} role="gridcell">{children}</div>;
   }),
 };
 

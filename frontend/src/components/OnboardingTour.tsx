@@ -156,7 +156,6 @@ function useOnboardingTour() {
 }
 
 export function OnboardingTour() {
-  const workflowMode = useDisplayStore((s) => s.workflowMode);
   const { active, step, currentStep, totalSteps, next, prev, skip } = useOnboardingTour();
 
   useEffect(() => {

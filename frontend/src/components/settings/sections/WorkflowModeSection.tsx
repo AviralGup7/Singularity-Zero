@@ -1,4 +1,4 @@
-import type { WorkflowMode } from '../../../stores/displayStore';
+import type { WorkflowMode } from '@/stores/displayStore';
 import { SettingsSectionCard, SettingSelect } from '../SettingsComponents';
 
 const workflowModeOptions: { value: WorkflowMode; label: string; description: string }[] = [

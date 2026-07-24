@@ -13,7 +13,7 @@ import {
 } from './useJobMonitorUtils';
 
 export interface DurationForecastData {
-  per_stage: Record<string, { mean: number; p50: number; p90: number; count: number }>;
+  per_stage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>;
   total_mean_seconds: number;
 }
 

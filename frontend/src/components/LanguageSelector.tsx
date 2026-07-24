@@ -1,6 +1,8 @@
+import { Globe } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui-shadcn/select';
 import { useTranslation } from 'react-i18next';
-import { supportedLanguages, languageNames, type SupportedLanguage } from '@/i18n';
+import { supportedLanguages, languageNames  } from '@/i18n';
+import type {SupportedLanguage} from '@/i18n';
 
 interface LanguageSelectorProps {
   value?: string;
@@ -19,7 +21,8 @@ export function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
 
   return (
     <Select value={currentLang} onValueChange={handleLanguageChange}>
-      <SelectTrigger aria-label="Select language">
+      <SelectTrigger aria-label={`Language: ${languageNames[currentLang as SupportedLanguage] ?? currentLang}`}>
+        <Globe size={14} className="text-muted shrink-0" aria-hidden="true" />
         <SelectValue placeholder="Select language" />
       </SelectTrigger>
       <SelectContent>

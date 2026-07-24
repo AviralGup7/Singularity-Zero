@@ -7,6 +7,7 @@ export { SeverityBadge, type SeverityBadgeProps, type SeverityLevel } from './Se
 export { DataTable, type DataTableProps, type Column } from './DataTable';
 export { Skeleton, SkeletonCard, SkeletonStat, SkeletonText, SkeletonTable, DashboardSkeleton, PageSkeleton, TableSkeleton, type SkeletonProps } from './Skeleton';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { TabFallback } from './TabFallback';
 export { Breadcrumbs, type BreadcrumbsProps, type BreadcrumbItem } from './Breadcrumbs';
 // Re-export shadcn primitives in place of deleted legacy wrappers
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui-shadcn/tooltip';
@@ -34,3 +35,4 @@ export * from './Icon';
 export * from './FocusTrap';
 export * from './ErrorBoundary';
 export * from './ErrorOverlayView';
+export * from './ErrorCard';

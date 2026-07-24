@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,42 +8,51 @@ interface SessionLockScreenProps {
 }
 
 export function SessionLockScreen({ onUnlock }: SessionLockScreenProps) {
-   
   const [password, setPassword] = useState('');
-   
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { user, verifyUnlockPassword } = useAuth();
 
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   const handleUnlock = useCallback(() => {
-    if (verifyUnlockPassword(password)) {
-      onUnlock(password);
-      setError('');
-      setPassword('');
-    } else {
-      setError('Incorrect password');
+    if (!password || isVerifying) return;
+    setIsVerifying(true);
+    setError('');
+    try {
+      if (verifyUnlockPassword(password)) {
+        onUnlock(password);
+        setPassword('');
+      } else {
+        setError('Incorrect password');
+      }
+    } finally {
+      setIsVerifying(false);
     }
-   
-  }, [password, onUnlock, verifyUnlockPassword]);
+  }, [password, onUnlock, verifyUnlockPassword, isVerifying]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleUnlock();
   };
 
   return (
-   
-    <div className="fixed inset-0 z-[10000] bg-[var(--bg)] flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Session locked">
-      <div className="w-full max-w-sm p-6 border border-[var(--line)] bg-[var(--panel)]">
+    <div className="fixed inset-0 z-[10000] bg flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Session locked">
+      <div className="w-full max-w-sm p-6 border border-line bg-panel animate-in fade-in zoom-in-95 duration-200">
         <div className="text-center mb-4">
           <div className="text-2xl mb-2" aria-hidden="true">🔒</div>
-          <h2 id="session-lock-title" className="font-mono text-[var(--accent)] text-lg font-bold uppercase tracking-wider">
+          <h2 id="session-lock-title" className="font-mono text-accent text-lg font-bold uppercase tracking-wider">
             Session Locked
           </h2>
-          <p className="text-[var(--muted)] text-sm mt-1">
+          <p className="text-muted text-sm mt-1">
             {user?.name || 'User'} — Re-authenticate to continue
           </p>
         </div>
 
         <Input
+          ref={inputRef}
           id="unlock-password"
           type="password"
           label="Password"
@@ -53,15 +62,19 @@ export function SessionLockScreen({ onUnlock }: SessionLockScreenProps) {
           error={error}
           placeholder="Enter password"
           className="mb-3"
+          aria-describedby={error ? 'unlock-error' : undefined}
+          autoComplete="current-password"
+          disabled={isVerifying}
         />
 
         <Button
           variant="primary"
           onClick={handleUnlock}
           className="w-full"
-          disabled={!password}
+          disabled={!password || isVerifying}
+          aria-busy={isVerifying}
         >
-          Unlock
+          {isVerifying ? 'Verifying...' : 'Unlock'}
         </Button>
       </div>
     </div>
@@ -78,17 +91,16 @@ export function SessionWarningModal({
   onLockNow: () => void;
 }) {
   return (
-   
-    <div className="fixed inset-0 z-[9999] bg-[var(--modal-overlay)] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Session expiring warning">
-      <div className="w-full max-w-sm p-6 border border-[var(--warn)] bg-[var(--panel)]">
+    <div className="fixed inset-0 z-[9999] bg-panel/80 flex items-center justify-center p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Session expiring warning" aria-live="assertive">
+      <div className="w-full max-w-sm p-6 border border-warn bg-panel animate-in fade-in zoom-in-95 duration-200">
         <div className="text-center mb-4">
           <div className="text-2xl mb-2" aria-hidden="true">⏱️</div>
-          <h2 id="session-warning-title" className="font-mono text-[var(--warn)] text-lg font-bold uppercase tracking-wider">
+          <h2 id="session-warning-title" className="font-mono text-warn text-lg font-bold uppercase tracking-wider">
             Session Expiring
           </h2>
-          <p className="text-[var(--muted)] text-sm mt-2">
+          <p className="text-muted text-sm mt-2">
             Your session will lock in{' '}
-            <span className="text-[var(--warn)] font-bold">{secondsRemaining}s</span>
+            <span className="text-warn font-bold tabular-nums">{secondsRemaining}s</span>
           </p>
         </div>
 

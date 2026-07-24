@@ -51,7 +51,8 @@ class CircuitBreaker:
         import tempfile
         from pathlib import Path
 
-        self._state_file = Path(tempfile.gettempdir()) / f"redis_breaker_state_{os.getpid()}.json"
+        self._instance_id = uuid.uuid4().hex[:8]
+        self._state_file = Path(tempfile.gettempdir()) / f"redis_breaker_state_{os.getpid()}_{self._instance_id}.json"
         self._load_state()
 
     def _load_state(self) -> None:
@@ -190,12 +191,15 @@ class Broadcaster:
         self._redis_breaker = CircuitBreaker()
         self._redis_degraded_until = 0.0
 
-    def _dedup_key(self, message_id: str, scope: str = "") -> str:
-        return f"{scope}:{message_id}" if scope else message_id
+    def _dedup_key(self, message_id: str, scope: str = "", target: str = "") -> str:
+        # Bug fix: Include target in dedup key to prevent cross-target
+        # message loss when two different targets receive broadcasts with
+        # the same message ID (e.g., heartbeat pings, retry broadcasts).
+        return f"{scope}:{target}:{message_id}" if scope else f"{target}:{message_id}" if target else message_id
 
-    def _is_duplicate(self, message_id: str, scope: str = "") -> bool:
+    def _is_duplicate(self, message_id: str, scope: str = "", target: str = "") -> bool:
         """Check if a message has already been processed."""
-        dedup_key = self._dedup_key(message_id, scope)
+        dedup_key = self._dedup_key(message_id, scope, target)
         with self._seen_ids_lock:
             if dedup_key in self._seen_ids:
                 return True
@@ -301,11 +305,8 @@ class Broadcaster:
         self._scope_drop_counts.clear()
 
         try:
-            import tempfile
-            from pathlib import Path
-
-            state_file = Path(tempfile.gettempdir()) / f"redis_breaker_state_{os.getpid()}.json"
-            state_file.unlink(missing_ok=True)
+            if self._redis_breaker and self._redis_breaker._state_file:
+                self._redis_breaker._state_file.unlink(missing_ok=True)
         except Exception as exc:
             logger.debug("Failed to clean up redis breaker state file: %s", exc)
 
@@ -524,7 +525,7 @@ class Broadcaster:
 
         exclude = exclude or set()
         dedup_scope = f"{scope}:{target}"
-        if self._is_duplicate(message.id, dedup_scope):
+        if self._is_duplicate(message.id, dedup_scope, target):
             return 0
 
         if scope == "connection":

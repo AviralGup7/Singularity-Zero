@@ -156,36 +156,36 @@ export function NotificationCenter({
         onClick={() => setOpen(!open)}
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
       >
-        <Icon name="alertCircle" size={18} />
+        <Icon name="alertCircle" size={18} aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="notification-badge" style={{
             backgroundColor: notifications.some(n => n.severity === 'critical' && !n.read)
-              ? 'var(--color-danger, #ff3b30)'
-              : 'var(--color-accent, #00e5ff)',
-          }}>
+              ? 'var(--bad)'
+              : 'var(--accent)',
+          }} aria-hidden="true">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="notification-panel" role="dialog" aria-label="Notification center">
+        <div className="notification-panel backdrop-blur-sm" role="dialog" aria-label="Notification center" aria-modal="false">
           <div className="notification-panel-header">
-            <h3>Notifications</h3>
+            <h3 id="notification-panel-title">Notifications</h3>
             <div className="notification-panel-actions">
               {unreadCount > 0 && (
-                <button className="notification-action-btn" onClick={onMarkAllRead}>
+                <button className="notification-action-btn" onClick={onMarkAllRead} aria-label="Mark all notifications as read">
                   Mark all read
                 </button>
               )}
               {notifications.length > 0 && (
                 <>
-                  <button className="notification-action-btn" onClick={() => notifications.filter(n => n.read).forEach(n => onDismiss(n.id))}>
+                  <button className="notification-action-btn" onClick={() => notifications.filter(n => n.read).forEach(n => onDismiss(n.id))} aria-label="Clear read notifications">
                     Clear read
                   </button>
-                  <button className="notification-action-btn notification-clear-all" onClick={onClearAll}>
+                  <button className="notification-action-btn notification-clear-all" onClick={onClearAll} aria-label="Clear all notifications">
                     Clear all
                   </button>
                 </>
@@ -193,22 +193,25 @@ export function NotificationCenter({
             </div>
           </div>
 
-          <div className="notification-filters">
+          <div className="notification-filters" role="tablist" aria-label="Notification filters">
             {FILTER_TYPES.map(type => (
               <button
                 key={type}
                 className={`notification-filter-btn ${filter === type ? 'active' : ''}`}
                 onClick={() => setFilter(type)}
+                role="tab"
+                aria-selected={filter === type}
+                aria-controls="notification-list"
               >
                 {type === 'all' ? 'All' : TYPE_LABELS[type as keyof typeof TYPE_LABELS] || type}
               </button>
             ))}
           </div>
 
-          <div className="notification-list">
+          <div className="notification-list" id="notification-list" role="tabpanel" aria-label={`${filter === 'all' ? 'All' : TYPE_LABELS[filter as keyof typeof TYPE_LABELS]} notifications`}>
             {filtered.length === 0 ? (
-              <div className="notification-empty">
-                <Icon name="checkCircle" size={32} />
+              <div className="notification-empty" role="status">
+                <Icon name="checkCircle" size={32} aria-hidden="true" />
                 <p>No notifications</p>
               </div>
             ) : (

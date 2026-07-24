@@ -44,10 +44,50 @@ class DetectionRuntime:
 _default_runtime: DetectionRuntime | None = None
 
 
+def _default_prime_context(**kwargs: Any) -> AnalysisExecutionContext:
+    from src.core.contracts.plugin_types import AnalysisExecutionContext
+    return AnalysisExecutionContext(
+        live_hosts=set(kwargs.get("live_hosts", ())),
+        urls=set(kwargs.get("urls", ())),
+        priority_urls=set(kwargs.get("priority_urls", ())),
+        analysis_config=dict(kwargs.get("analysis_config", {})),
+        header_targets=list(kwargs.get("header_targets", ())),
+        responses=list(kwargs.get("responses", ())),
+        response_map=dict(kwargs.get("response_map", {})),
+        response_cache=kwargs.get("response_cache", None),
+        ranked_items=list(kwargs.get("ranked_items", ())),
+        flow_items=list(kwargs.get("flow_items", ())),
+        bulk_items=list(kwargs.get("bulk_items", ())),
+        payload_items=list(kwargs.get("payload_items", ())),
+        token_findings=list(kwargs.get("token_findings", ())),
+        csrf_findings=list(kwargs.get("csrf_findings", ())),
+        ssti_findings=list(kwargs.get("ssti_findings", ())),
+        upload_findings=list(kwargs.get("upload_findings", ())),
+        business_logic_findings=list(kwargs.get("business_logic_findings", ())),
+        rate_limit_findings=list(kwargs.get("rate_limit_findings", ())),
+        jwt_findings=list(kwargs.get("jwt_findings", ())),
+        smuggling_findings=list(kwargs.get("smuggling_findings", ())),
+        ssrf_findings=list(kwargs.get("ssrf_findings", ())),
+        idor_findings=list(kwargs.get("idor_findings", ())),
+    )
+
+
 def get_runtime() -> DetectionRuntime:
     global _default_runtime
     if _default_runtime is None:
-        _default_runtime = DetectionRuntime()
+        try:
+            from src.analysis.plugin_registration import (
+                prime_detection_context_impl,
+                run_detection_plugins_impl,
+            )
+            _default_runtime = DetectionRuntime(
+                prime_ctx=prime_detection_context_impl,
+                run_plugins=run_detection_plugins_impl,
+            )
+        except Exception:
+            _default_runtime = DetectionRuntime(prime_ctx=_default_prime_context)
+    elif _default_runtime._prime_context_handler is None:
+        _default_runtime._prime_context_handler = _default_prime_context
     return _default_runtime
 
 

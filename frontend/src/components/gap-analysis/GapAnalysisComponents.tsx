@@ -12,13 +12,13 @@ interface GapFiltersProps {
 
 export function GapFilters({ searchQuery, setSearchQuery, statusFilter, setStatusFilter }: GapFiltersProps) {
   return (
-    <div className="p-4 border-b border-white/5 bg-white/5 flex flex-col md:flex-row gap-4 justify-between items-center">
+    <div className="p-4 border-b border-line bg-surface-hover flex flex-col md:flex-row gap-4 justify-between items-center">
       <div className="relative w-full md:w-96">
         <Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input
           type="text"
           placeholder="Filter by module or category..."
-          className="w-full bg-black/40 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-accent/50 transition-colors"
+          className="w-full bg-surface-2 border border-line rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-accent/50 transition-colors"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -32,7 +32,7 @@ export function GapFilters({ searchQuery, setSearchQuery, statusFilter, setStatu
           id="status-filter"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="bg-black/40 border border-white/10 rounded-lg py-2 px-4 text-xs focus:outline-none focus:border-accent/50 appearance-none cursor-pointer"
+          className="bg-surface-2 border border-line rounded-lg py-2 px-4 text-xs focus:outline-none focus:border-accent/50 appearance-none cursor-pointer"
         >
           <option value="all">All Statuses</option>
           <option value="complete">Complete</option>
@@ -67,7 +67,7 @@ export function GapTable({ filtered, sortKey, sortDir, handleSort, toggleExpand,
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="bg-white/5 text-[10px] uppercase tracking-tighter font-black text-muted border-b border-white/5">
+          <tr className="bg-surface-hover text-[10px] uppercase tracking-tighter font-black text-muted border-b border-line">
             <th className="p-4 cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('module')}>
               Module {sortKey === 'module' && (sortDir === 'asc' ? '↑' : '↓')}
             </th>
@@ -84,7 +84,7 @@ export function GapTable({ filtered, sortKey, sortDir, handleSort, toggleExpand,
         </thead>
         <tbody className="divide-y divide-white/5">
           {filtered.map((row) => (
-            <tr key={row.module} className="group hover:bg-white/[0.02] transition-colors">
+            <tr key={row.module} className="group hover:bg-surface-hover transition-colors">
               <td className="p-4">
                 <div className="font-bold text-sm text-text">{row.module}</div>
               </td>
@@ -104,7 +104,7 @@ export function GapTable({ filtered, sortKey, sortDir, handleSort, toggleExpand,
               </td>
               <td className="p-4 w-48">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1 bg-surface-hover rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
                         row.coverage_percent === 100 ? 'bg-ok' : row.coverage_percent > 0 ? 'bg-warn' : 'bg-bad'
@@ -134,7 +134,7 @@ export function GapTable({ filtered, sortKey, sortDir, handleSort, toggleExpand,
                 {row.missing_checks > 0 && (
                   <button
                     onClick={() => toggleExpand(row.module)}
-                    className="p-1 hover:bg-white/10 rounded transition-colors text-muted hover:text-text"
+                    className="p-1 hover:bg-surface-2 rounded transition-colors text-muted hover:text-text"
                   >
                     <Icon name={expandedRows.has(row.module) ? 'chevronUp' : 'chevronDown'} size={16} />
                   </button>
@@ -201,7 +201,7 @@ export function GapDeficiencies({ filtered, expandedRows, setActiveMitigation }:
                 row.missing_check_details.map((check, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 text-xs text-muted/80 font-mono bg-black/25 p-2 rounded border border-white/5"
+                    className="flex items-start gap-2 text-xs text-muted/80 font-mono bg-surface-2 p-2 rounded border border-line"
                   >
                     <span className="text-warn mt-0.5">•</span>
                     <span className="text-left leading-relaxed">{check}</span>
@@ -211,7 +211,7 @@ export function GapDeficiencies({ filtered, expandedRows, setActiveMitigation }:
                 Array.from({ length: row.missing_checks }).map((_, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 text-xs text-muted/80 font-mono bg-black/25 p-2 rounded border border-white/5"
+                    className="flex items-center gap-2 text-xs text-muted/80 font-mono bg-surface-2 p-2 rounded border border-line"
                   >
                     <span className="text-warn opacity-50">•</span>
                     <span>Missing capability validation check {i + 1}</span>
@@ -220,7 +220,7 @@ export function GapDeficiencies({ filtered, expandedRows, setActiveMitigation }:
               )}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-white/5">
+            <div className="mt-4 pt-4 border-t border-line">
               <button
                 onClick={() =>
                   setActiveMitigation({

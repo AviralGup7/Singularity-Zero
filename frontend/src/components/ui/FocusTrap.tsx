@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { useEffect, useRef, useCallback  } from 'react';
+import type {ReactNode} from 'react';
 
 interface FocusTrapProps {
   active: boolean;

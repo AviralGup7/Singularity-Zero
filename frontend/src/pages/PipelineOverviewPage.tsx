@@ -2,12 +2,9 @@ import { Suspense, lazy, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Activity } from 'lucide-react';
-import { useJobs } from '../hooks';
+import { useJobsContext } from '../context/JobsContext';
 import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-const StageDurationHeatmap = lazy(() =>
-  import('../components/charts/StageDurationHeatmap').then(m => ({ default: m.StageDurationHeatmap }))
-);
 import { PipelineStageTimeline } from '../components/PipelineStageTimeline';
 import { StageTheater } from '../components/ops/StageTheater';
 import { buildStageTheaterNodesFromJobs } from '../lib/stageTheaterUtils';
@@ -16,10 +13,13 @@ import { VisualProvider } from '@/context/VisualContext';
 import { mapJobsToVisualState } from '@/lib/mapToVisualState';
 import type { Job, StageProgressEntry } from '../types/api';
 import { PageHeader, GlassCard, AnimatedCounter, GlowProgress } from '../components/ui';
+const StageDurationHeatmap = lazy(() =>
+  import('../components/charts/StageDurationHeatmap').then(m => ({ default: m.StageDurationHeatmap }))
+);
 
 const STAGE_ORDER = [
-  'startup', 'subdomains', 'live_hosts', 'urls', 'recon_validation', 'parameters', 'ranking',
-  'passive_scan', 'active_scan', 'semgrep', 'nuclei', 'access_control', 'validation', 'intelligence', 'reporting',
+  'startup', 'subdomains', 'live_hosts', 'urls', 'parameters', 'ranking',
+  'passive_scan', 'active_scan', 'nuclei', 'access_control', 'validation', 'intelligence', 'reporting',
 ];
 
 const STAGE_ALIASES: Record<string, string> = {
@@ -33,17 +33,17 @@ function normalizeStageName(stageName: string | undefined): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  running: 'var(--color-running, #3b82f6)',
-  completed: 'var(--color-success, #22c55e)',
-  error: 'var(--color-error, #ef4444)',
-  pending: 'var(--color-muted, #6b7280)',
+  running: 'var(--info)',
+  completed: 'var(--ok)',
+  error: 'var(--bad)',
+  pending: 'var(--text-tertiary)',
 };
 
 const STATUS_BG: Record<string, string> = {
-  running: 'rgba(59, 130, 246, 0.15)',
-  completed: 'rgba(34, 197, 94, 0.12)',
-  error: 'rgba(239, 68, 68, 0.15)',
-  pending: 'rgba(107, 114, 128, 0.08)',
+  running: 'color-mix(in srgb, var(--info) 15%, transparent)',
+  completed: 'color-mix(in srgb, var(--ok) 12%, transparent)',
+  error: 'color-mix(in srgb, var(--bad) 15%, transparent)',
+  pending: 'color-mix(in srgb, var(--text-tertiary) 8%, transparent)',
 };
 
 const containerVariants = {
@@ -62,7 +62,7 @@ const itemVariants = {
 };
 
 export function PipelineOverviewPage() {
-  const { data: allJobs, loading, error } = useJobs({ refetchInterval: 5000 });
+  const { jobs: allJobs, loading, error, stats } = useJobsContext();
 
   const runningJobs = useMemo(() => {
     return (allJobs ?? []).filter((j: Job) => j.status === 'running');
@@ -73,20 +73,6 @@ export function PipelineOverviewPage() {
     return (allJobs ?? [])
       .filter((j: Job) => j.status === 'completed' || j.status === 'failed')
       .slice(0, 20);
-   
-  }, [allJobs]);
-
-  const stats = useMemo(() => {
-    const jobs = allJobs ?? [];
-    const running = jobs.filter((j: Job) => j.status === 'running');
-    const completed = jobs.filter((j: Job) => j.status === 'completed');
-    const failed = jobs.filter((j: Job) => j.status === 'failed');
-    const totalFindings = jobs.reduce((sum, j: Job) => sum + (j.findings_count ?? 0), 0);
-    const avgProgress = running.length > 0
-      ? Math.round(running.reduce((sum, j: Job) => sum + (j.progress_percent ?? 0), 0) / running.length)
-      : 0;
-
-    return { running: running.length, completed: completed.length, failed: failed.length, totalFindings, avgProgress };
    
   }, [allJobs]);
 
@@ -155,11 +141,11 @@ export function PipelineOverviewPage() {
           animate="show"
           className="pipeline-stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"
         >
-          <StatCard label="Running Jobs" value={stats.running} color="var(--color-running, #3b82f6)" delay={0.05} />
-          <StatCard label="Avg Progress" value={stats.avgProgress > 0 ? `${stats.avgProgress}%` : '--'} color="var(--color-success, #22c55e)" delay={0.1} />
-          <StatCard label="Completed" value={stats.completed} color="var(--color-success, #22c55e)" delay={0.15} />
-          <StatCard label="Failed" value={stats.failed} color={stats.failed > 0 ? 'var(--color-error, #ef4444)' : 'var(--color-muted, #6b7280)'} delay={0.2} />
-          <StatCard label="Total Findings" value={stats.totalFindings} color="var(--color-warning, #f59e0b)" delay={0.25} />
+          <StatCard label="Running Jobs" value={stats.running} color="var(--info)" delay={0.05} />
+          <StatCard label="Avg Progress" value={stats.avgProgress > 0 ? `${stats.avgProgress}%` : '--'} color="var(--ok)" delay={0.1} />
+          <StatCard label="Completed" value={stats.completed} color="var(--ok)" delay={0.15} />
+          <StatCard label="Failed" value={stats.failed} color={stats.failed > 0 ? 'var(--bad)' : 'var(--text-tertiary)'} delay={0.2} />
+          <StatCard label="Total Findings" value={stats.totalFindings} color="var(--warn)" delay={0.25} />
         </motion.div>
 
         <motion.div variants={itemVariants} className="card ops-card">
@@ -199,7 +185,7 @@ export function PipelineOverviewPage() {
         {recentJobs.length >= 2 && (
           <motion.div variants={itemVariants} className="card ops-card">
             <h3>Stage Duration Heatmap (Recent {recentJobs.length} jobs)</h3>
-            <Suspense fallback={<div className="h-48 bg-white/5 rounded-lg animate-pulse" />}>
+            <Suspense fallback={<div className="h-48 bg-surface-hover rounded-lg animate-pulse" />}>
               <StageDurationHeatmap jobs={recentJobs} />
             </Suspense>
           </motion.div>
@@ -233,7 +219,7 @@ function StatCard({ label, value, color, delay }: { label: string; value: string
           value
         )}
       </span>
-      <span className="stat-label text-xs uppercase font-semibold text-[var(--text-secondary)] mt-1.5 tracking-wider font-mono">{label}</span>
+      <span className="stat-label text-xs uppercase font-semibold text-text-secondary mt-1.5 tracking-wider font-mono">{label}</span>
     </GlassCard>
   );
 }
@@ -244,10 +230,10 @@ function JobStageCard({ job }: { job: Job }) {
   return (
     <GlassCard variant="default" className="job-stage-card p-4 space-y-4">
       <div className="job-stage-card-header flex items-center justify-between">
-        <Link to={`/jobs/${job.id}`} className="job-stage-card-title font-bold text-[var(--accent)] hover:underline truncate mr-2">
+        <Link to={`/jobs/${job.id}`} className="job-stage-card-title font-bold text-accent hover:underline truncate mr-2">
           {job.target_name || job.base_url || job.id}
         </Link>
-        <span className="job-stage-card-progress text-xs font-mono font-bold bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full">
+        <span className="job-stage-card-progress text-xs font-mono font-bold bg-accent-dim text-accent px-2 py-0.5 rounded-full">
           {Math.round(job.progress_percent ?? 0)}%
         </span>
       </div>
@@ -277,12 +263,12 @@ function JobStageCard({ job }: { job: Job }) {
           );
         })}
         {job.failed_stage && (
-          <div className="current-stage-marker current-stage-marker--error text-xs font-semibold px-2 py-0.5 rounded bg-[var(--bad-soft)] text-[var(--bad)] border border-[var(--bad)]/20 mt-1 w-full">
+          <div className="current-stage-marker current-stage-marker--error text-xs font-semibold px-2 py-0.5 rounded bg-bad/10 text-bad border border-bad/20 mt-1 w-full">
             Failed: {job.failed_stage} {job.failure_reason_code ? `(${job.failure_reason_code})` : ''}
           </div>
         )}
         {job.stage_label && !job.failed_stage && (
-          <div className="current-stage-marker text-xs font-semibold px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/20 mt-1 w-full">
+          <div className="current-stage-marker text-xs font-semibold px-2 py-0.5 rounded bg-accent-dim text-accent border border-accent/20 mt-1 w-full">
             Current: {job.stage_label}
           </div>
         )}

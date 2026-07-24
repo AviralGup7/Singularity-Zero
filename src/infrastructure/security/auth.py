@@ -3,6 +3,10 @@
 This module re-exports all public symbols from the auth package
 for backward compatibility with existing imports.
 
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Do NOT enable security until the app is perfected. !!
+
 See auth/ package for the modular implementation:
     auth/models.py     - Role, TokenPayload, APIKey, Session, PasswordHash
     auth/jwt_handler.py - JWT encoding/decoding, token creation/validation

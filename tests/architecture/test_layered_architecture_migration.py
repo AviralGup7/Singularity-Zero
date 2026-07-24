@@ -7,7 +7,8 @@ from src.pipeline.storage import load_config
 
 class LayeredArchitectureMigrationTests(unittest.TestCase):
     def test_storage_load_config_uses_core_loader(self) -> None:
-        config_path = Path("configs/config.example.json")
+        repo_root = Path(__file__).resolve().parents[2]
+        config_path = repo_root / "configs" / "config.json"
         storage_cfg = load_config(config_path)
         core_cfg = core_load_config(config_path)
         self.assertEqual(storage_cfg.target_name, core_cfg.target_name)

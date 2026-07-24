@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/config/paths';
-import { getFindingsSummary } from '../api/client';
+import { getFindingsSummary } from '@/api/client';
 import type { FindingsSummary } from '@/types/api';
 import { Shield, Target, Activity, Zap } from 'lucide-react';
 
@@ -81,11 +81,11 @@ export default function FindingsOverview() {
           role="button"
           tabIndex={0}
         >
-          <Shield className="absolute -right-4 -bottom-4 w-24 h-24 text-[var(--text-primary)]/5 group-hover:text-[var(--text-primary)]/10 transition-all" />
+          <Shield className="absolute -right-4 -bottom-4 w-24 h-24 text-text-primary/5 group-hover:text-text-primary/10 transition-all" />
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Zap size={12} className="text-accent" /> Findings
           </div>
-          <div className="text-3xl font-black text-[var(--text-primary)]">{metrics.total}</div>
+          <div className="text-3xl font-black text-text-primary">{metrics.total}</div>
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Verified intelligence points</div>
         </div>
 
@@ -97,11 +97,11 @@ export default function FindingsOverview() {
           role="button"
           tabIndex={0}
         >
-          <Target className="absolute -right-4 -bottom-4 w-24 h-24 text-[var(--text-primary)]/5 group-hover:text-[var(--text-primary)]/10 transition-all" />
+          <Target className="absolute -right-4 -bottom-4 w-24 h-24 text-text-primary/5 group-hover:text-text-primary/10 transition-all" />
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Activity size={12} className="text-accent" /> Scan Coverage
           </div>
-          <div className="text-3xl font-black text-[var(--text-primary)]">{metrics.coverage}</div>
+          <div className="text-3xl font-black text-text-primary">{metrics.coverage}</div>
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Targets with active findings</div>
         </div>
 
@@ -109,8 +109,8 @@ export default function FindingsOverview() {
         <div 
    
           className={`glass-panel p-6 rounded-2xl border-l-4 border-l-accent ${metrics.glow} transition-all cursor-pointer hover:scale-[1.02]`}
-          onClick={() => navigate(ROUTES.RISK_SCORE)}
-          onKeyDown={(e) => handleKeyDown(e, () => navigate(ROUTES.RISK_SCORE))}
+          onClick={() => navigate('/risk?tab=score')}
+          onKeyDown={(e) => handleKeyDown(e, () => navigate('/risk?tab=score'))}
           role="button"
           tabIndex={0}
         >
@@ -127,7 +127,7 @@ export default function FindingsOverview() {
              Posture Status
           </div>
           <div className={`text-2xl font-black uppercase tracking-tighter ${metrics.color}`}>{metrics.posture}</div>
-          <div className="mt-3 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+          <div className="mt-3 h-1.5 w-full bg-surface-hover rounded-full overflow-hidden">
             <div className={`h-full transition-all duration-1000 ${metrics.securityScore > 80 ? 'bg-ok' : metrics.securityScore > 50 ? 'bg-warn' : 'bg-bad'}`} 
                  style={{ width: `${metrics.securityScore}%` }} />
           </div>
@@ -135,7 +135,7 @@ export default function FindingsOverview() {
       </div>
 
       {/* Severity Breakdown */}
-      <div className="glass-panel p-8 rounded-2xl border border-white/5">
+      <div className="glass-panel p-8 rounded-2xl border border-line">
         <h4 className="text-[10px] font-black text-muted uppercase tracking-[0.3em] mb-8">Severity Distribution Matrix</h4>
         <div className="flex items-end h-32 gap-4">
           {['critical', 'high', 'medium', 'low', 'info'].map(sev => {
@@ -144,15 +144,15 @@ export default function FindingsOverview() {
             const height = (count / maxCount) * 100;
             const colors = {
    
-              critical: 'bg-critical shadow-[0_0_15px_rgba(255,0,85,0.3)]',
+              critical: 'bg-critical shadow-[0_0_15px_color-mix(in_srgb,var(--severity-critical)_30%,transparent)]',
    
-              high: 'bg-high shadow-[0_0_15px_rgba(239,68,68,0.2)]',
+              high: 'bg-high shadow-[0_0_15px_color-mix(in_srgb,var(--severity-high)_20%,transparent)]',
    
-              medium: 'bg-medium shadow-[0_0_15px_rgba(245,158,11,0.2)]',
+              medium: 'bg-medium shadow-[0_0_15px_color-mix(in_srgb,var(--severity-medium)_20%,transparent)]',
    
-              low: 'bg-low shadow-[0_0_15px_rgba(59,130,246,0.2)]',
+              low: 'bg-low shadow-[0_0_15px_color-mix(in_srgb,var(--severity-low)_20%,transparent)]',
    
-              info: 'bg-info shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+              info: 'bg-info shadow-[0_0_15px_color-mix(in_srgb,var(--severity-info)_20%,transparent)]'
             };
             return (
               <div 
@@ -167,12 +167,12 @@ export default function FindingsOverview() {
                 <div className="relative w-full flex flex-col justify-end h-full">
                   <div className={`w-full rounded-t-lg transition-all duration-700 group-hover:scale-x-110 ${Reflect.get(colors, sev)}`} 
                        style={{ height: `${Math.max(5, height)}%` }}>
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-[var(--text-primary)] transition-opacity">
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-text-primary transition-opacity">
                       {count}
                     </div>
                   </div>
                 </div>
-                <span className="text-[9px] font-black text-muted uppercase tracking-widest group-hover:text-[var(--text-primary)] transition-colors">{sev}</span>
+                <span className="text-[9px] font-black text-muted uppercase tracking-widest group-hover:text-text-primary transition-colors">{sev}</span>
               </div>
             );
           })}

@@ -5,6 +5,7 @@ X-Frame-Options, Content-Security-Policy frame-ancestors, and frame-busting
 JavaScript. Actively probes endpoints that lack protections.
 """
 
+import logging
 import re
 from typing import Any
 
@@ -16,10 +17,10 @@ from src.analysis.helpers import (
     endpoint_signature,
     normalize_headers,
 )
-from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
+from src.core.utils.scoring import severity_score
 from src.core.utils.url_validation import is_safe_url
-import logging
+
 logger = logging.getLogger(__name__)
 
 

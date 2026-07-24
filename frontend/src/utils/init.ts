@@ -56,8 +56,22 @@ export function setupGlobalErrorTracking(): void {
   errorTrackingSetup = true;
 
   window.addEventListener('error', (event) => {
-   
-    console.error('[GlobalError]', event.error || event.message);
+    const error = event.error || new Error(event.message);
+    const message = error.message || '';
+    const lowered = String(message).toLowerCase();
+
+    // Ignore request cancellation errors — these are normal during navigation/unmount
+    if (
+      lowered === 'canceled' ||
+      lowered === 'abort' ||
+      error.name === 'CanceledError' ||
+      error.name === 'AbortError'
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    console.error('[GlobalError]', error);
 
     // Resource loading errors (images, scripts, stylesheets) - capture phase logic moved here
     if (event.target !== window && event.target instanceof Element) {
@@ -69,8 +83,8 @@ export function setupGlobalErrorTracking(): void {
       return;
     }
 
-    dispatchToast(`Runtime Error: ${event.message}`, 'error');
-    showErrorOverlay('JavaScript Error', event.error?.message || event.message || 'Unknown error', event.error?.stack);
+    dispatchToast(`Runtime Error: ${message}`, 'error');
+    showErrorOverlay('JavaScript Error', error.message || event.message || 'Unknown error', error.stack);
   }, true); // Use capture phase to catch resource errors too
 
   window.addEventListener('unhandledrejection', (event) => {

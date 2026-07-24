@@ -1,6 +1,7 @@
 import { useRef, useState, memo, useMemo } from 'react';
 import { Terminal, Minimize2, Pause, Play, Trash2, ChevronDown } from 'lucide-react';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { Virtuoso  } from 'react-virtuoso';
+import type {VirtuosoHandle} from 'react-virtuoso';
 import { useLiveTerminal } from '../hooks/useLiveTerminal';
 import type { LiveTerminalLine } from '../hooks/useLiveTerminal';
 
@@ -31,7 +32,7 @@ const TerminalLineRow = memo(function TerminalLineRow({
   return (
     <div 
    
-      className="flex items-start gap-3 py-0.5 px-4 font-mono text-[13px] leading-relaxed border-l-2 border-transparent hover:bg-white/5 transition-colors group"
+      className="flex items-start gap-3 py-0.5 px-4 font-mono text-[13px] leading-relaxed border-l-2 border-transparent hover:bg-surface-hover transition-colors group"
       style={{ borderLeftColor: entry.level === 'critical' ? 'var(--bad)' : 'transparent' }}
     >
       <span className="text-muted/40 select-none w-10 text-right shrink-0">{index + 1}</span>
@@ -101,7 +102,7 @@ export function LiveTerminalFeed({
   if (isMinimized) {
     return (
       <div 
-        className={`fixed bottom-4 right-4 z-50 w-80 bg-black/90 border border-accent/30 shadow-2xl rounded-lg overflow-hidden cursor-pointer hover:border-accent/60 transition-all ${className}`} 
+        className={`fixed bottom-4 right-4 z-50 w-80 bg-panel border border-accent/30 shadow-2xl rounded-lg overflow-hidden cursor-pointer hover:border-accent/60 transition-all ${className}`} 
         onClick={() => setIsMinimized(false)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsMinimized(false); } }}
         role="button"
@@ -122,7 +123,7 @@ export function LiveTerminalFeed({
 
   return (
    
-    <div className={`flex flex-col h-[500px] bg-black/95 border border-line shadow-2xl rounded-xl overflow-hidden font-mono ${className}`}>
+    <div className={`flex flex-col h-[500px] bg-panel border border-line shadow-2xl rounded-xl overflow-hidden font-mono ${className}`}>
       {/* ── Dashboard Header ────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/50 border-b border-line shrink-0">
         <div className="flex items-center gap-4 flex-1 overflow-hidden">
@@ -132,7 +133,7 @@ export function LiveTerminalFeed({
             <button 
               onClick={() => setShowJobPicker(!showJobPicker)}
    
-              className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 transition-colors max-w-[300px] overflow-hidden"
+              className="flex items-center gap-2 px-3 py-1 bg-surface-hover border border-line rounded text-xs hover:bg-surface-2 transition-colors max-w-[300px] overflow-hidden"
             >
               <span className="truncate">
                 {currentJob ? `${currentJob.target_name || currentJob.id.slice(0,8)}` : 'Select Job'}
@@ -165,7 +166,7 @@ export function LiveTerminalFeed({
             <div className="flex items-center gap-3 ml-2 shrink-0">
               <span className="text-[10px] text-muted uppercase tracking-widest">{stageLabel}</span>
               {stagePct !== null && (
-                <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="w-24 h-1 bg-surface-hover rounded-full overflow-hidden">
                   <div className="h-full bg-accent transition-all duration-500" style={{ width: `${stagePct}%` }} />
                 </div>
               )}
@@ -183,16 +184,16 @@ export function LiveTerminalFeed({
           </div>
 
           <div className="flex items-center gap-1 border-l border-line pl-4">
-             <button onClick={() => setFollowOutput(!followOutput)} className={`p-1.5 rounded hover:bg-white/5 ${followOutput ? 'text-accent' : 'text-muted'}`} title="Auto-scroll">
+             <button onClick={() => setFollowOutput(!followOutput)} className={`p-1.5 rounded hover:bg-surface-hover ${followOutput ? 'text-accent' : 'text-muted'}`} title="Auto-scroll" aria-label={followOutput ? 'Disable auto-scroll' : 'Enable auto-scroll'} aria-pressed={followOutput}>
               <ChevronDown size={16} className={followOutput ? 'animate-bounce' : ''} />
             </button>
-            <button onClick={() => isRunning ? actions.stop() : actions.start()} className="p-1.5 rounded hover:bg-white/5 text-muted" title={isRunning ? 'Pause' : 'Play'}>
+            <button onClick={() => isRunning ? actions.stop() : actions.start()} className="p-1.5 rounded hover:bg-surface-hover text-muted" title={isRunning ? 'Pause' : 'Play'} aria-label={isRunning ? 'Pause terminal feed' : 'Resume terminal feed'}>
               {isRunning ? <Pause size={16} /> : <Play size={16} />}
             </button>
-            <button onClick={actions.clear} className="p-1.5 rounded hover:bg-white/5 text-muted" title="Clear Buffer">
+            <button onClick={actions.clear} className="p-1.5 rounded hover:bg-surface-hover text-muted" title="Clear Buffer" aria-label="Clear terminal buffer">
               <Trash2 size={16} />
             </button>
-            <button onClick={() => setIsMinimized(true)} className="p-1.5 rounded hover:bg-white/5 text-muted" title="Minimize">
+            <button onClick={() => setIsMinimized(true)} className="p-1.5 rounded hover:bg-surface-hover text-muted" title="Minimize" aria-label="Minimize terminal">
               <Minimize2 size={16} />
             </button>
           </div>
@@ -200,9 +201,9 @@ export function LiveTerminalFeed({
       </div>
 
       {/* ── Virtualized Log Body ───────────────────────────────────── */}
-      <div className="flex-1 min-h-0 bg-[#020202] relative group/body">
+      <div className="flex-1 min-h-0 bg-bg relative group/body" role="log" aria-label="Terminal output" aria-live="off">
         {isLoading && lines.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/50">
+          <div className="absolute inset-0 flex items-center justify-center z-10 bg-surface-2">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}

@@ -22,12 +22,12 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/**/*.d.ts', 'src/main.tsx', 'src/**/*.stories.tsx', 'src/tests/**'],
-+      thresholds: {
-+        lines: 80,
-+        statements: 80,
-+        branches: 70,
-+        functions: 75,
-+      }
+      thresholds: {
+        lines: 80,
+        statements: 80,
+        branches: 70,
+        functions: 75,
+      }
     }
   }
 });

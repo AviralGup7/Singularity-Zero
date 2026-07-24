@@ -136,7 +136,7 @@
   height: 18px;
   border-radius: var(--radius-pill);
   background: var(--bad);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 700;
   padding: 0 5px;
@@ -239,7 +239,7 @@
   padding: 12px 18px;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--info)));
-  color: #000;
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -280,10 +280,10 @@
   list-style: none;
   margin: 0;
   padding: 8px;
-  background: var(--surface, #0b0d12);
-  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,255,244,0.08);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
   min-width: 280px;
   display: flex;
   flex-direction: column;
@@ -299,7 +299,7 @@
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   transition: background 120ms ease;

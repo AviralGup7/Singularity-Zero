@@ -175,12 +175,16 @@ class SelfHealingController:
         if not data:
             return
         try:
+            raw_comp = data.get("component_name") or data.get("component", "")
+            comp = raw_comp if isinstance(raw_comp, HealthComponent) else HealthComponent(str(raw_comp))
+            raw_status = data.get("status", HealthStatus.OK.value)
+            status = raw_status if isinstance(raw_status, HealthStatus) else HealthStatus(str(raw_status))
             metric = HealthMetric(
-                component=HealthComponent(data.get("component_name", "")),
-                name=data.get("metric_name", ""),
+                component=comp,
+                name=data.get("metric_name") or data.get("name", ""),
                 value=data.get("value"),
                 threshold=data.get("threshold"),
-                status=HealthStatus(data.get("status", HealthStatus.OK.value)),
+                status=status,
                 labels=data.get("labels", {}),
             )
         except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -333,6 +337,14 @@ class SelfHealingController:
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.debug("breaker snapshot probe failed: %s", exc)
             return []
+
+        # Bug fix: Aggregate all open breakers into a single metric instead
+        # of emitting one per tool. This prevents notification storms where
+        # N failing tools generate N findings, N notifications, and N webhook
+        # calls simultaneously.
+        open_tools: list[str] = []
+        half_open_tools: list[str] = []
+
         for tool_name, stats in snapshot.items():
             if hasattr(stats, "state"):
                 state_value = stats.state
@@ -348,27 +360,13 @@ class SelfHealingController:
                 total_successes = stats.get("total_successes", 0)
                 recovery_timeout = stats.get("recovery_timeout", 0.0)
                 forced = stats.get("forced_open", False)
-            status = HealthStatus.OK
+
             if state_value == "open":
-                status = HealthStatus.CRITICAL
+                open_tools.append(tool_name)
             elif state_value == "half_open":
-                status = HealthStatus.RECOVERING
-            metrics.append(
-                HealthMetric(
-                    component=HealthComponent.TOOL_EXECUTION,
-                    name=f"tool_circuit_breaker_state.{tool_name}",
-                    value=state_value,
-                    status=status,
-                    threshold=recovery_timeout,
-                    labels={
-                        "tool": tool_name,
-                        "failure_count": str(failure_count),
-                        "total_failures": str(total_failures),
-                        "total_successes": str(total_successes),
-                        "forced_open": "1" if forced else "0",
-                    },
-                )
-            )
+                half_open_tools.append(tool_name)
+
+            # Still emit per-tool error rate metrics (low frequency, no notifications)
             denom = total_failures + total_successes
             rate = (total_failures / denom) if denom else 0.0
             metrics.append(
@@ -381,6 +379,26 @@ class SelfHealingController:
                     labels={"tool": tool_name},
                 )
             )
+
+        # Emit a single aggregated breaker metric for the self-healing pipeline
+        if open_tools or half_open_tools:
+            worst_status = HealthStatus.CRITICAL if open_tools else HealthStatus.RECOVERING
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.TOOL_EXECUTION,
+                    name="tool_circuit_breakers_aggregate",
+                    value=f"{len(open_tools)}_open_{len(half_open_tools)}_half_open",
+                    status=worst_status,
+                    threshold=0,
+                    labels={
+                        "open_tools": ",".join(sorted(open_tools)),
+                        "half_open_tools": ",".join(sorted(half_open_tools)),
+                        "total_open": str(len(open_tools)),
+                        "total_half_open": str(len(half_open_tools)),
+                    },
+                )
+            )
+
         return metrics
 
     def _derive_status(self, metric: HealthMetric) -> HealthStatus:

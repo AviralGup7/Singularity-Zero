@@ -14,8 +14,8 @@ from src.analysis.active.auth_bypass import (
     probe_jwt_stripping,
 )
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
+from src.core.utils.scoring import severity_score
 
 logger = logging.getLogger(__name__)
 

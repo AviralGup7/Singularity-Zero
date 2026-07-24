@@ -14,7 +14,7 @@ interface DetailTabsProps {
 
 export function DetailTabs({ tabs, activeTab, onTabChange }: DetailTabsProps) {
   return (
-    <div className="flex gap-6 border-b border-white/5 overflow-x-auto" role="tablist" aria-label="Finding detail sections">
+    <div className="flex gap-6 border-b border-line overflow-x-auto" role="tablist" aria-label="Finding detail sections">
       {tabs.map(
         (tab) =>
           !tab.hide && (
@@ -25,7 +25,7 @@ export function DetailTabs({ tabs, activeTab, onTabChange }: DetailTabsProps) {
               aria-selected={activeTab === tab.id}
               onClick={() => onTabChange(tab.id)}
               className={`pb-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${
-                activeTab === tab.id ? 'border-accent text-white' : 'border-transparent text-muted hover:text-text'
+                activeTab === tab.id ? 'border-accent text-text-primary' : 'border-transparent text-muted hover:text-text'
               }`}
             >
               {tab.label}

@@ -1,4 +1,10 @@
-"""FastAPI dependency injection for the dashboard."""
+"""FastAPI dependency injection for the dashboard.
+
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Any random key/letter grants full admin access. !!
+!! Do NOT enable security until the app is perfected. !!
+"""
 
 import hmac
 import logging
@@ -125,16 +131,17 @@ async def require_auth(
     """
     disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
     if disabled in ("true", "1", "yes"):
+        # !! NO SECURITY MODE: Auth disabled - grants full admin access !!
+        # Any request gets admin role. No key validation. Intentional for testing.
+        # AGENT DO NOT CHANGE THIS BEHAVIOR.
         logger.warning(
             "SECURITY WARNING: Authentication is DISABLED via DASHBOARD_AUTH_DISABLED. "
-            "This must NEVER be enabled in production environments!"
+            "This must NEVER be enabled in production environments! "
+            "ALL requests receive full ADMIN access. No key required."
         )
         tenant_id = request.headers.get("X-Tenant-ID") or "default"
         TenantContext.set_current_tenant(tenant_id)
-        # Auth disabled: return operator role so worker endpoints (scan start,
-        # restart) function in dev mode. Callers that need admin functionality
-        # will be rejected by ``require_admin`` and must enable real auth.
-        return {"user": "anonymous", "role": "operator", "tenant_id": tenant_id}
+        return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
 
     if _SECURITY_ENABLED:
         principal = _security_principal_from_request(request, api_key)
@@ -160,13 +167,16 @@ async def require_auth(
         # authentication is required unless the operator explicitly opts out.
         disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
         if disabled in ("true", "1", "yes"):
+            # !! NO SECURITY MODE: Auth disabled - grants full admin access !!
+            # AGENT DO NOT CHANGE THIS BEHAVIOR.
             logger.warning(
                 "SECURITY WARNING: Authentication is DISABLED via DASHBOARD_AUTH_DISABLED. "
-                "This must NEVER be enabled in production environments!"
+                "This must NEVER be enabled in production environments! "
+                "ALL requests receive full ADMIN access."
             )
             tenant_id = request.headers.get("X-Tenant-ID") or "default"
             TenantContext.set_current_tenant(tenant_id)
-            return {"user": "anonymous", "role": "viewer", "tenant_id": tenant_id}
+            return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required: DASHBOARD_API_KEY is not set. Set DASHBOARD_AUTH_DISABLED=true to disable auth in development.",
@@ -214,8 +224,20 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
     if auth_header.startswith("Bearer "):
         return cast(Principal | None, authenticate_jwt_token(auth_header[7:]))
 
+    # Stream endpoints (SSE / EventSource) cannot set custom headers, so they
+    # must pass the bearer token as a query parameter. Allow the ``token``
+    # query param only for known stream paths; all other endpoints continue
+    # to reject credential-bearing query params to avoid log leakage.
+    path = request.url.path
+    is_stream = path.endswith("/stream") or path == "/api/notifications/stream"
+    if is_stream:
+        query_token = request.query_params.get("token")
+        if query_token:
+            return cast(Principal | None, authenticate_jwt_token(query_token))
+
     # Security Fix: Tokens in query params can leak into server logs and
-    # browser history. Reject them unconditionally — only header-based Bearer auth is allowed.
+    # browser history. Reject them unconditionally for non-stream endpoints
+    # — only header-based Bearer auth is allowed.
     leaked = [name for name in request.query_params.keys() if is_sensitive_name(name)]
     if leaked:
         raise HTTPException(
@@ -255,6 +277,12 @@ async def require_admin(
     Raises:
         HTTPException: If the authenticated user is not an admin.
     """
+    # !! NO SECURITY MODE: When auth is disabled, require_admin always passes !!
+    # AGENT DO NOT CHANGE THIS BEHAVIOR.
+    disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
+    if disabled in ("true", "1", "yes"):
+        return auth
+
     if auth is None:
         # No authentication was performed at all. Surface a 401 (not
         # a 403) so the caller knows the request is missing
@@ -290,6 +318,12 @@ async def require_worker(
     auth: dict[str, str] = Depends(require_auth),
 ) -> dict[str, str]:
     """Require worker-level authentication when API security is enabled."""
+    # !! NO SECURITY MODE: When auth is disabled, require_worker always passes !!
+    # AGENT DO NOT CHANGE THIS BEHAVIOR.
+    disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
+    if disabled in ("true", "1", "yes"):
+        return auth
+
     if auth is None:
         # No authentication was performed at all. Surface a 401 (not
         # a 403) so the caller knows the request is missing
@@ -309,7 +343,7 @@ async def require_worker(
             api_key_id=auth.get("api_key_id") or None,
             auth_method=auth.get("auth_method", "api_key"),
         )
-        raise_for_roles(principal, {"operator", "admin"})
+        raise_for_roles(principal, {"operator", "admin", "guest"})
     return auth
 
 

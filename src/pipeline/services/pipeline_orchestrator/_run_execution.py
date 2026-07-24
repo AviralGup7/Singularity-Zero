@@ -442,7 +442,7 @@ def resolve_pipeline_exit_code(
     for stage_name in sorted(policy.infra.fatal_stages):
         if ctx.result.stage_status.get(stage_name) == StageStatus.FAILED.value:
             metrics = ctx.result.module_metrics.get(stage_name, {})
-            if metrics.get("fatal", False) and not metrics.get("degraded", False):
+            if metrics.get("fatal", True) and not metrics.get("degraded", False):
                 evaluation = PolicyEvaluation(
                     exit_code=EXIT_INFRA_FAILURE,
                     outcome="infra_failure",

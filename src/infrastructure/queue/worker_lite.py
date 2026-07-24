@@ -503,26 +503,54 @@ class LiteWorker:
             error_msg = f"{exc.__class__.__name__}: {exc}"
             logger.error("Job %s failed: %s", job_id, error_msg)
 
-            # Fetch retry count
-            retries_str = await self._redis.hget(job_key, "retries") or "0"
             max_retries_str = await self._redis.hget(job_key, "max_retries") or "3"
 
-            await self._redis.evalsha(
-                self._shas["fail_job"],
-                5,
-                job_key,
-                worker_jobs_key,
-                self._key("queue"),
-                dlq_key,
-                metrics_key,
-                error_msg,
-                retries_str,
-                max_retries_str,
-                str(time.time()),
-                "1.0",  # Initial delay
-                "2.0",  # Multiplier
-                "300.0",  # Max delay
-            )
+            for attempt in range(3):
+                try:
+                    await self._redis.evalsha(
+                        self._shas["fail_job"],
+                        5,
+                        job_key,
+                        worker_jobs_key,
+                        self._key("queue"),
+                        dlq_key,
+                        metrics_key,
+                        error_msg,
+                        max_retries_str,
+                        str(time.time()),
+                        "1.0",  # Initial delay
+                        "2.0",  # Multiplier
+                        "300.0",  # Max delay
+                    )
+                    break
+                except (ConnectionError, TimeoutError, OSError) as redis_exc:
+                    if attempt < 2:
+                        logger.warning(
+                            "Redis unavailable during fail_job for %s (attempt %d): %s",
+                            job_id, attempt + 1, redis_exc,
+                        )
+                        await asyncio.sleep(0.5 * (2 ** attempt))
+                    else:
+                        logger.error(
+                            "Failed to report job %s failure after 3 attempts: %s. "
+                            "Attempting direct HSET to mark failed.",
+                            job_id, redis_exc,
+                        )
+                        try:
+                            await self._redis.hset(
+                                job_key,
+                                mapping={
+                                    "state": "failed",
+                                    "error": error_msg,
+                                    "worker_id": "",
+                                    "lease_expires_at": "",
+                                },
+                            )
+                        except Exception:
+                            logger.error(
+                                "Could not mark job %s as failed in Redis; job may be orphaned",
+                                job_id,
+                            )
 
     async def _poll_and_process(self) -> None:
         """Poll Redis queue, atomically claiming jobs using the Lua engine."""
@@ -628,7 +656,7 @@ class LiteWorker:
                 job_state = await self._redis.hget(job_key, "state")
                 if job_state is not None:
                     state_str = job_state.decode("utf-8") if isinstance(job_state, bytes) else str(job_state)
-                    if state_str in ("completed", "failed", "cancelled"):
+                    if state_str in ("completed", "failed", "cancelled", "dead_letter"):
                         logger.info(
                             "Skipping lease release for job %s: already in state '%s'",
                             job_id, state_str,

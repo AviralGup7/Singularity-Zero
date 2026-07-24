@@ -33,7 +33,7 @@ export function ScanProgressPanel({ scanProgress }: ScanProgressPanelProps) {
       {scanProgress.map((p) => (
         <div
           key={p.targetName}
-          className="scan-progress-item flex items-center gap-4 p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]"
+          className="scan-progress-item flex items-center gap-4 p-2 rounded-lg bg-surface border border-line"
         >
           <span className="scan-progress-target font-medium w-36 truncate">{p.targetName}</span>
           <div className="flex-1">
@@ -58,7 +58,7 @@ export function ScanProgressPanel({ scanProgress }: ScanProgressPanelProps) {
           >
             {p.status}
           </span>
-          {p.jobId && <span className="scan-progress-job text-xs text-[var(--text-tertiary)] tabular-nums">{p.jobId}</span>}
+          {p.jobId && <span className="scan-progress-job text-xs text-text-tertiary tabular-nums">{p.jobId}</span>}
         </div>
       ))}
     </div>

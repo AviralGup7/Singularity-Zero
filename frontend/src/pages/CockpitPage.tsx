@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cockpitApi } from '@/api/cockpit';
+import { getProjects, type Project } from '@/api/projects';
 import type { CockpitNode, ForensicExchange } from '@/api/cockpit';
 import { createNote, getNotes } from '@/api/notes';
 import type { MeshHealth } from '@/types/api';
 import { useSSEProgress } from '@/hooks/useSSEProgress';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 import { startJob, stopJob, restartJob, pauseJob, resumeJob } from '@/api/jobs';
 import { useCockpitData, useActiveJob } from '@/hooks/useCockpitData';
 import { useCockpitGraph } from '@/hooks/useCockpitGraph';
@@ -62,7 +64,9 @@ export function CockpitPage() {
   const [scanConcurrency, setScanConcurrency] = useState<number>(10);
   const [scanRateLimit, setScanRateLimit] = useState<number>(50);
   const [excludedPaths, setExcludedPaths] = useState<string>('');
-  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string; scope: string; rewards?: string } | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  console.debug(`[CockpitPage] searchParams job_id=${rawJobId} target=${rawTarget}`);
 
   const { nodes, edges, chains, loading, notes, setNotes, exchanges, meshHealth, migrations, handleMeshHealth, handleMigrationEvent } =
     useCockpitData({ target, run, jobId });
@@ -70,7 +74,7 @@ export function CockpitPage() {
 
   useEffect(() => { if (target) setInputTarget(target); }, [target]);
 
-  const { requestGraphUpdate } = useCockpitGraph(undefined, target, run, jobId, activeJobId);
+  const { requestGraphUpdate } = useCockpitGraph(() => {}, target, run, jobId, activeJobId);
 
   useEffect(() => {
     if (focusFindingId && nodes.length > 0) {
@@ -146,7 +150,7 @@ export function CockpitPage() {
     try {
       const { data } = await cockpitApi.getForensicExchange(target, id);
       setSelectedExchange(data);
-    } catch { toast.error('Failed to open forensic exchange'); }
+    } catch { showErrorToast('Failed to open forensic exchange'); }
   };
 
   const handleTriggerProbe = async () => {
@@ -157,7 +161,7 @@ export function CockpitPage() {
       setProbing(true);
       await cockpitApi.triggerProbe(target, selectedNodeUrl);
       toast.success('Forensic probe launched');
-    } catch { toast.error('Probe sequence failed');
+    } catch { showErrorToast('Forensic probe sequence failed');
     } finally { setProbing(false); }
   };
 
@@ -176,7 +180,7 @@ export function CockpitPage() {
       });
       setNewNote('');
       getNotes(target).then((res) => setNotes(res.notes));
-    } catch { toast.error('Failed to add note'); }
+    } catch { showErrorToast('Failed to add note'); }
   };
 
   const handleDeleteNote = async (noteId: string) => {
@@ -186,7 +190,7 @@ export function CockpitPage() {
       await deleteNote(target, noteId);
       getNotes(target).then((res) => setNotes(res.notes));
       toast.success('Note removed');
-    } catch { toast.error('Failed to remove note'); }
+    } catch { showErrorToast('Failed to remove note'); }
   };
 
   const handleStartScan = async () => {
@@ -217,36 +221,35 @@ export function CockpitPage() {
       navigate({ search: params.toString() });
       toast.success(selectedProject ? `${selectedProject.name} scan launched` : 'Multi-stage cyber pipeline successfully launched');
     } catch (error) {
-      console.error(error);
-      toast.error('Failed to initiate cyber pipeline');
+      showErrorToast(error instanceof Error ? error.message : 'Failed to initiate cyber pipeline');
     } finally { setLaunchingScan(false); }
   };
 
   const handleStopScan = async () => {
     if (!activeJobId) return;
     try { setStoppingScan(true); await stopJob(activeJobId); toast.success('Pipeline scan termination requested'); }
-    catch (error) { console.error(error); toast.error('Termination request failed'); }
+    catch (error) { showErrorToast(error instanceof Error ? error.message : 'Pipeline scan termination request failed'); }
     finally { setStoppingScan(false); }
   };
 
   const handleRestartScan = async () => {
     if (!activeJobId) return;
     try { setRestartingScan(true); await restartJob(activeJobId); toast.success('Safe restart initiated'); }
-    catch (error) { console.error(error); toast.error('Safe restart failed'); }
+    catch (error) { showErrorToast(error instanceof Error ? error.message : 'Pipeline safe restart failed'); }
     finally { setRestartingScan(false); }
   };
 
   const handlePauseScan = async () => {
     if (!activeJobId) return;
     try { setPausingScan(true); await pauseJob(activeJobId); toast.success('Scan pause requested'); }
-    catch (error) { console.error(error); toast.error('Pause request failed'); }
+    catch (error) { showErrorToast(error instanceof Error ? error.message : 'Scan pause request failed'); }
     finally { setPausingScan(false); }
   };
 
   const handleResumeScan = async () => {
     if (!activeJobId) return;
     try { setResumingScan(true); await resumeJob(activeJobId); toast.success('Scan resumed'); }
-    catch (error) { console.error(error); toast.error('Resume failed'); }
+    catch (error) { showErrorToast(error instanceof Error ? error.message : 'Scan resume failed'); }
     finally { setResumingScan(false); }
   };
 
@@ -289,11 +292,11 @@ export function CockpitPage() {
   }
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#030508] text-text font-sans">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg text-text font-sans">
       <CockpitHeader target={target} activeJob={activeJob} stats={stats} />
 
       <div className="flex-1 flex items-stretch overflow-hidden relative">
-        <div className="w-80 flex-shrink-0 border-r border-white/10 bg-[#05070a]/65 overflow-y-auto scrollbar-cyber z-10">
+        <div className="w-80 flex-shrink-0 border-r border-line bg-surface/65 overflow-y-auto scrollbar-cyber z-10">
           <ScanControlDeck
             activeJob={activeJob}
             activeJobId={activeJobId}
@@ -332,7 +335,7 @@ export function CockpitPage() {
           />
         </div>
 
-        <div className="flex-1 flex flex-col items-stretch bg-[#020305] relative overflow-hidden">
+        <div className="flex-1 flex flex-col items-stretch bg-app-bg relative overflow-hidden">
           <CockpitCenterViewport
             activeCenterTab={activeCenterTab}
             setActiveCenterTab={setActiveCenterTab}

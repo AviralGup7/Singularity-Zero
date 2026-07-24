@@ -121,14 +121,19 @@ def _get_stage_baseline() -> dict[str, int]:
 
     baseline = get_stage_baseline()
     if baseline is not None and callable(baseline):
-        # If it's a callable, try to get the dict
         try:
-            return baseline()
+            res = baseline()
+            if res:
+                return res
         except TypeError:
-            return {}
-    elif baseline is not None:
+            pass
+    elif baseline is not None and isinstance(baseline, dict) and baseline:
         return baseline
-    return {}
+    try:
+        from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
+        return STAGE_BASELINE_PERCENT
+    except ImportError:
+        return {}
 
 
 def _mark_stage_running(job: dict[str, Any], stage: str) -> None:
@@ -202,6 +207,8 @@ def _finalize_stage(job: dict[str, Any], stage: str) -> None:
         stage_progress[stage]["status"] = "completed"
         if int(stage_progress[stage].get("percent", 0) or 0) < 100:
             stage_progress[stage]["percent"] = 100
+        if not stage_progress[stage].get("reason"):
+            stage_progress[stage]["reason"] = "Pipeline completed"
         stage_progress[stage]["updated_at"] = now
     _mark_stage_done(job, stage)
 
@@ -222,9 +229,14 @@ def _apply_terminal_state(
         job["returncode"] = returncode
 
     stage_progress: dict[str, dict[str, Any]] = job.setdefault("stage_progress", {})
+    cancel_reason = "Pipeline cancelled" if status == "stopped" else "Pipeline finished"
     for sp in stage_progress.values():
         if sp.get("status") == "running":
             sp["status"] = "completed"
+            if int(sp.get("percent", 0) or 0) < 100:
+                sp["percent"] = 100
+            if not sp.get("reason"):
+                sp["reason"] = cancel_reason
             sp["updated_at"] = now
 
     active_stages = _get_active_stages(job)

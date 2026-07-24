@@ -3,9 +3,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { useDisplay } from '@/hooks/useDisplay';
 import {
   resolveMotionPolicy,
-  resolveComponentMotionStrategy,
-  type MotionComponentClass,
+  resolveComponentMotionStrategy
+  
 } from '@/lib/motionPolicy';
+import type {MotionComponentClass} from '@/lib/motionPolicy';
 
 function detectSystemReducedMotion(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -43,12 +44,13 @@ class Mode(Enum):
 
 
 class StateSchemaRegistry:
-    """Registry of allowed state_delta keys and their types."""
+    """Thread-safe registry of allowed state_delta keys and their types."""
 
     def __init__(self, *, mode: Mode = Mode.STRICT, validate_on_merge: bool = True) -> None:
         self._schemas: dict[str, StateSchema] = {}
         self._mode = mode
         self.validate_on_merge = validate_on_merge
+        self._lock = threading.Lock()
 
     @property
     def mode(self) -> Mode:
@@ -61,7 +63,8 @@ class StateSchemaRegistry:
 
     def register(self, schema: StateSchema) -> None:
         """Register a new allowed state key."""
-        self._schemas[schema.key] = schema
+        with self._lock:
+            self._schemas[schema.key] = schema
 
     def validate_delta(self, delta: Mapping[str, Any]) -> list[str]:
         """Validate a state_delta against registered schemas.
@@ -75,9 +78,12 @@ class StateSchemaRegistry:
         if self._mode == Mode.OFF:
             return []
 
+        with self._lock:
+            schemas_snapshot = dict(self._schemas)
+
         errors: list[str] = []
         for key, value in delta.items():
-            schema = self._schemas.get(key)
+            schema = schemas_snapshot.get(key)
             if not schema:
                 msg = f"Unregistered state_delta key: '{key}'"
                 if self._mode == Mode.WARN:

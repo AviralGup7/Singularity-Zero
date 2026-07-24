@@ -106,7 +106,12 @@ class RetryEventEmitter:
         try:
             from src.core.events import get_event_bus
 
-            get_event_bus().publish(_pipeline_event_from_retry_event(event))
+            bus = get_event_bus()
+            pevt = _pipeline_event_from_retry_event(event)
+            if hasattr(bus, "publish_sync"):
+                bus.publish_sync(pevt)
+            else:
+                bus.publish(pevt)
         except Exception as exc:
             logging.warning("Operation failed in events.py: %s", exc, exc_info=True)  # noqa: BLE001
         return event

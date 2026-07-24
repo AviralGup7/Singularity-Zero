@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useApi } from '@/hooks/useApi';
-import { emptyFilters, type TargetFilters } from '@/hooks/useTargetFilters';
+import { emptyFilters  } from '@/hooks/useTargetFilters';
+import type {TargetFilters} from '@/hooks/useTargetFilters';
 import type { Target } from '@/types/api';
 
 export interface TargetsResponse {
@@ -8,7 +9,10 @@ export interface TargetsResponse {
 }
 
 export function useTargets() {
-  const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets');
+  const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets', {
+    autoToast: true,
+    errorContext: 'Failed to load targets',
+  });
 
   const [filter, setFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);

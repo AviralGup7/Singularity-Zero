@@ -7,7 +7,6 @@ from src.dashboard.fastapi.schemas import (
     NoteCreateRequest,
     NoteUpdateRequest,
 )
-from src.intelligence.ml.feature_vector import FeatureVector
 
 
 def test_job_create_request_strict_validation() -> None:
@@ -69,16 +68,3 @@ def test_cache_key_delete_request_strict_validation() -> None:
     with pytest.raises(ValidationError) as exc:
         CacheKeyDeleteRequest(pattern="*", count=10)
     assert "count" in str(exc.value)
-
-
-def test_feature_vector_strict_validation() -> None:
-    """Verify that FeatureVector enforces strict type validation and values."""
-    # Valid instance
-    valid = FeatureVector(confidence=0.8, legacy_impact=0.5)
-    assert valid.confidence == 0.8
-
-    # Reject type coercions (str to float)
-    with pytest.raises(ValidationError) as exc:
-        FeatureVector(confidence="0.8")
-    assert "confidence" in str(exc.value)
-    assert "Input should be a valid number" in str(exc.value)

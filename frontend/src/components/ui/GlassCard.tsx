@@ -1,4 +1,5 @@
-import { forwardRef, type ElementType, type ComponentPropsWithoutRef } from 'react';
+import { forwardRef   } from 'react';
+import type {ElementType, ComponentPropsWithoutRef} from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -37,12 +38,12 @@ const hoverGlowMap: Record<GlassCardVariant, string> = {
 /* ── Variant-specific hover border tints ───────────────────────── */
 
 const hoverBorderMap: Record<GlassCardVariant, string> = {
-  default: 'hover:border-[rgba(255,255,255,0.10)]',
-  glow:    'hover:border-[var(--accent)]',
-  error:   'hover:border-[var(--bad)]',
-  success: 'hover:border-[var(--ok)]',
-  warning: 'hover:border-[var(--warn)]',
-  'accent-top': 'hover:border-[var(--accent)]',
+  default: 'hover:border-line',
+  glow:    'hover:border-accent',
+  error:   'hover:border-bad',
+  success: 'hover:border-ok',
+  warning: 'hover:border-warn',
+  'accent-top': 'hover:border-accent',
 };
 
 /* ── Component ─────────────────────────────────────────────────── */
@@ -74,14 +75,14 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps & Omit<Compon
           ease: [0.16, 1, 0.3, 1],
         }}
         className={cn(
-          'relative rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)]',
+          'relative rounded-xl border border-glass-border bg-glass-bg',
           'backdrop-blur-[var(--glass-blur)]',
           'shadow-[var(--glass-shadow)]',
           'transition-all duration-350 ease-out',
           padding && 'p-5',
           hoverable && [
             'hover:-translate-y-1',
-            'hover:border-[rgba(255,255,255,0.10)]',
+            'hover:border-line',
             'hover:shadow-[var(--glass-shadow),0_0_24px_-4px_color-mix(in_srgb,var(--accent),15%)]',
             hoverGlowMap[variant as GlassCardVariant],
             hoverBorderMap[variant as GlassCardVariant],

@@ -3,6 +3,10 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
 import uvicorn
 
 from src.dashboard.fastapi.app import create_app
@@ -51,6 +55,10 @@ def _validate_environment() -> None:
                 "Generate a unique key for any non-local environment.",
                 file=sys.stderr,
             )
+        # Allow guest/demo login in local development so the dashboard is usable
+        # without pre-creating API keys. Production should opt-in explicitly
+        # via DASHBOARD_GUEST_ACCESS_ENABLED if desired.
+        os.environ.setdefault("DASHBOARD_GUEST_ACCESS_ENABLED", "true")
 
 
 def main() -> None:

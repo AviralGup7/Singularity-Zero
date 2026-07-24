@@ -16,6 +16,7 @@ export const ROUTES = {
   TARGET_COMPARISON: '/target-comparison',
   SCAN_DIFF: '/scan-diff',
   REMEDIATION_PLANNER: '/remediation-planner',
+  DETECTION_QUALITY: '/detection-quality',
   GAP_ANALYSIS: '/gap-analysis',
   LEARNING: '/learning',
   MESH: '/mesh',
@@ -32,6 +33,9 @@ export const ROUTES = {
   EVASION: '/evasion',
   RISK_ACCEPTANCE: '/risk/acceptance',
   RISK_ASSETS: '/risk/assets',
+  RISK_HUB: '/risk',
+  GOVERNANCE_HUB: '/governance',
+  ANALYTICS_HUB: '/analytics',
   TRACE_REDIRECT: '/trace',
 } as const;
 

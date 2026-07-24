@@ -67,7 +67,10 @@ def push_health_metric(
         status=metric.status,
         labels=metric.labels,
     ).to_pipeline_event(source=source, correlation_id=correlation_id)
-    bus.publish(event)
+    if hasattr(bus, "publish_sync"):
+        bus.publish_sync(event)
+    else:
+        bus.publish(event)
     logger.debug(
         "Pushed health metric event: %s.%s = %r [%s]",
         metric.component.value,

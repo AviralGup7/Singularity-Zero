@@ -14,7 +14,7 @@ INTENTIONAL_SILENCE = {
 def fix_file(filepath: str) -> bool:
     """Fix except Exception: pass blocks. Returns True if changes made."""
     rel = os.path.relpath(filepath, SRC)
-    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+    with open(filepath, encoding="utf-8", errors="replace") as f:
         content = f.read()
 
     original = content
@@ -25,7 +25,7 @@ def fix_file(filepath: str) -> bool:
 
     # Check if file has a logger
     has_logger = bool(re.search(r"logger\s*=\s*logging\.getLogger", content))
-    
+
     # ---- Add logger if missing and we have fixable patterns ----
     if not has_logger:
         # Check if there's a fixable pattern

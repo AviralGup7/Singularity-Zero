@@ -3,6 +3,7 @@ import type { AxiosRequestConfig } from 'axios';
 import { apiCache } from '../api/cache';
 import { onRefresh } from '../lib/events';
 import api from '../api/client';
+import { showErrorToast } from '../utils/extractErrorMessage';
 
 export interface UseApiOptions<T> {
   enabled?: boolean;
@@ -13,6 +14,8 @@ export interface UseApiOptions<T> {
   onError?: (error: UseApiError) => void;
   refetchInterval?: number;
   schema?: import('zod').ZodSchema;
+  autoToast?: boolean;
+  errorContext?: string;
 }
 
 export interface UseApiError {
@@ -97,6 +100,8 @@ export function useApi<T>(
     onSuccess,
     onError,
     refetchInterval,
+    autoToast = false,
+    errorContext,
   } = options ?? {};
 
   // ``params`` is read from the latest closure each time ``fetchData``
@@ -191,9 +196,12 @@ export function useApi<T>(
         setError(lastError);
         setLoading(false);
         onErrorRef.current?.(lastError);
+        if (autoToast) {
+          showErrorToast(err, errorContext);
+        }
       }
     }
-  }, [url, enabled, bypassCache, stableParams, refetchKey, ttl]);
+  }, [url, enabled, bypassCache, stableParams, refetchKey, ttl, autoToast, errorContext]);
 
   useEffect(() => {
     mountedRef.current = true;

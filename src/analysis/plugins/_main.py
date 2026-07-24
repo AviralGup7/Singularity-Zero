@@ -140,7 +140,7 @@ def _register_specs() -> None:
                 "redirect",
             ),
             _spec(
-                "application_ssrf_vector_detector",
+                "app_ssrf_scan",
                 "Application SSRF Vector Detector",
                 "Detect Grafana, Kibana, Jenkins, GitLab, and other apps with known SSRF-prone proxy endpoints.",
                 "active",
@@ -278,7 +278,7 @@ def _register_specs() -> None:
                 "passive",
             ),
             _spec(
-                "logging_failure_detector",
+                "logging_security_detector",
                 "Logging Security Detector",
                 "Find log file exposure, logging endpoints, sensitive data in URLs, verbose logging headers, and debug logging indicators in responses.",
                 "passive",
@@ -290,7 +290,7 @@ def _register_specs() -> None:
                 "active",
             ),
             _spec(
-                "xpath_injection_probe",
+                "xpath_injection_active_probe",
                 "XPath Injection Probe",
                 "Send XPath injection payloads to XML-backed endpoint parameters and detect error patterns, auth bypass, and response divergence.",
                 "active",

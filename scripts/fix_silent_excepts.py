@@ -1,7 +1,5 @@
 """Fix silent exception swallowing: replace `except Exception: pass` with logging."""
-import ast
 import re
-import os
 from pathlib import Path
 
 SRC_DIR = Path(__file__).resolve().parents[1] / "src"
@@ -28,7 +26,7 @@ def add_logger(content: str) -> str:
         if line.strip().startswith(("import ", "from ")):
             last_import = i
     insertion_line = last_import + 1 if last_import > 0 else 0
-    
+
     indent = ""
     lines.insert(insertion_line, f"{indent}import logging")
     lines.insert(insertion_line + 1, f'{indent}logger = logging.getLogger(__name__)')
@@ -49,36 +47,36 @@ def _classify_context(content: str, pos: int) -> str:
 def fix_file(filepath: Path) -> bool:
     with open(filepath, encoding="utf-8") as f:
         content = f.read()
-    
+
     original = content
     has_log = has_logger(content)
-    
+
     LOG_CALLS = {
         "cleanup": 'logger.debug("Non-critical cleanup error", exc_info=True)',
         "metric": 'logger.debug("Metrics tracking error", exc_info=True)',
         "probe": 'logger.warning("Security probe error", exc_info=True)',
         "general": 'logger.warning("Suppressed exception", exc_info=True)',
     }
-    
+
     def replace_pass(m):
         indent = m.group(2)
         ctx = _classify_context(content, m.start())
         exc_line = m.group(1).rstrip()
         return f'{exc_line}\n{indent}    {LOG_CALLS[ctx]}'
-    
+
     # Pattern: full except line + newline + indented pass
     pattern = re.compile(
         r'((?:except\s+(?:Exception|BaseException)\s*:?)\s*(?:#\s*[^\n]*)?)\n([ \t]+)pass',
         re.MULTILINE
     )
     content = pattern.sub(replace_pass, content)
-    
+
     if content == original:
         return False
-    
+
     if not has_log and "logger." in content:
         content = add_logger(content)
-    
+
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
     return True

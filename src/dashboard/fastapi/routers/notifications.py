@@ -15,8 +15,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
+
+from src.dashboard.fastapi.dependencies import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,7 @@ async def list_notifications(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     unread_only: bool = Query(default=False),
+    _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Return paginated notifications, newest first."""
     storage = _get_storage(request)
@@ -92,7 +95,10 @@ async def list_notifications(
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
-async def unread_count(request: Request) -> dict[str, int]:
+async def unread_count(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, int]:
     """Return the count of unread notifications."""
     storage = _get_storage(request)
     return {"unread_count": storage.count_unread()}
@@ -102,6 +108,7 @@ async def unread_count(request: Request) -> dict[str, int]:
 async def mark_notification_read(
     notification_id: str,
     request: Request,
+    _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Mark a single notification as read."""
     storage = _get_storage(request)
@@ -111,7 +118,10 @@ async def mark_notification_read(
 
 
 @router.patch("/read-all", response_model=MarkReadResponse)
-async def mark_all_read(request: Request) -> dict[str, Any]:
+async def mark_all_read(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Mark all notifications as read."""
     storage = _get_storage(request)
     storage.mark_all_read()
@@ -123,6 +133,7 @@ async def mark_all_read(request: Request) -> dict[str, Any]:
 async def delete_notification(
     notification_id: str,
     request: Request,
+    _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Delete a single notification."""
     storage = _get_storage(request)
@@ -131,7 +142,10 @@ async def delete_notification(
 
 
 @router.delete("", response_model=DeleteResponse)
-async def delete_all_notifications(request: Request) -> dict[str, Any]:
+async def delete_all_notifications(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Delete all notifications."""
     storage = _get_storage(request)
     deleted = storage.delete_all()
@@ -139,7 +153,10 @@ async def delete_all_notifications(request: Request) -> dict[str, Any]:
 
 
 @router.get("/stream")
-async def notification_stream(request: Request) -> Any:
+async def notification_stream(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> Any:
     """SSE endpoint for real-time notification streaming."""
     from src.infrastructure.notifications.broadcaster import get_notification_broadcaster
 

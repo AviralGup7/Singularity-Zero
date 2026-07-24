@@ -1,5 +1,6 @@
 """File upload vulnerability active probe."""
 
+import logging
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
@@ -9,7 +10,7 @@ import requests
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.scoring import normalized_confidence
 from src.core.utils.url_validation import is_safe_url
-import logging
+
 logger = logging.getLogger(__name__)
 
 

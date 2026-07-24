@@ -35,27 +35,36 @@ def _stage_safe_name(stage_name: str) -> str:
 
 class LocalArtifactStore(ArtifactStore):
     def __init__(self, root: Path) -> None:
-        self._root = Path(root)
+        self._root = Path(root).resolve()
         self._root.mkdir(parents=True, exist_ok=True)
 
+    def _safe_path(self, key: str) -> Path:
+        resolved = (self._root / key.lstrip("/\\")).resolve()
+        if not resolved.is_relative_to(self._root):
+            raise ValueError(f"Path traversal detected: {key!r}")
+        return resolved
+
     def put(self, key: str, payload: bytes) -> str:
-        path = self._root / key
+        path = self._safe_path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
         return str(path)
 
     def get(self, key: str) -> bytes:
-        return (self._root / key).read_bytes()
+        return self._safe_path(key).read_bytes()
 
     def exists(self, key: str) -> bool:
-        return (self._root / key).exists()
+        try:
+            return self._safe_path(key).exists()
+        except ValueError:
+            return False
 
     def delete(self, key: str) -> None:
-        path = self._root / key
         try:
+            path = self._safe_path(key)
             path.unlink()
-        except FileNotFoundError:
-            logger.debug("File to delete not found: %s", path)
+        except (FileNotFoundError, ValueError):
+            logger.debug("File to delete not found or invalid: %s", key)
 
     def list(self, prefix: str = "") -> list[str]:
         prefix_path = self._root / prefix
@@ -125,7 +134,12 @@ class LocalCheckpointStore(CheckpointStore):
             )
             if not candidates:
                 return None
-            return dict(json.loads(candidates[-1].read_text(encoding="utf-8")))
+            try:
+                data = json.loads(candidates[-1].read_text(encoding="utf-8"))
+                return dict(data) if isinstance(data, dict) else None
+            except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+                logger.warning("Failed to parse latest checkpoint for run %s: %s", run_id, exc)
+                return None
 
         latest: tuple[int, float, dict[str, Any]] | None = None
         for folder in self._root.iterdir():

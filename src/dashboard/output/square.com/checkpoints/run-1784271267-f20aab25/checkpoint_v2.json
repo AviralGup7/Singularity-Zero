@@ -1,0 +1,37 @@
+{
+  "artifact_hashes": {},
+  "checkpoint_version": 2,
+  "checksum": "8fc17f2e6e38abf6219609a77fc622ca70fe19fd220e9dc5b37aeb053bd7df4f",
+  "completed_stages": [
+    "git_secret_scan",
+    "subdomains"
+  ],
+  "crash_recovery": false,
+  "current_stage": null,
+  "first_failure": null,
+  "iterative_state": {},
+  "last_checkpoint_at": 1784271396.2803612,
+  "module_metrics": {
+    "git_secret_scan_started_at": 1784271268.8283281,
+    "subdomains_started_at": 1784271267.9468203
+  },
+  "nuclei_state": {},
+  "pipeline_run_id": "run-1784271267-f20aab25",
+  "previous_findings": [],
+  "recovery_from": null,
+  "scanned_assets": [],
+  "schema_version": 2,
+  "source_node": "",
+  "stage_deltas": {},
+  "stage_results": {
+    "git_secret_scan": {
+      "elapsed_seconds": 19.569711923599243,
+      "status": "completed"
+    },
+    "subdomains": {
+      "elapsed_seconds": 128.33354091644287,
+      "status": "completed"
+    }
+  },
+  "started_at": 1784271267.9468203
+}

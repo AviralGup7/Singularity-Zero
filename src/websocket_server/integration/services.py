@@ -91,6 +91,7 @@ class WSServices:
         detail: str = "",
         status: str = "running",
     ) -> None:
+        from src.core.utils.async_bridge import run_async_in_sync_context
         msg = ProgressMessage(
             job_id=job_id,
             stage=stage,
@@ -98,7 +99,7 @@ class WSServices:
             detail=detail,
             status=status,
         )
-        self._broadcast_to_job_and_tenant(job_id, msg)
+        run_async_in_sync_context(self._broadcast_to_job_and_tenant(job_id, msg))
 
     def broadcast_telemetry(
         self,
@@ -107,10 +108,11 @@ class WSServices:
         data: dict[str, Any],
     ) -> None:
         try:
+            from src.core.utils.async_bridge import run_async_in_sync_context
             from src.websocket_server.protocol import TelemetryMessage
 
             msg = TelemetryMessage(job_id=job_id, data=data)
-            self._broadcast_to_job_and_tenant(job_id, msg)
+            run_async_in_sync_context(self._broadcast_to_job_and_tenant(job_id, msg))
         except Exception as exc:
             logger.debug("Telemetry broadcast failed for %s: %s", job_id, exc)
 
@@ -122,14 +124,14 @@ class WSServices:
         detail: str = "",
         exit_code: int | None = None,
     ) -> None:
-
+        from src.core.utils.async_bridge import run_async_in_sync_context
         msg = StatusMessage(
             job_id=job_id,
             status=status,
             detail=detail,
             exit_code=exit_code,
         )
-        self._broadcast_to_job_and_tenant(job_id, msg)
+        run_async_in_sync_context(self._broadcast_to_job_and_tenant(job_id, msg))
 
     def broadcast_log(
         self,
@@ -138,24 +140,23 @@ class WSServices:
         *,
         source: str = "stdout",
     ) -> None:
+        from src.core.utils.async_bridge import run_async_in_sync_context
         msg = LogMessage(
             job_id=job_id,
             line=line,
             source=source,
         )
-        self._broadcast_to_job_and_tenant(job_id, msg)
+        run_async_in_sync_context(self._broadcast_to_job_and_tenant(job_id, msg))
 
-    def _broadcast_to_job_and_tenant(self, job_id: str, msg: Any) -> None:
-        import json
-
-        payload = msg.model_dump_json() if hasattr(msg, "model_dump_json") else json.dumps(msg)
-        self.broadcaster.publish(f"job:{job_id}", payload)
+    async def _broadcast_to_job_and_tenant(self, job_id: str, msg: Any) -> int:
+        count = await self.broadcaster.broadcast_to_group(f"job:{job_id}", msg)
         tenant = self._tenant_for_job(job_id)
         if tenant:
-            self.broadcaster.publish(f"global:{tenant}", payload)
+            count += await self.broadcaster.broadcast_to_group(f"global:{tenant}", msg)
+        return count
 
-    def _broadcast_to_job_and_global(self, job_id: str, msg: Any) -> None:
-        self._broadcast_to_job_and_tenant(job_id, msg)
+    async def _broadcast_to_job_and_global(self, job_id: str, msg: Any) -> int:
+        return await self._broadcast_to_job_and_tenant(job_id, msg)
 
     def start_cleanup_loop(self, interval: float = 30.0) -> None:
         async def _cleanup() -> None:
@@ -175,6 +176,12 @@ class WSServices:
     def shutdown(self) -> None:
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
-        self.heartbeat.stop_all()
-        self.broadcaster.close()
-        self.manager.close_all()
+        from src.core.utils.async_bridge import run_async_in_sync_context
+        try:
+            run_async_in_sync_context(self.heartbeat.stop_all())
+        except Exception as exc:
+            logger.debug("Failed to stop heartbeat monitor: %s", exc)
+        try:
+            run_async_in_sync_context(self.manager.close_all())
+        except Exception as exc:
+            logger.debug("Failed to close connection manager: %s", exc)

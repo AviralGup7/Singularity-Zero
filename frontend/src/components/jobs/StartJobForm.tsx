@@ -193,19 +193,21 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
         <form onSubmit={handleSubmit} className="card card-padded">
           {form.error && <div className="banner error" role="alert">{form.error}</div>}
 
-          <div className="wizard-progress">
+          <div className="wizard-progress" role="navigation" aria-label="Scan wizard steps">
             {STEPS.map((label, idx) => (
               <button
                 key={label}
                 type="button"
                 className={`wizard-step-indicator ${idx === currentStep ? 'active' : ''} ${idx < currentStep ? 'completed' : ''}`}
                 onClick={() => { if (idx < currentStep) setCurrentStep(idx); }}
+                aria-current={idx === currentStep ? 'step' : undefined}
+                aria-label={`Step ${idx + 1}: ${label}${idx < currentStep ? ' (completed)' : idx === currentStep ? ' (current)' : ''}`}
               >
                 <span className="wizard-step-number">{idx + 1}</span>
                 <span className="wizard-step-label">{label}</span>
               </button>
             ))}
-            <div className="wizard-progress-bar">
+            <div className="wizard-progress-bar" role="progressbar" aria-valuenow={currentStep + 1} aria-valuemin={1} aria-valuemax={STEPS.length} aria-label={`Step ${currentStep + 1} of ${STEPS.length}`}>
               <div className="wizard-progress-fill" style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }} />
             </div>
           </div>
@@ -268,22 +270,22 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
 
           <div className="flex gap-8 mt-16 wizard-nav">
             {currentStep > 0 && (
-              <button type="button" className="btn btn-secondary btn-lg" onClick={handleBack}>
+              <button type="button" className="btn btn-secondary btn-lg focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none" onClick={handleBack}>
                 Back
               </button>
             )}
             {currentStep < STEPS.length - 1 ? (
-              <button type="button" className="btn btn-primary btn-lg" onClick={handleNext}>
+              <button type="button" className="btn btn-primary btn-lg focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none" onClick={handleNext}>
                 Next
               </button>
             ) : (
-              <button type="submit" className="btn btn-primary btn-lg" disabled={submitting}>
+              <button type="submit" className="btn btn-primary btn-lg focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none" disabled={submitting}>
                 {submitting ? 'Starting...' : 'Start Scan'}
               </button>
             )}
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => setExpanded(false)}
             >
               Cancel

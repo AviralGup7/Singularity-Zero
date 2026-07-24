@@ -21,42 +21,36 @@ logger = logging.getLogger(__name__)
 
 
 def _build_resume_stage_order() -> tuple[str, ...]:
-    """Derive resume stage order from the pipeline graph (single source of truth).
-
-    Falls back to a hardcoded tuple only if the graph cannot be loaded,
-    ensuring new stages added to the pipeline are automatically included
-    in resume planning.
-    """
-    try:
-        from src.pipeline.services.pipeline_orchestrator._constants import STAGE_ORDER
-
-        return tuple(STAGE_ORDER)
-    except Exception:
-        logger.warning(
-            "Could not load STAGE_ORDER from pipeline graph; "
-            "using hardcoded fallback. New pipeline stages will be missing.",
-            exc_info=True,
-        )
-        return (
-            "subdomains",
-            "subdomain_takeover",
-            "live_hosts",
-            "waf",
-            "urls",
-            "git_diff_crawl",
-            "parameters",
-            "ranking",
-            "passive_scan",
-            "active_scan",
-            "semgrep",
-            "nuclei",
-            "access_control",
-            "validation",
-            "intelligence",
-            "threat_modeling",
-            "reporting",
-            "sarif_export",
-        )
+    """Derive resume stage order."""
+    return (
+        "subdomains",
+        "sca_scan",
+        "container_scan",
+        "iac_scan",
+        "sbom_generate",
+        "sbom_diff",
+        "git_secret_scan",
+        "live_hosts",
+        "subdomain_takeover",
+        "waf",
+        "urls",
+        "git_diff_crawl",
+        "parameters",
+        "scope_stage",
+        "ranking",
+        "passive_scan",
+        "active_scan",
+        "semgrep",
+        "nuclei",
+        "access_control",
+        "validation",
+        "intelligence",
+        "threat_modeling",
+        "reporting",
+        "sarif_export",
+        "ci_export",
+        "dedup_stage",
+    )
 
 
 _RESUME_STAGE_ORDER: tuple[str, ...] = _build_resume_stage_order()
@@ -94,8 +88,15 @@ RESUME_BEHAVIORS: dict[str, StageResumeBehavior] = {
     "sbom_generate": StageResumeBehavior.USE_PREVIOUS,
     "sbom_diff": StageResumeBehavior.IDEMPOTENT_MERGE,
     "reporting": StageResumeBehavior.MUST_RE_RUN,
-    "scope_parser": StageResumeBehavior.IDEMPOTENT_MERGE,
-    "session_provisioning": StageResumeBehavior.USE_CACHED,
+    "scope_stage": StageResumeBehavior.IDEMPOTENT_MERGE,
+    "subdomain_takeover": StageResumeBehavior.USE_CACHED,
+    "waf": StageResumeBehavior.USE_CACHED,
+    "git_diff_crawl": StageResumeBehavior.USE_CACHED,
+    "intelligence": StageResumeBehavior.IDEMPOTENT_MERGE,
+    "threat_modeling": StageResumeBehavior.IDEMPOTENT_MERGE,
+    "sarif_export": StageResumeBehavior.USE_CACHED,
+    "ci_export": StageResumeBehavior.USE_CACHED,
+    "dedup_stage": StageResumeBehavior.USE_CACHED,
 }
 
 # ------------------------------------------------------------------

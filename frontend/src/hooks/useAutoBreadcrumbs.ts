@@ -3,6 +3,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { ROUTES } from '@/config/paths';
 import { getJob } from '@/api/client';
 import type { BreadcrumbItem } from '@/components/ui/Breadcrumbs';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 function useJobName(jobId: string | undefined) {
    
@@ -14,6 +15,10 @@ function useJobName(jobId: string | undefined) {
     getJob(jobId).then(job => {
       if (!cancelled && job) {
         setJobName(job.target_name || job.id);
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        showErrorToast(err, 'Failed to load job name');
       }
     });
     return () => { cancelled = true; };
@@ -85,10 +90,22 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
         href: ROUTES.COCKPIT,
         isCurrent: true,
       });
-    } else if (segments[0] === 'risk-score') {
+    } else if (segments[0] === 'risk') {
       items.push({
-        label: 'Risk Score',
-        href: ROUTES.RISK_SCORE,
+        label: 'Risk',
+        href: ROUTES.RISK_HUB,
+        isCurrent: true,
+      });
+    } else if (segments[0] === 'governance') {
+      items.push({
+        label: 'Governance',
+        href: ROUTES.GOVERNANCE_HUB,
+        isCurrent: true,
+      });
+    } else if (segments[0] === 'detection-quality') {
+      items.push({
+        label: 'Detection Quality',
+        href: ROUTES.DETECTION_QUALITY,
         isCurrent: true,
       });
     } else if (segments[0] === 'reports') {

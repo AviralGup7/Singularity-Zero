@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef  } from 'react';
+import type {ReactNode} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, AlertTriangle, Info, AlertOctagon, ChevronDown } from 'lucide-react';
 import { ToastContext } from '@/hooks/useToast';
@@ -96,22 +97,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                       'color-mix(in srgb, var(--info) 15%, transparent)',
                   }}
                 >
-                  {toast.type === 'success' && <CheckCircle size={16} style={{ color: 'var(--ok)' }} />}
-                  {toast.type === 'error' && <AlertOctagon size={16} style={{ color: 'var(--bad)' }} />}
-                  {toast.type === 'warning' && <AlertTriangle size={16} style={{ color: 'var(--warn)' }} />}
-                  {toast.type === 'info' && <Info size={16} style={{ color: 'var(--info)' }} />}
+                  {toast.type === 'success' && <CheckCircle size={16} className="text-ok" />}
+                  {toast.type === 'error' && <AlertOctagon size={16} className="text-bad" />}
+                  {toast.type === 'warning' && <AlertTriangle size={16} className="text-warn" />}
+                  {toast.type === 'info' && <Info size={16} className="text-info" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)]/80 mb-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-primary/80 mb-0.5">
                     {toast.type === 'success' ? 'Success' :
                      toast.type === 'error' ? 'Error' :
                      toast.type === 'warning' ? 'Warning' : 'Notice'}
                   </p>
-                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                  <p className="text-xs text-text-secondary leading-relaxed">
                     {toast.message}
                   </p>
                   {toast.duration !== undefined && toast.duration > 0 && (
-                    <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--border) 50%, transparent)' }}>
+                    <div className="mt-2.5 h-1 rounded-full overflow-hidden bg-line/50">
                       <div className="h-full rounded-full"
                         style={{
                           background: toast.type === 'success' ? 'var(--ok)' :
@@ -125,7 +126,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </div>
                 <button
                   onClick={() => removeToast(toast.id)}
-                  className="shrink-0 h-6 w-6 rounded-md flex items-center justify-center text-[var(--text-tertiary)] hover:bg-white/5 hover:text-[var(--text-primary)] transition-all duration-150"
+                  className="shrink-0 h-6 w-6 rounded-md flex items-center justify-center text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-all duration-150"
                   aria-label="Dismiss notification"
                 >
                   <X size={14} />
@@ -137,7 +138,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {overflowCount > 0 && !showAll && (
           <button
             onClick={() => setShowAll(true)}
-            className="pointer-events-auto flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-[var(--text-secondary)] bg-[var(--surface)]/80 border border-[var(--glass-border)] backdrop-blur-md hover:text-[var(--text-primary)] transition-all"
+            className="pointer-events-auto flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-text-secondary bg-surface/80 border border-line backdrop-blur-md hover:text-text-primary transition-all"
           >
             <ChevronDown size={14} />
             View {overflowCount} more
@@ -146,7 +147,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {showAll && toasts.length > MAX_VISIBLE_TOASTS && (
           <button
             onClick={() => setShowAll(false)}
-            className="pointer-events-auto flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-[var(--text-secondary)] bg-[var(--surface)]/80 border border-[var(--glass-border)] backdrop-blur-md hover:text-[var(--text-primary)] transition-all"
+            className="pointer-events-auto flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-text-secondary bg-surface/80 border border-line backdrop-blur-md hover:text-text-primary transition-all"
           >
             Show less
           </button>

@@ -26,11 +26,12 @@ Operational guarantees
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 import time
 from collections.abc import Generator
 from typing import Any
 
-from src.core.models.config import Config
+from src.core.config.typed_config import PipelineConfig
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.health import (
@@ -58,6 +59,8 @@ from src.recon.collectors.providers import (
     wayback as _wayback,
 )
 from src.recon.collectors.types import CollectorMeta, CollectorStatus
+
+logger = logging.getLogger(__name__)
 
 # Re-export provider modules at module level so existing test patches
 # such as ``patch.object(aggregator_stream.wayback, "collect_for_hosts", ...)``
@@ -105,7 +108,7 @@ def _resolve_provider_timeout(timeout_seconds: int | None) -> float:
 def collect_urls_stream(
     live_hosts: set[str],
     scope_entries: list[str],
-    config: Config,
+    config: PipelineConfig,
     progress_callback: Any = None,
     stage_meta: dict[str, Any] | None = None,
 ) -> Generator[str, None, dict[str, Any]]:

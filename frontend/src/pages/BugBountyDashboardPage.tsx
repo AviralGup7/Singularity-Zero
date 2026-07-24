@@ -11,8 +11,10 @@ import type { Finding } from '@/types/api';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { SubmitToPlatformDialog } from '@/features/findings/components/SubmitToPlatformDialog';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
 
 function getCVSSScore(f: Finding): number {
@@ -53,11 +55,11 @@ export function BugBountyDashboardPage() {
       const data = await getFindings();
       setFindings(data);
     } catch {
-      toast.error('Failed to load findings data');
+      showErrorToast('Failed to load findings for bounty dashboard');
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -145,7 +147,7 @@ export function BugBountyDashboardPage() {
       setFindings(prev => prev.map(item => item.id === f.id ? { ...item, already_reported: nextVal } : item));
       toast.success(nextVal ? 'Finding marked as submitted' : 'Finding marked as pending');
     } catch {
-      toast.error('Unable to update reporting status');
+      showErrorToast('Failed to update finding reporting status');
     }
   };
 
@@ -171,7 +173,7 @@ export function BugBountyDashboardPage() {
       toast.success('Bounty details updated');
       setEditingFinding(null);
     } catch {
-      toast.error('Failed to update bounty details');
+      showErrorToast('Failed to update bounty details');
     }
   };
 
@@ -194,7 +196,19 @@ export function BugBountyDashboardPage() {
         }
       />
 
-      {/* Stats Cards HUD */}
+      {loading && findings.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : findings.length === 0 ? (
+        <EmptyState
+          title="No findings loaded"
+          description="No bounty findings are available yet. Run a scan to discover potential bounty-eligible vulnerabilities."
+        />
+      ) : (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <GlassCard variant="glow" hoverable={false} className="p-6 relative overflow-hidden">
           <div className="text-[10px] font-black text-muted uppercase tracking-wider mb-2">Total Potential Payouts</div>
@@ -210,7 +224,7 @@ export function BugBountyDashboardPage() {
 
         <GlassCard variant="default" hoverable={false} className="p-6">
           <div className="text-[10px] font-black text-muted uppercase tracking-wider mb-2">Triage Queue Length</div>
-          <div className="text-3xl font-black text-white">{stats.pending}</div>
+          <div className="text-3xl font-black text-text-primary">{stats.pending}</div>
           <p className="text-[9px] text-muted mt-2 font-mono uppercase">High-impact unreported leads</p>
         </GlassCard>
 
@@ -229,10 +243,10 @@ export function BugBountyDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Platform Share Widget */}
         <GlassCard variant="default" hoverable={false} className="lg:col-span-2 p-6">
-          <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-white">Platform Allocation & Yields</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-text-primary">Platform Allocation & Yields</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {Object.entries(platformStats).map(([platform, pStat]) => (
-              <div key={platform} className="bg-black/30 border border-white/5 rounded-xl p-3 flex flex-col justify-between">
+              <div key={platform} className="bg-surface-2 border border-line rounded-xl p-3 flex flex-col justify-between">
                 <div className="text-[9px] font-black uppercase tracking-widest text-muted">{platform}</div>
                 <div className="mt-3">
                   <div className="text-lg font-bold text-text">${pStat.value.toLocaleString()}</div>
@@ -261,7 +275,7 @@ export function BugBountyDashboardPage() {
       {/* Triage Queue Table */}
       <GlassCard variant="default" hoverable={false} className="p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-white">Active Triage Queue</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary">Active Triage Queue</h3>
           
           <div className="flex flex-wrap items-center gap-2 flex-1 max-w-2xl justify-end">
             {/* Search */}
@@ -281,7 +295,7 @@ export function BugBountyDashboardPage() {
             <select
               value={selectedPlatform}
               onChange={e => setSelectedPlatform(e.target.value)}
-              className="form-input text-xs font-mono bg-[#151515]"
+              className="form-input text-xs font-mono bg-surface"
               aria-label="Filter by platform"
             >
               <option value="all">Platform: All</option>
@@ -296,7 +310,7 @@ export function BugBountyDashboardPage() {
             <select
               value={selectedSeverity}
               onChange={e => setSelectedSeverity(e.target.value)}
-              className="form-input text-xs font-mono bg-[#151515]"
+              className="form-input text-xs font-mono bg-surface"
               aria-label="Filter by severity"
             >
               <option value="all">Severity: All</option>
@@ -310,7 +324,7 @@ export function BugBountyDashboardPage() {
             <select
               value={selectedStatus}
               onChange={e => setSelectedStatus(e.target.value)}
-              className="form-input text-xs font-mono bg-[#151515]"
+              className="form-input text-xs font-mono bg-surface"
               aria-label="Filter by submission status"
             >
               <option value="all">Status: All</option>
@@ -359,7 +373,7 @@ export function BugBountyDashboardPage() {
                   const platformLabel = f.bounty_source || 'estimate';
                   
                   return (
-                    <tr key={f.id} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={f.id} className="hover:bg-surface-hover transition-colors">
                       <td>
                         <span className={`status-badge status-${f.severity}`}>
                           {f.severity.toUpperCase()}
@@ -379,14 +393,14 @@ export function BugBountyDashboardPage() {
                           <button 
                             type="button" 
                             onClick={() => handleOpenEditBounty(f)}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/5 transition-all text-muted hover:text-white cursor-pointer"
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-hover transition-all text-muted hover:text-text-primary cursor-pointer"
                           >
                             <Edit2 size={10} />
                           </button>
                         </div>
                       </td>
                       <td>
-                        <span className="text-[10px] font-mono uppercase bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-muted">
+                        <span className="text-[10px] font-mono uppercase bg-surface-hover border border-line px-1.5 py-0.5 rounded text-muted">
                           {platformLabel}
                         </span>
                       </td>
@@ -416,7 +430,7 @@ export function BugBountyDashboardPage() {
                             type="button"
                             onClick={() => handleOpenSubmitDialog(f)}
                             disabled={isReported}
-                            className="btn btn-primary btn-xs uppercase text-[9px] font-black flex items-center gap-1 shadow-[0_0_10px_rgba(0,255,65,0.1)]"
+                            className="btn btn-primary btn-xs uppercase text-[9px] font-black flex items-center gap-1 shadow-glow-accent-sm"
                           >
                             <Send size={10} /> Submit
                           </button>
@@ -428,20 +442,22 @@ export function BugBountyDashboardPage() {
               )}
             </tbody>
           </table>
-        </div>
+      </div>
       </GlassCard>
+      </>
+      )}
 
       {/* Edit Bounty Modal */}
       <AnimatePresence>
         {editingFinding && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-panel p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm rounded-2xl border border-white/10 bg-bg p-6 shadow-xl space-y-4"
+              className="w-full max-w-sm rounded-2xl border border-line bg-bg p-6 shadow-xl space-y-4"
             >
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white">Edit Bounty Lead</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary">Edit Bounty Lead</h3>
               <p className="text-xs text-muted max-w-xs truncate">{editingFinding.title}</p>
               
               <div className="space-y-3 pt-2">
@@ -451,7 +467,7 @@ export function BugBountyDashboardPage() {
                     type="number"
                     value={editBountyVal}
                     onChange={e => setEditBountyVal(Number(e.target.value))}
-                    className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-xs font-mono text-text focus:border-accent/50 outline-none"
+                    className="w-full mt-1 bg-surface-hover border border-line rounded-lg py-2 px-3 text-xs font-mono text-text focus:border-accent/50 outline-none"
                   />
                 </label>
 
@@ -460,7 +476,7 @@ export function BugBountyDashboardPage() {
                   <select
                     value={editSource}
                     onChange={e => setEditSource(e.target.value as 'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate' | 'synack')}
-                    className="w-full mt-1 bg-[#151515] border border-white/10 rounded-lg py-2 px-3 text-xs font-mono text-text focus:border-accent/50 outline-none"
+                    className="w-full mt-1 bg-surface border border-line rounded-lg py-2 px-3 text-xs font-mono text-text focus:border-accent/50 outline-none"
                   >
                     <option value="estimate">Estimate</option>
                     <option value="hackerone">HackerOne</option>
@@ -472,11 +488,11 @@ export function BugBountyDashboardPage() {
                 </label>
               </div>
 
-              <div className="pt-4 flex justify-end gap-2 border-t border-white/5">
+              <div className="pt-4 flex justify-end gap-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setEditingFinding(null)}
-                  className="rounded border border-white/10 px-3.5 py-2 text-xs text-text hover:bg-white/5 cursor-pointer"
+                  className="rounded border border-line px-3.5 py-2 text-xs text-text hover:bg-surface-hover cursor-pointer"
                 >
                   Cancel
                 </button>

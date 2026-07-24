@@ -6,7 +6,7 @@ enabling coverage reporting against industry-standard vulnerability classificati
 
 from typing import Any
 
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.core.plugins import register_plugin
 
 P1_VRT_CATALOG = [
@@ -318,7 +318,7 @@ ENRICHMENT_PROVIDER = "enrichment_provider"
 
 
 @register_plugin(ENRICHMENT_PROVIDER, "p1_vrt_coverage")
-def build_p1_vrt_coverage(config: Config) -> dict[str, Any]:
+def build_p1_vrt_coverage(config: PipelineConfig) -> dict[str, Any]:
     entries = []
     counts = {
         "requested_total": len(P1_VRT_CATALOG),
@@ -370,6 +370,6 @@ _CHECK_MAPPING = {
 }
 
 
-def _check_enabled(config: Config, check_name: str) -> bool:
+def _check_enabled(config: PipelineConfig, check_name: str) -> bool:
     config_key = _CHECK_MAPPING.get(check_name, check_name)
     return bool(config.analysis.get(config_key, True))

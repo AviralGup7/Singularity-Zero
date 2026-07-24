@@ -103,7 +103,7 @@ export function DataTable<T extends Record<string, unknown>>({
       <div
         className={cn(
    
-          'w-full border border-[var(--line)] bg-[var(--panel)] p-8 text-center text-[var(--muted)] font-mono',
+          'w-full border border-line bg-panel p-8 text-center text-muted font-mono',
           className
         )}
         role="status"
@@ -115,18 +115,18 @@ export function DataTable<T extends Record<string, unknown>>({
 
   return (
     <div className={cn('w-full', className)}>
-      <div className="overflow-x-auto border border-[var(--line)] bg-[var(--panel)]">
+      <div className="overflow-x-auto border border-line bg-panel">
         <table className="w-full text-[length:var(--text-sm)] font-mono">
-          <thead className="bg-[var(--table-header-bg)] border-b border-[var(--line)]">
+          <thead className="bg-surface-2 border-b border-line">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
                   className={cn(
    
-                    'px-3 py-2 text-left text-[var(--muted)] uppercase tracking-wider',
+                    'px-3 py-2 text-left text-muted uppercase tracking-wider',
    
-                    col.sortable && 'cursor-pointer select-none hover:text-[var(--accent)]',
+                    col.sortable && 'cursor-pointer select-none hover:text-accent',
                     col.className
                   )}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
@@ -158,14 +158,14 @@ export function DataTable<T extends Record<string, unknown>>({
                   key={key}
                   className={cn(
    
-                    'border-b border-[var(--line)] transition-colors hover:bg-[var(--table-row-hover)]',
+                    'border-b border-line transition-colors hover:bg-surface-hover',
                     onRowClick && 'cursor-pointer'
                   )}
                   onClick={onRowClick ? () => onRowClick(item) : undefined}
                 >
                   {columns.map((col) => (
    
-                    <td key={col.key} className={cn('px-3 py-2 text-[var(--text)]', col.className)}>
+                    <td key={col.key} className={cn('px-3 py-2 text-text', col.className)}>
                       {col.render ? col.render(item) : (item[col.key as keyof T] as React.ReactNode)}
                     </td>
                   ))}
@@ -178,13 +178,13 @@ export function DataTable<T extends Record<string, unknown>>({
 
       {totalPages > 1 && (
    
-        <div className="flex items-center justify-between px-2 py-2 text-[length:var(--text-xs)] font-mono text-[var(--muted)]">
+        <div className="flex items-center justify-between px-2 py-2 text-[length:var(--text-xs)] font-mono text-muted">
           <span>Page {safePage} of {totalPages}</span>
           <span>({sortedData.length} items)</span>
           <div className="flex items-center gap-1">
             <button
    
-              className="px-2 py-1 border border-[var(--line)] bg-transparent text-[var(--text)] hover:bg-[var(--hover-bg)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-1 border border-line bg-transparent text-text hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
               aria-label="Previous page"
@@ -196,12 +196,12 @@ export function DataTable<T extends Record<string, unknown>>({
                 key={page}
                 className={cn(
    
-                  'px-2 py-1 border border-[var(--line)] transition-colors',
+                  'px-2 py-1 border border-line transition-colors',
                   page === safePage
    
-                    ? 'bg-[var(--accent)] text-[var(--bg)] border-[var(--accent)]'
+                    ? 'bg-accent text-bg border-accent'
    
-                    : 'bg-transparent text-[var(--text)] hover:bg-[var(--hover-bg)]'
+                    : 'bg-transparent text-text hover:bg-surface-hover'
                 )}
                 onClick={() => setCurrentPage(page)}
                 aria-label={`Page ${page}`}
@@ -212,7 +212,7 @@ export function DataTable<T extends Record<string, unknown>>({
             ))}
             <button
    
-              className="px-2 py-1 border border-[var(--line)] bg-transparent text-[var(--text)] hover:bg-[var(--hover-bg)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-1 border border-line bg-transparent text-text hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
               aria-label="Next page"

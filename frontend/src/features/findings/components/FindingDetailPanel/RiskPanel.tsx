@@ -11,21 +11,21 @@ export function RiskPanel({ finding, reviewerId }: RiskPanelProps) {
   return (
     <div className="space-y-6" data-testid="finding-risk-panel">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="glass-panel border border-white/5 rounded-xl p-4">
+        <div className="glass-panel border border-line rounded-xl p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">Modern risk</div>
           <div className="text-2xl font-black text-text">
             {(finding.modern_risk_score ?? 0).toFixed(1)}
           </div>
           <div className="text-[10px] font-mono text-muted">/ 100</div>
         </div>
-        <div className="glass-panel border border-white/5 rounded-xl p-4">
+        <div className="glass-panel border border-line rounded-xl p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">Remediation priority</div>
           <div className="text-2xl font-black text-accent">
             {(finding.remediation_priority ?? 0).toFixed(1)}
           </div>
           <div className="text-[10px] font-mono text-muted">/ 100</div>
         </div>
-        <div className="glass-panel border border-white/5 rounded-xl p-4">
+        <div className="glass-panel border border-line rounded-xl p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">CVSS v4</div>
           <div className="text-2xl font-black text-text">
             {(finding.cvss_v4_score ?? finding.cvss_score ?? 0).toFixed(1)}
@@ -47,7 +47,7 @@ export function RiskPanel({ finding, reviewerId }: RiskPanelProps) {
             value: finding.control_discount != null ? `${((1 - finding.control_discount) * 100).toFixed(0)}%` : '—',
           },
         ].map((item) => (
-          <div key={item.label} className="glass-panel border border-white/5 rounded-xl p-3">
+          <div key={item.label} className="glass-panel border border-line rounded-xl p-3">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted">{item.label}</div>
             <div className="text-sm font-mono text-text">{item.value}</div>
           </div>
@@ -55,7 +55,7 @@ export function RiskPanel({ finding, reviewerId }: RiskPanelProps) {
       </div>
 
       {finding.remediation_priority_reasons && finding.remediation_priority_reasons.length > 0 && (
-        <div className="glass-panel border border-white/5 rounded-xl p-3">
+        <div className="glass-panel border border-line rounded-xl p-3">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-2">
             Why this is prioritised
           </div>
@@ -73,7 +73,7 @@ export function RiskPanel({ finding, reviewerId }: RiskPanelProps) {
       )}
 
       {finding.attack_chain && (
-        <div className="glass-panel border border-white/5 rounded-xl p-3">
+        <div className="glass-panel border border-line rounded-xl p-3">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted mb-2">
             <GitBranch size={12} /> Attack Chain Membership
           </div>
@@ -86,7 +86,7 @@ export function RiskPanel({ finding, reviewerId }: RiskPanelProps) {
         </div>
       )}
 
-      <div className="glass-panel border border-white/5 rounded-xl p-3">
+      <div className="glass-panel border border-line rounded-xl p-3">
         <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-2">Lifecycle</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono text-text">
           {([

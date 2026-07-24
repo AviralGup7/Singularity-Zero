@@ -15,7 +15,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.recon.live_hosts import probe_live_hosts
 from src.recon.models import ReconCandidate
 from src.recon.scoring import infer_target_profile, rank_urls
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def run_recon_layer(
     scope_entries: list[str],
-    config: Config,
+    config: PipelineConfig,
     *,
     skip_crtsh: bool = False,
 ) -> dict[str, object]:
@@ -160,8 +160,8 @@ def _asn_cidrs_for_hosts(hosts: Iterable[str]) -> set[str]:
 
             ipaddress.ip_address(host)
             cidrs.add(host + "/32")
-        except ValueError as exc:
-            logger.warning("Operation failed in discovery.py: %s", exc, exc_info=True)  # noqa: BLE001
+        except ValueError:
+            pass
     return cidrs
 
 
@@ -301,7 +301,7 @@ def _run_azure_for_scope(
 
 def run_enhanced_recon_layer(
     scope_entries: list[str],
-    config: Config,
+    config: PipelineConfig,
     *,
     skip_crtsh: bool = False,
     progress_callback: Any | None = None,

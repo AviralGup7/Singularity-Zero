@@ -59,20 +59,20 @@ export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingC
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-panel p-4"
     >
       <div className="w-full max-w-4xl rounded-2xl border border-accent/20 bg-bg p-6 shadow-xl space-y-4 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wider text-accent flex items-center gap-2">
             <ArrowUpDown size={16} /> Finding Comparison
           </h3>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/5 text-muted hover:text-white transition-colors cursor-pointer">
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-surface-hover text-muted hover:text-text-primary transition-colors cursor-pointer">
             <X size={16} />
           </button>
         </div>
 
         <div className="grid grid-cols-[1fr_auto_1fr] gap-4">
-          <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
+          <div className="p-4 rounded-xl border border-line bg-surface-hover space-y-2">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted">Finding A</div>
             <div className="text-sm font-bold text-text truncate">{findingA.title}</div>
             <div className="text-[10px] font-mono text-muted truncate">{findingA.target || findingA.host || '—'}</div>
@@ -85,7 +85,7 @@ export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingC
             </div>
           </div>
 
-          <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
+          <div className="p-4 rounded-xl border border-line bg-surface-hover space-y-2">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted">Finding B</div>
             <div className="text-sm font-bold text-text truncate">{findingB.title}</div>
             <div className="text-[10px] font-mono text-muted truncate">{findingB.target || findingB.host || '—'}</div>
@@ -95,7 +95,7 @@ export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingC
 
         <div className="space-y-2">
           {diffFields.map((field) => (
-            <div key={field.label} className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center p-3 rounded-lg bg-white/[0.02] border border-white/5">
+            <div key={field.label} className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center p-3 rounded-lg bg-surface-hover border border-line">
               <div className={`text-center text-sm font-mono font-bold ${field.diff === 'higher' ? 'text-accent' : field.diff === 'lower' ? 'text-muted' : 'text-text'}`}>
                 {field.a}
               </div>

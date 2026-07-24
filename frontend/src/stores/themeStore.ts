@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { EffectCapability, MotionIntensity } from '@/lib/motionPolicy';
 import { safeStorage } from '@/utils/storage';
-import type { ThemeMode, ThemeState, ThemeUpdater } from '@/context/ThemeContext';
+import type { ThemeMode, ThemePreset, ThemeState, ThemeUpdater } from '@/context/ThemeContext';
 
 function detectSystemTheme(): ThemeMode {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -12,6 +12,7 @@ function detectSystemTheme(): ThemeMode {
 
 const defaultTheme: ThemeState = {
   mode: detectSystemTheme(),
+  preset: 'midnight',
   accentColor: '#3B82F6',
   motionIntensity: 'high' as MotionIntensity,
   effectCapability: 'auto' as EffectCapability,
@@ -33,9 +34,9 @@ function getInitialTheme(): ThemeState {
 const applyThemeSideEffects = (theme: ThemeState) => {
   if (typeof window === 'undefined') return;
 
-  // Use CSS View Transitions API for a smooth 200ms cross-fade when available
   const doUpdate = () => {
     document.documentElement.setAttribute('data-theme', theme.mode);
+    document.documentElement.setAttribute('data-theme-preset', theme.preset);
     if (theme.accentColor !== '#3B82F6') {
       document.documentElement.style.setProperty('--accent', theme.accentColor);
     } else {
@@ -61,7 +62,6 @@ export interface ThemeStore {
 export const useThemeStore = create<ThemeStore>((set) => {
   const initialTheme = getInitialTheme();
   
-  // Apply initial side effects on load
   applyThemeSideEffects(initialTheme);
 
   const updateTheme = (partial: Partial<ThemeState>) => {
@@ -77,6 +77,7 @@ export const useThemeStore = create<ThemeStore>((set) => {
     updater: {
       updateTheme,
       setThemeMode: (mode: ThemeMode) => updateTheme({ mode }),
+      setThemePreset: (preset: ThemePreset) => updateTheme({ preset }),
       setAccentColor: (accentColor: string) => updateTheme({ accentColor }),
       setMotionIntensity: (motionIntensity: MotionIntensity) => updateTheme({ motionIntensity }),
       setEffectCapability: (effectCapability: EffectCapability) => updateTheme({ effectCapability }),

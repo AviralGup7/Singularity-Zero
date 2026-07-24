@@ -154,6 +154,7 @@ class ConnectionManager:
         self.max_connection_attempts_per_minute = int(
             os.environ.get("WS_MAX_IP_CONN_ATTEMPTS_PER_MIN", "30")
         )
+        self.redis_presence_backend = redis_presence_backend
         self._lock = asyncio.Lock()
 
     async def connect(
@@ -251,8 +252,12 @@ class ConnectionManager:
                 return
 
             info.closed = True
+            try:
+                info.message_queue.put_nowait("")
+            except Exception:
+                pass
 
-            WS_CONNECTIONS.labels(user_id=info.user_id).dec()
+            WS_CONNECTIONS.dec()
 
             self.user_connections[info.user_id].discard(connection_id)
             if not self.user_connections[info.user_id]:

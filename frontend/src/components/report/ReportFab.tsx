@@ -33,8 +33,17 @@ export function ReportFab({ findings, filenameBase, context, label, targetName, 
         setOpen(false);
       }
     }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    }
     window.addEventListener('mousedown', onClick);
-    return () => window.removeEventListener('mousedown', onClick);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onClick);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   const handleSelect = (format: ExporterFormat) => {
@@ -50,11 +59,12 @@ export function ReportFab({ findings, filenameBase, context, label, targetName, 
       disabled={findings.length === 0}
       aria-haspopup="menu"
       aria-expanded={open}
+      aria-label={label ?? 'Generate Report'}
       data-testid="report-fab"
     >
-      <FileText size={14} />
+      <FileText size={14} aria-hidden="true" />
       <span>{label ?? 'Generate Report'}</span>
-      <ChevronUp size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      <ChevronUp size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
     </button>
   );
 

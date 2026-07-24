@@ -7,12 +7,10 @@ const STAGE_ORDER = [
   'subdomains',
   'live_hosts',
   'urls',
-  'recon_validation',
   'parameters',
   'ranking',
   'passive_scan',
   'active_scan',
-  'semgrep',
   'nuclei',
   'access_control',
   'validation',
@@ -39,16 +37,6 @@ function resolveStageOrder(jobs: Job[]): string[] {
   const addStage = (stageName: string | undefined) => {
     const normalized = normalizeStageName(stageName);
     if (!normalized || seen.has(normalized)) return;
-    if (normalized === 'recon_validation') {
-      const urlsIndex = order.indexOf('urls');
-      if (urlsIndex >= 0) {
-        order.splice(urlsIndex + 1, 0, normalized);
-      } else {
-        order.push(normalized);
-      }
-      seen.add(normalized);
-      return;
-    }
     order.push(normalized);
     seen.add(normalized);
   };
@@ -92,9 +80,21 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
       const errored = jobs.filter(job =>
         (job.stage_progress ?? []).some(entry => normalizeStageName(entry.stage) === stage && entry.status === 'error')
       ).length;
-      return { stage, active, completed, errored };
+
+      const percents: number[] = [];
+      for (const job of jobs) {
+        for (const entry of job.stage_progress ?? []) {
+          if (normalizeStageName(entry.stage) === stage && typeof entry.percent === 'number') {
+            percents.push(entry.percent);
+          }
+        }
+      }
+      const avgPercent = percents.length > 0
+        ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
+        : Math.min(100, active * 28 + completed * 8);
+
+      return { stage, active, completed, errored, avgPercent };
     });
-   
   }, [jobs]);
 
   useEffect(() => {
@@ -125,19 +125,26 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
   }, [policy.allowGsap, strategy.distance, strategy.duration, strategy.stagger]);
 
   return (
-    <div ref={rootRef} className="pipeline-timeline">
+    <div ref={rootRef} className="pipeline-timeline" role="list" aria-label="Pipeline stage timeline">
       {stageData.map((item) => (
-        <div key={item.stage} className="pipeline-timeline-node">
+        <div key={item.stage} className="pipeline-timeline-node" role="listitem" aria-label={`${item.stage.replace(/_/g, ' ')}: ${item.active} active, ${item.completed} complete, ${item.errored} error`}>
           <div className="pipeline-timeline-meta">
             <span className="pipeline-timeline-stage">{item.stage.replace(/_/g, ' ')}</span>
-            <span className="pipeline-timeline-counts">
+            <span className="pipeline-timeline-counts tabular-nums">
               {item.active} active · {item.completed} complete · {item.errored} error
             </span>
           </div>
-          <div className="pipeline-timeline-track">
+          <div
+            className="pipeline-timeline-track"
+            role="progressbar"
+            aria-valuenow={item.avgPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${item.stage.replace(/_/g, ' ')} progress`}
+          >
             <div
               className="pipeline-timeline-fill"
-              style={{ width: `${Math.min(100, item.active * 28 + item.completed * 8)}%` }}
+              style={{ width: `${Math.min(100, item.avgPercent)}%` }}
             />
           </div>
         </div>

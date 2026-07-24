@@ -18,37 +18,39 @@ export function ReviewStep({
   return (
     <div className="wizard-step-content">
       <h3 className="wizard-step-title">Review & Launch</h3>
-      <div className="review-summary card">
-        <div className="review-row">
-          <span className="review-label">Base URL:</span>
-          <span className="review-value">{baseUrl || '—'}</span>
-        </div>
-        <div className="review-row">
-          <span className="review-label">Scope:</span>
-          <span className="review-value">{scopeText || '—'}</span>
-        </div>
-        <div className="review-row">
-          <span className="review-label">Mode:</span>
-          <span className="review-value">{selectedMode}</span>
-        </div>
-        <div className="review-row">
-          <span className="review-label">Modules ({selectedModules.size}):</span>
-          <span className="review-value">{Array.from(selectedModules).join(', ')}</span>
-        </div>
-        <div className="review-row">
-          <span className="review-label">Execution Options:</span>
-          <span className="review-value">
-            {Object.entries(executionOptions).filter(([, v]) => v).map(([k]) => k.replace(/_/g, ' ')).join(', ') || 'None'}
-          </span>
-        </div>
-        {depWarnings.length > 0 && (
-          <div className="review-row review-row-warning">
-            <span className="review-label">Warnings:</span>
-            <span className="review-value">
-              {depWarnings.map(w => w.message).join('; ')}
-            </span>
+      <div className="review-summary card" role="region" aria-label="Scan configuration review">
+        <dl className="space-y-2">
+          <div className="review-row">
+            <dt className="review-label">Base URL:</dt>
+            <dd className="review-value" title={baseUrl || undefined}>{baseUrl || '\u2014'}</dd>
           </div>
-        )}
+          <div className="review-row">
+            <dt className="review-label">Scope:</dt>
+            <dd className="review-value" title={scopeText || undefined}>{scopeText || '\u2014'}</dd>
+          </div>
+          <div className="review-row">
+            <dt className="review-label">Mode:</dt>
+            <dd className="review-value">{selectedMode}</dd>
+          </div>
+          <div className="review-row">
+            <dt className="review-label">Modules (<span className="tabular-nums">{selectedModules.size}</span>):</dt>
+            <dd className="review-value">{Array.from(selectedModules).join(', ')}</dd>
+          </div>
+          <div className="review-row">
+            <dt className="review-label">Execution Options:</dt>
+            <dd className="review-value">
+              {Object.entries(executionOptions).filter(([, v]) => v).map(([k]) => k.replace(/_/g, ' ')).join(', ') || 'None'}
+            </dd>
+          </div>
+          {depWarnings.length > 0 && (
+            <div className="review-row review-row-warning">
+              <dt className="review-label">Warnings:</dt>
+              <dd className="review-value">
+                {depWarnings.map(w => w.message).join('; ')}
+              </dd>
+            </div>
+          )}
+        </dl>
       </div>
     </div>
   );

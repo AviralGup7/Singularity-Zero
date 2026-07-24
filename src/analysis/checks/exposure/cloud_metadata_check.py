@@ -14,8 +14,8 @@ from src.analysis.active.cloud_metadata import (
     INFRASTRUCTURE_SERVICE_PATHS,
 )
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
+from src.core.utils.scoring import severity_score
 
 CLOUD_METADATA_CHECK_SPEC = AnalysisPluginSpec(
     key="cloud_metadata_exposure_checker",

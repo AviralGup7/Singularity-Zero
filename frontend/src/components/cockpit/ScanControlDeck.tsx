@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getProjects, type Project } from '@/api/projects';
+import { getProjects  } from '@/api/projects';
+import type {Project} from '@/api/projects';
 
 interface SliderRowProps {
   label: string;
@@ -125,38 +126,38 @@ export function ScanControlDeck({
   ];
 
   return (
-    <div className={className ?? "absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-cyber rounded-xl border border-white/10 bg-black/80 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all"}>
-      <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-3">
+    <div className={className ?? "absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-cyber rounded-xl border border-line-strong bg-surface/80 p-5 shadow-panel-glass backdrop-blur-xl transition-all"}>
+              <div className="mb-4 flex items-center justify-between border-b border-line-muted pb-3">
         <div className="flex items-center gap-2">
           <div className="relative flex h-2 w-2">
             <span
               className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${
                 activeJob?.status === 'running'
-                  ? 'bg-amber-400'
+                  ? 'bg-warn'
                   : activeJob?.status === 'completed'
-                  ? 'bg-green-400'
+                  ? 'bg-ok'
                   : activeJob?.status === 'failed'
-                  ? 'bg-red-400'
+                  ? 'bg-bad'
                   : activeJob?.status === 'stopped'
-                  ? 'bg-rose-500'
-                  : 'bg-slate-400'
+                  ? 'bg-bad'
+                  : 'bg-text-tertiary'
               }`}
             />
             <span
               className={`relative inline-flex h-2 w-2 rounded-full ${
                 activeJob?.status === 'running'
-                  ? 'bg-amber-400 animate-pulse'
+                  ? 'bg-warn animate-pulse'
                   : activeJob?.status === 'completed'
-                  ? 'bg-green-400 animate-pulse'
+                  ? 'bg-ok animate-pulse'
                   : activeJob?.status === 'failed'
-                  ? 'bg-red-400 animate-pulse'
+                  ? 'bg-bad animate-pulse'
                   : activeJob?.status === 'stopped'
-                  ? 'bg-rose-500'
-                  : 'bg-slate-400'
+                  ? 'bg-bad'
+                  : 'bg-text-tertiary'
               }`}
             />
           </div>
-          <h3 className="font-sans text-[11px] font-black uppercase tracking-[0.2em] text-white">
+          <h3 className="font-sans text-[11px] font-black uppercase tracking-[0.2em] text-text-primary">
             Pipeline Control Deck
           </h3>
         </div>
@@ -164,7 +165,7 @@ export function ScanControlDeck({
         <button
           type="button"
           onClick={() => setIsDeckOpen(!isDeckOpen)}
-          className="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-white transition-colors"
+          className="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-text-primary transition-colors"
         >
           {isDeckOpen ? '[ Collapse ]' : '[ Expand ]'}
         </button>
@@ -184,7 +185,7 @@ export function ScanControlDeck({
                     value={inputTarget}
                     onChange={(e) => setInputTarget(e.target.value)}
                     placeholder="e.g. https://example.com"
-                    className="w-full rounded border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-text placeholder-white/20 outline-none focus:border-accent/40 transition-colors"
+                    className="w-full rounded border border-line bg-surface-hover px-3 py-2 font-mono text-xs text-text-primary placeholder:text-text-tertiary/40 outline-none focus:border-accent/40 transition-colors"
                   />
                 </label>
               </div>
@@ -203,7 +204,7 @@ export function ScanControlDeck({
                           e.stopPropagation();
                           setSelectedProject(null);
                         }}
-                        className="text-red-400 hover:text-red-300"
+                        className="text-bad hover:text-bad/80"
                       >
                         [clear]
                       </span>
@@ -211,7 +212,7 @@ export function ScanControlDeck({
                   </button>
 
                   {showProjects && !selectedProject && (
-                    <div className="space-y-1.5 rounded border border-white/5 bg-black/40 p-2.5 animate-fadeIn">
+                    <div className="space-y-1.5 rounded border border-line-muted bg-surface/40 p-2.5 animate-fadeIn">
                       {projects.map((project) => (
                         <button
                           key={project.id}
@@ -220,10 +221,10 @@ export function ScanControlDeck({
                             setSelectedProject(project);
                             setShowProjects(false);
                           }}
-                          className="w-full rounded border border-white/5 bg-white/5 p-2.5 text-left transition-all hover:bg-accent/10 hover:border-accent/30"
+                          className="w-full rounded border border-line-muted bg-surface-hover p-2.5 text-left transition-all hover:bg-accent/10 hover:border-accent/30"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-[10px] font-bold text-white">{project.name}</span>
+                            <span className="font-mono text-[10px] font-bold text-text-primary">{project.name}</span>
                             {project.rewards && (
                               <span className="font-mono text-[8px] text-accent">{project.rewards}</span>
                             )}
@@ -247,20 +248,22 @@ export function ScanControlDeck({
 
               <div className="space-y-2">
                 <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Scan Mode Preset</div>
-                <div className="flex gap-2">
+                <div className="flex gap-2" role="radiogroup" aria-label="Scan mode preset">
                   <button
                     type="button"
                     onClick={() => {
                       setScanMode('safe');
                       setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx']);
                     }}
+                    role="radio"
+                    aria-checked={scanMode === 'safe'}
                     className={`flex-1 flex flex-col items-start rounded-lg border p-2.5 text-left transition-all ${
                       scanMode === 'safe'
-                        ? 'border-accent bg-accent/10 text-text shadow-[0_0_15px_rgba(0,255,244,0.15)]'
-                        : 'border-white/5 bg-white/5 text-muted hover:bg-white/10 hover:border-white/10'
+                        ? 'border-accent bg-accent-soft text-text-primary shadow-glow-accent-sm'
+                        : 'border-line-muted bg-surface-hover text-text-secondary hover:bg-surface-2 hover:border-line'
                     }`}
                   >
-                    <span className="text-[10px] font-black uppercase tracking-wider text-white">Safe Preset</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-text-primary">Safe Preset</span>
                     <span className="mt-0.5 text-[8px] leading-relaxed opacity-60">
                       Recon & Metadata
                     </span>
@@ -278,13 +281,15 @@ export function ScanControlDeck({
                         'nuclei',
                       ]);
                     }}
+                    role="radio"
+                    aria-checked={scanMode === 'aggressive'}
                     className={`flex-1 flex flex-col items-start rounded-lg border p-2.5 text-left transition-all ${
                       scanMode === 'aggressive'
-                        ? 'border-accent bg-accent/10 text-text shadow-[0_0_15px_rgba(0,255,244,0.15)]'
-                        : 'border-white/5 bg-white/5 text-muted hover:bg-white/10 hover:border-white/10'
+                        ? 'border-accent bg-accent-soft text-text-primary shadow-glow-accent-sm'
+                        : 'border-line-muted bg-surface-hover text-text-secondary hover:bg-surface-2 hover:border-line'
                     }`}
                   >
-                    <span className="text-[10px] font-black uppercase tracking-wider text-white">Deep Preset</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-text-primary">Deep Preset</span>
                     <span className="mt-0.5 text-[8px] leading-relaxed opacity-60">
                       Active Vulnerability
                     </span>
@@ -292,7 +297,7 @@ export function ScanControlDeck({
                 </div>
               </div>
 
-              <div className="space-y-2 border-t border-white/5 pt-3">
+              <div className="space-y-2 border-t border-line-muted pt-3">
                 <button
                   type="button"
                   onClick={() => setShowTuning(!showTuning)}
@@ -302,7 +307,7 @@ export function ScanControlDeck({
                 </button>
 
                 {showTuning && (
-                  <div className="space-y-3 rounded border border-white/5 bg-black/40 p-2.5 animate-fadeIn">
+                  <div className="space-y-3 rounded border border-line-muted bg-surface/40 p-2.5 animate-fadeIn">
                     <SliderRow
                       label="Crawl Depth"
                       min={1}
@@ -343,7 +348,7 @@ export function ScanControlDeck({
                           onChange={(e) => setExcludedPaths(e.target.value)}
                           rows={2}
                           placeholder="/logout, /signout, .*\\.gif$"
-                          className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] text-text placeholder-white/20 outline-none focus:border-accent/40"
+                          className="mt-1 w-full rounded border border-line bg-surface-hover px-2 py-1 font-mono text-[10px] text-text-primary placeholder:text-text-tertiary/40 outline-none focus:border-accent/40"
                         />
                       </label>
                       <p className="font-mono text-[8px] leading-snug text-muted/70">
@@ -355,7 +360,7 @@ export function ScanControlDeck({
                 )}
               </div>
 
-              <div className="space-y-2 border-t border-white/5 pt-3">
+              <div className="space-y-2 border-t border-line-muted pt-3">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
@@ -365,13 +370,13 @@ export function ScanControlDeck({
                 </button>
 
                 {showAdvanced && (
-                  <div className="space-y-1 rounded border border-white/5 bg-black/40 p-2.5 mt-2 animate-fadeIn">
+                  <div className="space-y-1 rounded border border-line-muted bg-surface/40 p-2.5 mt-2 animate-fadeIn">
                     {modules.map((mod) => {
                       const active = selectedModules.includes(mod.id);
                       return (
                         <label
                           key={mod.id}
-                          className="flex cursor-pointer items-center justify-between py-1 transition-colors hover:text-white"
+                          className="flex cursor-pointer items-center justify-between py-1 transition-colors hover:text-text-primary"
                         >
                           <span className="font-mono text-[10px] text-muted-foreground">{mod.label}</span>
                           <input
@@ -384,7 +389,7 @@ export function ScanControlDeck({
                                 setSelectedModules([...selectedModules, mod.id]);
                               }
                             }}
-                            className="h-3 w-3 rounded border-white/10 bg-black/40 text-accent outline-none accent-accent focus:ring-0"
+                            className="h-3 w-3 rounded border-line bg-surface/40 text-accent outline-none accent-accent focus:ring-0"
                           />
                         </label>
                       );
@@ -393,23 +398,23 @@ export function ScanControlDeck({
                 )}
               </div>
 
-              <div className="sticky bottom-0 bg-[#12161E]/95 pt-3 border-t border-white/5 -mx-5 -mb-5 px-5 pb-5 z-10 backdrop-blur-md">
+              <div className="sticky bottom-0 bg-surface/95 pt-3 border-t border-line-muted -mx-5 -mb-5 px-5 pb-5 z-10 backdrop-blur-md">
                 <button
                   type="button"
                   onClick={handleStartScan}
                   disabled={launchingScan || !inputTarget.trim()}
-                  className="w-full rounded bg-accent py-2.5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-black shadow-[0_0_15px_rgba(0,255,244,0.25)] transition-all hover:bg-white disabled:opacity-40 disabled:shadow-none"
+                  className="w-full rounded bg-accent py-2.5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-black shadow-glow-accent-md transition-all hover:bg-surface-raised disabled:opacity-40 disabled:shadow-none"
                 >
                   {launchingScan ? 'ENGAGING ENGINE...' : 'ENGAGE SCAN ENGINE'}
                 </button>
               </div>
             </>
           ) : (
-            <div className="space-y-4">
+              <div className="space-y-4">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Active Pipeline</div>
-                  <div className="font-mono text-[11px] font-bold text-text truncate max-w-[140px]">
+                  <div className="font-mono text-[11px] font-bold text-text truncate max-w-[140px]" title={activeJob.base_url ?? ''}>
                     {activeJob.base_url}
                   </div>
                 </div>
@@ -426,35 +431,35 @@ export function ScanControlDeck({
                     <span className="font-bold text-text">{activeJob.stage_label}</span>
                   </div>
 
-                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10">
+                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuenow={Math.round(activeJob.progress_percent || 0)} aria-valuemin={0} aria-valuemax={100} aria-label={`Scan progress: ${Math.round(activeJob.progress_percent || 0)}%`}>
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 shadow-[0_0_10px_rgba(0,255,244,0.4)]"
+                      className="h-full rounded-full bg-gradient-to-r from-info via-accent to-ok shadow-glow-ok-sm"
                       style={{ width: `${activeJob.progress_percent || 0}%` }}
                     />
                   </div>
 
                   <div className="flex items-center justify-between font-mono text-[8px] text-muted">
                     <span>PROGRESS</span>
-                    <span>{Math.round(activeJob.progress_percent || 0)}%</span>
+                    <span className="tabular-nums">{Math.round(activeJob.progress_percent || 0)}%</span>
                   </div>
                 </div>
               )}
 
               {activeJob.status_message && (
-                <div className="rounded border border-cyan-500/10 bg-cyan-950/20 p-2.5 font-mono text-[9px] leading-relaxed text-cyan-200/90 max-h-24 overflow-y-auto">
-                  <div className="font-bold text-cyan-400 mb-0.5">STATUS MESSAGE:</div>
+                <div className="rounded border border-info/10 bg-info/5 p-2.5 font-mono text-[9px] leading-relaxed text-info max-h-24 overflow-y-auto">
+                  <div className="font-bold text-info mb-0.5">STATUS MESSAGE:</div>
                   {activeJob.status_message}
                 </div>
               )}
 
-              <div className="space-y-2 border-t border-white/5 pt-3">
+              <div className="space-y-2 border-t border-line-muted pt-3">
                 <div className="grid grid-cols-3 gap-2">
                   {activeJob.status === 'running' ? (
                     <button
                       type="button"
                       onClick={handlePauseScan}
                       disabled={pausingScan}
-                      className="flex items-center justify-center gap-1.5 rounded border border-amber-500/20 bg-amber-950/20 py-2 text-[9px] font-bold uppercase tracking-wider text-amber-400 transition-all hover:bg-amber-900/30 disabled:opacity-40"
+                      className="flex items-center justify-center gap-1.5 rounded border border-warn/20 bg-warn/5 py-2 text-[9px] font-bold uppercase tracking-wider text-warn transition-all hover:bg-warn/10 disabled:opacity-40"
                     >
                       {pausingScan ? 'PAUSING...' : 'PAUSE SCAN'}
                     </button>
@@ -471,7 +476,7 @@ export function ScanControlDeck({
                     <button
                       type="button"
                       disabled
-                      className="flex items-center justify-center gap-1.5 rounded border border-white/5 bg-white/5 py-2 text-[9px] font-bold uppercase tracking-wider text-muted opacity-40"
+                      className="flex items-center justify-center gap-1.5 rounded border border-line-muted bg-surface-hover py-2 text-[9px] font-bold uppercase tracking-wider text-muted opacity-40"
                     >
                       PAUSE
                     </button>
@@ -489,7 +494,7 @@ export function ScanControlDeck({
                     type="button"
                     onClick={handleStopScan}
                     disabled={stoppingScan || !activeJob.status || !['running', 'pending', 'paused'].includes(activeJob.status)}
-                    className="flex items-center justify-center gap-1.5 rounded border border-rose-500/20 bg-rose-950/20 py-2 text-[9px] font-bold uppercase tracking-wider text-rose-400 transition-all hover:bg-rose-900/30 disabled:opacity-40"
+                    className="flex items-center justify-center gap-1.5 rounded border border-bad/20 bg-bad/5 py-2 text-[9px] font-bold uppercase tracking-wider text-bad transition-all hover:bg-bad/10 disabled:opacity-40"
                   >
                     <span className="icon-x" aria-hidden="true" />
                     {stoppingScan ? 'STOPPING...' : 'TERMINATE SCAN'}
@@ -499,7 +504,7 @@ export function ScanControlDeck({
                 <button
                   type="button"
                   onClick={onClearScan}
-                  className="w-full rounded border border-white/10 bg-white/5 py-2 text-center text-[9px] font-bold uppercase tracking-widest text-muted hover:text-white transition-colors"
+                  className="w-full rounded border border-line bg-surface-hover py-2 text-center text-[9px] font-bold uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors"
                 >
                   Clear / New Scan
                 </button>

@@ -6,12 +6,11 @@ Implements a high-throughput, no-allocation event plane for frontier security op
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-
-import logging
 
 import msgpack
 

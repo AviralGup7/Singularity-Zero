@@ -670,9 +670,17 @@ def setup_logging(
         handler = stream_handler
 
     if log_config.enable_async:
-        async_handler = AsyncLogHandler(handler)
-        async_handler.start()
-        root_logger.addHandler(async_handler)
+        try:
+            async_handler = AsyncLogHandler(handler)
+            async_handler.start()
+            root_logger.addHandler(async_handler)
+        except Exception as exc:
+            _logger.warning(
+                "Async log handler failed to start (%s); falling back to synchronous handler",
+                exc,
+                exc_info=True,
+            )
+            root_logger.addHandler(handler)
     else:
         root_logger.addHandler(handler)
 

@@ -11,7 +11,7 @@ interface DetailHeaderProps {
 
 export function DetailHeader({ finding, onExport, onSubmit, onClose }: DetailHeaderProps) {
   return (
-    <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/5">
+    <div className="px-8 py-6 border-b border-line flex items-center justify-between bg-surface-hover">
       <div className="flex items-center gap-4">
         <div
           className={`p-3 rounded-xl border ${
@@ -69,7 +69,7 @@ export function DetailHeader({ finding, onExport, onSubmit, onClose }: DetailHea
         >
           <Send size={12} aria-hidden="true" /> Submit
         </button>
-        <button className="text-muted hover:text-white transition-colors" onClick={onClose} aria-label="Close panel">
+        <button className="text-muted hover:text-text-primary transition-colors" onClick={onClose} aria-label="Close panel">
           <X size={20} />
         </button>
       </div>

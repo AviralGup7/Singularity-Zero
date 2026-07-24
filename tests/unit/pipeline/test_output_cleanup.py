@@ -58,12 +58,18 @@ class OutputCleanupTests(unittest.TestCase):
             self.assertEqual(len(summary["removed_target_run_dirs"]), 1)
 
     def test_prune_output_history_removes_stale_partial_timestamp_runs(self) -> None:
+        import datetime
+
+        now = datetime.datetime.now(datetime.UTC)
+        t_stale = (now - datetime.timedelta(days=2)).strftime("%Y%m%d-010101")
+        t_keep = (now - datetime.timedelta(days=1)).strftime("%Y%m%d-010101")
+        t_newest = now.strftime("%Y%m%d-010101")
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir) / "output"
             target_root = output_root / "partial.example"
-            stale = target_root / "20260327-010101"
-            keep = target_root / "20260328-010101"
-            newest = target_root / "20260329-010101"
+            stale = target_root / t_stale
+            keep = target_root / t_keep
+            newest = target_root / t_newest
             for path in (stale, keep, newest):
                 path.mkdir(parents=True, exist_ok=True)
                 (path / "scope.txt").write_text("example.com\n", encoding="utf-8")

@@ -4,6 +4,10 @@ Provides a pydantic-based configuration model with environment variable
 overrides for all security-related settings including JWT, API keys,
 rate limiting, CORS, encryption, and audit logging.
 
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Do NOT enable security until the app is perfected. !!
+
 Environment Variables:
     SEC_JWT_SECRET: Secret key for JWT token signing
     SEC_JWT_ALGORITHM: JWT signing algorithm (default: HS256)

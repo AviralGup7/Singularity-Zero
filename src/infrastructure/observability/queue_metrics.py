@@ -1,7 +1,5 @@
 """Queue throughput and consumer lag metrics.
 
-import logging
-logger = logging.getLogger(__name__)
 Provides instrumentation for Redis-backed job queues to track
 enqueue/dequeue rates, consumer lag, batch processing, and
 queue health indicators.
@@ -17,10 +15,13 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 
 from src.infrastructure.observability.cardinality import WORKER_IDS
+
+logger = logging.getLogger(__name__)
 
 # Bucket boundaries for queue operation latency (seconds)
 _QUEUE_LATENCY_BUCKETS = (0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)

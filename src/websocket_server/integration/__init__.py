@@ -23,6 +23,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
+from starlette.websockets import WebSocket
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.broadcaster import Broadcaster
@@ -69,6 +70,7 @@ def setup_websocket_routes(
     jwt_secret: str | None = None,
     admin_api_key: str | None = None,
     effective_admin_roles: Any | None = None,
+    allowed_origins: set[str] | None = None,
 ) -> WSServices:
     """Wire up WebSocket routes, components, and return the shared WSServices.
 
@@ -80,10 +82,12 @@ def setup_websocket_routes(
     from src.websocket_server.integration.services import WSServices
 
     manager = ConnectionManager()
-    broadcaster = Broadcaster()
+    broadcaster = Broadcaster(manager)
     heartbeat = HeartbeatMonitor(manager)
-    handler = WebSocketHandler(manager, broadcaster, heartbeat)
-    reconnect = ReconnectionManager(manager)
+    reconnect = ReconnectionManager()
+    handler = WebSocketHandler(
+        manager, broadcaster, heartbeat, reconnect, allowed_origins=allowed_origins
+    )
 
     services = WSServices(
         manager=manager,
@@ -100,23 +104,23 @@ def setup_websocket_routes(
 
     # WebSocket endpoints
     @app.websocket("/ws/scan-progress")
-    async def ws_scan_progress(websocket: Any) -> None:
+    async def ws_scan_progress(websocket: WebSocket) -> None:
         await handler.handle_scan_progress(websocket)
 
     @app.websocket("/ws/job-status")
-    async def ws_job_status(websocket: Any) -> None:
+    async def ws_job_status(websocket: WebSocket) -> None:
         await handler.handle_job_status(websocket)
 
     @app.websocket("/ws/logs/{job_id}")
-    async def ws_logs(websocket: Any, job_id: str) -> None:
-        await handler.handle_logs(websocket, job_id)
+    async def ws_logs(websocket: WebSocket, job_id: str) -> None:
+        await handler.handle_job_logs(websocket, job_id)
 
     @app.websocket("/ws/dashboard")
-    async def ws_dashboard(websocket: Any) -> None:
+    async def ws_dashboard(websocket: WebSocket) -> None:
         await handler.handle_dashboard(websocket)
 
     @app.websocket("/ws/evasion-telemetry")
-    async def ws_evasion_telemetry(websocket: Any) -> None:
+    async def ws_evasion_telemetry(websocket: WebSocket) -> None:
         await handler.handle_evasion_telemetry(websocket)
 
     # Health / metrics HTTP endpoints

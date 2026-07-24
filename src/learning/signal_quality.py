@@ -1,127 +1,57 @@
 """Signal-quality filtering for findings emitted by pipeline stages.
 
-import logging
-logger = logging.getLogger(__name__)
-The filter combines the calibrated severity model with evidence-quality
-features and learned false-positive patterns. It is dependency-free, but shaped
-like a tiny logistic model so it can be tuned from golden-set evaluations and
-telemetry without changing every detector.
+The filter combines severity model with evidence-quality features and learned
+false-positive patterns. It uses a hand-coded logistic model that can be tuned
+from golden-set evaluations and telemetry without requiring ML libraries.
 """
 
-import logging
 from __future__ import annotations
 
 import json
-
-logger = logging.getLogger(__name__)
+import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
-if TYPE_CHECKING:
-    import numpy as np
+import numpy as np
 
 from src.core.utils.math_utils import clamp as _clamp
 
-# Try importing scikit-learn gracefully
-try:
-    from sklearn.linear_model import LogisticRegression
-
-    HAS_ML_LIBS = True
-except ImportError:
-    HAS_ML_LIBS = False
+logger = logging.getLogger(__name__)
 
 DEFAULT_REPORT_THRESHOLD = 0.50
 HIGH_CONFIDENCE_FP_THRESHOLD = 0.78
-MODEL_VERSION = "signal-quality-logreg-v1"
+MODEL_VERSION = "signal-quality-rulebased-v1"
 
-
-class SignalQualityMLPipeline:
-    """LogisticRegression model classifier wrapper for evaluating signal qualities."""
-
-    def __init__(self) -> None:
-        import numpy as np
-
-        # Pre-initialize coefficients to mirror the exact behavior of the arithmetic scoring
-        self.coef_ = np.array(
-            [
-                [
-                    1.65,  # confidence
-                    2.35,  # model_tp
-                    -1.85,  # model_fp
-                    -2.25,  # fp_pattern_probability
-                    0.55,  # status_changed
-                    0.35,  # content_changed
-                    0.35,  # redirect_changed
-                    0.40,  # body_similarity_low (similarity < 0.45)
-                    1.10,  # reproducible
-                    0.65,  # intra_run_confirmed
-                    1.35,  # cross_run_reproducible
-                    1.20,  # trust_boundary_shift
-                    0.45,  # correlated signals (>=2)
-                    -0.50,  # low-risk endpoint
-                    -0.25,  # noisy category
-                ]
-            ]
-        )
-        self.intercept_ = np.array([-0.85])
-        self.classes_: np.ndarray | None = np.array([0, 1])
-
-        self.model = None
-        if HAS_ML_LIBS:
-            try:
-                self.model = LogisticRegression(solver="lbfgs")
-                self.model.coef_ = self.coef_.copy()
-                self.model.intercept_ = self.intercept_.copy()
-                self.model.classes_ = self.classes_.copy()
-            except Exception:
-                self.model = None
-
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        import numpy as np
-
-        if HAS_ML_LIBS and self.model is not None:
-            try:
-                return cast(np.ndarray, self.model.predict_proba(X))
-            except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
-
-        # Elegant matrix multiplication fallback
-        scores = np.dot(X, self.coef_.T) + self.intercept_
-        scores = np.clip(scores, -20.0, 20.0)
-        probs = 1.0 / (1.0 + np.exp(-scores))
-        return np.hstack([1.0 - probs, probs])
-
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        import numpy as np
-
-        if HAS_ML_LIBS and self.model is not None:
-            if len(np.unique(y)) > 1:
-                try:
-                    self.model.fit(X, y)
-                    self.coef_ = np.array(self.model.coef_, copy=True)
-                    self.intercept_ = np.array(self.model.intercept_, copy=True)
-                    self.classes_ = (
-                        np.array(self.model.classes_) if hasattr(self.model, "classes_") else None
-                    )
-                except Exception:
-                    logger.warning("Suppressed exception", exc_info=True)
-
-
-_ml_pipeline: SignalQualityMLPipeline | None = None
-
-
-def _get_ml_pipeline() -> SignalQualityMLPipeline:
-    global _ml_pipeline
-    if _ml_pipeline is None:
-        _ml_pipeline = SignalQualityMLPipeline()
-    return _ml_pipeline
+DEFAULT_COEF = np.array(
+    [
+        [
+            1.65,  # confidence
+            2.35,  # model_tp
+            -1.85,  # model_fp
+            -2.25,  # fp_pattern_probability
+            0.55,  # status_changed
+            0.35,  # content_changed
+            0.35,  # redirect_changed
+            0.40,  # body_similarity_low (similarity < 0.45)
+            1.10,  # reproducible
+            0.65,  # intra_run_confirmed
+            1.35,  # cross_run_reproducible
+            1.20,  # trust_boundary_shift
+            0.45,  # correlated signals (>=2)
+            -0.50,  # low-risk endpoint
+            -0.25,  # noisy category
+        ]
+    ]
+)
+DEFAULT_INTERCEPT = np.array([-0.85])
+DEFAULT_CLASSES = np.array([0, 1])
 
 
 @dataclass(frozen=True)
 class SignalQualityResult:
-    """A model-style quality prediction for one finding."""
+    """A quality prediction for one finding."""
 
     quality_score: float
     true_positive_probability: float
@@ -333,9 +263,7 @@ def score_signal_quality(
     report_threshold: float = DEFAULT_REPORT_THRESHOLD,
     weights: dict[str, float] | None = None,
 ) -> SignalQualityResult:
-    """Predict whether a finding should stay in analyst triage using a fitted LogisticRegression model."""
-
-    import numpy as np
+    """Predict whether a finding should stay in analyst triage using rule-based logistic model."""
 
     evidence = _evidence(item)
     diff = _diff(item)
@@ -369,10 +297,9 @@ def score_signal_quality(
     if str(item.get("category", "")).lower() in {"anomaly", "misconfiguration", "exposure"}:
         reasons.append("historically noisy category")
 
-    # Evaluate using ML pipeline
     features = extract_features(item, dynamic_fp_patterns)
     if weights:
-        coef = _get_ml_pipeline().coef_.copy()
+        coef = DEFAULT_COEF.copy()
         if "confidence" in weights:
             coef[0, 0] = max(-100.0, min(100.0, weights["confidence"]))
         if "model_tp" in weights:
@@ -385,24 +312,18 @@ def score_signal_quality(
             coef[0, 8] = max(-100.0, min(100.0, weights["reproducible"]))
 
         X = np.array([features])
-        scores = np.dot(X, coef.T) + _get_ml_pipeline().intercept_
+        scores = np.dot(X, coef.T) + DEFAULT_INTERCEPT
         scores = np.clip(scores, -20.0, 20.0)
         tp_prob = 1.0 / (1.0 + np.exp(-scores))
         tp_probability = _clamp(float(tp_prob[0, 0]))
         fp_probability = _clamp(float(1.0 - tp_probability))
     else:
-        probs = _get_ml_pipeline().predict_proba(np.array([features]))[0]
-        # Use model.classes_ to determine correct class ordering
-        classes = _get_ml_pipeline().classes_
-        if classes is not None and len(classes) >= 2:
-            # classes_ may be [0, 1] or [1, 0] depending on fitting order
-            tp_idx = 1 if classes[-1] == 1 else 0
-            fp_idx = 1 - tp_idx
-        else:
-            tp_idx = 1
-            fp_idx = 0
-        tp_probability = _clamp(float(probs[tp_idx]))
-        fp_probability = _clamp(float(probs[fp_idx]))
+        X = np.array([features])
+        scores = np.dot(X, DEFAULT_COEF.T) + DEFAULT_INTERCEPT
+        scores = np.clip(scores, -20.0, 20.0)
+        tp_prob = 1.0 / (1.0 + np.exp(-scores))
+        tp_probability = _clamp(float(tp_prob[0, 0]))
+        fp_probability = _clamp(float(1.0 - tp_probability))
 
     if fp_pattern_probability >= HIGH_CONFIDENCE_FP_THRESHOLD and not (
         evidence.get("reproducible")
@@ -425,7 +346,6 @@ def score_signal_quality(
     if action == "suppress":
         try:
             from src.infrastructure.observability.metrics import get_metrics
-
 
             get_metrics().counter("fp_reduction_total").inc()
         except Exception:
@@ -504,5 +424,6 @@ __all__ = [
     "SignalQualityResult",
     "annotate_signal_quality",
     "evaluate_golden_set",
+    "extract_features",
     "score_signal_quality",
 ]

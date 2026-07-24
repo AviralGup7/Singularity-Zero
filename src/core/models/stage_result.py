@@ -172,7 +172,10 @@ class StageResult:
                 elif isinstance(current, set) and isinstance(value, (list, tuple, set, frozenset)):
                     current.update(value)
                 elif isinstance(current, list) and isinstance(value, list):
-                    setattr(self, key, value)
+                    # Bug fix: Merge lists instead of replacing. Previously,
+                    # partial list deltas would overwrite the entire list,
+                    # causing data loss when stages emit incremental list updates.
+                    current.extend(value)
                 elif isinstance(current, list) and isinstance(value, (tuple, set, frozenset)):
                     setattr(self, key, list(value))
                 else:

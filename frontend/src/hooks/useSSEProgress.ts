@@ -85,6 +85,7 @@ export function useSSEProgress<T = SseEventData>({
   const onEventRef = useRef(onEvent);
   const bufferRef = useRef<SseEvent<T>[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFlushRef = useRef<number>(0);
   const streamCompletedRef = useRef(false);
 
@@ -249,7 +250,8 @@ export function useSSEProgress<T = SseEventData>({
       if (es.readyState === EventSource.CLOSED) {
         const delay = backoff.delayMs();
         backoff.bump();
-        setTimeout(() => {
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = setTimeout(() => {
           if (mountedRef.current && !streamCompletedRef.current) connectRef.current();
         }, delay);
       }
@@ -273,6 +275,7 @@ export function useSSEProgress<T = SseEventData>({
       if (esRef.current) esRef.current.close();
       disarmHeartbeat();
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       bufferRef.current = [];
       seenIds.clear();
     };

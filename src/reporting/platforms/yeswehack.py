@@ -5,12 +5,10 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
-
 from src.reporting.platforms.base import (
-    _BaseClient,
     SubmissionEnvelope,
     SubmissionResult,
+    _BaseClient,
     to_envelope,
 )
 

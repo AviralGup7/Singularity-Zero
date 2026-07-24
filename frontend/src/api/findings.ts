@@ -3,12 +3,12 @@ import type { FindingTimelineEvent } from '@/types/extended';
 import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
 
+import { z } from 'zod';
+import { FindingsListSchema } from './schemas';
+
 export async function getFindingsSummary(signal?: AbortSignal, ttl?: number): Promise<FindingsSummary> {
   return cachedGet<FindingsSummary>('/api/findings', { signal, ttl });
 }
-
-import { z } from 'zod';
-import { FindingsListSchema } from './schemas';
 
 export interface FindingsListParams {
   page?: number;

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { DetectionGapResponse, GapAnalysisResult } from '@/types/api';
 import { getGapAnalysis, refreshGapAnalysis, getTargets } from '@/api/client';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export type StatusFilter = 'all' | 'complete' | 'partial' | 'missing';
 
@@ -23,8 +24,10 @@ export function useGapAnalysis() {
       const targetToFetch = targetVal !== undefined ? targetVal : selectedTarget;
       const res = await getGapAnalysis(targetToFetch || null);
       setData(res);
-    } catch (_err) {
-      setError('Failed to load gap analysis data');
+    } catch (err) {
+      const msg = (err as Error).message || 'Failed to load gap analysis data';
+      setError(msg);
+      showErrorToast(err, 'Failed to load gap analysis data');
     } finally {
       setLoading(false);
     }
@@ -36,7 +39,9 @@ export function useGapAnalysis() {
       await refreshGapAnalysis();
       await loadData();
     } catch (err) {
-      setError((err as Error).message || 'Failed to refresh');
+      const msg = (err as Error).message || 'Failed to refresh gap analysis';
+      setError(msg);
+      showErrorToast(err, 'Failed to refresh gap analysis');
     } finally {
       setRefreshing(false);
     }

@@ -56,41 +56,41 @@ export function JobTimelineComponent({ jobId }: { jobId: string }) {
    
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (loading) return <div className="p-4 text-muted">Loading timeline...</div>;
-  if (error) return <div className="card error"><p>Error: {error}</p><button className="btn btn-sm btn-primary mt-2" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={fetchData}>Retry</button></div>;
+  if (loading) return <div className="p-4 text-muted" role="status">Loading timeline...</div>;
+  if (error) return <div className="card error" role="alert"><p>Error: {error}</p><button className="btn btn-sm btn-primary mt-2 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={fetchData}>Retry</button></div>;
   if (timeline.length === 0) return <div className="card empty"><p>No timeline data available for this job.</p></div>;
 
   return (
-    <div className="job-timeline">
+    <div className="job-timeline" role="region" aria-label="Job timeline">
       {job && (
         <div className="flex items-center gap-4 mb-4">
           <h3 className="font-semibold">Job: {job.base_url}</h3>
-          <span className={`text-xs px-2 py-1 rounded ${job.status === 'completed' ? 'bg-green-900/30 text-green-400' : job.status === 'failed' ? 'bg-red-900/30 text-red-400' : job.status === 'running' ? 'bg-blue-900/30 text-blue-400' : 'bg-gray-900/30 text-gray-400'}`}>
+          <span className={`text-xs px-2 py-1 rounded ${job.status === 'completed' ? 'bg-green-900/30 text-green-400' : job.status === 'failed' ? 'bg-red-900/30 text-red-400' : job.status === 'running' ? 'bg-blue-900/30 text-blue-400' : 'bg-gray-900/30 text-gray-400'}`} role="status">
             {job.status}
           </span>
         </div>
       )}
-      <div className="relative pl-8 space-y-3">
-        <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-[#1f2937]" />
+      <ol className="relative pl-8 space-y-3" aria-label="Timeline events">
+        <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-line" aria-hidden="true" />
         {timeline.map((entry, i) => {
           const colorKey = entry.stage?.toLowerCase() || 'default';
           const color = STAGE_COLORS.get(colorKey) || STAGE_COLORS.get('default') || 'bg-gray-500';
           return (
-            <div key={i} className="relative">
-              <div className={`absolute left-[-20px] top-1.5 w-2.5 h-2.5 rounded-full ${color}`} />
-              <div className="card p-3 border border-[#1f2937]">
+            <li key={i} className="relative">
+              <div className={`absolute left-[-20px] top-1.5 w-2.5 h-2.5 rounded-full ${color}`} aria-hidden="true" />
+              <div className="card p-3 border border-line">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm font-medium">{entry.event || entry.stage_label}</span>
                     {entry.stage && <span className="ml-2 text-xs text-muted capitalize">({entry.stage})</span>}
                   </div>
-                  <span className="text-xs text-muted">{entry.timestamp}</span>
+                  <time className="text-xs text-muted" dateTime={entry.timestamp}>{entry.timestamp}</time>
                 </div>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 }

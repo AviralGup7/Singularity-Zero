@@ -15,8 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def rate_limit_signal_analyzer(
-    responses: list[dict[str, Any]], bulk_findings: list[dict[str, Any]], limit: int = 60
+    responses: list[dict[str, Any]],
+    bulk_items: list[dict[str, Any]] | None = None,
+    bulk_findings: list[dict[str, Any]] | None = None,
+    limit: int = 60,
 ) -> list[dict[str, Any]]:
+    items = bulk_items if bulk_items is not None else (bulk_findings or [])
     """Analyze responses for rate limiting signals and misconfigurations.
 
     Detects missing rate limit headers, zero limits, 429 responses,

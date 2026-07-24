@@ -22,6 +22,8 @@ function JobInformationCardBase({ job }: JobInformationCardProps) {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       className="card"
+      role="region"
+      aria-label="Job information"
     >
       <h3>Job Information</h3>
       <div className="info-grid">

@@ -7,9 +7,13 @@ previously stored only in browser sessionStorage.
 from __future__ import annotations
 
 import hashlib
+import json
+import os
+import tempfile
 import threading
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,11 +25,62 @@ from src.dashboard.fastapi.schemas import ErrorResponse
 router = APIRouter(prefix="/api/evidence-custody", tags=["Evidence Custody"])
 
 # ---------------------------------------------------------------------------
-# In-memory store
+# Persistent evidence store (Defect 5 fix: backed by JSON file)
 # ---------------------------------------------------------------------------
 
 _evidence_lock = threading.Lock()
 _evidence_records: list[dict[str, Any]] = []
+_evidence_store_path: Path | None = None
+_evidence_store_loaded = False
+
+
+def _resolve_store_path() -> Path:
+    """Return the path to the evidence custody JSON store."""
+    global _evidence_store_path
+    if _evidence_store_path is not None:
+        return _evidence_store_path
+    pipeline_dir = Path(".pipeline")
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    _evidence_store_path = pipeline_dir / "evidence_custody.json"
+    return _evidence_store_path
+
+
+def _load_evidence_from_disk() -> None:
+    """Load evidence records from disk into memory (once)."""
+    global _evidence_store_loaded
+    if _evidence_store_loaded:
+        return
+    _evidence_store_loaded = True
+    store_path = _resolve_store_path()
+    if not store_path.exists():
+        return
+    try:
+        data = json.loads(store_path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            _evidence_records.extend(data)
+    except (json.JSONDecodeError, OSError) as exc:
+        import logging
+
+        logging.getLogger(__name__).warning("Failed to load evidence store: %s", exc)
+
+
+def _persist_evidence_to_disk() -> None:
+    """Atomically write evidence records to disk."""
+    store_path = _resolve_store_path()
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=store_path.parent, suffix=".tmp", prefix="evidence_"
+    )
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as tmp_f:
+            json.dump(_evidence_records, tmp_f, indent=2)
+            tmp_f.flush()
+            os.fsync(tmp_f.fileno())
+        Path(tmp_path).replace(store_path)
+    except Exception:
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _sha256(data: str) -> str:
@@ -61,7 +116,7 @@ class EvidenceCreateRequest(BaseModel):
     """Body for creating an evidence record."""
 
     finding_id: str
-    data: str
+    data: str = Field(..., max_length=1_048_576)  # 1 MiB
     user: str = "anonymous"
 
 
@@ -93,6 +148,7 @@ async def list_evidence(
     _auth: Any = Depends(require_auth),
 ) -> list[dict[str, Any]]:
     """Return evidence records, optionally filtered by finding_id."""
+    _load_evidence_from_disk()
     with _evidence_lock:
         records = list(_evidence_records)
 
@@ -115,6 +171,7 @@ async def get_evidence(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Return a single evidence record by ID."""
+    _load_evidence_from_disk()
     with _evidence_lock:
         for record in _evidence_records:
             if record["id"] == evidence_id:
@@ -133,6 +190,7 @@ async def create_evidence(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Create a new evidence record with an initial custody entry."""
+    _load_evidence_from_disk()
     evidence_hash = _sha256(payload.data)
     record_id = f"evidence-{uuid.uuid4()}"
     now = datetime.now(UTC).isoformat()
@@ -159,6 +217,7 @@ async def create_evidence(
 
     with _evidence_lock:
         _evidence_records.append(record)
+    _persist_evidence_to_disk()
 
     return record
 
@@ -175,6 +234,8 @@ async def log_evidence_access(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Append an 'accessed' entry to the custody chain."""
+    _load_evidence_from_disk()
+    authenticated_user = (_auth or {}).get("user", "anonymous")
     with _evidence_lock:
         for record in _evidence_records:
             if record["id"] == evidence_id:
@@ -182,11 +243,12 @@ async def log_evidence_access(
                     "id": f"custody-{uuid.uuid4()}",
                     "evidence_id": evidence_id,
                     "action": "accessed",
-                    "user": payload.user,
+                    "user": authenticated_user,
                     "timestamp": datetime.now(UTC).isoformat(),
                     "details": payload.details,
                 }
                 record["custody_chain"].append(entry)
+                _persist_evidence_to_disk()
                 return record
     raise HTTPException(status_code=404, detail="Evidence record not found")
 
@@ -203,6 +265,8 @@ async def modify_evidence(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Update evidence data and append a 'modified' custody entry."""
+    _load_evidence_from_disk()
+    authenticated_user = (_auth or {}).get("user", "anonymous")
     with _evidence_lock:
         for record in _evidence_records:
             if record["id"] == evidence_id:
@@ -216,13 +280,14 @@ async def modify_evidence(
                     "id": f"custody-{uuid.uuid4()}",
                     "evidence_id": evidence_id,
                     "action": "modified",
-                    "user": payload.user,
+                    "user": authenticated_user,
                     "timestamp": datetime.now(UTC).isoformat(),
                     "hash_before": hash_before,
                     "hash_after": hash_after,
                     "details": payload.details,
                 }
                 record["custody_chain"].append(entry)
+                _persist_evidence_to_disk()
                 return record
     raise HTTPException(status_code=404, detail="Evidence record not found")
 
@@ -238,6 +303,7 @@ async def verify_evidence(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Verify that the stored hash matches the current data."""
+    _load_evidence_from_disk()
     with _evidence_lock:
         for record in _evidence_records:
             if record["id"] == evidence_id:
@@ -261,13 +327,26 @@ async def verify_evidence(
 )
 async def delete_evidence(
     evidence_id: str,
+    payload: EvidenceAccessRequest,
     _auth: Any = Depends(require_auth),
 ) -> dict[str, str]:
-    """Remove an evidence record."""
+    """Remove an evidence record after recording a custody entry."""
+    global _evidence_records
+    _load_evidence_from_disk()
     with _evidence_lock:
-        global _evidence_records
-        before = len(_evidence_records)
-        _evidence_records = [r for r in _evidence_records if r["id"] != evidence_id]
-        if len(_evidence_records) == before:
-            raise HTTPException(status_code=404, detail="Evidence record not found")
-    return {"status": "deleted"}
+        for record in _evidence_records:
+            if record["id"] == evidence_id:
+                custody_entry = {
+                    "id": f"custody-{uuid.uuid4()}",
+                    "evidence_id": evidence_id,
+                    "action": "deleted",
+                    "user": payload.user,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "hash_before": record.get("hash"),
+                    "details": "Evidence record deleted",
+                }
+                record["custody_chain"].append(custody_entry)
+                _evidence_records = [r for r in _evidence_records if r["id"] != evidence_id]
+                _persist_evidence_to_disk()
+                return {"status": "deleted"}
+    raise HTTPException(status_code=404, detail="Evidence record not found")

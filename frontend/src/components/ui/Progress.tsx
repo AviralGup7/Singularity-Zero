@@ -5,7 +5,7 @@ import * as ProgressPrimitive from '@radix-ui/react-progress';
 export interface ProgressProps {
   value?: number;
   max?: number;
-  variant?: 'default' | 'running' | 'completed' | 'failed';
+  variant?: 'default' | 'running' | 'completed' | 'failed' | 'glow' | 'success' | 'warning' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   className?: string;
@@ -16,6 +16,10 @@ const variantColor: Record<string, string> = {
   running: 'bg-primary animate-pulse',
   completed: 'bg-emerald-500',
   failed: 'bg-rose-500',
+  glow: 'bg-accent shadow-glow-accent-md',
+  success: 'bg-ok',
+  warning: 'bg-warn',
+  danger: 'bg-bad',
 };
 
 const sizeHeight: Record<string, string> = {

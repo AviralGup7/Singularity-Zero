@@ -16,7 +16,7 @@ from concurrent.futures import FIRST_COMPLETED, wait
 from typing import Any
 from urllib.parse import urljoin
 
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.js_fetcher import _fetch_text_content
@@ -120,7 +120,7 @@ def _extract_secrets(
 def _collect_js_discovery_urls(
     live_hosts: set[str],
     scope_entries: list[str],
-    config: Config,
+    config: PipelineConfig,
     progress_callback: Any = None,
     runtime_budget_seconds: int | None = None,
 ) -> tuple[set[str], dict[str, Any]]:

@@ -1,7 +1,5 @@
 """Analyzer execution metrics with type decomposition.
 
-import logging
-logger = logging.getLogger(__name__)
 Provides per-analyzer-type execution tracking, duration histograms,
 error classification, and throughput counters. Includes cardinality
 controls to prevent label explosion from dynamic analyzer names.
@@ -17,9 +15,12 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Maximum unique analyzer type labels to prevent cardinality explosion
 _MAX_ANALYZER_TYPE_LABELS = 64

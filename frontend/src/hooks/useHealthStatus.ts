@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getReadiness } from '@/api/health';
 import type { ReadinessResponse } from '@/types/extended';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const HEALTH_POLL_INTERVAL = 30_000;
 
@@ -40,7 +41,12 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
         lastChecked: new Date(),
       });
     } catch (_err) {
-      if (signal?.aborted) return;
+      const isCanceled = (() => {
+        const name = _err instanceof Error ? _err.name : undefined;
+        const message = _err instanceof Error ? _err.message : String(_err ?? '');
+        return name === 'CanceledError' || name === 'AbortError' || message.toLowerCase() === 'canceled' || message.toLowerCase() === 'abort';
+      })();
+      if (isCanceled || signal?.aborted) return;
       setState(prev => ({
         ...prev,
         ready: false,
@@ -49,12 +55,13 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
         error: true,
         lastChecked: new Date(),
       }));
+      showErrorToast(_err, 'Health check failed — service may be offline');
     }
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     checkHealth(controller.signal);
     const interval = setInterval(() => checkHealth(controller.signal), pollInterval);
     return () => {

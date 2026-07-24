@@ -1,4 +1,4 @@
-import { type AppSettings } from '../../../context/SettingsContext';
+import type {AppSettings} from '@/context/SettingsContext';
 import { SettingsSectionCard, SettingSelect, SettingToggle, SettingInput } from '../SettingsComponents';
 
 interface ReportsSectionProps {

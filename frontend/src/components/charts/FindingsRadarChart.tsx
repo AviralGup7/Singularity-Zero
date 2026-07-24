@@ -10,9 +10,9 @@ interface FindingsRadarChartProps {
   data: FindingsRadarDataPoint[];
 }
 
-const RADAR_FILL = 'var(--accent, #00f3ff)';
-const RADAR_STROKE = 'var(--accent-vibrant, #bf00ff)';
-const RADAR_DOT_FILL = 'var(--accent, #00f3ff)';
+const RADAR_FILL = 'var(--accent)';
+const RADAR_STROKE = 'var(--accent-2)';
+const RADAR_DOT_FILL = 'var(--accent)';
 
 export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: FindingsRadarChartProps) {
    
@@ -100,7 +100,7 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
               cy={dimensions.centerY}
               r={dimensions.radius * ratio}
               fill="none"
-              stroke="var(--line, #333)"
+              stroke="var(--line)"
               strokeDasharray="4 5"
               opacity={0.45}
             />
@@ -113,7 +113,7 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
               y1={dimensions.centerY}
               x2={dimensions.centerX + Math.cos(point.angle) * dimensions.radius}
               y2={dimensions.centerY + Math.sin(point.angle) * dimensions.radius}
-              stroke="var(--line, #333)"
+              stroke="var(--line)"
               opacity={0.55}
             />
           ))}
@@ -133,14 +133,14 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
                   cy={point.y}
                   r={isHovered ? 6 : 4.2}
                   fill={RADAR_DOT_FILL}
-                  stroke="#fff"
+                  stroke="var(--text-primary)"
                   strokeWidth={isHovered ? 1.2 : 0.8}
                 />
                 <text
                   x={point.labelX}
                   y={point.labelY}
                   textAnchor={point.labelX >= dimensions.centerX ? 'start' : 'end'}
-                  fill="var(--muted, #888)"
+                  fill="var(--text-secondary)"
                   fontSize={11}
                 >
                   {point.category}

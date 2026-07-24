@@ -6,9 +6,8 @@ and nested object mutations.
 Extracted from response_analysis_mutations.py for better separation of concerns.
 """
 
-import logging
-
 import json
+import logging
 from typing import Any
 
 NOISE_FIELD_NAMES = {

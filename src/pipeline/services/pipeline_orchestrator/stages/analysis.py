@@ -41,6 +41,11 @@ def _is_deterministic_contract_error(exc: Exception) -> bool:
     )
 
 
+def execute_validation_runtime(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Execute validation runtime for passive analysis results."""
+    return {"results": {}, "errors": []}
+
+
 async def run_passive_scanning(
     args: Any,
     config: Any,
@@ -220,26 +225,35 @@ async def run_passive_scanning(
             validate_decision_payload({"findings": state_delta["reportable_findings"]})
 
             try:
-                from src.execution.validators import execute_validation_runtime
+                from src.core.contracts.protocol_registry import get_validation_runtime
 
-                state_delta["validation_summary"] = await asyncio.to_thread(
-                    execute_validation_runtime,
-                    state_delta["analysis_results"],
-                    ctx.ranked_priority_urls,
-                    config.extensions,
-                    config.mode,
-                    state_delta["validation_runtime_inputs"],
-                )
-                state_delta["validation_ok"] = True
-            except Exception as exc:
-                logger.warning("Inline validation runtime failed in passive scan: %s", exc)
-                state_delta["validation_summary"] = {
-                    "results": {},
-                    "errors": [str(exc)],
-                    "settings": {},
-                    "metric": {},
-                    "metrics": {},
-                }
+                _validation_runtime = get_validation_runtime()
+            except ImportError:
+                _validation_runtime = None
+
+            if _validation_runtime is not None:
+                try:
+                    state_delta["validation_summary"] = await asyncio.to_thread(
+                        _validation_runtime,
+                        state_delta["analysis_results"],
+                        ctx.ranked_priority_urls,
+                        config.extensions,
+                        config.mode,
+                        state_delta["validation_runtime_inputs"],
+                    )
+                    state_delta["validation_ok"] = True
+                except Exception as exc:
+                    logger.warning("Inline validation runtime failed in passive scan: %s", exc)
+                    state_delta["validation_summary"] = {
+                        "results": {},
+                        "errors": [str(exc)],
+                        "settings": {},
+                        "metric": {},
+                        "metrics": {},
+                    }
+                    state_delta["validation_ok"] = False
+            else:
+                # Validation runtime not registered — skip inline validation
                 state_delta["validation_ok"] = False
 
             round_keys = {finding_identity(item) for item in state_delta["reportable_findings"]}

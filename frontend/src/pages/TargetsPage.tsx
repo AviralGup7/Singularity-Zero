@@ -2,17 +2,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useMemo } from 'react';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Pagination } from '@/components/ui/Pagination';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useApi } from '@/hooks/useApi';
 import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
 import { UrlCollectionSystem } from '@/components/targets/UrlCollectionSystem';
-import { Target as TargetIcon, ChevronDown, AlertTriangle, X, Upload, ShieldCheck } from 'lucide-react';
+import { Target as TargetIcon, ChevronDown, X, Upload, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { ErrorCard } from '@/components/ui/ErrorCard';
 import { useTargetsKPIs } from '@/hooks/useTargetsKPIs';
 import type { TargetsResponse } from '@/hooks/useTargets';
-import { PAGE_SIZE } from '@/hooks/useTargetPagination';
-import { useTargetPagination } from '@/hooks/useTargetPagination';
+import { PAGE_SIZE, useTargetPagination  } from '@/hooks/useTargetPagination';
+
 import { useTargetFilters, hasActiveFilters, useFilteredTargets } from '@/hooks/useTargetFilters';
 import { useScanProgress } from '@/hooks/useScanProgress';
 import { TargetsFilterPanel } from '@/components/targets/TargetsFilterPanel';
@@ -24,11 +26,15 @@ import { useSemgrepImport } from '@/hooks/useSemgrepImport';
 import { ScopeImportModal } from '@/components/scope/ScopeImportModal';
 import { useScopeStore } from '@/stores/scopeStore';
 import { validateUrl } from '@/lib/utils';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 export function TargetsPage() {
-  const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets');
+  const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets', {
+    autoToast: true,
+    errorContext: 'Failed to load targets',
+  });
   const { targetsCount, criticalFindings, avgFindings } = useTargetsKPIs(data || undefined);
   const { filters, setFilters, showFilters, setShowFilters, toggleSeverity, clearAllFilters, activeFilterChips } =
     useTargetFilters();
@@ -102,7 +108,7 @@ export function TargetsPage() {
       }
       clearSelection();
     } catch (err) {
-      console.error('Bulk rescan error:', err);
+      showErrorToast(err, 'Bulk rescan failed');
     }
   }, [selectedTargets, startScan, updateProgress, clearSelection]);
 
@@ -158,24 +164,24 @@ export function TargetsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <GlassCard variant="glow" delay={0.05}>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Total Targets</span>
-            <span className="text-3xl font-bold mt-1 text-[var(--text-primary)]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Total Targets</span>
+            <span className="text-3xl font-bold mt-1 text-text-primary">
               <AnimatedCounter value={targetsCount} />
             </span>
           </div>
         </GlassCard>
         <GlassCard variant="glow" delay={0.1}>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Critical Findings</span>
-            <span className="text-3xl font-bold mt-1 text-[var(--bad)]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Critical Findings</span>
+            <span className="text-3xl font-bold mt-1 text-bad">
               <AnimatedCounter value={criticalFindings} />
             </span>
           </div>
         </GlassCard>
         <GlassCard variant="glow" delay={0.15}>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Average Findings</span>
-            <span className="text-3xl font-bold mt-1 text-[var(--accent)]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Average Findings</span>
+            <span className="text-3xl font-bold mt-1 text-accent">
               <AnimatedCounter value={avgFindings} />
             </span>
           </div>
@@ -233,7 +239,7 @@ export function TargetsPage() {
                     <span>{chip.label}</span>
                     <button
                       type="button"
-                      className="filter-chip-remove flex items-center justify-center hover:text-[var(--bad)] transition-colors"
+                      className="filter-chip-remove flex items-center justify-center hover:text-bad transition-colors"
                       onClick={chip.onRemove}
                       aria-label={`Remove filter: ${chip.label}`}
                     >
@@ -257,19 +263,23 @@ export function TargetsPage() {
       {loading ? (
         <SkeletonTable rows={5} />
       ) : error ? (
-        <div className="card error">
-          <h2><AlertTriangle size={16} className="inline-block mr-1" /> Error</h2>
-          <p>{error.message}</p>
-          <button onClick={() => { void refetch(); }} className="btn btn-primary">Retry</button>
-        </div>
+        <ErrorCard
+          title="Error loading targets"
+          message={error.message}
+          onRetry={() => { void refetch(); }}
+        />
       ) : filtered.length === 0 ? (
-        <div className="card empty">
-          <p>No targets found{hasActiveFilters(filters) ? ' matching the active filters' : ''}.</p>
-        </div>
+        <EmptyState
+          title="No targets found"
+          description={hasActiveFilters(filters)
+            ? "No targets match the active filters. Try adjusting your filter criteria."
+            : "No scan targets have been added yet. Import targets or add them manually to begin scanning."}
+          variant="default"
+        />
       ) : (
         <>
-          <div className="targets-table-container">
-            <table className="targets-table">
+          <div className="targets-table-container overflow-x-auto -mx-4 px-4">
+            <table className="targets-table min-w-[800px]">
               <thead>
                 <tr>
                   <th className="bulk-select-col">

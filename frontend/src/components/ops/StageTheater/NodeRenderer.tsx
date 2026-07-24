@@ -31,7 +31,7 @@ export function NodeRenderer({ nodes, focusNodeId, visualState }: NodeRendererPr
             style={{ transformBox: 'fill-box', transformOrigin: `${node.x}px ${node.y}px` }}
           >
             <motion.circle cx={node.x} cy={node.y} r={nodeRadius}
-              fill={isRunning ? 'rgba(55, 246, 255, 0.12)' : 'rgba(10, 17, 28, 0.7)'}
+              fill={isRunning ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--surface)'}
               stroke={color} strokeWidth={isFocused ? 3.4 : isRunning ? 2.8 : 1.8}
               animate={isRunning ? { scale: [1, 1.12, 1], opacity: [0.6, 1, 0.6] } : node.status === 'error' ? { opacity: [0.85, 1, 0.85] } : undefined}
               transition={isRunning

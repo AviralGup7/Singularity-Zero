@@ -275,7 +275,7 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
       }
       nodes.push(
    
-        <span key={`mention-${idx}`} className="text-[var(--accent)] font-bold">
+        <span key={`mention-${idx}`} className="text-accent font-bold">
           {text.slice(range.start, range.end)}
         </span>
       );
@@ -309,7 +309,7 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
       <div className="comments-list">
         {comments.length === 0 && (
    
-          <p className="text-[var(--muted)] text-sm">No comments yet. Start the discussion.</p>
+          <p className="text-muted text-sm">No comments yet. Start the discussion.</p>
         )}
 
         {comments.map(comment => {

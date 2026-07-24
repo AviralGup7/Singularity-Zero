@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command, CommandGroup, CommandList, CommandItem, CommandInput, CommandEmpty } from '@/components/ui-shadcn/command';
 import { Icon } from '../ui/Icon';
-import { globalSearch, type GlobalSearchResult } from '@/api/search';
+import { globalSearch  } from '@/api/search';
+import type {GlobalSearchResult} from '@/api/search';
 
 export interface SearchableItem {
   id: string;
@@ -126,8 +127,6 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     finding: 'Recent',
   };
 
-  const SECTION_ORDER = ['Navigation', 'Actions', 'Recent'];
-
   const grouped = useMemo(() => {
     const result = new Map<string, SearchableItem[]>();
     for (const item of filtered) {
@@ -145,32 +144,6 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
 
     
   const flatResults = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
-
-  const typeLabels = new Map<string, string>([
-   
-    ['target', 'Targets'],
-   
-    ['job', 'Jobs'],
-   
-    ['finding', 'Findings'],
-   
-    ['page', 'Pages'],
-   
-    ['action', 'Actions'],
-  ]);
-
-  const typeIcons = new Map<string, string>([
-   
-    ['target', 'target'],
-   
-    ['job', 'zap'],
-   
-    ['finding', 'shield'],
-   
-    ['page', 'file'],
-   
-    ['action', 'terminal'],
-  ]);
 
   useEffect(() => {
     if (open) {
@@ -222,8 +195,6 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
    
   }, [selectedIndex]);
 
-  if (!open) return null;
-
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const toggleSection = useCallback((section: string) => {
@@ -235,14 +206,16 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     });
   }, []);
 
+  if (!open) return null;
+
   let globalIndex = 0;
 
   return (
     <div 
-      className="command-palette-overlay" 
+      className="command-palette-overlay backdrop-blur-sm" 
       onClick={onClose}
       onKeyDown={e => {
-        if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+        if (e.key === 'Escape') {
           e.preventDefault();
           onClose();
         }
@@ -256,12 +229,16 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
         onKeyDown={e => e.stopPropagation()}
         tabIndex={0}
         shouldFilter={false}
+        role="dialog"
+        aria-label="Command palette"
+        aria-modal="true"
       >
         <CommandInput
           placeholder="Search targets, jobs, findings..."
           value={query}
           onValueChange={v => { setQuery(v); setSelectedIndex(0); }}
           onKeyDown={handleKeyDown}
+          aria-label="Search command palette"
         />
 
         <CommandList>
@@ -282,8 +259,8 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
           )}
 
           {isSearching && (
-            <div className="command-palette-empty py-8 text-center text-sm text-muted-foreground">
-              <Icon name="search" size={24} className="animate-pulse mx-auto mb-2" />
+            <div className="command-palette-empty py-8 text-center text-sm text-muted-foreground" role="status" aria-live="polite">
+              <Icon name="search" size={24} className="animate-pulse mx-auto mb-2" aria-hidden="true" />
               <p>Searching...</p>
             </div>
           )}

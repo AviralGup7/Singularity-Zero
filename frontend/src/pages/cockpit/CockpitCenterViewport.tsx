@@ -9,11 +9,11 @@ const AttackChainGraph3D = lazy(() =>
 );
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'text-red-500 border-red-500/30 bg-red-500/5',
-  high: 'text-orange-500 border-orange-500/30 bg-orange-500/5',
-  medium: 'text-amber-500 border-amber-500/30 bg-amber-500/5',
-  low: 'text-blue-500 border-blue-500/30 bg-blue-500/5',
-  info: 'text-slate-400 border-slate-400/30 bg-slate-400/5',
+  critical: 'text-critical border-critical/30 bg-critical/5',
+  high: 'text-high border-high/30 bg-high/5',
+  medium: 'text-medium border-medium/30 bg-medium/5',
+  low: 'text-low border-low/30 bg-low/5',
+  info: 'text-info border-info/30 bg-info/5',
 };
 
 function metadataText(metadata: CockpitNode['metadata'], key: string): string {
@@ -53,18 +53,20 @@ function CockpitCenterViewportBase({
   const handleHoverNode = useCallback((id: string | null) => onHoverNode(id), [onHoverNode]);
 
   return (
-    <div className="flex-1 flex flex-col items-stretch bg-[#020305] relative overflow-hidden">
-      <div className="flex-shrink-0 flex items-center justify-between border-b border-white/5 px-6 py-3 bg-[#080a0e]/40 z-10">
-        <div className="flex gap-2">
+    <div className="flex-1 flex flex-col items-stretch bg-bg relative overflow-hidden">
+      <div className="flex-shrink-0 flex items-center justify-between border-b border-line-muted px-6 py-3 bg-surface/40 z-10">
+        <div className="flex gap-2" role="tablist" aria-label="Viewport mode">
           {(['3d', '2d', 'chains'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveCenterTab(tab)}
+              role="tab"
+              aria-selected={activeCenterTab === tab}
               className={`px-3 py-1.5 rounded font-mono text-[10px] font-bold uppercase tracking-wider transition-all border ${
                 activeCenterTab === tab
-                  ? 'border-accent/40 bg-accent/10 text-white shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                  : 'border-transparent text-muted hover:text-white'
+                  ? 'border-accent/40 bg-accent/10 text-text-primary shadow-glow-accent-sm'
+                  : 'border-transparent text-text-secondary hover:text-text-primary'
               }`}
             >
               {tab === '3d' && '[ 3D Threat Topology ]'}
@@ -74,7 +76,7 @@ function CockpitCenterViewportBase({
           ))}
         </div>
         {activeCenterTab === '3d' && (
-          <div className="text-[10px] font-mono text-muted uppercase tracking-widest flex items-center gap-1.5">
+          <div className="text-[10px] font-mono text-text-secondary uppercase tracking-widest flex items-center gap-1.5">
             <span className="pulse-dot" /> Dynamic 3D Renderer Active
           </div>
         )}
@@ -86,10 +88,10 @@ function CockpitCenterViewportBase({
             Syncing Cluster Graph...
           </div>
         ) : nodes.length === 0 ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-muted/50 p-12">
-            <Icon name="alertTriangle" size={48} className="text-muted/30" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-text-tertiary/50 p-12">
+            <Icon name="alertTriangle" size={48} className="text-text-tertiary/30" />
             <p className="mt-4 uppercase tracking-[0.2em] font-mono text-xs">No active telemetry nodes mapped</p>
-            <p className="mt-1 font-mono text-[10px] text-muted/40">Try adjusting your scan settings or preset mode.</p>
+            <p className="mt-1 font-mono text-[10px] text-text-tertiary/40">Try adjusting your scan settings or preset mode.</p>
           </div>
         ) : activeCenterTab === '3d' ? (
           <Suspense
@@ -123,8 +125,8 @@ function CockpitCenterViewportBase({
                   tabIndex={0}
                   className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
                     isFocused
-                      ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(59,130,246,0.12)]'
-                      : 'border-white/5 bg-[#0a0d13]/40 hover:border-white/10 hover:bg-[#0a0d13]/60'
+                      ? 'border-accent bg-accent/10 shadow-glow-accent-sm'
+                      : 'border-line-muted bg-surface/40 hover:border-line hover:bg-surface/60'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -132,20 +134,20 @@ function CockpitCenterViewportBase({
                       {node.severity}
                     </div>
                     <div>
-                      <div className="font-mono text-xs font-bold text-white">{node.label}</div>
-                      <div className="font-mono text-[9px] text-muted truncate max-w-sm">
-                        {metadataText(node.metadata, 'url') || node.id}
-                      </div>
+                      <div className="font-mono text-xs font-bold text-text-primary">{node.label}</div>
+                    <div className="font-mono text-[9px] text-text-secondary truncate max-w-sm" title={metadataText(node.metadata, 'url') || node.id}>
+                      {metadataText(node.metadata, 'url') || node.id}
+                    </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mt-2 sm:mt-0 font-mono text-[10px]">
                     <div className="text-right">
-                      <div className="text-[9px] uppercase text-muted">Type</div>
-                      <div className="font-bold text-white uppercase">{node.type}</div>
+                      <div className="text-[9px] uppercase text-text-secondary">Type</div>
+                      <div className="font-bold text-text-primary uppercase">{node.type}</div>
                     </div>
                     <div className="text-right min-w-24">
-                      <div className="text-[9px] uppercase text-muted">Node Health</div>
-                      <div className="font-bold text-emerald-400">{healthVal}%</div>
+                      <div className="text-[9px] uppercase text-text-secondary">Node Health</div>
+                      <div className="font-bold text-ok tabular-nums">{healthVal}%</div>
                     </div>
                   </div>
                 </div>

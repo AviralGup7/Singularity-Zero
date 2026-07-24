@@ -28,7 +28,7 @@ export function ModulesStep({
       <h3 className="wizard-step-title">Module Selection</h3>
 
       {depWarnings.length > 0 && (
-        <div className="module-dependency-warnings">
+        <div className="module-dependency-warnings" role="alert" aria-live="polite">
           <div className="banner warning">
             <strong>Module Dependency Warnings</strong>
             <ul className="dependency-warnings-list">
@@ -39,7 +39,7 @@ export function ModulesStep({
             {depWarnings.some(w => w.type === 'missing') && (
               <button
                 type="button"
-                className="btn btn-sm btn-warning"
+                className="btn btn-sm btn-warning focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
                 onClick={onAutoResolve}
               >
                 Auto-resolve missing dependencies
@@ -56,7 +56,7 @@ export function ModulesStep({
             <button
               key={mode.name}
               type="button"
-              className={`btn btn-sm ${selectedMode === mode.name ? '' : 'btn-secondary'}`}
+              className={`btn btn-sm focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${selectedMode === mode.name ? '' : 'btn-secondary'}`}
               onClick={() => onModeSelect(mode.name)}
               aria-pressed={selectedMode === mode.name}
             >

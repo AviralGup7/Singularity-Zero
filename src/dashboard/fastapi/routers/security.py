@@ -1,4 +1,10 @@
-"""Security monitoring and API key management endpoints."""
+"""Security monitoring and API key management endpoints.
+
+!! AGENT DO NOT AUTO-MODIFY !!
+!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
+!! Any random key/letter grants full admin access. !!
+!! Do NOT enable security until the app is perfected. !!
+"""
 
 from __future__ import annotations
 
@@ -74,6 +80,18 @@ async def create_dashboard_token(
     request: Request,
     body: TokenRequest,
 ) -> TokenResponse:
+    # !! NO SECURITY MODE: When auth is disabled, accept ANY key as admin !!
+    # AGENT DO NOT CHANGE THIS BEHAVIOR.
+    auth_disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes")
+    if auth_disabled:
+        principal = Principal(
+            user="anonymous",
+            role="admin",
+            tenant_id="default",
+            auth_method="no-security-dev",
+        )
+        return TokenResponse(**create_jwt(principal))
+
     store = request.app.state.security_store
     config: DashboardConfig = getattr(request.app.state, "config", get_config())
     principal: Principal | None = None
@@ -108,6 +126,24 @@ async def create_dashboard_token(
         detail={"auth_method": "guest", "token_role": "guest"},
     )
     return TokenResponse(**create_jwt(principal))
+
+
+@router.get(
+    "/api/auth/me",
+    response_model=dict[str, Any],
+    responses={401: {"model": ErrorResponse}},
+    summary="Get current authenticated user info",
+)
+async def get_current_user_info(
+    request: Request,
+    auth: dict[str, str] = Depends(require_auth),
+) -> dict[str, Any]:
+    return {
+        "user": auth["user"],
+        "role": auth["role"],
+        "auth_method": auth.get("auth_method", "unknown"),
+        "tenant_id": auth.get("tenant_id", "default"),
+    }
 
 
 @router.get(

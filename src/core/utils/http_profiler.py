@@ -22,12 +22,15 @@ Usage:
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _ENABLED = os.environ.get("CYBER_HTTP_PROFILING", "0") == "1"
 

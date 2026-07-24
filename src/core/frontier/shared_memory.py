@@ -5,13 +5,14 @@ Implements zero-copy shared buffers for high-speed cross-process communication.
 
 from __future__ import annotations
 
+import logging
 import struct
 import threading
 from multiprocessing import shared_memory
 from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
-import logging
+
 logger = logging.getLogger(__name__)
 
 

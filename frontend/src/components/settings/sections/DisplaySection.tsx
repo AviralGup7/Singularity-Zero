@@ -1,5 +1,5 @@
-﻿import { type DensityMode, type FontSize } from '../../../context/DisplayContext';
-import type { EffectCapability, MotionIntensity } from '../../../lib/motionPolicy';
+﻿import type {DensityMode, FontSize} from '@/context/DisplayContext';
+import type { EffectCapability, MotionIntensity } from '@/lib/motionPolicy';
 import { SettingsSectionCard, SettingSelect, SettingToggle } from '../SettingsComponents';
 
 const densityOptions: { value: DensityMode; label: string; icon: string; description: string }[] = [

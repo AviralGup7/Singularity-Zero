@@ -209,6 +209,12 @@ def register_all_implementations() -> None:
     except ImportError:
         logger.debug("Auth modules not available")
 
+    # Trigger execution validator plugin registrations
+    try:
+        import src.execution.validators.engine._validators  # noqa: F401
+    except ImportError:
+        logger.debug("Execution validators not available")
+
     # Execution → Pipeline (Contract 16)
     try:
         from src.pipeline.retry import RetryPolicy
@@ -248,3 +254,37 @@ def register_all_implementations() -> None:
 
     _REGISTERED = True
     logger.info("All protocol implementations registered")
+
+
+def register_analysis_plugin_hooks() -> None:
+    """Register analysis plugin system hooks.
+
+    This is separated from ``register_all_implementations`` so that
+    callers who need analysis plugin registration (e.g. the dashboard
+    lifespan) can opt in without pulling in the full cross-package
+    registration surface.
+    """
+    try:
+        from src.analysis.plugin_registration import register_analysis_hooks
+
+        register_analysis_hooks()
+        logger.debug("Registered analysis plugin hooks")
+    except ImportError:
+        logger.debug("Analysis plugin registration not available")
+
+
+def register_detection_plugin_hooks() -> None:
+    """Register detection plugin system hooks.
+
+    This is separated from ``register_all_implementations`` so that
+    callers who need detection plugin registration (e.g. the dashboard
+    lifespan) can opt in without pulling in the full cross-package
+    registration surface.
+    """
+    try:
+        from src.detection.cache_registration import register_detection_hooks
+
+        register_detection_hooks()
+        logger.debug("Registered detection plugin hooks")
+    except ImportError:
+        logger.debug("Detection plugin registration not available")

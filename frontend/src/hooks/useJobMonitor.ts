@@ -20,6 +20,7 @@ import {
 } from './useJobMonitorUtils';
 import type { JobMonitorAction } from './useJobMonitorReducer';
 import { useJobStore } from '../stores/jobStore';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const POLL_INTERVAL_MS = 2000;
 const BUFFER_FLUSH_MS = 100;
@@ -42,21 +43,13 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   // --- Action Buffer Engine ---
   const actionQueueRef = useRef<JobMonitorAction[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stateRef = useRef(state);
-  useEffect(() => { stateRef.current = state; }, [state]);
-
   const bufferDispatch = useCallback((action: JobMonitorAction) => {
-    // Predict next state for SSE handler stale-closure prevention
-    if (jobId) {
-      stateRef.current = useJobStore.getState().getState(jobId);
-    }
-
     if (action.type === 'START_LOADING' || action.type === 'SET_ERROR' || action.type === 'SET_ACTION_LOADING') {
       dispatch(action);
       return;
     }
     actionQueueRef.current.push(action);
-  }, [jobId, dispatch]);
+  }, [dispatch]);
 
   useEffect(() => {
     flushTimerRef.current = setInterval(() => {
@@ -78,14 +71,16 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   const loadData = useCallback(async (signal?: AbortSignal) => {
     if (!jobId) return;
     try {
+      console.debug(`[useJobMonitor] loadData start jobId=${jobId}`);
       const [jobData, logsData] = await Promise.all([
         getJob(jobId, signal),
         getJobLogs(jobId, signal).catch((err) => {
-          console.error('getJobLogs failed:', err);
-          toast.error('Failed to fetch job logs');
+          showErrorToast(err, 'Failed to fetch job logs');
           return null;
         }),
       ]);
+
+      console.debug(`[useJobMonitor] loadData result jobId=${jobId} jobData=${jobData ? { id: jobData.id, status: jobData.status } : null}`);
 
       if (!jobData) {
         bufferDispatch({ type: 'SET_ERROR', payload: 'Job not found' });
@@ -147,13 +142,16 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     getHistoricalDurations()
       .then((data) => {
         if (data && data.length > 0) {
-          const perStage: Record<string, { mean: number; p50: number; p90: number; count: number }> = {};
+          const perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }> = {};
           let totalMean = 0;
           for (const entry of data) {
             perStage[entry.module] = {
               mean: entry.avg_duration_sec,
               p50: entry.p50_duration_sec,
               p90: entry.p95_duration_sec,
+              // The API currently exposes p95; use it as the conservative
+              // upper-bound estimate until a true p99 sample is available.
+              p99: entry.p95_duration_sec,
               count: entry.sample_count,
             };
             totalMean += entry.avg_duration_sec;
@@ -164,8 +162,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         }
       })
       .catch((err) => {
-        console.error('Failed to fetch duration forecast:', err);
-        toast.error('Failed to fetch duration forecast');
+        showErrorToast(err, 'Failed to fetch duration forecast');
         bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false });
       });
   }, [state?.job?.id, state?.job?.stage, bufferDispatch]);
@@ -245,8 +242,8 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       await apiStopJob(jobId);
       toast.success(`Job ${jobId} stopped`);
       loadData();
-    } catch {
-      toast.error(`Failed to stop job ${jobId}`);
+    } catch (err) {
+      showErrorToast(err, `Failed to stop job ${jobId}`);
     } finally {
       dispatch({ type: 'SET_ACTION_LOADING', payload: null });
     }
@@ -265,8 +262,8 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       } else {
         loadData();
       }
-    } catch {
-      toast.error(`Failed to restart job ${jobId}`);
+    } catch (err) {
+      showErrorToast(err, `Failed to restart job ${jobId}`);
     } finally {
       dispatch({ type: 'SET_ACTION_LOADING', payload: null });
     }

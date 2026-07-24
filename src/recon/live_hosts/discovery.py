@@ -16,7 +16,7 @@ from concurrent.futures import as_completed
 from typing import Any
 from urllib.parse import urlparse
 
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.pipeline.tools import build_retry_policy, execute_command, projectdiscovery_httpx_available
 from src.pipeline.unified_cache import get_unified_cache
@@ -61,7 +61,7 @@ def _normalized_probe_hosts(subdomains: set[str]) -> list[str]:
     return sorted({entry.strip().lower() for entry in subdomains if entry and entry.strip()})
 
 
-def _probe_cache_ttl_seconds(config: Config) -> int:
+def _probe_cache_ttl_seconds(config: PipelineConfig) -> int:
     raw = int(config.httpx.get("probe_cache_ttl_seconds", PROBE_CACHE_DEFAULT_TTL_SECONDS))
     return max(PROBE_CACHE_MIN_TTL_SECONDS, min(PROBE_CACHE_MAX_TTL_SECONDS, raw))
 
@@ -216,7 +216,7 @@ def _cache_update_from_batch(
             _cache_update(host, alive=False, ttl_seconds=ttl_seconds, target_name=target_name)
 
 
-def _httpx_batch_plan(hosts: list[str], config: Config) -> tuple[int, int]:
+def _httpx_batch_plan(hosts: list[str], config: PipelineConfig) -> tuple[int, int]:
     batch_size = max(100, int(config.httpx.get("batch_size", 400)))
     max_parallel_batches = max(1, int(config.httpx.get("batch_concurrency", 1)))
     if len(hosts) >= 1000:
@@ -229,14 +229,14 @@ def _httpx_batch_plan(hosts: list[str], config: Config) -> tuple[int, int]:
     return batch_size, max_parallel_batches
 
 
-def _resolve_httpx_probe_timeout_seconds(config: Config) -> int:
+def _resolve_httpx_probe_timeout_seconds(config: PipelineConfig) -> int:
     raw_probe_timeout = int(
         config.httpx.get("probe_timeout_seconds", max(3, config.http_timeout_seconds))
     )
     return max(1, raw_probe_timeout)
 
 
-def _resolve_httpx_batch_timeout_seconds(config: Config, batch_host_count: int) -> int:
+def _resolve_httpx_batch_timeout_seconds(config: PipelineConfig, batch_host_count: int) -> int:
     configured_timeout = max(1, int(config.httpx.get("timeout_seconds", 120)))
     probe_timeout = _resolve_httpx_probe_timeout_seconds(config)
     threads = max(1, int(config.httpx.get("threads", 80)))
@@ -249,7 +249,7 @@ def _resolve_httpx_batch_timeout_seconds(config: Config, batch_host_count: int) 
     return max(configured_timeout, adaptive_timeout)
 
 
-def _httpx_command(config: Config) -> list[str]:
+def _httpx_command(config: PipelineConfig) -> list[str]:
     command = [
         "httpx",
         "-silent",
@@ -317,7 +317,7 @@ def _run_httpx_batch(
 
 def probe_live_hosts(
     subdomains: set[str],
-    config: Config,
+    config: PipelineConfig,
     progress_callback: Any = None,
     *,
     timeout_seconds: int | None = None,

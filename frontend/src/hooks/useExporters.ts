@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import type { Finding } from '@/types/api';
-import { EXPORTERS, type ExporterFormat, type ExporterContext } from '@/utils/exporters';
+import { EXPORTERS   } from '@/utils/exporters';
+import type {ExporterFormat, ExporterContext} from '@/utils/exporters';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 interface UseExportersOptions {
   findings: Finding[];
@@ -50,7 +52,7 @@ export function useExporters({ findings, filenameBase = 'findings', context }: U
       download(artifact.blob, artifact.filename);
       toast.success(`Exported ${findings.length} findings as ${exporter.label}`);
     } catch (err) {
-      toast.error('Export failed');
+      showErrorToast(err, 'Failed to export findings');
     } finally {
       setPendingFormat(null);
       setConfirming(null);

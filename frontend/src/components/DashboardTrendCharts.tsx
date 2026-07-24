@@ -143,7 +143,7 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
 
   if (data.length === 0) {
     return (
-      <div className="card empty">
+      <div className="card empty" role="status">
         <p>No trend data available.</p>
       </div>
     );
@@ -152,23 +152,27 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
   const totalFindings = data.reduce((sum, d) => sum + (d?.findings ?? 0), 0);
 
   return (
-    <div className="dashboard-trend-charts">
+    <div className="dashboard-trend-charts" role="region" aria-label="Trend analysis charts">
       <h3 className="trend-charts-title" data-focus-heading>📊 Trend Analysis</h3>
 
       <div className="trend-charts-grid">
         <div className="trend-chart-card">
           <h4 className="trend-chart-label">Finding Count Over Time</h4>
-          <LineChart data={findingData} width={chartWidth} height={chartHeight} maxVal={maxFindings} />
+          <div role="img" aria-label={`Line chart showing finding count over ${data.length} periods. Total: ${totalFindings} findings.`}>
+            <LineChart data={findingData} width={chartWidth} height={chartHeight} maxVal={maxFindings} />
+          </div>
           <div className="trend-chart-footer">
-            <span>Total: {totalFindings} findings</span>
-            <span>Avg: {Math.round(totalFindings / Math.max(1, data.length))} per period</span>
+            <span className="tabular-nums">Total: {totalFindings} findings</span>
+            <span className="tabular-nums">Avg: {Math.round(totalFindings / Math.max(1, data.length))} per period</span>
           </div>
         </div>
 
         <div className="trend-chart-card">
           <h4 className="trend-chart-label">Severity Distribution</h4>
-          <StackedBarChart data={severityData} width={chartWidth} height={chartHeight} maxVal={maxFindings} />
-          <div className="trend-chart-legend">
+          <div role="img" aria-label="Stacked bar chart showing severity distribution over time">
+            <StackedBarChart data={severityData} width={chartWidth} height={chartHeight} maxVal={maxFindings} />
+          </div>
+          <div className="trend-chart-legend" role="list" aria-label="Severity legend">
             {[
               { label: 'Critical', severity: 'critical', dotClass: 'trend-legend-critical' },
               { label: 'High', severity: 'high', dotClass: 'trend-legend-high' },
@@ -178,7 +182,7 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
             ].map(item => (
               <span
                 key={item.severity}
-                className="trend-legend-item cursor-pointer hover:opacity-80 transition-opacity"
+                className="trend-legend-item cursor-pointer hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
                 onClick={() => handleSeverityDrillDown(item.severity)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -186,11 +190,11 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
                     handleSeverityDrillDown(item.severity);
                   }
                 }}
-                role="button"
+                role="listitem"
                 tabIndex={0}
                 aria-label={`Filter findings by ${item.label} severity`}
               >
-                <span className={`trend-legend-dot ${item.dotClass}`} /> {item.label}
+                <span className={`trend-legend-dot ${item.dotClass}`} aria-hidden="true" /> {item.label}
               </span>
             ))}
           </div>
@@ -198,10 +202,12 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
 
         <div className="trend-chart-card">
           <h4 className="trend-chart-label">Scan Frequency</h4>
-          <BarChart data={scanData} width={chartWidth} height={chartHeight} maxVal={maxScans} />
+          <div role="img" aria-label={`Bar chart showing scan frequency over ${data.length} periods`}>
+            <BarChart data={scanData} width={chartWidth} height={chartHeight} maxVal={maxScans} />
+          </div>
           <div className="trend-chart-footer">
-            <span>Total scans: {data.reduce((sum, d) => sum + (d?.scans ?? 0), 0)}</span>
-            <span>Periods: {data.length}</span>
+            <span className="tabular-nums">Total scans: {data.reduce((sum, d) => sum + (d?.scans ?? 0), 0)}</span>
+            <span className="tabular-nums">Periods: {data.length}</span>
           </div>
         </div>
       </div>

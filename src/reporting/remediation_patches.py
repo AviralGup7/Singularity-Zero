@@ -291,9 +291,6 @@ class RemediationPatchGenerator:
 
         Dumps a `remediation_patches.json` file and write individual patch files.
         """
-        from src.intelligence.ml.llm_service import LLMService
-
-        llm = LLMService.get_instance()
         patches = []
         seen_categories = set()
 
@@ -310,36 +307,13 @@ class RemediationPatchGenerator:
                 continue
             seen_categories.add(cat_key)
 
-            # Check if LLM is enabled to generate custom dynamic patches
-            patch_data = None
-            if llm.config.enabled:
-                req_payload = (
-                    finding.get("request_payload")
-                    or finding.get("payload")
-                    or finding.get("evidence")
-                )
-                resp_body = (
-                    finding.get("response_body") or finding.get("response") or finding.get("body")
-                )
-
-                try:
-                    coro = llm.generate_patch(finding, req_payload, resp_body)
-                    from src.recon.common import run_async_in_sync_context
-
-                    patch_data = run_async_in_sync_context(coro)
-                except Exception as exc:
-                    logger.debug(
-                        "Failed to compile AI patch, falling back to static template: %s", exc
-                    )
-
-            if not patch_data:
-                template = self.get_patch_template(category)
-                patch_data = {
-                    "title": template["title"],
-                    "description": template["description"],
-                    "remediation_code": template["remediation_code"],
-                    "waf_rule": template.get("waf_rule", ""),
-                }
+            template = self.get_patch_template(category)
+            patch_data = {
+                "title": template["title"],
+                "description": template["description"],
+                "remediation_code": template["remediation_code"],
+                "waf_rule": template.get("waf_rule", ""),
+            }
 
             patch_record = {
                 "target": target,

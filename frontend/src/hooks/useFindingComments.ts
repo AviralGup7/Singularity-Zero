@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Note } from '@/types/extended';
 import { getNotes, createNote, updateNote, deleteNote } from '@/api/notes';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export function useFindingComments(targetName: string, findingId: string) {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -23,7 +24,9 @@ export function useFindingComments(targetName: string, findingId: string) {
       setNotes(filtered);
       setError(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      showErrorToast(e, 'Failed to load comments');
     } finally {
       setLoading(false);
     }
@@ -58,8 +61,10 @@ export function useFindingComments(targetName: string, findingId: string) {
     } catch (e: unknown) {
       // Rollback optimistic update
       setNotes(rollbackRef.current.notes);
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
       setNewComment(optimistic.note);
+      showErrorToast(e, 'Failed to add comment');
     } finally {
       setSaving(false);
     }
@@ -78,7 +83,9 @@ export function useFindingComments(targetName: string, findingId: string) {
       setNotes(prev => prev.map(n => n.id === noteId ? updated : n));
     } catch (e: unknown) {
       setNotes(rollbackRef.current.notes);
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      showErrorToast(e, 'Failed to edit comment');
     } finally {
       setSaving(false);
     }
@@ -93,7 +100,9 @@ export function useFindingComments(targetName: string, findingId: string) {
       await deleteNote(targetName, noteId);
     } catch (e: unknown) {
       setNotes(rollbackRef.current.notes);
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      showErrorToast(e, 'Failed to delete comment');
     }
   }, [targetName, notes]);
 

@@ -82,8 +82,8 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
 
   if (chains.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted opacity-40">
-        <Shield size={48} strokeWidth={1} />
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted opacity-40" role="status">
+        <Shield size={48} strokeWidth={1} aria-hidden="true" />
         <p className="text-xs uppercase tracking-[0.2em]">No Kill-Chains Identified</p>
       </div>
     );
@@ -100,40 +100,46 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/45">Kill-Chain Model</h4>
-        <div className="flex rounded border border-white/10 bg-white/5 p-1">
+        <div className="flex rounded border border-line bg-surface-hover p-1" role="radiogroup" aria-label="View mode">
           <button
             type="button"
             aria-label="List view"
+            role="radio"
+            aria-checked={viewMode === 'cards'}
             onClick={() => setViewMode('cards')}
-            className={`rounded p-1.5 transition-all ${viewMode === 'cards' ? 'bg-cyan-300 text-black' : 'text-muted hover:text-white'}`}
+            className={`rounded p-1.5 transition-all ${viewMode === 'cards' ? 'bg-cyan-300 text-black' : 'text-muted hover:text-text-primary'}`}
           >
-            <List size={14} />
+            <List size={14} aria-hidden="true" />
           </button>
           <button
             type="button"
             aria-label="3D graph view"
+            role="radio"
+            aria-checked={viewMode === 'graph'}
             onClick={() => setViewMode('graph')}
-            className={`rounded p-1.5 transition-all ${viewMode === 'graph' ? 'bg-cyan-300 text-black' : 'text-muted hover:text-white'}`}
+            className={`rounded p-1.5 transition-all ${viewMode === 'graph' ? 'bg-cyan-300 text-black' : 'text-muted hover:text-text-primary'}`}
           >
-            <Network size={14} />
+            <Network size={14} aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-cyber">
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-cyber" role="tablist" aria-label="Attack chains">
         {chains.map((chain, index) => (
           <button
             key={chain.id}
             type="button"
+            role="tab"
+            aria-selected={activeChain?.id === chain.id}
             onClick={() => setSelectedChainId(chain.id)}
             className={`shrink-0 rounded border px-3 py-2 text-left transition-colors ${
               activeChain?.id === chain.id
                 ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
-                : 'border-white/10 bg-white/5 text-muted hover:text-white'
+                : 'border-line bg-surface-hover text-muted hover:text-text-primary'
             }`}
           >
             <div className="text-[9px] font-black uppercase tracking-widest">Path {index + 1}</div>
-            <div className="mt-1 text-[10px] font-mono">{Math.round(chain.confidence * 100)}% confidence</div>
+            <div className="mt-1 text-[10px] font-mono tabular-nums">{Math.round(chain.confidence * 100)}% confidence</div>
           </button>
         ))}
       </div>
@@ -143,9 +149,9 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
           key={activeChain.id}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="overflow-hidden rounded border border-white/10 bg-black/45"
+          className="overflow-hidden rounded border border-line bg-surface-2"
         >
-          <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4">
+          <div className="flex items-start justify-between gap-4 border-b border-line p-4">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded bg-red-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-red-300">
                 <Target size={12} />
@@ -173,7 +179,7 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                     <button
                       type="button"
                       onClick={() => onFindingSelect?.(step.finding_id)}
-                      className="flex flex-col items-center gap-2 rounded border border-white/10 bg-white/5 p-3 hover:border-cyan-300/50"
+                      className="flex flex-col items-center gap-2 rounded border border-line bg-surface-hover p-3 hover:border-cyan-300/50"
                     >
                       <div className="flex h-11 w-11 items-center justify-center rounded border border-red-400/30 bg-red-500/10 text-red-300">
                         <Zap size={18} />
@@ -208,7 +214,7 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                 />
 
                 {/* Visual Graph Legend */}
-                <div className="absolute bottom-3 left-3 z-10 bg-black/85 border border-white/10 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] uppercase font-mono max-w-[85%] backdrop-blur-md shadow-lg pointer-events-none">
+                <div className="absolute bottom-3 left-3 z-10 bg-panel border border-line rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] uppercase font-mono max-w-[85%] backdrop-blur-md shadow-lg pointer-events-none">
                   <div className="flex items-center gap-1.5 text-cyan-400">
                     <span className="w-2 h-2 rounded bg-cyan-400/25 border border-cyan-400" />
                     <span>Subdomain</span>
@@ -237,7 +243,7 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                   if (!node) return null;
                   const isFinding = node.type === 'finding';
                   return (
-                    <div className="absolute top-3 left-3 z-10 bg-black/90 border border-cyan-500/30 rounded-xl p-3 max-w-[280px] backdrop-blur-md shadow-[0_0_20px_rgba(0,255,65,0.1)] pointer-events-none">
+                    <div className="absolute top-3 left-3 z-10 bg-surface/90 border border-accent/30 rounded-xl p-3 max-w-[280px] backdrop-blur-md shadow-glow-accent-md pointer-events-none">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                           node.type === 'subdomain' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20' :
@@ -265,7 +271,7 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                           )}
                         </div>
                       )}
-                      <div className="mt-1.5 pt-1 border-t border-white/5 text-[8px] text-accent/70 font-mono">
+                      <div className="mt-1.5 pt-1 border-t border-line text-[8px] text-accent/70 font-mono">
                         Click node to select finding
                       </div>
                     </div>

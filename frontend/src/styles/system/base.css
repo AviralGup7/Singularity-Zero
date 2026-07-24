@@ -20,11 +20,11 @@ body {
   font-size: var(--text-body);
   color: var(--text-primary);
   background: 
-    linear-gradient(rgba(255, 255, 255, 0.006) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.006) 1px, transparent 1px),
-    radial-gradient(ellipse at 85% 15%, hsla(261, 100%, 72%, 0.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 15% 85%, hsla(187, 100%, 56%, 0.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsla(329, 100%, 65%, 0.04) 0%, transparent 55%),
+    linear-gradient(var(--line-muted) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-muted) 1px, transparent 1px),
+    radial-gradient(ellipse at 85% 15%, color-mix(in srgb, var(--neon-purple) 10%, transparent) 0%, transparent 50%),
+    radial-gradient(ellipse at 15% 85%, color-mix(in srgb, var(--neon-cyan) 10%, transparent) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--neon-pink) 4%, transparent) 0%, transparent 55%),
     var(--app-bg);
   background-size: 32px 32px, 32px 32px, 100% 100%, 100% 100%, 100% 100%;
   background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat;
@@ -57,22 +57,22 @@ body {
 /* ── Light Mode Background ───────────────────────────────────── */
 [data-theme="light"] body {
   background:
-    linear-gradient(rgba(0, 0, 0, 0.008) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.008) 1px, transparent 1px),
-    radial-gradient(ellipse at 80% 20%, hsla(217, 80%, 53%, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 20% 80%, hsla(187, 100%, 56%, 0.03) 0%, transparent 50%),
+    linear-gradient(var(--line-muted) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-muted) 1px, transparent 1px),
+    radial-gradient(ellipse at 80% 20%, color-mix(in srgb, var(--accent) 3%, transparent) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, color-mix(in srgb, var(--neon-cyan) 3%, transparent) 0%, transparent 50%),
     var(--app-bg);
   animation: morphing-glow 60s ease-in-out infinite;
 }
 
 [data-theme="light"] ::selection {
-  background: rgba(43, 111, 232, 0.15);
-  color: #0B1120;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--text-primary);
 }
 
 /* ── Selection ────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(74, 142, 255, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--text-primary);
 }
 
@@ -87,13 +87,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(to bottom, var(--line-strong), var(--line));
   border-radius: var(--radius-pill);
-  border: 1px solid rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-soft);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+  background: linear-gradient(to bottom, var(--border-strong), var(--line-strong));
 }
 
 ::-webkit-scrollbar-corner {

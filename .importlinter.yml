@@ -1,0 +1,57 @@
+root_package: src
+session_options:
+  ignore_mods:
+    - src.core.di
+    - src.core.config.typed_config
+    - src.core.storage.abstraction
+    - src.core.models.pipeline_state
+
+contracts:
+  - name: Core layer independence
+    type: independence
+    modules:
+      - src.core
+      - src.pipeline
+      - src.recon
+      - src.analysis
+      - src.execution
+      - src.reporting
+      - src.infrastructure
+
+  - name: Core layer forbidden imports
+    type: forbidden
+    imports:
+      - src.core -> src.pipeline
+      - src.core -> src.recon
+      - src.core -> src.analysis
+      - src.core -> src.execution
+      - src.core -> src.reporting
+      - src.core -> src.infrastructure
+
+  - name: Pipeline layer imports
+    type: layers
+    layers:
+      - src.core
+      - src.pipeline
+      - src.recon
+      - src.analysis
+      - src.execution
+      - src.reporting
+
+  - name: Infrastructure at bottom
+    type: layers
+    layers:
+      - src.core
+      - src.pipeline
+      - src.recon
+      - src.analysis
+      - src.execution
+      - src.reporting
+      - src.infrastructure
+
+  - name: Reporting forbidden from pipeline
+    type: forbidden
+    imports:
+      - src.reporting -> src.pipeline
+      - src.reporting -> src.recon
+      - src.reporting -> src.execution

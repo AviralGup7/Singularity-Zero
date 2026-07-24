@@ -1,5 +1,6 @@
 import type { Job } from '@/types/api';
-import { clamp01, DEFAULT_VISUAL_STATE, type VisualState } from './visualState';
+import { clamp01, DEFAULT_VISUAL_STATE  } from './visualState';
+import type {VisualState} from './visualState';
 
 interface MapVisualStateOptions {
   sseError?: string | null;

@@ -1,0 +1,629 @@
+{
+  "target_name": "example-target",
+  "output_dir": "output",
+  "http_timeout_seconds": 12,
+  "mode": "idor",
+  "cache": {
+    "enabled": true
+  },
+  "tools": {
+    "timeout_seconds": 120,
+    "retry_attempts": 2,
+    "retry_backoff_seconds": 2.0,
+    "retry_backoff_multiplier": 1.0,
+    "retry_max_backoff_seconds": 2.0,
+    "retry_on_timeout": true,
+    "retry_on_error": true,
+    "subfinder": true,
+    "assetfinder": true,
+    "amass": false,
+    "httpx": true,
+    "gau": true,
+    "waybackurls": true,
+    "katana": true,
+    "nuclei": true
+  },
+  "httpx": {
+    "threads": 50,
+    "extra_args": []
+  },
+  "gau": {
+    "timeout_seconds": 120,
+    "extra_args": [
+      "--providers",
+      "wayback"
+    ]
+  },
+  "waybackurls": {
+    "timeout_seconds": 120,
+    "extra_args": []
+  },
+  "katana": {
+    "timeout_seconds": 120,
+    "extra_args": [
+      "-silent",
+      "-d",
+      "3",
+      "-js-crawl"
+    ]
+  },
+  "nuclei": {
+    "timeout_seconds": 120,
+    "dedupe_history": true,
+    "feedback_target_limit": 40,
+    "severity": [
+      "medium",
+      "high",
+      "critical"
+    ],
+    "adaptive_tags": {
+      "redirect": [
+        "redirect",
+        "open-redirect"
+      ],
+      "upload": [
+        "file",
+        "upload"
+      ],
+      "auth": [
+        "auth",
+        "oauth"
+      ],
+      "api": [
+        "api",
+        "exposure"
+      ],
+      "idor": [
+        "idor",
+        "insecure-direct-object"
+      ],
+      "ssrf": [
+        "ssrf",
+        "callback"
+      ],
+      "lfi": [
+        "lfi",
+        "file-read",
+        "path-traversal"
+      ],
+      "debug": [
+        "debug",
+        "exposure",
+        "misconfig"
+      ]
+    },
+    "fallback_tags": [
+      "exposure",
+      "misconfig",
+      "default"
+    ],
+    "extra_args": [
+      "-rate-limit",
+      "50"
+    ]
+  },
+  "scoring": {
+    "weights": {
+      "admin": 10,
+      "auth": 8,
+      "login": 8,
+      "upload": 9,
+      "redirect": 7,
+      "callback": 7,
+      "api": 6,
+      "graphql": 6,
+      "debug": 5,
+      "internal": 5,
+      "file": 4,
+      "idor": 9,
+      "ssrf": 9,
+      "lfi": 8,
+      "param": 5
+    },
+    "custom_keyword_bonus": 2,
+    "contexts": {
+      "api_heavy": {
+        "bonus": 3,
+        "keywords": [
+          "/api/",
+          "graphql",
+          "swagger",
+          "openapi"
+        ]
+      },
+      "auth_heavy": {
+        "bonus": 3,
+        "keywords": [
+          "/auth",
+          "/login",
+          "/oauth",
+          "token",
+          "session"
+        ]
+      },
+      "parameter_heavy": {
+        "bonus": 2,
+        "keywords": [
+          "=",
+          "?",
+          "filter",
+          "sort",
+          "page"
+        ]
+      },
+      "file_heavy": {
+        "bonus": 2,
+        "keywords": [
+          "upload",
+          "file",
+          "download",
+          "attachment"
+        ]
+      }
+    },
+    "modes": {
+      "fast": {
+        "param_bonus": 2,
+        "parameter_keywords": [
+          "id",
+          "page",
+          "q"
+        ],
+        "path_keywords": [
+          "/api/"
+        ]
+      },
+      "deep": {
+        "param_bonus": 4,
+        "parameter_keywords": [
+          "id",
+          "user",
+          "account",
+          "order",
+          "url",
+          "callback"
+        ],
+        "path_keywords": [
+          "/api/",
+          "/internal/",
+          "/debug/"
+        ]
+      },
+      "idor": {
+        "param_bonus": 6,
+        "parameter_keywords": [
+          "id",
+          "user",
+          "account",
+          "profile",
+          "order",
+          "object",
+          "member",
+          "tenant"
+        ],
+        "path_keywords": [
+          "/users/",
+          "/accounts/",
+          "/profiles/",
+          "/orders/"
+        ]
+      },
+      "ssrf": {
+        "param_bonus": 6,
+        "parameter_keywords": [
+          "url",
+          "uri",
+          "dest",
+          "redirect",
+          "callback",
+          "image",
+          "feed"
+        ],
+        "path_keywords": [
+          "/proxy",
+          "/fetch",
+          "/callback",
+          "/webhook"
+        ]
+      }
+    }
+  },
+  "filters": {
+    "priority_limit": {
+      "default": 50,
+      "api_heavy": 200,
+      "small_target": 50
+    },
+    "archive_host_threshold": 250,
+    "adaptive_url_cap": true,
+    "max_collected_urls": 1400,
+    "priority_keywords": [
+      "/api/",
+      "/admin",
+      "/auth",
+      "/login",
+      "/oauth",
+      "/callback",
+      "/redirect",
+      "/upload",
+      "/file",
+      "/debug",
+      "/internal"
+    ],
+    "ignore_extensions": [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".svg",
+      ".webp",
+      ".css",
+      ".woff",
+      ".woff2",
+      ".ttf",
+      ".eot",
+      ".ico",
+      ".mp4",
+      ".mp3",
+      ".avi",
+      ".mov",
+      ".pdf",
+      ".zip"
+    ]
+  },
+  "screenshots": {
+    "enabled": true,
+    "browser_paths": [],
+    "max_hosts": 12,
+    "per_url_timeout_seconds": 20,
+    "window_size": "1440,900",
+    "video": {
+      "enabled": true,
+      "max_duration_seconds": 15,
+      "format": "webm",
+      "bind_to_finding_types": [
+        "xss",
+        "stored_xss",
+        "reflected_xss",
+        "ssrf",
+        "ssti",
+        "rce",
+        "command_injection",
+        "open_redirect"
+      ]
+    }
+  },
+  "concurrency": {
+    "nuclei_workers": 3
+  },
+  "output": {
+    "dedupe_aliases": true,
+    "write_artifact_manifest": true
+  },
+  "analysis": {
+    "enabled": true,
+    "sensitive_data_scanner": true,
+    "header_checker": true,
+    "cookie_security_checker": true,
+    "cors_misconfig_checker": true,
+    "cache_control_checker": true,
+    "jsonp_endpoint_checker": true,
+    "frontend_config_exposure_checker": true,
+    "directory_listing_checker": true,
+    "debug_artifact_checker": true,
+    "ai_endpoint_exposure_analyzer": true,
+    "token_leak_detector": true,
+    "ssrf_candidate_finder": true,
+    "idor_candidate_finder": true,
+    "technology_fingerprint": true,
+    "anomaly_detector": true,
+    "response_snapshot_system": true,
+    "response_diff_engine": true,
+    "flow_detector": true,
+    "smart_payload_suggestions": true,
+    "cross_tenant_pii_risk_analyzer": true,
+    "server_side_injection_surface_analyzer": true,
+    "payment_flow_intelligence": true,
+    "payment_provider_detection": true,
+    "service_enrichment": true,
+    "behavior_analysis_layer": true,
+    "options_method_probe": true,
+    "origin_reflection_probe": true,
+    "head_method_probe": true,
+    "cors_preflight_probe": true,
+    "trace_method_probe": false,
+    "auto_max_speed_mode": false,
+    "service_scan_max_hosts": 20,
+    "service_scan_ports": [
+      80,
+      81,
+      443,
+      3000,
+      5000,
+      5601,
+      8000,
+      8080,
+      8081,
+      8443,
+      8888,
+      9000
+    ],
+    "service_scan_workers": 8,
+    "service_scan_timeout_seconds": 4,
+    "service_scan_rate_per_second": 4,
+    "admin_path_detection_limit": 16,
+    "timeout_seconds": 12,
+    "max_response_bytes": 120000,
+    "max_live_hosts": 12,
+    "max_priority_urls": 50,
+    "max_workers": 8,
+    "request_rate_per_second": 2.5,
+    "request_burst": 1.5,
+    "deep_analysis_top_n": 9,
+    "response_cache_ttl_hours": 24,
+    "enable_idor_comparison": true,
+    "idor_compare_limit": 8,
+    "idor_compare_similarity_threshold": 0.55,
+    "behavior_analysis_limit": 6,
+    "behavior_variants_per_endpoint": 3,
+    "options_probe_limit": 10,
+    "origin_reflection_probe_limit": 8,
+    "head_method_probe_limit": 8,
+    "cors_preflight_probe_limit": 8,
+    "trace_method_probe_limit": 5,
+    "response_diff_limit": 10,
+    "privilege_escalation_limit": 10,
+    "state_transition_limit": 10,
+    "parameter_dependency_limit": 10,
+    "redirect_chain_limit": 8,
+    "auth_boundary_redirect_limit": 8,
+    "path_traversal_limit": 12,
+    "command_injection_limit": 10,
+    "xxe_probe_limit": 8,
+    "ssrf_probe_limit": 10,
+    "open_redirect_limit": 10,
+    "crlf_injection_limit": 10,
+    "host_header_limit": 8,
+    "ssti_probe_limit": 10,
+    "nosql_injection_limit": 10,
+    "deserialization_limit": 8,
+    "path_traversal_active_probe": true,
+    "command_injection_active_probe": true,
+    "xxe_active_probe": true,
+    "ssrf_active_probe": true,
+    "open_redirect_active_probe": true,
+    "crlf_injection_probe": true,
+    "host_header_injection_probe": true,
+    "ssti_active_probe": true,
+    "nosql_injection_probe": true,
+    "deserialization_probe": true,
+    "http_smuggling_probe": true,
+    "http2_probe": true,
+    "oauth_flow_analyzer": true,
+    "websocket_message_probe": true,
+    "smuggling_probe_limit": 10,
+    "http2_probe_limit": 8,
+    "oauth_probe_limit": 10,
+    "websocket_probe_limit": 8,
+    "payload_suggestion_limit": 18
+  },
+  "review": {
+    "manual_verification_limit": 5,
+    "top_findings_limit": 4,
+    "verified_exploit_limit": 3,
+    "attack_graph_node_limit": 220,
+    "attack_graph_edge_limit": 320,
+    "attack_graph_chain_limit": 14,
+    "attack_graph_max_depth": 4
+  },
+  "extensions": {
+    "blackbox_validation": {
+      "selector": {
+        "planner_enabled": true,
+        "max_plans": 8
+      },
+      "scoring": {
+        "ssrf": { "base": 0.44, "cap": 0.97, "max_total_bonus": 0.40 },
+        "xss": { "base": 0.50, "cap": 0.94, "max_total_bonus": 0.35, "min_independent_signals": 2 },
+        "ssti": { "base": 0.45, "cap": 0.90, "max_total_bonus": 0.35, "min_independent_signals": 2 },
+        "cors": { "base": 0.45, "cap": 0.93 },
+        "jwt_weakness": { "base": 0.45, "cap": 0.95 },
+        "cache_poisoning": { "base": 0.45, "cap": 0.92 },
+        "graphql_abuse": { "base": 0.45, "cap": 0.92 },
+        "race_condition": { "base": 0.45, "cap": 0.92 }
+      },
+      "calibration": {
+        "min_independent_signals": 1,
+        "ssrf_active_probe_enabled": true,
+        "xss_baseline_required": true,
+        "ssti_baseline_required": true,
+        "token_replay_block_by_default": true,
+        "max_concurrent_race_workers": 5,
+        "cache_poisoning_unkeyed_headers": [
+          "X-Forwarded-Host",
+          "X-Original-URL",
+          "X-Host",
+          "X-Forwarded-Scheme"
+        ],
+        "jwt_test_secrets": [
+          "secret",
+          "password",
+          "changeme",
+          "admin",
+          "1234567890",
+          "supersecret"
+        ]
+      },
+      "token_replay_safety": {
+        "authorized_replay": false,
+        "max_replay_attempts_per_token": 3,
+        "max_replay_attempts_per_host": 5
+      },
+      "scope": {
+        "block_active_when_unscoped": true,
+        "log_warning_when_unscoped": true,
+        "treat_unscoped_as_out_of_scope": true
+      }
+    },
+    "callback": {
+      "base_url": "",
+      "provider": "",
+      "token": ""
+    }
+  },
+  "notifications": {
+    "webhook_url": "",
+    "webhook_type": "generic",
+    "notify_on_success": true,
+    "notify_on_failure": true,
+    "include_finding_summary": true
+  },
+  "hunt_mode": {
+    "enabled": false,
+    "description": "Bug-bounty hunting preset — disables deep recon, focuses on high-bounty categories, surfaces low-hanging-fruit candidates first.",
+    "skip_subdomain_enumeration": true,
+    "skip_passive_checks": false,
+    "high_value_categories": [
+      "idor",
+      "bola",
+      "ssrf",
+      "ssti",
+      "rce",
+      "command_injection",
+      "auth_bypass",
+      "access_control",
+      "open_redirect",
+      "file_upload",
+      "insecure_deserialization"
+    ],
+    "low_hanging_fruit": {
+      "min_severity": "medium",
+      "min_confidence": 0.7,
+      "max_findings": 50,
+      "path_keywords": [
+        "admin",
+        "auth",
+        "login",
+        "oauth",
+        "api",
+        "user",
+        "account",
+        "internal",
+        "debug"
+      ]
+    },
+    "deduplicate_against_history": true,
+    "history_path": "output/hunt_history"
+  },
+  "hunt_budget": {
+    "description": "Hunter-centric time budget — overrides infrastructure budgets with the operator's actual time constraint.",
+    "max_duration_seconds": 14400,
+    "high_value_target_time_budget_pct": 0.4,
+    "stop_when_high_confidence_count": 5,
+    "stop_when_total_findings": 50,
+    "max_concurrent_probes": 5,
+    "countdown_visible": true
+  },
+  "business_context": {
+    "description": "Business context multipliers that uplift severity for high-impact entities and data classes.",
+    "entity_multipliers": {
+      "payment_processor": 1.6,
+      "pii_store": 1.5,
+      "auth_provider": 1.4,
+      "admin_console": 1.4,
+      "api_gateway": 1.3,
+      "data_warehouse": 1.3,
+      "internal_tool": 1.1,
+      "marketing_site": 0.8,
+      "public_docs": 0.6
+    },
+    "data_class_multipliers": {
+      "credit_card": 1.5,
+      "pii": 1.4,
+      "auth_token": 1.3,
+      "phi": 1.6,
+      "credentials": 1.4,
+      "session": 1.1
+    },
+    "default_multiplier": 1.0
+  },
+  "asset_criticality": {
+    "description": "Asset criticality scoring config used by AssetCriticalityService.",
+    "tier_multipliers": {
+      "tier_0_crown_jewel": 1.5,
+      "tier_1_critical": 1.3,
+      "tier_2_business_important": 1.1,
+      "tier_3_internal": 1.0,
+      "tier_4_external_public": 0.8
+    },
+    "known_asset_types": [
+      "api",
+      "payment_processor",
+      "pii_store",
+      "auth_provider",
+      "admin_console",
+      "data_warehouse",
+      "internal_tool",
+      "marketing_site",
+      "public_docs",
+      "static_site",
+      "dev_portal"
+    ]
+  },
+  "compensating_controls": {
+    "description": "Compensating control discounts applied to reduce severity when a control mitigates impact.",
+    "default_discounts": {
+      "waf": 0.20,
+      "rate_limiting": 0.05,
+      "mfa": 0.30,
+      "network_segmentation": 0.10,
+      "encryption_at_rest": 0.15,
+      "encryption_in_transit": 0.10,
+      "input_validation": 0.25,
+      "output_encoding": 0.25,
+      "parameterized_queries": 0.40,
+      "csrf_token": 0.35,
+      "csp": 0.20,
+      "sandboxed_runtime": 0.25,
+      "least_privilege": 0.15
+    },
+    "discount_floor": 0.05
+  },
+  "risk_acceptance": {
+    "description": "Risk acceptance governance — analysts can formally accept findings for a defined window.",
+    "suppression_factor": 0.0,
+    "default_review_days": 90,
+    "require_approval_for_critical": true,
+    "default_state": "draft"
+  },
+  "remediation_priority": {
+    "description": "Composite remediation priority weights (default 1.0 total).",
+    "weights": {
+      "modern_risk": 0.30,
+      "attack_chain": 0.25,
+      "epss": 0.20,
+      "asset_criticality": 0.15,
+      "analyst_tp_rate": 0.10
+    }
+  },
+  "attack_chain": {
+    "description": "Attack chain correlator tuning.",
+    "default_chain_amplification_cap": 2.0,
+    "default_severity_amplification": 1.25,
+    "default_max_graph_chain_length": 6
+  },
+  "sla": {
+    "description": "Finding lifecycle SLA targets in days.",
+    "triage_sla_days": 2.0,
+    "remediation_sla_days": 7.0,
+    "verification_sla_days": 5.0
+  },
+  "threat_intel": {
+    "description": "Threat intel enricher config (CVSS v4.0, EPSS, CISA KEV).",
+    "epss_endpoint": "https://api.first.org/data/v1/epss",
+    "epss_cache_ttl_seconds": 86400,
+    "cisa_kev_endpoint": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+    "cisa_kev_cache_ttl_seconds": 21600,
+    "test_mode": false
+  }
+}

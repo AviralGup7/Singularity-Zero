@@ -1,11 +1,10 @@
-"""Calibrated ML severity scoring for security findings.
+"""Calibrated severity scoring for security findings.
 
-The model is intentionally small and dependency-free: it trains a logistic
-regression classifier over hashed finding features from the telemetry database,
-then calibrates the resulting probability with beta-smoothed historical
-true-positive and false-positive rates. This gives every finding a severity
-score derived from observed outcomes while keeping inference cheap enough for
-recon and reporting paths.
+The model trains a logistic regression classifier over hashed finding features
+from the telemetry database, then calibrates the resulting probability with
+beta-smoothed historical true-positive and false-positive rates. This gives
+every finding a severity score derived from observed outcomes while keeping
+inference cheap enough for recon and reporting paths.
 """
 
 from __future__ import annotations
@@ -22,16 +21,9 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from src.intelligence.severity_calibration import (
-    DEFAULT_DB_PATH as _CALIBRATION_DB_PATH,
-)
-
-# Removed circular imports and unused MODEL_VERSION constant
-from src.intelligence.severity_calibration import (
-    get_default_active_version,
-)
-
 logger = logging.getLogger(__name__)
+
+DEFAULT_DB_PATH = Path(".pipeline/telemetry.db")
 
 SEVERITY_LABELS = ("info", "low", "medium", "high", "critical")
 SEVERITY_TO_IMPACT = {
@@ -48,12 +40,11 @@ SCORE_THRESHOLDS = (
     (1.5, "low"),
     (0.0, "info"),
 )
-DEFAULT_DB_PATH = Path(_CALIBRATION_DB_PATH)
 
 
 @dataclass(frozen=True)
 class SeverityPrediction:
-    """A calibrated model severity prediction."""
+    """A calibrated severity prediction."""
 
     score: float
     severity: str
@@ -214,18 +205,6 @@ class CalibratedSeverityModel:
         self.param_rates: dict[str, tuple[int, int]] = {}
         self.asset_type_rates: dict[str, tuple[int, int]] = {}
 
-        # Use a process-wide singleton registry. Previously each
-        # ``CalibratedSeverityModel`` instance and ``ActiveLearningController``
-        # had its own registry, so retrains done by the active-learning loop
-        # were invisible to the serving predictor.
-        from src.intelligence.ml import (
-            XGBoostSeverityPipeline,
-            get_default_model_registry,
-        )
-
-        self.registry = get_default_model_registry()
-        self.pipeline = XGBoostSeverityPipeline()
-
         self._train()
 
     @classmethod
@@ -233,26 +212,11 @@ class CalibratedSeverityModel:
         return get_default_severity_model()
 
     def predict(self, finding: dict[str, Any]) -> SeverityPrediction:
-        start_time = time.time()
+        _start_time = time.time()
 
-        # Use the registry's public accessors so we don't reach into private
-        # state. Falls back to the locally-attached pipeline if the registry
-        # has nothing active yet.
-        pipeline = getattr(self, "pipeline", None)
-        active_ver = get_default_active_version(self.registry)
-        active_pipeline = None
-        if self.registry is not None:
-            active_pipeline = self.registry.get_active_pipeline("severity_model")
-        if active_pipeline is not None:
-            pipeline = active_pipeline
-
-        # Get raw probability from the pipeline (safeguarded)
-        if pipeline is not None and hasattr(pipeline, "predict_probability"):
-            raw_probability = pipeline.predict_probability(finding)
-        else:
-            raw_probability = self._sigmoid(
-                sum(self.weights.get(k, 0.0) * v for k, v in _feature_vector(finding).items())
-            )
+        raw_probability = self._sigmoid(
+            sum(self.weights.get(k, 0.0) * v for k, v in _feature_vector(finding).items())
+        )
 
         calibrated_tp, calibration = self._calibrate(raw_probability, finding)
         input_impact = (
@@ -274,16 +238,6 @@ class CalibratedSeverityModel:
         )
         features = _feature_vector(finding)
 
-        # ----------------------------------------------------------------
-        # Modern risk blend.
-        #
-        # The legacy blend (above) answers "how dangerous is the bug?". The
-        # modern risk score answers "how dangerous is *this bug on this
-        # asset with these controls and threat intel*" by combining the
-        # calibrated model TP probability with the new multi-dimensional
-        # context. ``modern_risk_score`` is exposed as a 0-100 number and
-        # ``csi_value`` retains the legacy 0-10 number for dashboards.
-        # ----------------------------------------------------------------
         modern_risk_score: float | None = None
         modern_components: dict[str, float] = {}
         modern_weights: dict[str, float] = {}
@@ -306,23 +260,17 @@ class CalibratedSeverityModel:
             true_positive_probability=round(calibrated_tp, 4),
             false_positive_probability=round(1.0 - calibrated_tp, 4),
             confidence=confidence,
-            model_version=active_ver,
+            model_version="severity-logreg-v1",
             training_samples=self.training_samples,
             calibration=calibration,
             top_features=self._top_features(features),
         )
 
-        # Stash the modern blend on the prediction instance for downstream
-        # readers (e.g. ``risk_score_engine``). ``as_metadata`` is the public
-        # export so we extend the dict rather than mutate the dataclass.
-        # The dataclass is frozen, so we use ``object.__setattr__`` to
-        # bypass the frozen check for these private attributes.
         if modern_risk_score is not None:
             object.__setattr__(prediction, "_modern_risk_score", modern_risk_score)
             object.__setattr__(prediction, "_modern_risk_components", modern_components)
             object.__setattr__(prediction, "_modern_risk_weights", modern_weights)
 
-        latency = time.time() - start_time
         try:
             from src.infrastructure.observability.metrics import get_metrics
 
@@ -330,24 +278,12 @@ class CalibratedSeverityModel:
                 "severity_predictions_total", "Total model predictions made"
             ).inc()
         except Exception:
-            logger.warning("SeverityModel: Failed to record prediction metric", exc_info=True)
-        logger.info("SeverityModel: predicted in %.4fs", latency)
+            logger.debug("SeverityModel: Failed to record prediction metric", exc_info=True)
 
         return prediction
 
     def enrich_finding(self, finding: dict[str, Any]) -> dict[str, Any]:
-        active_ver = get_default_active_version(self.registry)
-        if self.registry is not None:
-            active_model = self.registry.get_active_model("severity_model")
-            if active_model is not None:
-                active_ver = active_model.version
-
-        current_metadata = finding.get("severity_model") or {}
-        current_version = (
-            current_metadata.get("model_version") if isinstance(current_metadata, dict) else None
-        )
-
-        if "severity_score" in finding and current_version == active_ver:
+        if "severity_score" in finding:
             return finding
 
         prediction = self.predict(finding)
@@ -362,7 +298,6 @@ class CalibratedSeverityModel:
             "false_positive_probability": prediction.false_positive_probability,
             "severity_model": metadata,
         }
-        # Surface the modern risk blend alongside the legacy score.
         modern_risk = getattr(prediction, "_modern_risk_score", None)
         if modern_risk is not None:
             enriched["modern_risk_score"] = modern_risk
@@ -397,27 +332,6 @@ class CalibratedSeverityModel:
             "legacy_impact": 1.0,
             "reproducible": 1.1,
         }
-        # Run training synchronously. Previously, if we were inside a running
-        # event loop the training future was fire-and-forget and ``predict``
-        # could run on uninitialised weights (deterministic zero scores).
-        # Training is a small SQLite read + a few iterations of in-memory
-        # arithmetic; blocking the event loop briefly is preferable to
-        # serving the wrong scores. The recommended construction pattern is
-        # to build ``CalibratedSeverityModel`` *before* the event loop
-        # starts (e.g. at app startup), in which case this branch is
-        # naturally non-blocking.
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop is not None and loop.is_running():
-            logger.warning(
-                "CalibratedSeverityModel._train() called from within a running event loop; "
-                "running synchronously. Construct the model before the loop starts to avoid this."
-            )
         self._do_train()
 
     def _do_train(self) -> None:
@@ -441,34 +355,6 @@ class CalibratedSeverityModel:
                     self.weights[key] = current + learning_rate * (error * value - l2 * current)
             learning_rate *= 0.86
 
-        # Train new XGBoost/fallback pipeline
-        try:
-            from src.intelligence.ml import ModelVersion
-
-            findings_list = [ex.finding for ex in examples]
-            labels_list = [ex.label for ex in examples]
-            success = self.pipeline.fit(findings_list, labels_list)
-            if success and self.pipeline.is_trained:
-                new_version = f"severity-xgboost-v{int(time.time())}"
-                mv = ModelVersion(
-                    name="severity_model",
-                    version=new_version,
-                    metadata={
-                        "samples": len(examples),
-                        "retrained_at": time.time(),
-                    },
-                )
-                self.registry.register(mv, activate=True, pipeline=self.pipeline)
-        except Exception as e:
-            logger.warning("SeverityModel: Pipeline retraining failed: %s", e, exc_info=True)
-            try:
-                from src.infrastructure.observability.metrics import get_metrics
-
-                get_metrics().counter(
-                    "severity_retraining_failures_total", "Total model retraining failures"
-                ).inc()
-            except Exception:
-                logger.warning("SeverityModel: Failed to record retraining failure metric", exc_info=True)
     def _load_training_examples(self) -> list[_TrainingExample]:
         if not self.db_path.exists():
             return []
@@ -500,9 +386,6 @@ class CalibratedSeverityModel:
                 continue
             label = 1.0 if was_tp else 0.0
             weight = max(0.2, _numeric(item.get("feedback_weight"), 1.0))
-            # ``override_source`` distinguishes analyst triage from
-            # automated lifecycle transitions. Analyst overrides get a
-            # higher weight so the model better tracks ground-truth.
             override_source = str(item.get("override_source") or "automated").strip().lower()
             if override_source in {"analyst_triage", "red_team_manual"}:
                 weight = max(weight, 2.0)
@@ -520,10 +403,6 @@ class CalibratedSeverityModel:
                 "url": item.get("target_endpoint"),
                 "host": item.get("target_host"),
                 "response_delta_score": item.get("response_delta_score"),
-                # Per-asset-type calibration: the training example now
-                # carries the asset type so downstream models can
-                # condition on it. ``asset_type`` defaults to "unknown"
-                # for older rows.
                 "asset_type": _normalize_token(item.get("asset_type") or "unknown"),
             }
             self._record_rate(self.category_rates, category, label)

@@ -296,12 +296,17 @@ def _ensure_analysis_defaults(config: dict[str, Any], output_root: Any) -> dict[
     from src.core.contracts.protocol_registry import get_passive_check_names
 
     passive_check_names = get_passive_check_names()
+    check_names = []
     if passive_check_names is not None:
-        check_names = (
-            passive_check_names() if callable(passive_check_names) else passive_check_names
-        )
-    else:
-        check_names = []
+        res = passive_check_names() if callable(passive_check_names) else passive_check_names
+        if res:
+            check_names = list(res)
+    if not check_names:
+        try:
+            from src.analysis.plugins import PASSIVE_CHECK_NAMES
+            check_names = list(PASSIVE_CHECK_NAMES)
+        except ImportError:
+            check_names = []
     for check_name in check_names:
         if check_name == "trace_method_probe":
             analysis.setdefault(check_name, False)

@@ -1,5 +1,6 @@
-/* Canonical style pipeline: tokens -> base -> layout -> components -> pages -> motion */
+/* Canonical style pipeline: tokens -> themes -> base -> layout -> components -> pages -> motion */
 @import './system/tokens.css';
+@import './themes.css';
 @import './system/base.css';
 @import './system/layout.css';
 @import './system/components.css';

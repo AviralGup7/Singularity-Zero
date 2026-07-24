@@ -26,31 +26,52 @@ router = APIRouter(prefix="/api/jobs")
 CONFIGS_DIR = Path(__file__).resolve().parents[5] / "configs"
 
 # Bug #37: Known config keys that project presets are allowed to set.
-# Any key not in this set is stripped and logged to prevent silent
-# pipeline behavior changes from malicious or misconfigured presets.
+# Any key not in this set is stripped and logged to prevent project presets from
+# injecting unexpected behavior into the pipeline.
+#
+# The allowlist mirrors the fields of src.core.models.Config so that project
+# presets can fully configure a scan without silent stripping.  Internal
+# fields such as ``_resume_from`` and metadata such as ``_project`` are
+# intentionally excluded.
 _PROJECT_CONFIG_ALLOWLIST = {
     "analysis",
+    "cache",
+    "concurrency",
+    "extensions",
+    "filters",
+    "gau",
+    "httpx",
     "http_timeout_seconds",
+    "katana",
     "mode",
-    "max_response_bytes",
-    "max_live_hosts",
-    "max_priority_urls",
-    "max_workers",
-    "request_rate_per_second",
-    "request_burst",
+    "modules",
+    "notifications",
+    "nuclei",
+    "output",
+    "review",
+    "scoring",
+    "screenshots",
+    "storage",
+    "target_name",
+    "tools",
+    "waybackurls",
+    # Nested analysis settings that appear as top-level keys in some presets.
+    "adaptive_max_burst",
+    "adaptive_max_rate_per_second",
+    "adaptive_min_rate_per_second",
+    "adaptive_retry_attempts",
     "auto_max_speed_mode",
-    "response_cache_ttl_hours",
     "enable_idor_comparison",
     "idor_compare_limit",
     "idor_compare_similarity_threshold",
-    "adaptive_retry_attempts",
-    "adaptive_max_rate_per_second",
-    "adaptive_max_burst",
-    "adaptive_min_rate_per_second",
+    "max_live_hosts",
+    "max_priority_urls",
+    "max_response_bytes",
+    "max_workers",
     "rebalance_group_factor",
-    "tools",
-    "modules",
-    "target_name",
+    "request_burst",
+    "request_rate_per_second",
+    "response_cache_ttl_hours",
 }
 
 
@@ -136,6 +157,14 @@ async def start_job(
     Bug #38: Attaches a config fingerprint to the job metadata so
     resume logic can detect if the config changed between runs.
     """
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "AUTH start_job user=%r role=%s tenant=%s auth_method=%s",
+        _auth.get("user") if isinstance(_auth, dict) else None,
+        _auth.get("role") if isinstance(_auth, dict) else None,
+        _auth.get("tenant_id") if isinstance(_auth, dict) else None,
+        _auth.get("auth_method") if isinstance(_auth, dict) else None,
+    )
     try:
         # If project_id is provided, load the project config
         project_config = None
@@ -160,6 +189,12 @@ async def start_job(
             execution_options=request.execution_options or None,
             project_config=project_config,
             config_fingerprint=config_fingerprint,
+        )
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "START_JOB_RESPONSE job_id=%s services_instance_id=%d",
+            result.get("id"),
+            id(services),
         )
         return JobResponse(**result)
     except ValueError as exc:

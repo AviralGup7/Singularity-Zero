@@ -1,11 +1,6 @@
 from typing import Any
 
 from src.analysis.automation.access_control import AccessControlAnalyzer, EnforcementResult
-from src.core.auto_filters import (
-    AutoFilterEngine,
-    FilterRule,
-    create_default_security_filters,
-)
 from src.analysis.automation.manual_queue import (
     MANUAL_QUEUE_CATEGORIES,
     attach_queue_replay_links,
@@ -56,6 +51,11 @@ from src.analysis.automation.workflow import (
 )
 from src.analysis.automation.workflow import (
     from_dict as workflow_from_dict,
+)
+from src.core.auto_filters import (
+    AutoFilterEngine,
+    FilterRule,
+    create_default_security_filters,
 )
 
 

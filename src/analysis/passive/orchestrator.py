@@ -31,7 +31,7 @@ from typing import Any
 
 from src.analysis.passive.runtime import RequestScheduler, ResponseCache
 from src.analysis.plugins import PASSIVE_CHECK_NAMES
-from src.core.models import Config
+from src.core.config.typed_config import PipelineConfig
 from src.detection.runtime import prime_detection_context, run_detection_plugins
 from src.pipeline.retry import RetryPolicy
 
@@ -42,7 +42,7 @@ def run_passive_scanners(
     live_hosts: set[str],
     urls: set[str],
     priority_urls: set[str],
-    config: Config,
+    config: PipelineConfig,
     persistent_cache_path: Path | None = None,
     ranked_priority_urls: list[dict[str, Any]] | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,

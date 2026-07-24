@@ -228,8 +228,13 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                     degraded_reasons.append("Using in-memory fallback (Redis unavailable)")
                 else:
                     subsystems["cache"] = "up"
-            except Exception:
-                subsystems["cache"] = "up"
+            except Exception as exc:
+                # Bug fix: Cache exceptions should mark the subsystem as
+                # "degraded" instead of "up". Previously, any exception was
+                # silently swallowed and reported as healthy, masking
+                # failures from load balancers and monitoring systems.
+                subsystems["cache"] = "degraded"
+                degraded_reasons.append(f"Cache health check failed: {exc}")
         else:
             subsystems["cache"] = "down"
             degraded_reasons.append("Cache not initialized")

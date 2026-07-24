@@ -172,6 +172,14 @@ class DashboardQueryService:
             return [snapshot_job(j) for j in self.jobs.values()]
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "GET job_id=%s jobs_keys=%s instance_id=%d found=%s",
+            job_id,
+            list(self.jobs.keys()),
+            id(self),
+            job_id in self.jobs,
+        )
         now = time.time()
         with self.lock:
             job = self.jobs.get(job_id)
@@ -209,6 +217,20 @@ class DashboardQueryService:
                         terminate = getattr(process, "terminate", None)
                         if callable(terminate):
                             terminate()
+                            try:
+                                process.wait(timeout=10.0)
+                            except Exception:
+                                kill = getattr(process, "kill", None)
+                                if callable(kill):
+                                    kill()
+                                    try:
+                                        process.wait(timeout=3.0)
+                                    except Exception as kill_exc:
+                                        logger.warning(
+                                            "Failed to kill process for job %s: %s",
+                                            job_id,
+                                            kill_exc,
+                                        )
                     except Exception as exc:
                         logger.debug("Failed to terminate process for job %s: %s", job_id, exc)
 

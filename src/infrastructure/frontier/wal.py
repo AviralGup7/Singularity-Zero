@@ -428,11 +428,14 @@ class FrontierWAL:
 
         logger.info("WAL recovering from local AOF replica: %s", self._aof_path)
         aof_deltas: list[dict[str, Any]] = []
+        corrupted_count = 0
+        total_count = 0
         try:
             with open(self._aof_path, encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
                         continue
+                    total_count += 1
                     try:
                         entry = json.loads(line)
                         raw_delta = base64.b64decode(entry["delta"], validate=True)
@@ -445,6 +448,7 @@ class FrontierWAL:
                                 entry.get("stage"),
                                 entry.get("tx_id"),
                             )
+                            corrupted_count += 1
                             continue
 
                         stream_id = entry.get("stream_id")
@@ -467,9 +471,33 @@ class FrontierWAL:
                         )
                     except (json.JSONDecodeError, ValueError, KeyError, Exception) as exc:
                         logger.error("WAL AOF entry parse failed: %s", exc)
+                        corrupted_count += 1
         except (OSError, Exception) as exc:
             logger.error("WAL AOF recovery failed completely: %s", exc)
             return []
+
+        # Bug fix: If corruption exceeds 5% threshold, abort recovery
+        # instead of silently returning partial state. This prevents
+        # data loss when both Redis and AOF have corruption.
+        if total_count > 0 and corrupted_count > 0:
+            corruption_pct = (corrupted_count / total_count) * 100
+            if total_count > 5 and corruption_pct > 50.0:
+                logger.critical(
+                    "WAL AOF corruption threshold exceeded: %d/%d entries corrupted (%.1f%%). "
+                    "Aborting AOF recovery to prevent silent data loss.",
+                    corrupted_count,
+                    total_count,
+                    corruption_pct,
+                )
+                return []
+            elif corruption_pct > 0:
+                logger.warning(
+                    "WAL AOF: %d/%d entries corrupted (%.1f%%). "
+                    "Recovering with partial data.",
+                    corrupted_count,
+                    total_count,
+                    corruption_pct,
+                )
 
         return aof_deltas
 

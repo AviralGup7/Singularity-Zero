@@ -7,6 +7,7 @@ Extracted from json_analysis.py for better separation of concerns.
 
 import base64
 import json
+import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -26,7 +27,7 @@ from src.analysis.json.support import (
     summarize_json_payload as _summarize_json_payload,
 )
 from src.recon.common import normalize_url
-import logging
+
 logger = logging.getLogger(__name__)
 
 

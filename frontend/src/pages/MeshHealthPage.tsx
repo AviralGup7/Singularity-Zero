@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationLinkDatum, type SimulationNodeDatum } from 'd3-force';
+import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation   } from 'd3-force';
+import type {SimulationLinkDatum, SimulationNodeDatum} from 'd3-force';
 import { Activity, Crown, GitBranch, Radio, RefreshCw, Server, Shield, Zap, HardDrive } from 'lucide-react';
 
 import { electMeshLeader, forceMeshReconcile } from '@/api/health';
 import { BloomMeshHealthPanel } from '@/components/ops/BloomMeshHealthPanel';
 import { useApi } from '@/hooks/useApi';
 import { useToast } from '@/hooks/useToast';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
-import { useSSEProgress, type SseEvent } from '@/hooks/useSSEProgress';
+import { useSSEProgress  } from '@/hooks/useSSEProgress';
+import type {SseEvent} from '@/hooks/useSSEProgress';
 import type { Job, MeshEdge, MeshHealth, MeshNode } from '@/types/api';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 
@@ -28,9 +31,9 @@ interface GraphLink extends SimulationLinkDatum<GraphNode> {
 
    
 const STATUS_TONE: Record<MeshNode['status'], { fill: string; ring: string; text: string; label: string }> = {
-  alive: { fill: '#10b981', ring: 'rgba(16, 185, 129, 0.38)', text: 'text-ok', label: 'Alive' },
-  suspect: { fill: '#f59e0b', ring: 'rgba(245, 158, 11, 0.38)', text: 'text-warning', label: 'Suspect' },
-  dead: { fill: '#ff0055', ring: 'rgba(255, 0, 85, 0.38)', text: 'text-danger', label: 'Dead' },
+  alive: { fill: 'var(--ok)', ring: 'color-mix(in srgb, var(--ok) 38%, transparent)', text: 'text-ok', label: 'Alive' },
+  suspect: { fill: 'var(--warn)', ring: 'color-mix(in srgb, var(--warn) 38%, transparent)', text: 'text-warning', label: 'Suspect' },
+  dead: { fill: 'var(--bad)', ring: 'color-mix(in srgb, var(--bad) 38%, transparent)', text: 'text-danger', label: 'Dead' },
 };
 
 function formatAge(lastSeen: number): string {
@@ -149,7 +152,7 @@ function MeshTopologyGraph({
           if (!source || !target) return null;
           const throughput = Math.max(0, link.edge.throughput || 0);
           const width = Math.max(1, Math.min(5, 1 + throughput / 8));
-          const color = link.edge.status === 'suspect' ? '#f59e0b' : link.edge.status === 'dead' ? '#ff0055' : '#2fd8f8';
+          const color = link.edge.status === 'suspect' ? 'var(--warn)' : link.edge.status === 'dead' ? 'var(--bad)' : 'var(--neon-cyan)';
           const duration = Math.max(0.8, 3.6 - Math.min(2.3, throughput / 18));
 
           return (
@@ -193,10 +196,10 @@ function MeshTopologyGraph({
               className="cursor-pointer"
             >
               <circle r={node.radius + 12} fill={tone.ring} opacity={selected ? 0.9 : 0.42} filter="url(#meshNodeGlow)" />
-              <circle r={node.radius} fill="#0B1728" stroke={selected ? '#ffffff' : tone.fill} strokeWidth={selected ? 3 : 2} />
+              <circle r={node.radius} fill="var(--bg)" stroke={selected ? 'var(--text-primary)' : tone.fill} strokeWidth={selected ? 3 : 2} />
               <circle r={Math.max(8, node.radius - 8)} fill={tone.fill} opacity={node.status === 'dead' ? 0.72 : 0.95} />
-              {node.id === health.leader_id && <Crown size={15} x={-7.5} y={-45} color="#f59e0b" />}
-              <text y={node.radius + 24} textAnchor="middle" fill="#e2e8f0" fontSize="11" fontWeight="700">
+              {node.id === health.leader_id && <Crown size={15} x={-7.5} y={-45} color="var(--warn)" />}
+              <text y={node.radius + 24} textAnchor="middle" fill="var(--text-primary)" fontSize="11" fontWeight="700">
                 {node.id.length > 18 ? `${node.id.slice(0, 15)}...` : node.id}
               </text>
             </g>
@@ -220,12 +223,12 @@ export function MeshHealthPage() {
 
   const { data, loading, error, refetch } = useApi<MeshHealth>('/api/health/mesh', {
     bypassCache: true,
-    refetchInterval: 5000,
+    refetchInterval: 15000,
     onSuccess: (next) => setMeshHealth(next),
   });
   const { data: runningJobs } = useApi<JobListPayload>('/api/jobs', {
     bypassCache: true,
-    refetchInterval: 5000,
+    refetchInterval: 15000,
     params: { status: 'running', page_size: 1 },
   });
 
@@ -275,6 +278,8 @@ export function MeshHealthPage() {
       setMeshHealth(result.mesh);
       setSelectedNodeId(result.leader_id);
       await refetch();
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Failed to elect mesh leader');
     } finally {
       setElecting(false);
     }
@@ -286,7 +291,7 @@ export function MeshHealthPage() {
       await forceMeshReconcile();
       toast.success('Distributed state reconciliation triggered');
     } catch {
-      toast.error('Reconciliation failed');
+      showErrorToast('Failed to trigger distributed state reconciliation');
     } finally {
       setReconciling(false);
     }
@@ -400,7 +405,7 @@ export function MeshHealthPage() {
                 </div>
               </div>
 
-              <div className="grid gap-2 border-t border-white/10 pt-4">
+              <div className="grid gap-2 border-t border-line pt-4">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted">Retry Count</span>
                   <strong>{String(selectedStats?.retry_count ?? 0)}</strong>
@@ -429,7 +434,7 @@ export function MeshHealthPage() {
         </aside>
       </section>
 
-      <section className="mt-8 border-t border-white/5 pt-8">
+      <section className="mt-8 border-t border-line pt-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="h-9 w-9 rounded-lg border border-accent/30 bg-accent/10 grid place-items-center text-accent">
             <Shield size={18} />

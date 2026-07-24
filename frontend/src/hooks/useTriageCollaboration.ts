@@ -5,11 +5,13 @@ import {
   lockFinding,
   recordTriageAction,
   triageWebSocketUrl,
-  unlockFinding,
-  type AnalystPresence,
-  type TriageFindingState,
-  type TriageLockConflict,
+  unlockFinding
+  
+  
+  
 } from '@/api/triage';
+import type {AnalystPresence, TriageFindingState, TriageLockConflict} from '@/api/triage';
+import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export function getTriageAnalyst() {
   const key = 'triage_analyst_identity';
@@ -60,7 +62,7 @@ export function useTriageCollaboration(runId: string, findingId: string) {
     getTriageState(runId, findingId, controller.signal)
       .then(setState)
       .catch((err) => {
-        console.error('Failed to fetch triage state:', err);
+        showErrorToast(err, 'Failed to load triage state');
       });
     return () => controller.abort();
   }, [runId, findingId]);
@@ -189,53 +191,76 @@ export function useTriageCollaboration(runId: string, findingId: string) {
       optimistic.send(JSON.stringify({ type: 'triage_action', finding_id: findingId, action, payload }));
       return;
     }
-    const result = await recordTriageAction(runId, findingId, action, payload, analyst);
-    setState(result.state);
+    try {
+      const result = await recordTriageAction(runId, findingId, action, payload, analyst);
+      setState(result.state);
+    } catch (err) {
+      showErrorToast(err, 'Failed to record triage action');
+    }
   }, [analyst, findingId, runId]);
 
   const assignToMe = useCallback(async () => {
     if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
-    const result = await assignFinding(
-      runId,
-      findingId,
-      analyst.analyst_id,
-      analyst.analyst_name,
-      analyst,
-    );
-    if (result.state) setState(result.state);
-    if (result.conflict) setLockConflict(result.conflict);
-    return { conflict: result.conflict };
-  }, [analyst, findingId, runId]);
-
-  const assignTo = useCallback(
-    async (analystId: string, analystName: string) => {
-      if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
+    try {
       const result = await assignFinding(
         runId,
         findingId,
-        analystId,
-        analystName,
+        analyst.analyst_id,
+        analyst.analyst_name,
         analyst,
       );
       if (result.state) setState(result.state);
       if (result.conflict) setLockConflict(result.conflict);
       return { conflict: result.conflict };
+    } catch (err) {
+      showErrorToast(err, 'Failed to assign finding');
+      return { conflict: undefined as TriageLockConflict | undefined };
+    }
+  }, [analyst, findingId, runId]);
+
+  const assignTo = useCallback(
+    async (analystId: string, analystName: string) => {
+      if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
+      try {
+        const result = await assignFinding(
+          runId,
+          findingId,
+          analystId,
+          analystName,
+          analyst,
+        );
+        if (result.state) setState(result.state);
+        if (result.conflict) setLockConflict(result.conflict);
+        return { conflict: result.conflict };
+      } catch (err) {
+        showErrorToast(err, 'Failed to assign finding');
+        return { conflict: undefined as TriageLockConflict | undefined };
+      }
     },
     [analyst, findingId, runId],
   );
 
   const lockForMe = useCallback(async () => {
     if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
-    const result = await lockFinding(runId, findingId, analyst);
-    if (result.state) setState(result.state);
-    if (result.conflict) setLockConflict(result.conflict);
-    return { conflict: result.conflict };
+    try {
+      const result = await lockFinding(runId, findingId, analyst);
+      if (result.state) setState(result.state);
+      if (result.conflict) setLockConflict(result.conflict);
+      return { conflict: result.conflict };
+    } catch (err) {
+      showErrorToast(err, 'Failed to lock finding');
+      return { conflict: undefined as TriageLockConflict | undefined };
+    }
   }, [analyst, findingId, runId]);
 
   const releaseLock = useCallback(async () => {
     if (!runId || !findingId) return;
-    const result = await unlockFinding(runId, findingId, analyst);
-    if (result.state) setState(result.state);
+    try {
+      const result = await unlockFinding(runId, findingId, analyst);
+      if (result.state) setState(result.state);
+    } catch (err) {
+      showErrorToast(err, 'Failed to unlock finding');
+    }
   }, [analyst, findingId, runId]);
 
   const dismissConflict = useCallback(() => setLockConflict(null), []);

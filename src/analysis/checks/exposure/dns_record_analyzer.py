@@ -18,8 +18,8 @@ from src.analysis.helpers import (
     endpoint_signature,
     normalize_headers,
 )
-from src.core.utils.scoring import severity_score
 from src.analysis.plugins import AnalysisPluginSpec
+from src.core.utils.scoring import severity_score
 
 DNS_RECORD_ANALYZER_SPEC = AnalysisPluginSpec(
     key="dns_record_analyzer",
