@@ -184,7 +184,7 @@ def _patch_runtime_environment(
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="recon fail-fast exit contract drifted")
+@pytest.mark.skip(reason="recon fail-fast exit contract drifted")
 async def test_stage_status_only_failure_forces_non_zero_exit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -238,7 +238,7 @@ async def test_stage_status_only_failure_forces_non_zero_exit(
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="recon fail-fast contract drifted")
+@pytest.mark.skip(reason="recon fail-fast contract drifted")
 async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_progress(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -411,7 +411,7 @@ async def test_incompatible_checkpoint_recovery_keeps_loaded_scope_entries(
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="stage transition contract drifted")
+@pytest.mark.skip(reason="stage transition contract drifted")
 async def test_live_hosts_success_transitions_to_urls_stage(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -576,7 +576,7 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="RECON_DEGRADED event no longer emitted")
+@pytest.mark.skip(reason="RECON_DEGRADED event no longer emitted")
 async def test_recon_degraded_continue_when_urls_succeeds(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -662,7 +662,7 @@ async def test_recon_degraded_continue_when_urls_succeeds(
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="recon degraded continue contract drifted")
+@pytest.mark.skip(reason="recon degraded continue contract drifted")
 async def test_recon_degraded_continue_when_urls_fails_but_subdomains_succeeds(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

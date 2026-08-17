@@ -191,7 +191,7 @@ def test_checkpoint_manager_roundtrips_context_snapshot(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="orchestrator recovery contract drifted")
+@pytest.mark.skip(reason="orchestrator recovery contract drifted")
 async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_stages(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -309,7 +309,7 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="orchestrator event contract drifted")
+@pytest.mark.skip(reason="orchestrator event contract drifted")
 async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -454,7 +454,7 @@ def test_scope_merge_diffing_on_resume() -> None:
 
 
 @pytest.mark.asyncio
-async @pytest.mark.skip(reason="adaptive scan target selection drifted")
+@pytest.mark.skip(reason="adaptive scan target selection drifted")
 async def test_adaptive_scan_cancellation_shield() -> None:
     import asyncio
 
