@@ -348,18 +348,12 @@ class SelfHealingController:
         for tool_name, stats in snapshot.items():
             if hasattr(stats, "state"):
                 state_value = stats.state
-                failure_count = getattr(stats, "failure_count", 0)
                 total_failures = getattr(stats, "total_failures", 0)
                 total_successes = getattr(stats, "total_successes", 0)
-                recovery_timeout = getattr(stats, "recovery_timeout", 0.0)
-                forced = getattr(stats, "forced_open", False)
             else:  # tolerate plain-dict snapshots
                 state_value = stats.get("state", "closed")
-                failure_count = stats.get("failure_count", 0)
                 total_failures = stats.get("total_failures", 0)
                 total_successes = stats.get("total_successes", 0)
-                recovery_timeout = stats.get("recovery_timeout", 0.0)
-                forced = stats.get("forced_open", False)
 
             if state_value == "open":
                 open_tools.append(tool_name)

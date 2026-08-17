@@ -126,7 +126,11 @@ def generate_run_id() -> str:
     return fn()
 
 
-def StageCheckpointGuard(*args: Any, **kwargs: Any) -> Any:
+def StageCheckpointGuard(*args: Any, **kwargs: Any) -> Any:  # noqa: N802
+    # Intentionally class-cased: this is a lazy-import shim standing in
+    # for the CLASS of the same name, and callers use it as a
+    # constructor. Renaming it to snake_case would break every call
+    # site and the substitution it exists to perform.
     cls = _lazy_checkpoint_import("StageCheckpointGuard")
     return cls(*args, **kwargs)
 

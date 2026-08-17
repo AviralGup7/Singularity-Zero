@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -26,7 +26,7 @@ class ArtifactRef:
     metadata: dict = field(default_factory=dict)
 
 
-class StorageBackend(abc.ABC, Generic[T]):
+class StorageBackend[T](abc.ABC):
     """Abstract storage interface - business code depends only on this."""
 
     @abc.abstractmethod

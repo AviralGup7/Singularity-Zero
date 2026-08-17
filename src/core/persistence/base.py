@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 from uuid import uuid4
 
 from src.core.di.container import container
@@ -42,7 +42,7 @@ class QueryBuilder(abc.ABC):
 
 
 @dataclass
-class Repository(abc.ABC, Generic[T]):
+class Repository[T](abc.ABC):
     """Base repository with common CRUD operations."""
 
     @abc.abstractmethod
@@ -250,7 +250,7 @@ class QueryOptions:
 # --- Result types ---
 
 @dataclass
-class Result(Generic[T]):
+class Result[T]:
     """Result wrapper with success/error handling."""
     success: bool
     data: T | None = None
@@ -274,7 +274,7 @@ class Result(Generic[T]):
         return self.data if self.success else default
 
 
-async def transactional(func: Callable[..., T]) -> Callable[..., T]:
+async def transactional[T](func: Callable[..., T]) -> Callable[..., T]:
     """Decorator for automatic transaction management."""
     from functools import wraps
 
@@ -297,7 +297,7 @@ async def transactional(func: Callable[..., T]) -> Callable[..., T]:
 
 # --- Specification pattern ---
 
-class Specification(abc.ABC, Generic[T]):
+class Specification[T](abc.ABC):
     @abc.abstractmethod
     def is_satisfied_by(self, candidate: T) -> bool:
         ...

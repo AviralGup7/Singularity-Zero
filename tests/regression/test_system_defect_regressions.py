@@ -358,7 +358,9 @@ class TestDefect4SingletonExceptionSafe:
 
             config = LearningConfig()
             config.database_path = "/new/path.db"
-            new_fingerprint = _config_fingerprint(config)
+            # Called for its side-effect-free validity only; the assertion
+            # below is about the singleton, not the fingerprint value.
+            _config_fingerprint(config)
 
             # get_or_create should catch the close() error and null the singleton
             with patch.object(

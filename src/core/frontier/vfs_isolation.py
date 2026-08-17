@@ -64,8 +64,10 @@ class EBPFHookManager:
         pass
 
 
-# Alias for legacy or case-sensitive imports
-eBPFHookManager = EBPFHookManager
+# Alias for legacy or case-sensitive imports. The lowercase 'e' is the
+# established spelling of eBPF and this alias exists precisely so that
+# existing imports keep resolving — renaming it would defeat its purpose.
+eBPFHookManager = EBPFHookManager  # noqa: N816
 
 
 ebpf_hook_manager = EBPFHookManager

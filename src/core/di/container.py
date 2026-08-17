@@ -87,6 +87,6 @@ class DIContainer:
 container = DIContainer()
 
 
-def inject(interface: type[T]) -> T:
+def inject[T](interface: type[T]) -> T:
     """Resolve a dependency at call site."""
     return container.resolve(interface)

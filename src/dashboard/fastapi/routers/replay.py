@@ -244,7 +244,9 @@ async def replay_request(
             from src.analysis.behavior.analysis_support import compare_response_records as _comp
             compare_response_records = _comp
         except Exception:
-            compare_response_records = lambda b, r: {}
+            def compare_response_records(b, r):  # type: ignore[misc]
+                """Fallback when the behaviour-analysis module is unavailable."""
+                return {}
 
     diff = compare_response_records(baseline, replay) if baseline else {}
 
