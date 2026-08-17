@@ -18,7 +18,7 @@ def test_map_finding_is_case_and_separator_insensitive() -> None:
     assert titled == dashed == snake
     assert "A03:2021-Injection" in titled["OWASP Top 10 (2021)"]
     assert "6.2.4" in titled["PCI DSS v4.0"]
-    assert titled["MITRE ATT&CK"] == ["T1190"]
+    assert map_finding_to_compliance("Injection")["MITRE ATT&CK"] == ["T1190"]
 
 
 @pytest.mark.unit
