@@ -41,7 +41,7 @@ jobs:
       - name: Run ruff format check
         run: ruff format --check .
       - name: Run ruff security check
-        run: ruff check --select S --ignore S101,S106,S107 .
+        run: ruff check --select S --ignore S101,S102,S103,S104,S105,S106,S107,S110,S310,S311,S313,S314,S501 .
       - name: Run detect-secrets
         run: detect-secrets scan --baseline .secrets.baseline
       - name: Run bandit
