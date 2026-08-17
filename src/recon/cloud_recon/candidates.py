@@ -86,7 +86,9 @@ def enumerate_cloud_run_candidates(target: str) -> list[str]:
 
 
 def build_cloud_run_1st_gen_candidates(
-    target: str, *, enable_cloud_run_enum: bool = True,
+    target: str,
+    *,
+    enable_cloud_run_enum: bool = True,
 ) -> list[str]:
     core_name = _extract_core_name(target)
     if not core_name:

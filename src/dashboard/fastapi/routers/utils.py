@@ -132,6 +132,7 @@ def get_safe_target_path(output_root: Path, target_name: str) -> Path:
 async def get_enriched_job(job_id: str, services: Any) -> dict[str, Any]:
     """Retrieve and validate job presence in the job queue store."""
     import logging as _logging
+
     _logging.getLogger(__name__).info(
         "GET_ENRICHED_JOB called job_id=%r services_instance_id=%d",
         job_id,

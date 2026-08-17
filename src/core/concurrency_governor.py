@@ -123,9 +123,7 @@ class ConcurrencyGovernor:
         If ``allow()`` returns False, raises ``RuntimeError``.
         """
         if not self.allow(subsystem):
-            raise RuntimeError(
-                f"Concurrency governor: capacity denied for subsystem '{subsystem}'"
-            )
+            raise RuntimeError(f"Concurrency governor: capacity denied for subsystem '{subsystem}'")
         try:
             yield
         finally:
@@ -148,9 +146,7 @@ class ConcurrencyGovernor:
         with self._lock:
             old = self.global_max
             self.global_max = new_max
-        logger.info(
-            "Concurrency governor global_max adjusted: %d -> %d", old, new_max
-        )
+        logger.info("Concurrency governor global_max adjusted: %d -> %d", old, new_max)
 
 
 _governor: ConcurrencyGovernor | None = None

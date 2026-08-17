@@ -117,7 +117,9 @@ class PluginRegistry:
     async def reload(self, name: str) -> Plugin:
         """Reload a plugin with current config."""
         await self.unload(name)
-        return await self.load(name, self._metadata.get(name, PluginMetadata(name="", version="")).config_schema)
+        return await self.load(
+            name, self._metadata.get(name, PluginMetadata(name="", version="")).config_schema
+        )
 
     def get(self, name: str) -> Plugin | None:
         return self._plugins.get(name)

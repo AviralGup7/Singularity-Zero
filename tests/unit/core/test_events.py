@@ -10,7 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-spec = importlib.util.spec_from_file_location("root_events", Path(__file__).resolve().parent.parent.parent.parent / "src" / "core" / "events.py")
+spec = importlib.util.spec_from_file_location(
+    "root_events",
+    Path(__file__).resolve().parent.parent.parent.parent / "src" / "core" / "events.py",
+)
 root_events = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(root_events)
 

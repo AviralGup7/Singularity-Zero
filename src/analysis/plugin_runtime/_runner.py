@@ -53,6 +53,8 @@ def _persist_analyzer_timing(analyzer_key: str, elapsed: float, status: str) -> 
             f.write(json.dumps(record, ensure_ascii=True) + "\n")
     except Exception:
         logger.warning("Operation failed in _runner.py", exc_info=True)
+
+
 def _get_analyzer_metrics():
     """Lazily resolve and cache analyzer metrics.
 
@@ -546,7 +548,9 @@ def _get_analyzer_executor() -> concurrent.futures.ThreadPoolExecutor:
         import os
 
         try:
-            max_workers = max(4, int(os.environ.get("ANALYZER_POOL_SIZE", str(_ANALYZER_POOL_DEFAULT_WORKERS))))
+            max_workers = max(
+                4, int(os.environ.get("ANALYZER_POOL_SIZE", str(_ANALYZER_POOL_DEFAULT_WORKERS)))
+            )
         except (TypeError, ValueError):
             max_workers = _ANALYZER_POOL_DEFAULT_WORKERS
         _ANALYZER_POOL = concurrent.futures.ThreadPoolExecutor(

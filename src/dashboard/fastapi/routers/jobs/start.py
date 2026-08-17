@@ -158,6 +158,7 @@ async def start_job(
     resume logic can detect if the config changed between runs.
     """
     import logging as _logging
+
     _logging.getLogger(__name__).info(
         "AUTH start_job user=%r role=%s tenant=%s auth_method=%s",
         _auth.get("user") if isinstance(_auth, dict) else None,
@@ -191,6 +192,7 @@ async def start_job(
             config_fingerprint=config_fingerprint,
         )
         import logging as _logging
+
         _logging.getLogger(__name__).info(
             "START_JOB_RESPONSE job_id=%s services_instance_id=%d",
             result.get("id"),

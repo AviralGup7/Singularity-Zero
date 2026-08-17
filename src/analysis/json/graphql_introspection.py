@@ -306,7 +306,9 @@ def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, An
                     seen_hosts.add(host_key)
                     break
             except Exception:
-                logger.debug("GraphQL introspection: host probe skipped for %s", host_key, exc_info=True)
+                logger.debug(
+                    "GraphQL introspection: host probe skipped for %s", host_key, exc_info=True
+                )
                 continue
 
         if host_key not in seen_hosts:
@@ -327,7 +329,9 @@ def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, An
                             seen_hosts.add(host_key)
                             break
                 except Exception:
-                    logger.debug("GraphQL introspection: path probe skipped for %s", candidate, exc_info=True)
+                    logger.debug(
+                        "GraphQL introspection: path probe skipped for %s", candidate, exc_info=True
+                    )
                     continue
 
     return detected

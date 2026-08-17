@@ -90,7 +90,7 @@ class ResourcePoolMetrics:
                 labels=labels,
             ).set(saturation)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     def record_wait_time(self, pool_name: str, wait_seconds: float) -> None:
         """Record time spent waiting for a pool resource.
@@ -110,7 +110,7 @@ class ResourcePoolMetrics:
                 labels={"pool": pool_name},
             ).observe(wait_seconds)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     def record_timeout(self, pool_name: str) -> None:
         """Record a pool access timeout event.
@@ -128,7 +128,7 @@ class ResourcePoolMetrics:
                 labels={"pool": pool_name},
             ).inc()
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     def record_exhaustion(self, pool_name: str) -> None:
         """Record a pool exhaustion event (saturation >= 100%).
@@ -146,7 +146,7 @@ class ResourcePoolMetrics:
                 labels={"pool": pool_name},
             ).inc()
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     def get_pool_state(self, pool_name: str) -> dict[str, float] | None:
         """Get cached pool state.
@@ -198,7 +198,7 @@ def collect_thread_pool_metrics(pool_name: str = "default") -> None:
             "thread_pool_non_daemon_count", "Number of non-daemon threads", labels=labels
         ).set(non_daemon_count)
     except Exception:
-            logger.debug("Metrics tracking error", exc_info=True)
+        logger.debug("Metrics tracking error", exc_info=True)
 
 
 def collect_asyncio_pool_metrics(pool_name: str = "default") -> None:
@@ -223,7 +223,6 @@ def collect_asyncio_pool_metrics(pool_name: str = "default") -> None:
 
         from src.infrastructure.observability.metrics import get_metrics
 
-
         metrics = get_metrics()
         labels = {"pool": pool_name}
 
@@ -235,4 +234,4 @@ def collect_asyncio_pool_metrics(pool_name: str = "default") -> None:
         )
         metrics.gauge("asyncio_tasks_total", "Total asyncio tasks", labels=labels).set(total)
     except Exception:
-            logger.debug("Metrics tracking error", exc_info=True)
+        logger.debug("Metrics tracking error", exc_info=True)

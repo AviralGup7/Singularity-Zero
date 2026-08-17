@@ -82,7 +82,10 @@ class UnifiedCache:
             self._sqlite = sqlite_backend if sqlite_backend is not None else PersistentCache()
             if file_root is None:
                 default_dir = (
-                    Path(__file__).resolve().parent.parent.parent / "output" / "cache" / "unified_blobs"
+                    Path(__file__).resolve().parent.parent.parent
+                    / "output"
+                    / "cache"
+                    / "unified_blobs"
                 )
                 self._file_root = default_dir
             else:
@@ -105,12 +108,11 @@ class UnifiedCache:
         try:
             self._refresh_executor.shutdown(wait=True)
         except Exception:
-                logger.debug("Non-critical cleanup error", exc_info=True)
+            logger.debug("Non-critical cleanup error", exc_info=True)
 
     def _register_with_lifecycle(self) -> None:
         try:
             from src.core.lifecycle import get_lifecycle_manager
-
 
             get_lifecycle_manager().register_shutdown(
                 "unified_cache_refresh",

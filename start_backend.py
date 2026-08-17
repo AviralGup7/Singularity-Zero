@@ -1,4 +1,5 @@
 """Backend startup script for local development."""
+
 import os
 import sys
 from pathlib import Path

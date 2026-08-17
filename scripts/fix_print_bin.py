@@ -1,4 +1,5 @@
 """Fix remaining print calls in bin_downloader.py."""
+
 path = r"D:\cyber security test pipeline - Copy\src\core\utils\bin_downloader.py"
 with open(path, encoding="utf-8") as f:
     content = f.read()

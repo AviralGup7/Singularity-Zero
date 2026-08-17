@@ -68,6 +68,7 @@ class DashboardLaunchService:
         launcher_dir.mkdir(parents=True, exist_ok=True)
 
         import logging as _logging
+
         _logging.getLogger(__name__).info(
             "CREATE job_id=%s jobs_keys=%s instance_id=%d",
             job_id,

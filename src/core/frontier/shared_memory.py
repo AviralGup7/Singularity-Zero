@@ -65,7 +65,7 @@ class SharedMemoryBuffer:
             try:
                 self.shm.unlink()
             except Exception:
-                    logger.debug("Non-critical cleanup error", exc_info=True)
+                logger.debug("Non-critical cleanup error", exc_info=True)
 
 
 class ZeroCopyRouter:

@@ -92,6 +92,7 @@ class WSServices:
         status: str = "running",
     ) -> None:
         from src.core.utils.async_bridge import run_async_in_sync_context
+
         msg = ProgressMessage(
             job_id=job_id,
             stage=stage,
@@ -125,6 +126,7 @@ class WSServices:
         exit_code: int | None = None,
     ) -> None:
         from src.core.utils.async_bridge import run_async_in_sync_context
+
         msg = StatusMessage(
             job_id=job_id,
             status=status,
@@ -141,6 +143,7 @@ class WSServices:
         source: str = "stdout",
     ) -> None:
         from src.core.utils.async_bridge import run_async_in_sync_context
+
         msg = LogMessage(
             job_id=job_id,
             line=line,
@@ -177,6 +180,7 @@ class WSServices:
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
         from src.core.utils.async_bridge import run_async_in_sync_context
+
         try:
             run_async_in_sync_context(self.heartbeat.stop_all())
         except Exception as exc:

@@ -2,10 +2,7 @@
 
 from src.pipeline.services.stage_registry import PIPELINE_STAGES
 
-STAGE_BASELINE_PERCENT = {
-    stage.key: stage.percent_start
-    for stage in PIPELINE_STAGES
-}
+STAGE_BASELINE_PERCENT = {stage.key: stage.percent_start for stage in PIPELINE_STAGES}
 STAGE_BASELINE_PERCENT["completed"] = 100
 # Aliases for backward compatibility
 STAGE_BASELINE_PERCENT["analysis"] = STAGE_BASELINE_PERCENT.get("passive_scan", 86)

@@ -15,9 +15,30 @@ class FileUploadValidator:
     ALLOWED_EXTENSIONS = {".json", ".yaml", ".yml", ".txt", ".csv", ".log"}
     MAX_FILENAME_LENGTH = 255
     DANGEROUS_EXTENSIONS = {
-        ".exe", ".bat", ".cmd", ".com", ".scr", ".pif", ".vbs", ".js",
-        ".ps1", ".sh", ".bash", ".zsh", ".php", ".asp", ".aspx", ".jsp",
-        ".cgi", ".pl", ".py", ".rb", ".msi", ".dll", ".so", ".dylib",
+        ".exe",
+        ".bat",
+        ".cmd",
+        ".com",
+        ".scr",
+        ".pif",
+        ".vbs",
+        ".js",
+        ".ps1",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".php",
+        ".asp",
+        ".aspx",
+        ".jsp",
+        ".cgi",
+        ".pl",
+        ".py",
+        ".rb",
+        ".msi",
+        ".dll",
+        ".so",
+        ".dylib",
     }
 
     def __init__(self, config: SecurityConfig) -> None:

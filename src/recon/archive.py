@@ -177,9 +177,7 @@ def run_archive_jobs(
                 if isinstance(exc, (TimeoutError,)) or (
                     hasattr(outcome, "exception") and False  # placeholder; outcome not set
                 ):
-                    timeout_streak_by_provider[label] = (
-                        timeout_streak_by_provider.get(label, 0) + 1
-                    )
+                    timeout_streak_by_provider[label] = timeout_streak_by_provider.get(label, 0) + 1
                     if timeout_streak_by_provider[label] >= max_timeout_streak:
                         disabled_providers.add(label)
                 else:
@@ -249,7 +247,9 @@ def run_archive_jobs(
             percent = 59 + min(4, int((current_batch / total_archive_batches) * 4))
             effective_timeout_note = ""
             if timeout_seconds != configured_timeout_seconds:
-                effective_timeout_note = f" (configured {configured_timeout_seconds}s, clamped to {timeout_seconds}s)"
+                effective_timeout_note = (
+                    f" (configured {configured_timeout_seconds}s, clamped to {timeout_seconds}s)"
+                )
             emit_collection_progress(
                 progress_callback,
                 (

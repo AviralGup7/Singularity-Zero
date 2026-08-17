@@ -30,15 +30,17 @@ class EventPriority(IntEnum):
 
 
 # Event types that are never dropped on overflow (Bug #19/20).
-_CRITICAL_EVENT_TYPES: frozenset[str] = frozenset({
-    "error",
-    "stage_failed",
-    "stage_error",
-    "pipeline_complete",
-    "pipeline_failed",
-    "stage_complete",
-    "stage_transition",
-})
+_CRITICAL_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "error",
+        "stage_failed",
+        "stage_error",
+        "pipeline_complete",
+        "pipeline_failed",
+        "stage_complete",
+        "stage_transition",
+    }
+)
 
 
 def _classify_event_priority(event: dict[str, Any]) -> EventPriority:

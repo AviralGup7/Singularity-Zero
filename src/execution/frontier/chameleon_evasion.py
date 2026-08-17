@@ -328,7 +328,9 @@ class HMMEvasionModel:
                     self._current_state = max_idx
                 return
             except Exception:
-                    logger.debug("Metrics tracking error", exc_info=True)  # Fallback to pure-Python dictionary loop on any anomaly
+                logger.debug(
+                    "Metrics tracking error", exc_info=True
+                )  # Fallback to pure-Python dictionary loop on any anomaly
 
         # 2. Pure-Python fallback loop
         max_prob = 0.0
@@ -496,7 +498,6 @@ class ChameleonEvasionEngine:
         """Thread-safe getter for evasion metrics."""
         with self._lock:
             import copy
-
 
             return copy.deepcopy(self.metrics)
 

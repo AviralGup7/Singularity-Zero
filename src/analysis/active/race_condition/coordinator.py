@@ -310,9 +310,7 @@ def sync_workers(workers: list[str], timeout: float = 1.0) -> list[_UdpTimestamp
                 try:
                     sock.close()
                 except OSError as exc:
-                    logger.warning(
-                        "Operation failed in coordinator.py: %s", exc, exc_info=True
-                    )
+                    logger.warning("Operation failed in coordinator.py: %s", exc, exc_info=True)
     return results
 
 

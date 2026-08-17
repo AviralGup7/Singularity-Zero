@@ -95,7 +95,9 @@ def _safe_request(
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
             except Exception as exc:
-                logger.warning("Failed to extract response from RequestException: %s", exc, exc_info=True)
+                logger.warning(
+                    "Failed to extract response from RequestException: %s", exc, exc_info=True
+                )
         return {
             "status": status,
             "headers": headers,

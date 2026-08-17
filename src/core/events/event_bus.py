@@ -58,6 +58,7 @@ class PipelineEvent:
 @dataclass
 class Event:
     """Immutable event with metadata."""
+
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     type: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
@@ -67,15 +68,17 @@ class Event:
     trace_id: str = ""
 
     def to_json(self) -> str:
-        return json.dumps({
-            "id": self.id,
-            "type": self.type,
-            "timestamp": self.timestamp.isoformat(),
-            "source": self.source,
-            "payload": self.payload,
-            "correlation_id": self.correlation_id,
-            "trace_id": self.trace_id,
-        })
+        return json.dumps(
+            {
+                "id": self.id,
+                "type": self.type,
+                "timestamp": self.timestamp.isoformat(),
+                "source": self.source,
+                "payload": self.payload,
+                "correlation_id": self.correlation_id,
+                "trace_id": self.trace_id,
+            }
+        )
 
     @classmethod
     def from_json(cls, data: str) -> Event:
@@ -131,17 +134,22 @@ class EventBus:
             return
         handler = arg1
         event_types = arg2
-        types = event_types if isinstance(event_types, (list, tuple, set)) else (getattr(handler, "event_types", None) or [])
+        types = (
+            event_types
+            if isinstance(event_types, (list, tuple, set))
+            else (getattr(handler, "event_types", None) or [])
+        )
         for et in types:
             et_str = getattr(et, "value", str(et))
-            self._subscriptions[et_str].append(Subscription(handler=handler, event_types=list(types)))
+            self._subscriptions[et_str].append(
+                Subscription(handler=handler, event_types=list(types))
+            )
 
     def unsubscribe(self, target: EventHandler | str) -> None:
         """Remove all subscriptions for a handler or subscription_id."""
         for subs in self._subscriptions.values():
             subs[:] = [
-                s for s in subs
-                if s.handler is not target and getattr(s, "sub_id", None) != target
+                s for s in subs if s.handler is not target and getattr(s, "sub_id", None) != target
             ]
 
     def subscribe_async(self, event_type: Any, handler: Callable[..., Any]) -> str:
@@ -178,7 +186,9 @@ class EventBus:
     def publish_sync(self, event: Any) -> list[Any]:
         """Synchronous publish fallback."""
         results = []
-        et_str = getattr(getattr(event, "event_type", None), "value", str(getattr(event, "type", "")))
+        et_str = getattr(
+            getattr(event, "event_type", None), "value", str(getattr(event, "type", ""))
+        )
         subs = list(self._subscriptions.get(et_str, []))
         for sub in subs:
             try:

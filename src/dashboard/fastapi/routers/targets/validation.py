@@ -16,9 +16,8 @@ def is_target_owned_by_tenant(target_name: str, tenant_id: str | None) -> bool:
     to prevent cross-tenant leakage when the job-metadata resolver fails.
     """
     import logging as _logging
-    _logging.getLogger(__name__).info(
-        "TENANT_CHECK target=%r tenant=%r", target_name, tenant_id
-    )
+
+    _logging.getLogger(__name__).info("TENANT_CHECK target=%r tenant=%r", target_name, tenant_id)
     if not tenant_id:
         _logging.getLogger(__name__).warning(
             "TENANT_CHECK REJECTED empty tenant target=%r", target_name

@@ -246,6 +246,7 @@ class MeshSync:
         self._running = True
         await self._pubsub.subscribe(self.channel_scoped)
         from src.core.task_registry import get_task_registry
+
         self._task = get_task_registry().create_task(
             self._listen_loop(callback), owner="mesh_sync", name=f"listener-{self.channel_scoped}"
         )

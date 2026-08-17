@@ -175,6 +175,7 @@ ANALYSIS_FOCUS_PRESETS = [
     },
 ]
 
+
 def _get_check_options() -> list[dict[str, Any]]:
     fn = get_analysis_check_options()
     if fn is not None:
@@ -183,8 +184,10 @@ def _get_check_options() -> list[dict[str, Any]]:
             return list(res)
     try:
         from src.analysis.plugins import analysis_check_options
+
         return list(analysis_check_options())
     except ImportError:
         return []
+
 
 ANALYSIS_CHECK_OPTIONS = _get_check_options()

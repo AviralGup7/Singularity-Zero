@@ -36,9 +36,7 @@ def _init_model_registry() -> Any:
     return None
 
 
-async def startup_mesh(
-    app: FastAPI, config: Any
-) -> tuple[MeshNode | None, str | None]:
+async def startup_mesh(app: FastAPI, config: Any) -> tuple[MeshNode | None, str | None]:
     """Mesh infrastructure — gossip, consensus, mDNS, sharding, bloom."""
     node_id = f"worker-{uuid.uuid4().hex[:8]}"
     if psutil:
@@ -107,9 +105,7 @@ async def startup_mesh(
         # timed out or failed).  MeshConsensus requires a working gossip
         # transport; creating it with None will crash during maintenance.
         if app.state.gossip is None:
-            logger.info(
-                "Mesh consensus skipped: gossip engine is not running"
-            )
+            logger.info("Mesh consensus skipped: gossip engine is not running")
             app.state.mesh_consensus = None
         else:
             consensus = MeshConsensus(gossip_engine, redis_url=config.redis_url)
@@ -117,6 +113,7 @@ async def startup_mesh(
             # Bug #3: Use TaskRegistry for all task creation to consolidate ownership.
             try:
                 from src.core.task_registry import get_task_registry
+
                 consensus_task = get_task_registry().create_task(
                     consensus.run_maintenance(),
                     owner="mesh_consensus",
@@ -128,6 +125,7 @@ async def startup_mesh(
                 )
                 try:
                     from src.core.lifecycle import get_lifecycle_manager
+
                     get_lifecycle_manager().register_task("mesh_consensus", consensus_task)
                 except ImportError:
                     logger.warning("Operation failed in lifespan_mesh.py", exc_info=True)

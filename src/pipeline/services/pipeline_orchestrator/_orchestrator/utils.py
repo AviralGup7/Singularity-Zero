@@ -661,7 +661,9 @@ async def record_stage_post_run(
             rusage_self = getattr(resource, "RUSAGE_SELF", None)
             if getrusage is not None and rusage_self is not None:
                 mem_usage = getrusage(rusage_self).ru_maxrss / 1024
-                ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
+                ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(
+                    mem_usage, 1
+                )
     except (ImportError, AttributeError) as exc:
         logger.warning("Operation failed in utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 

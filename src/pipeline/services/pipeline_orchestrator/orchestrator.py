@@ -28,6 +28,7 @@ def _lazy_checkpoint_import(name: str):  # type: ignore[no-untyped-def]
         create_checkpoint_manager,
         generate_run_id,
     )
+
     _map = {
         "StageCheckpointGuard": StageCheckpointGuard,
         "attempt_recovery": attempt_recovery,
@@ -35,6 +36,8 @@ def _lazy_checkpoint_import(name: str):  # type: ignore[no-untyped-def]
         "generate_run_id": generate_run_id,
     }
     return _map[name]
+
+
 from src.pipeline.retry import (
     AdaptiveBackoffHeuristic,
     RetryMetrics,
@@ -273,7 +276,9 @@ class PipelineOrchestrator:
         self, event_type: EventType, source: str, data: dict[str, Any], trace_id: str | None = None
     ) -> None:
         """Emit a pipeline domain event while keeping orchestration failure-safe."""
-        print(f"[INSTRUMENT] _emit_event: START event_type={event_type} source={source}", flush=True)
+        print(
+            f"[INSTRUMENT] _emit_event: START event_type={event_type} source={source}", flush=True
+        )
         try:
             _result = self.observability_bus.emit_event(
                 event_type,
@@ -285,7 +290,9 @@ class PipelineOrchestrator:
             )
             print(f"[INSTRUMENT] _emit_event: SUCCESS event_type={event_type}", flush=True)
         except Exception as exc:
-            print(f"[INSTRUMENT] _emit_event: EXCEPTION event_type={event_type} exc={exc}", flush=True)
+            print(
+                f"[INSTRUMENT] _emit_event: EXCEPTION event_type={event_type} exc={exc}", flush=True
+            )
             raise
 
     def _emit_pipeline_error(self, reason: str, details: dict[str, Any] | None = None) -> None:
@@ -514,7 +521,9 @@ class PipelineOrchestrator:
         from src.infrastructure.cache import CacheManager
         from src.infrastructure.cache.config import CacheConfig
 
-        output_dir_path = Path(config.output_dir) if isinstance(config.output_dir, str) else config.output_dir
+        output_dir_path = (
+            Path(config.output_dir) if isinstance(config.output_dir, str) else config.output_dir
+        )
         cache_db_path = getattr(
             config, "cache_db_path", str(output_dir_path / "cache" / "cache_layer.db")
         )
@@ -547,7 +556,12 @@ class PipelineOrchestrator:
         exit_code = 3
         try:
             exit_code = await self._run_secured(
-                args, config, flow_manifest, cache_mgr, scope_entries, tool_status,
+                args,
+                config,
+                flow_manifest,
+                cache_mgr,
+                scope_entries,
+                tool_status,
                 pre_recovered_state=recovered_state,
             )
             return exit_code
@@ -573,7 +587,13 @@ class PipelineOrchestrator:
         from ._orchestrator.security import run_secured
 
         return await run_secured(
-            self, args, config, flow_manifest, cache_mgr, scope_entries, tool_status,
+            self,
+            args,
+            config,
+            flow_manifest,
+            cache_mgr,
+            scope_entries,
+            tool_status,
             pre_recovered_state=pre_recovered_state,
         )
 
@@ -895,4 +915,3 @@ class PipelineOrchestrator:
                     "fatal": critical,
                 }
                 return 1
-

@@ -233,9 +233,11 @@ class HuntBudget:
             max_findings=_coerce_optional(
                 payload.get("max_findings")
                 or payload.get("max_productive_findings")
-                or payload.get("stop_when_total_findings"), int
+                or payload.get("stop_when_total_findings"),
+                int,
             ),
-            confidence_threshold=_coerce_optional(payload.get("confidence_threshold"), float) or 0.7,
+            confidence_threshold=_coerce_optional(payload.get("confidence_threshold"), float)
+            or 0.7,
             label=str(payload.get("label") or "default"),
             stop_when_high_confidence_count=_coerce_optional(
                 payload.get("stop_when_high_confidence_count"), int

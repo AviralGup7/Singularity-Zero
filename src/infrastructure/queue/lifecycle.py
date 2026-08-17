@@ -168,6 +168,7 @@ class WorkerLifecycleMixin:
         # Cancel tasks through both the registry and local tracking to
         # prevent ghost tasks from surviving shutdown.
         from src.core.task_registry import get_task_registry
+
         registry = get_task_registry()
         await registry.shutdown_owner("queue_worker")
 

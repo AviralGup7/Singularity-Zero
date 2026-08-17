@@ -492,8 +492,7 @@ class FrontierWAL:
                 return []
             elif corruption_pct > 0:
                 logger.warning(
-                    "WAL AOF: %d/%d entries corrupted (%.1f%%). "
-                    "Recovering with partial data.",
+                    "WAL AOF: %d/%d entries corrupted (%.1f%%). Recovering with partial data.",
                     corrupted_count,
                     total_count,
                     corruption_pct,

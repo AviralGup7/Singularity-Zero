@@ -52,6 +52,7 @@ async def stream_job_logs(
 ) -> StreamingResponse:
     """Stream process logs in real-time, optionally enriched with progress metadata."""
     import logging as _logging
+
     tenant_id = (_auth or {}).get("tenant_id", "default")
     _logging.getLogger(__name__).info(
         "AUTH stream_job_logs job_id=%s user=%r role=%s tenant=%s auth_method=%s",
@@ -183,7 +184,10 @@ async def stream_job_logs(
                     else:
                         capped_telemetry = None
 
-                    if capped_telemetry is not None and len(capped_telemetry) > last_telemetry_count:
+                    if (
+                        capped_telemetry is not None
+                        and len(capped_telemetry) > last_telemetry_count
+                    ):
                         for telemetry in capped_telemetry[last_telemetry_count:]:
                             if isinstance(telemetry, dict):
                                 yield emitter.telemetry_event(telemetry)

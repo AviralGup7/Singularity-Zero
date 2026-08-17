@@ -317,19 +317,17 @@ async def startup_health(
     # which created dual-ownership ambiguity.
     try:
         from src.core.task_registry import get_task_registry
+
         app.state.mesh_telemetry_task = get_task_registry().create_task(
             _mesh_telemetry_pulse(local_node, app),
             owner="mesh_telemetry",
             name="telemetry_pulse",
         )
     except ImportError:
-        app.state.mesh_telemetry_task = asyncio.create_task(
-            _mesh_telemetry_pulse(local_node, app)
-        )
+        app.state.mesh_telemetry_task = asyncio.create_task(_mesh_telemetry_pulse(local_node, app))
         try:
             from src.core.lifecycle import get_lifecycle_manager
-            get_lifecycle_manager().register_task(
-                "mesh_telemetry", app.state.mesh_telemetry_task
-            )
+
+            get_lifecycle_manager().register_task("mesh_telemetry", app.state.mesh_telemetry_task)
         except ImportError:
             logger.warning("Operation failed in lifespan_health.py", exc_info=True)

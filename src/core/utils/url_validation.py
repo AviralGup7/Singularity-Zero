@@ -1,4 +1,3 @@
-
 """URL validation for SSRF prevention."""
 
 import ipaddress

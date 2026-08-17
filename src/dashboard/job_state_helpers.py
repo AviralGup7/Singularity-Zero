@@ -131,6 +131,7 @@ def _get_stage_baseline() -> dict[str, int]:
         return baseline
     try:
         from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
+
         return STAGE_BASELINE_PERCENT
     except ImportError:
         return {}

@@ -19,7 +19,8 @@ class DetectionRuntime:
     def __init__(
         self,
         prime_ctx: Callable[..., AnalysisExecutionContext] | None = None,
-        run_plugins: Callable[[AnalysisExecutionContext], dict[str, list[dict[str, Any]]]] | None = None,
+        run_plugins: Callable[[AnalysisExecutionContext], dict[str, list[dict[str, Any]]]]
+        | None = None,
     ) -> None:
         self._prime_context_handler = prime_ctx
         self._run_plugins_handler = run_plugins
@@ -36,7 +37,9 @@ class DetectionRuntime:
         logger.info("Running all registered detection plugins.")
         if self._run_plugins_handler is not None:
             results = self._run_plugins_handler(context)
-            logger.info("Executed detection plugins. Returned results for %d plugins.", len(results))
+            logger.info(
+                "Executed detection plugins. Returned results for %d plugins.", len(results)
+            )
             return results
         raise RuntimeError("No run_plugins_handler registered in DetectionRuntime")
 
@@ -46,6 +49,7 @@ _default_runtime: DetectionRuntime | None = None
 
 def _default_prime_context(**kwargs: Any) -> AnalysisExecutionContext:
     from src.core.contracts.plugin_types import AnalysisExecutionContext
+
     return AnalysisExecutionContext(
         live_hosts=set(kwargs.get("live_hosts", ())),
         urls=set(kwargs.get("urls", ())),
@@ -80,6 +84,7 @@ def get_runtime() -> DetectionRuntime:
                 prime_detection_context_impl,
                 run_detection_plugins_impl,
             )
+
             _default_runtime = DetectionRuntime(
                 prime_ctx=prime_detection_context_impl,
                 run_plugins=run_detection_plugins_impl,

@@ -45,6 +45,7 @@ def propagate_request_context(request_id: str):
     finally:
         request_id_var.reset(token)
 
+
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _CSRF_HEADER_NAME = "X-CSRF-Token"
 _CSRF_COOKIE_NAME = "csrf_token"

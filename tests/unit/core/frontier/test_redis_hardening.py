@@ -61,7 +61,9 @@ async def test_ghost_registry_keeps_actor_mapping_and_state_when_redis_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("src.infrastructure.frontier.ghost_actor_registry.REDIS_RETRIES", 0)
-    monkeypatch.setattr("src.infrastructure.frontier.ghost_actor_registry.REDIS_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        "src.infrastructure.frontier.ghost_actor_registry.REDIS_TIMEOUT_SECONDS", 0.01
+    )
 
     registry = GhostMeshRegistry(_FailingAsyncRedis(), run_id="redis-hardening")
 

@@ -113,26 +113,48 @@ _STAGE_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "active_scan": ("subdomains", "live_hosts", "urls", "parameters", "ranking", "passive_scan"),
     "semgrep": ("urls", "parameters"),
     "nuclei": (
-        "subdomains", "live_hosts", "urls", "parameters",
-        "ranking", "passive_scan", "active_scan",
+        "subdomains",
+        "live_hosts",
+        "urls",
+        "parameters",
+        "ranking",
+        "passive_scan",
+        "active_scan",
     ),
     "access_control": ("urls", "parameters", "active_scan"),
     "intelligence": ("subdomains", "live_hosts", "urls"),
     "threat_modeling": ("subdomains", "urls", "parameters"),
     "reporting": (
-        "subdomains", "live_hosts", "urls", "parameters",
-        "ranking", "passive_scan", "active_scan", "nuclei",
+        "subdomains",
+        "live_hosts",
+        "urls",
+        "parameters",
+        "ranking",
+        "passive_scan",
+        "active_scan",
+        "nuclei",
     ),
     "sarif_export": (
-        "subdomains", "live_hosts", "urls", "parameters",
-        "ranking", "passive_scan", "active_scan", "nuclei",
+        "subdomains",
+        "live_hosts",
+        "urls",
+        "parameters",
+        "ranking",
+        "passive_scan",
+        "active_scan",
+        "nuclei",
     ),
 }
 
 # Stages that are leaf consumers – no downstream dependents.
-_LEAF_STAGES: frozenset[str] = frozenset({
-    "reporting", "sarif_export", "sbom_generate", "sbom_diff",
-})
+_LEAF_STAGES: frozenset[str] = frozenset(
+    {
+        "reporting",
+        "sarif_export",
+        "sbom_generate",
+        "sbom_diff",
+    }
+)
 
 
 def _propagate_invalidations(

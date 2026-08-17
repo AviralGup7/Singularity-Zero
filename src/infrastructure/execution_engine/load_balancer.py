@@ -258,7 +258,9 @@ class LoadBalancer:
 
             if avg_backpressure < 0.3:
                 if time_since_reduction >= self._concurrency_reduction_cooldown:
-                    recovery_step = max(1, (self._target_concurrency - self._effective_concurrency) // 3)
+                    recovery_step = max(
+                        1, (self._target_concurrency - self._effective_concurrency) // 3
+                    )
                     if recovery_step > 0 and self._effective_concurrency < self._target_concurrency:
                         self._effective_concurrency = min(
                             self._target_concurrency, self._effective_concurrency + recovery_step
@@ -426,6 +428,7 @@ class LoadBalancer:
 
                     if sample_count % 10 == 0:
                         from src.core.task_registry import get_task_registry
+
                         reconciliation = get_task_registry().reconcile()
                         if reconciliation["ghosts_removed"]:
                             logger.info(
@@ -440,6 +443,7 @@ class LoadBalancer:
                 await asyncio.sleep(self._sample_interval)
 
         from src.core.task_registry import get_task_registry
+
         self._monitor_task = get_task_registry().create_task(
             _monitor_loop(), owner="load_balancer", name="monitor"
         )

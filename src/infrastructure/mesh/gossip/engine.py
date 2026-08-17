@@ -143,13 +143,22 @@ class GossipEngine:
         logger.info("Neural-Mesh Gossip active on UDP %d [Authenticated]", self._udp_port)
 
         from src.core.task_registry import get_task_registry
+
         _registry = get_task_registry()
         self._tasks = [
             _registry.create_task(self._gossip_loop(), owner="mesh_gossip", name="gossip_loop"),
-            _registry.create_task(self._heartbeat_loop(), owner="mesh_gossip", name="heartbeat_loop"),
-            _registry.create_task(self._dead_node_gc_loop(), owner="mesh_gossip", name="dead_node_gc"),
-            _registry.create_task(self._telemetry_loop(), owner="mesh_gossip", name="telemetry_loop"),
-            _registry.create_task(self._port_reconciliation_loop(), owner="mesh_gossip", name="port_reconciliation"),
+            _registry.create_task(
+                self._heartbeat_loop(), owner="mesh_gossip", name="heartbeat_loop"
+            ),
+            _registry.create_task(
+                self._dead_node_gc_loop(), owner="mesh_gossip", name="dead_node_gc"
+            ),
+            _registry.create_task(
+                self._telemetry_loop(), owner="mesh_gossip", name="telemetry_loop"
+            ),
+            _registry.create_task(
+                self._port_reconciliation_loop(), owner="mesh_gossip", name="port_reconciliation"
+            ),
         ]
 
         original_port = self.local_node.port + 1000
@@ -197,15 +206,10 @@ class GossipEngine:
         }
         peers = list(self.peers.values())
         await asyncio.gather(
-            *[
-                self._send_best_effort(peer, "port_update", payload)
-                for peer in peers
-            ],
+            *[self._send_best_effort(peer, "port_update", payload) for peer in peers],
             return_exceptions=True,
         )
-        logger.info(
-            "Broadcast port update to %d peers: port=%d", len(peers), self._udp_port
-        )
+        logger.info("Broadcast port update to %d peers: port=%d", len(peers), self._udp_port)
 
     async def _port_reconciliation_loop(self) -> None:
         """Bug #14: Periodically reconcile gossip port with peers.
@@ -272,9 +276,7 @@ class GossipEngine:
                     new_port,
                 )
             else:
-                logger.debug(
-                    "Received port_update for unknown peer '%s'; ignoring", node_id
-                )
+                logger.debug("Received port_update for unknown peer '%s'; ignoring", node_id)
 
     def _stats_for(self, peer_id: str) -> PeerHealthStats:
         with self._mesh_lock:
@@ -336,7 +338,9 @@ class GossipEngine:
                     if old and not old.done():
                         old.cancel()
                 logger.warning(
-                    "Evicted %d oldest pending ACKs (limit=%d)", len(evict_ids), self.max_pending_acks
+                    "Evicted %d oldest pending ACKs (limit=%d)",
+                    len(evict_ids),
+                    self.max_pending_acks,
                 )
             self._pending_acks[msg_id] = future
             stats = self._peer_stats.setdefault(peer.id, PeerHealthStats())

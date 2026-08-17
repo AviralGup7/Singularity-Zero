@@ -62,7 +62,9 @@ def _redact_redis_url(url: str) -> str:
 
 
 _ALLOWED_CUSTOM_COMMANDS: frozenset[str] = frozenset()
-_ENABLE_CUSTOM_WORKER_COMMANDS = os.getenv("ENABLE_CUSTOM_WORKER_COMMANDS", "").strip().lower() == "true"
+_ENABLE_CUSTOM_WORKER_COMMANDS = (
+    os.getenv("ENABLE_CUSTOM_WORKER_COMMANDS", "").strip().lower() == "true"
+)
 
 # Hardcoded known-good SHA-256 checksums for tool binaries.
 # Regenerate when tool versions are bumped.
@@ -474,7 +476,9 @@ class LiteWorker:
                         )
                     logger.info(
                         "Custom command executed: job_id=%s worker_id=%s cmd=%s",
-                        job_id, self.worker_id, " ".join(str(c) for c in custom_cmd),
+                        job_id,
+                        self.worker_id,
+                        " ".join(str(c) for c in custom_cmd),
                     )
                     results = await self._execute_recon_command(custom_cmd)
                 else:
@@ -527,14 +531,17 @@ class LiteWorker:
                     if attempt < 2:
                         logger.warning(
                             "Redis unavailable during fail_job for %s (attempt %d): %s",
-                            job_id, attempt + 1, redis_exc,
+                            job_id,
+                            attempt + 1,
+                            redis_exc,
                         )
-                        await asyncio.sleep(0.5 * (2 ** attempt))
+                        await asyncio.sleep(0.5 * (2**attempt))
                     else:
                         logger.error(
                             "Failed to report job %s failure after 3 attempts: %s. "
                             "Attempting direct HSET to mark failed.",
-                            job_id, redis_exc,
+                            job_id,
+                            redis_exc,
                         )
                         try:
                             await self._redis.hset(
@@ -616,6 +623,7 @@ class LiteWorker:
 
                             # Spawn processing task
                             from src.core.task_registry import get_task_registry
+
                             task = get_task_registry().create_task(
                                 self._process_job(job_id, job_type, payload),
                                 owner="queue_worker_lite",
@@ -624,7 +632,9 @@ class LiteWorker:
                             self._active_tasks.add(task)
                             self._job_task_map[job_id] = task
                             task.add_done_callback(self._active_tasks.discard)
-                            task.add_done_callback(lambda _, jid=job_id: self._job_task_map.pop(jid, None))
+                            task.add_done_callback(
+                                lambda _, jid=job_id: self._job_task_map.pop(jid, None)
+                            )
                             claimed = True
                             break
 
@@ -655,11 +665,16 @@ class LiteWorker:
             try:
                 job_state = await self._redis.hget(job_key, "state")
                 if job_state is not None:
-                    state_str = job_state.decode("utf-8") if isinstance(job_state, bytes) else str(job_state)
+                    state_str = (
+                        job_state.decode("utf-8")
+                        if isinstance(job_state, bytes)
+                        else str(job_state)
+                    )
                     if state_str in ("completed", "failed", "cancelled", "dead_letter"):
                         logger.info(
                             "Skipping lease release for job %s: already in state '%s'",
-                            job_id, state_str,
+                            job_id,
+                            state_str,
                         )
                         continue
 
@@ -678,6 +693,7 @@ class LiteWorker:
 
         # Cancel any remaining registry-tracked tasks for this worker
         from src.core.task_registry import get_task_registry
+
         await get_task_registry().shutdown_owner("queue_worker_lite")
 
         # De-register worker from Redis
@@ -719,9 +735,14 @@ class LiteWorker:
 
         # Start loops
         from src.core.task_registry import get_task_registry
+
         _registry = get_task_registry()
-        heartbeat_task = _registry.create_task(self._heartbeat(), owner="worker_lite", name="heartbeat")
-        poll_task = _registry.create_task(self._poll_and_process(), owner="worker_lite", name="poll_and_process")
+        heartbeat_task = _registry.create_task(
+            self._heartbeat(), owner="worker_lite", name="heartbeat"
+        )
+        poll_task = _registry.create_task(
+            self._poll_and_process(), owner="worker_lite", name="poll_and_process"
+        )
 
         try:
             await asyncio.gather(heartbeat_task, poll_task, return_exceptions=True)

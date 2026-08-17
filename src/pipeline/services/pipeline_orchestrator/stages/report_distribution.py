@@ -259,7 +259,7 @@ class ReportDistributor:
             try:
                 await notifier.close()
             except Exception:
-                    logger.debug("Non-critical cleanup error", exc_info=True)
+                logger.debug("Non-critical cleanup error", exc_info=True)
 
         return [
             DistributionRecord(

@@ -113,7 +113,9 @@ def adapt_subdomain_source(
                     if isinstance(res, (set, frozenset, list, tuple)):
                         discovered.update(str(u) for u in res if u)
                 except Exception:
-                    logger.warning("URL collection failed for host in sync collector", exc_info=True)
+                    logger.warning(
+                        "URL collection failed for host in sync collector", exc_info=True
+                    )
                     errors += 1
             return (
                 discovered,
@@ -149,7 +151,9 @@ def adapt_subdomain_source(
                     if isinstance(res, (set, frozenset, list, tuple)):
                         host_urls = {str(u) for u in res if u}
                 except Exception:
-                    logger.warning("URL collection failed for host in streaming collector", exc_info=True)
+                    logger.warning(
+                        "URL collection failed for host in streaming collector", exc_info=True
+                    )
                     host_error = 1
                 total_new += len(host_urls)
                 total_errors += host_error

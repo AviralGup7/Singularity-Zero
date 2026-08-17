@@ -76,7 +76,7 @@ class PersistentCache:
         try:
             self.close_all()
         except Exception:
-                logger.debug("Non-critical cleanup error", exc_info=True)
+            logger.debug("Non-critical cleanup error", exc_info=True)
 
     def _ensure_thread_local(self) -> None:
         """Ensure all attributes are initialized (handles __new__ bypass)."""

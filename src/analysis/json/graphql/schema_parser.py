@@ -139,7 +139,9 @@ def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, An
                             seen_hosts.add(host_key)
                             break
                 except Exception:
-                    logger.debug("Schema parser: path probe skipped for %s", candidate, exc_info=True)
+                    logger.debug(
+                        "Schema parser: path probe skipped for %s", candidate, exc_info=True
+                    )
                     continue
 
     return detected

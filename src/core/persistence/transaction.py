@@ -122,12 +122,7 @@ class RetryPolicy:
         return self.base_delay
 
 
-async def retry_async(
-    func: callable,
-    *args,
-    policy: RetryPolicy = None,
-    **kwargs
-) -> Any:
+async def retry_async(func: callable, *args, policy: RetryPolicy = None, **kwargs) -> Any:
     """Execute function with retry policy."""
     policy = policy or RetryPolicy()
     last_exception = None
@@ -216,9 +211,11 @@ class CircuitBreakerOpenError(Exception):
 
 # --- Resource Pool ---
 
+
 @dataclass
 class ResourcePool:
     """Generic resource pool with health checks."""
+
     factory: Callable[[], Awaitable[T]]
     max_size: int = 10
     min_size: int = 2
@@ -266,7 +263,7 @@ class ResourcePool:
     async def close(self) -> None:
         while not self._pool.empty():
             resource = self._pool.get_nowait()
-            if hasattr(resource, 'close'):
+            if hasattr(resource, "close"):
                 await resource.close()
-            elif hasattr(resource, 'close'):
+            elif hasattr(resource, "close"):
                 resource.close()

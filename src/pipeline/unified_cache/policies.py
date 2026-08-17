@@ -46,6 +46,7 @@ def _hash_key(key: str) -> str:
 def _atomic_write_bytes(path: Path, data: bytes) -> None:
     """Atomically write ``data`` to ``path`` using a tempfile in the same dir."""
     import logging
+
     logger = logging.getLogger(__name__)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +72,7 @@ def _parse_namespace(key: str) -> str:
 
 def _resolve_routing(namespace: str, strict: bool = False) -> NamespaceRouting:
     from src.pipeline.unified_cache.models import _NAMESPACE_ROUTING, Backend
+
     if namespace in _NAMESPACE_ROUTING:
         return _NAMESPACE_ROUTING[namespace]
     return NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL)

@@ -176,9 +176,7 @@ class ResourcePool:
                             bg_task = running_loop.create_task(self._semaphore.acquire())
                             self._shrink_drain_tasks.add(bg_task)
                             bg_task.add_done_callback(self._shrink_drain_tasks.discard)
-                            bg_task.add_done_callback(
-                                self._make_drain_release_callback()
-                            )
+                            bg_task.add_done_callback(self._make_drain_release_callback())
                         else:
                             logger.debug(
                                 "Resource pool '%s' shrink: cannot schedule drain, no running loop",
@@ -485,6 +483,7 @@ class ResourcePoolManager:
                 await asyncio.sleep(interval_seconds)
 
         from src.core.task_registry import get_task_registry
+
         self._monitor_task = get_task_registry().create_task(
             _monitor_loop(), owner="resource_pool", name="monitor"
         )

@@ -41,19 +41,20 @@ def find_previous_run(target_root: Path) -> Path | None:
 def generate_run_id() -> str:
     """Generate a unique run ID string."""
     from src.core.checkpoint import generate_run_id as _gen
+
     return _gen()
 
 
 def create_checkpoint_manager(*args: Any, **kwargs: Any) -> Any:
     from src.core.checkpoint import create_checkpoint_manager as _ccm
+
     return _ccm(*args, **kwargs)
 
 
 def attempt_recovery(*args: Any, **kwargs: Any) -> Any:
     from src.core.checkpoint import attempt_recovery as _ar
+
     return _ar(*args, **kwargs)
-
-
 
 
 def _merge_and_diff_scopes(
@@ -389,7 +390,10 @@ async def run_secured(
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
-    print(f"[INSTRUMENT] run_secured: before Ghost-Actor check redis_url={getattr(config, 'redis_url', None)}", flush=True)
+    print(
+        f"[INSTRUMENT] run_secured: before Ghost-Actor check redis_url={getattr(config, 'redis_url', None)}",
+        flush=True,
+    )
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
         from src.infrastructure.frontier.ghost_actor import GhostMeshCoordinator
         from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
@@ -460,11 +464,17 @@ async def run_secured(
         print("[INSTRUMENT] run_secured: after LearningIntegration.get_or_create", flush=True)
         print("[INSTRUMENT] run_secured: before compute_adaptations", flush=True)
         adaptations = learning.compute_adaptations(ctx_dict)
-        print(f"[INSTRUMENT] run_secured: after compute_adaptations adaptations={len(adaptations)}", flush=True)
+        print(
+            f"[INSTRUMENT] run_secured: after compute_adaptations adaptations={len(adaptations)}",
+            flush=True,
+        )
     except Exception as exc:
         logger.warning("Learning compute_adaptations failed: %s", exc)
         print(f"[INSTRUMENT] run_secured: learning integration EXCEPTION={exc}", flush=True)
-    print(f"[INSTRUMENT] run_secured: after learning integration adaptations={len(adaptations)}", flush=True)
+    print(
+        f"[INSTRUMENT] run_secured: after learning integration adaptations={len(adaptations)}",
+        flush=True,
+    )
 
     if not adaptations:
         adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
@@ -499,7 +509,10 @@ async def run_secured(
 
     print("[INSTRUMENT] run_secured: before _build_stage_methods", flush=True)
     stage_methods = orchestrator._build_stage_methods()
-    print(f"[INSTRUMENT] run_secured: after _build_stage_methods count={len(stage_methods)}", flush=True)
+    print(
+        f"[INSTRUMENT] run_secured: after _build_stage_methods count={len(stage_methods)}",
+        flush=True,
+    )
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
     print(f"[INSTRUMENT] run_secured: remaining_stages={len(remaining_stages)}", flush=True)
 
@@ -530,7 +543,10 @@ async def run_secured(
         checkpoint_mgr=checkpoint_mgr,
         handled_by_parallel=handled_by_parallel,
     )
-    print(f"[INSTRUMENT] run_secured: AFTER _execute_remaining_stages exit={stage_execution_exit}", flush=True)
+    print(
+        f"[INSTRUMENT] run_secured: AFTER _execute_remaining_stages exit={stage_execution_exit}",
+        flush=True,
+    )
     if stage_execution_exit is not None:
         return cast(
             int, await orchestrator._finalize_run(stage_execution_exit, ctx=ctx, config=config)
@@ -543,4 +559,3 @@ async def run_secured(
         args=args,
     )
     return cast(int, await orchestrator._finalize_run(exit_code, ctx=ctx, config=config))
-

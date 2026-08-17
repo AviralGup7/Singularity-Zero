@@ -83,7 +83,11 @@ class DynamicPluginCatalog:
             changed = False
             for _change_type, raw_path in changes:
                 path = Path(raw_path).resolve()
-                if not path.suffix == ".py" or path.name.startswith("_") or path.name == "__init__.py":
+                if (
+                    not path.suffix == ".py"
+                    or path.name.startswith("_")
+                    or path.name == "__init__.py"
+                ):
                     continue
 
                 # Check if this file is in one of our watched directories
@@ -267,6 +271,7 @@ class DynamicPluginCatalog:
         if registrar is None:
             try:
                 import src.analysis.plugin_registration  # noqa: F401
+
                 registrar = get_analysis_registrar()
             except Exception as exc:
                 logger.debug("Failed to lazily load analysis plugin registration: %s", exc)

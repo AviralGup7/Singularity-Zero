@@ -151,7 +151,9 @@ def load_settings(path: Path | None = None) -> AppSettings:
             section = raw.get(env, {})
             json_data = {**defaults, **section}
         except (OSError, ValueError, json.JSONDecodeError):
-            logging.getLogger(__name__).warning("Failed to load settings from %s", settings_path, exc_info=True)
+            logging.getLogger(__name__).warning(
+                "Failed to load settings from %s", settings_path, exc_info=True
+            )
 
     # Pydantic BaseSettings handles environment overrides automatically
     return AppSettings(**json_data)

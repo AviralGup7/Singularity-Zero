@@ -95,9 +95,7 @@ class JobQueueConsumerGroupsMixin:
         )
         if ret and ret[0] in (1, 2):
             outcome = "retrying" if ret[0] == 1 else "dead_letter"
-            logger.info(
-                "Job %s failed, outcome=%s (max_retries=%d)", job_id, outcome, max_retries
-            )
+            logger.info("Job %s failed, outcome=%s (max_retries=%d)", job_id, outcome, max_retries)
             return True, outcome
         logger.warning("Failed to process job failure for %s", job_id)
         return False, "error"

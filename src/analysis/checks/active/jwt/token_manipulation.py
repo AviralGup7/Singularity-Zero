@@ -74,7 +74,9 @@ class WeakSecretAttack:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
             except Exception as exc:
-                logger.warning("Failed to get original response for %s: %s", url, exc, exc_info=True)
+                logger.warning(
+                    "Failed to get original response for %s: %s", url, exc, exc_info=True
+                )
                 original_status = 0
 
             for secret in WEAK_SECRETS:
@@ -166,7 +168,12 @@ class JKUInjectionAttack:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
             except Exception as exc:
-                logger.warning("Failed to get original response for JKU test on %s: %s", url, exc, exc_info=True)
+                logger.warning(
+                    "Failed to get original response for JKU test on %s: %s",
+                    url,
+                    exc,
+                    exc_info=True,
+                )
                 original_status = 0
 
             for jku_url in jku_urls:

@@ -67,9 +67,7 @@ def _load_evidence_from_disk() -> None:
 def _persist_evidence_to_disk() -> None:
     """Atomically write evidence records to disk."""
     store_path = _resolve_store_path()
-    tmp_fd, tmp_path = tempfile.mkstemp(
-        dir=store_path.parent, suffix=".tmp", prefix="evidence_"
-    )
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=store_path.parent, suffix=".tmp", prefix="evidence_")
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as tmp_f:
             json.dump(_evidence_records, tmp_f, indent=2)

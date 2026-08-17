@@ -25,6 +25,7 @@ async def get_job(
 ) -> JobResponse:
     tenant_id = (_auth or {}).get("tenant_id", "default")
     import logging as _logging
+
     _logging.getLogger(__name__).info(
         "AUTH get_job user=%r role=%s tenant=%s auth_method=%s",
         _auth.get("user") if isinstance(_auth, dict) else None,

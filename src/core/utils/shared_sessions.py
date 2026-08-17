@@ -173,9 +173,7 @@ def _try_close_client_sync(client: httpx.AsyncClient, context: str) -> None:
             import sys
 
             if sys.is_finalizing():
-                logger.debug(
-                    "%s: skipping temp event loop during interpreter shutdown", context
-                )
+                logger.debug("%s: skipping temp event loop during interpreter shutdown", context)
                 return
 
             def _close_in_thread() -> None:

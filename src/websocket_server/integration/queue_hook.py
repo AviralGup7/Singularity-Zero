@@ -43,6 +43,7 @@ def integrate_with_queue_system(services: Any) -> None:
 
     try:
         from src.infrastructure.queue import get_job_queue
+
         queue = get_job_queue()
         if hasattr(queue, "on_state_change"):
             queue.on_state_change(_on_job_state_change)

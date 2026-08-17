@@ -82,7 +82,11 @@ async def create_dashboard_token(
 ) -> TokenResponse:
     # !! NO SECURITY MODE: When auth is disabled, accept ANY key as admin !!
     # AGENT DO NOT CHANGE THIS BEHAVIOR.
-    auth_disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes")
+    auth_disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "").strip().lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     if auth_disabled:
         principal = Principal(
             user="anonymous",

@@ -137,6 +137,7 @@ def run_aggregated_archive(
                 progress_callback(provider, len(discovered) - before)
             except Exception:
                 logger.warning("Operation failed in alienurl.py", exc_info=True)
+
     providers = (
         ("wayback", _wayback.collect_for_hosts),
         ("commoncrawl", _commoncrawl.collect_for_hosts),

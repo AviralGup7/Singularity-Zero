@@ -155,7 +155,9 @@ class URLValidator:
         if parsed.query:
             query_params = parse_qs(parsed.query, keep_blank_values=True)
             filtered_params = {
-                k: v for k, v in query_params.items() if k.lower() not in _CENTRAL_SENSITIVE_QUERY_PARAMS
+                k: v
+                for k, v in query_params.items()
+                if k.lower() not in _CENTRAL_SENSITIVE_QUERY_PARAMS
             }
             sanitized_query = urlencode(filtered_params, doseq=True)
 

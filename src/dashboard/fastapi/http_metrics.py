@@ -137,7 +137,6 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
             try:
                 from src.infrastructure.observability.metrics import get_metrics
 
-
                 metrics = get_metrics()
 
                 # Per-endpoint latency histogram
@@ -170,4 +169,4 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
                     labels={"method": method},
                 )
             except Exception:
-                    logger.debug("Metrics tracking error", exc_info=True)
+                logger.debug("Metrics tracking error", exc_info=True)

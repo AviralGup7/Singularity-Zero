@@ -24,6 +24,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _safe_import(module_path: str, bypass_modules: list[str] | None = None) -> Any:
     """Import a module, optionally injecting stubs for broken dependencies."""
     if bypass_modules:
@@ -105,8 +106,12 @@ class TestDefect1CheckpointSplitBrain:
         # but we verify the source code contains the RunLock reference.
         security_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
-            / "_orchestrator" / "security.py"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
+            / "_orchestrator"
+            / "security.py"
         )
         source = security_path.read_text(encoding="utf-8")
         assert "RunLock" in source
@@ -149,7 +154,10 @@ class TestDefect2WALReplicationWait:
         """orchestrator.py _finalize_run must call wait_for_replications."""
         orch_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
             / "orchestrator.py"
         )
         source = orch_path.read_text(encoding="utf-8")
@@ -168,7 +176,10 @@ class TestDefect3ActorSchedulerCapacityLeak:
         """ActorScheduler must have _release_capacity method."""
         scheduler_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
             / "actor_scheduler.py"
         )
         source = scheduler_path.read_text(encoding="utf-8")
@@ -179,7 +190,10 @@ class TestDefect3ActorSchedulerCapacityLeak:
         """_dispatch must call _release_capacity when stage method is missing."""
         scheduler_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
             / "actor_scheduler.py"
         )
         source = scheduler_path.read_text(encoding="utf-8")
@@ -203,7 +217,10 @@ class TestDefect3ActorSchedulerCapacityLeak:
         """_dispatch must call _release_capacity when suspend is triggered."""
         scheduler_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
             / "actor_scheduler.py"
         )
         source = scheduler_path.read_text(encoding="utf-8")
@@ -225,7 +242,10 @@ class TestDefect3ActorSchedulerCapacityLeak:
         """_release_capacity must catch ImportError gracefully."""
         scheduler_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
             / "actor_scheduler.py"
         )
         source = scheduler_path.read_text(encoding="utf-8")
@@ -244,7 +264,11 @@ class TestDefect4FindingSubmissionRace:
         """reports.py must define _idempotency_key function."""
         reports_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "reports.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "reports.py"
         )
         source = reports_path.read_text(encoding="utf-8")
         assert "def _idempotency_key(finding_id: str, platform: str) -> str:" in source
@@ -254,7 +278,11 @@ class TestDefect4FindingSubmissionRace:
         """reports.py must define _get_submission_lock function."""
         reports_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "reports.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "reports.py"
         )
         source = reports_path.read_text(encoding="utf-8")
         assert "def _get_submission_lock(" in source
@@ -264,7 +292,11 @@ class TestDefect4FindingSubmissionRace:
         """reports.py must define _mark_finding_reported_on_disk function."""
         reports_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "reports.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "reports.py"
         )
         source = reports_path.read_text(encoding="utf-8")
         assert "def _mark_finding_reported_on_disk(" in source
@@ -342,7 +374,11 @@ class TestDefect4FindingSubmissionRace:
         """submit_finding_to_platform must check idempotency before submitting."""
         reports_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "reports.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "reports.py"
         )
         source = reports_path.read_text(encoding="utf-8")
         assert "idempotent" in source
@@ -360,7 +396,11 @@ class TestDefect5EvidenceCustodyPersistence:
         """evidence_custody.py must have disk load/persist functions."""
         ec_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "evidence_custody.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "evidence_custody.py"
         )
         source = ec_path.read_text(encoding="utf-8")
         assert "def _load_evidence_from_disk() -> None:" in source
@@ -372,7 +412,11 @@ class TestDefect5EvidenceCustodyPersistence:
         """_persist_evidence_to_disk must use temp+rename for atomicity."""
         ec_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "evidence_custody.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "evidence_custody.py"
         )
         source = ec_path.read_text(encoding="utf-8")
         assert "tempfile.mkstemp" in source
@@ -384,7 +428,11 @@ class TestDefect5EvidenceCustodyPersistence:
         """All GET/POST endpoints must call _load_evidence_from_disk."""
         ec_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "evidence_custody.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "evidence_custody.py"
         )
         source = ec_path.read_text(encoding="utf-8")
         load_count = source.count("_load_evidence_from_disk()")
@@ -396,12 +444,18 @@ class TestDefect5EvidenceCustodyPersistence:
         """Mutating endpoints must call _persist_evidence_to_disk."""
         ec_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "dashboard" / "fastapi" / "routers" / "evidence_custody.py"
+            / "src"
+            / "dashboard"
+            / "fastapi"
+            / "routers"
+            / "evidence_custody.py"
         )
         source = ec_path.read_text(encoding="utf-8")
         persist_count = source.count("_persist_evidence_to_disk()")
         # create, access, modify, delete = at least 4
-        assert persist_count >= 4, f"Expected >=4 _persist_evidence_to_disk() calls, got {persist_count}"
+        assert persist_count >= 4, (
+            f"Expected >=4 _persist_evidence_to_disk() calls, got {persist_count}"
+        )
 
     @pytest.mark.regression
     def test_evidence_persistence_round_trip(self, tmp_path: Path) -> None:
@@ -439,12 +493,16 @@ class TestDefect6ScopeMergeCheckpoint:
         """security.py must checkpoint immediately after scope merge."""
         security_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
-            / "_orchestrator" / "security.py"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
+            / "_orchestrator"
+            / "security.py"
         )
         source = security_path.read_text(encoding="utf-8")
         # Must save context snapshot after merge
-        assert 'save_context_snapshot' in source
+        assert "save_context_snapshot" in source
         assert '"_scope_merge"' in source
 
     @pytest.mark.regression
@@ -452,8 +510,12 @@ class TestDefect6ScopeMergeCheckpoint:
         """security.py must compact WAL after scope merge."""
         security_path = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "pipeline" / "services" / "pipeline_orchestrator"
-            / "_orchestrator" / "security.py"
+            / "src"
+            / "pipeline"
+            / "services"
+            / "pipeline_orchestrator"
+            / "_orchestrator"
+            / "security.py"
         )
         source = security_path.read_text(encoding="utf-8")
         assert "compact_after_snapshot" in source
@@ -519,7 +581,10 @@ class TestDefect7LearningIntegrationState:
         """get_or_create must reset singleton when target changes."""
         integration_src = (
             Path(__file__).resolve().parent.parent.parent
-            / "src" / "learning" / "integration" / "__init__.py"
+            / "src"
+            / "learning"
+            / "integration"
+            / "__init__.py"
         )
         source = integration_src.read_text(encoding="utf-8")
         # Must check prev_target != target and reset

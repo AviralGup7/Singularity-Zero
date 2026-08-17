@@ -304,6 +304,7 @@ def _ensure_analysis_defaults(config: dict[str, Any], output_root: Any) -> dict[
     if not check_names:
         try:
             from src.analysis.plugins import PASSIVE_CHECK_NAMES
+
             check_names = list(PASSIVE_CHECK_NAMES)
         except ImportError:
             check_names = []

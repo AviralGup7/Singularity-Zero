@@ -290,7 +290,9 @@ class FrontierProcessPool:
         )
         self._tool_versions[tool_name] = info
         if not resolved:
-            logger.error("Tool verification FAILED: '%s' not found in PATH or .tools/bin", tool_name)
+            logger.error(
+                "Tool verification FAILED: '%s' not found in PATH or .tools/bin", tool_name
+            )
         else:
             logger.info(
                 "Tool verified: '%s' -> %s (version: %s)",
@@ -346,7 +348,9 @@ class FrontierProcessPool:
                 if output:
                     return output.splitlines()[0][:256]
             except Exception:
-                logger.debug("ProcPool: tool version detection failed for %s", tool_path, exc_info=True)
+                logger.debug(
+                    "ProcPool: tool version detection failed for %s", tool_path, exc_info=True
+                )
                 continue
         return None
 
@@ -466,9 +470,7 @@ class FrontierProcessPool:
                     "failed",
                     error=f"exit code {proc.returncode}: {stderr_text[:200]}",
                 )
-            raise RuntimeError(
-                f"ToolExecutionError: {tool_name} failed (exit {proc.returncode})"
-            )
+            raise RuntimeError(f"ToolExecutionError: {tool_name} failed (exit {proc.returncode})")
 
         async with self._lock:
             self._task_receipts[stable_task_id] = self._make_receipt(
@@ -559,9 +561,7 @@ class FrontierProcessPool:
                     "failed",
                     error=f"exit code {proc.returncode}",
                 )
-            raise RuntimeError(
-                f"ToolExecutionError: {tool_name} failed (exit {proc.returncode})"
-            )
+            raise RuntimeError(f"ToolExecutionError: {tool_name} failed (exit {proc.returncode})")
 
         if len(stdout_bytes) < 4:
             raise RuntimeError(

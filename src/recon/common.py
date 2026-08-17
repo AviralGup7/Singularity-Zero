@@ -24,6 +24,7 @@ __all__ = [
 
 def _get_executor():
     from src.infrastructure.execution_engine.shared_pool import get_recon_executor
+
     return get_recon_executor()
 
 
@@ -124,4 +125,5 @@ def run_async_in_sync_context(coro: Any) -> Any:
     Routes through the shared async bridge to avoid thread/event-loop churn.
     """
     from src.core.utils.async_bridge import run_async_in_sync_context as _bridge_run
+
     return _bridge_run(coro)

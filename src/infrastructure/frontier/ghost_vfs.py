@@ -128,7 +128,9 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                 eBPFHookManager.pin_memory(id(self))
                 self._memory_pinned = True
             except Exception as exc:
-                logger.warning("Ghost-VFS eBPF hook failure during initialization: %s", exc, exc_info=True)
+                logger.warning(
+                    "Ghost-VFS eBPF hook failure during initialization: %s", exc, exc_info=True
+                )
 
         if rotation_interval_hours is not None:
             self._rotation_interval = rotation_interval_hours * 3600
@@ -368,7 +370,9 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
             try:
                 del b
             except Exception as e:
-                logger.warning("Ghost-VFS: Diagnostic warning in secure wipe bytes: %s", e, exc_info=True)
+                logger.warning(
+                    "Ghost-VFS: Diagnostic warning in secure wipe bytes: %s", e, exc_info=True
+                )
 
     def _wipe_raw_buffer(self, raw: bytearray | bytes | None) -> None:
         if raw is None:
@@ -400,7 +404,9 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                 try:
                     eBPFHookManager.unpin_memory(id(self))
                 except Exception as exc:
-                    logger.warning("Ghost-VFS eBPF hook failure during self-destruct: %s", exc, exc_info=True)
+                    logger.warning(
+                        "Ghost-VFS eBPF hook failure during self-destruct: %s", exc, exc_info=True
+                    )
                 finally:
                     self._memory_pinned = False
         logger.warning("Ghost-VFS: Data plane PURGED")

@@ -152,7 +152,11 @@ class NeuralBloomMesh:
         with self._sync_lock:
             for node_id, health in list(self.remote_health.items()):
                 in_gossip = node_id in gossip_peer_ids
-                bloom_stale = (now - health.last_sync_time) > stale_threshold if health.last_sync_time else True
+                bloom_stale = (
+                    (now - health.last_sync_time) > stale_threshold
+                    if health.last_sync_time
+                    else True
+                )
 
                 if not in_gossip and not bloom_stale:
                     health.stale = True
@@ -201,6 +205,7 @@ class NeuralBloomMesh:
             return
 
         from src.core.task_registry import get_task_registry
+
         _registry = get_task_registry()
         self._tasks = [
             _registry.create_task(self._publish_loop(), owner="bloom_mesh", name="publisher"),

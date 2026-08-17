@@ -155,6 +155,7 @@ class TypedConfig:
 # Pipeline Configuration Models
 # ============================================================
 
+
 @dataclass
 class CacheConfig(TypedConfig):
     enabled: bool = True
@@ -182,41 +183,99 @@ class HttpxConfig(TypedConfig):
 
 @dataclass
 class ScoringConfig(TypedConfig):
-    weights: dict[str, int] = field(default_factory=lambda: {
-        "api": 3,
-        "auth": 4,
-        "redirect": 3,
-        "param": 2,
-        "sensitive": 5,
-        "idor": 4,
-        "ssrf": 5,
-        "xss": 4,
-        "sqli": 5,
-    })
+    weights: dict[str, int] = field(
+        default_factory=lambda: {
+            "api": 3,
+            "auth": 4,
+            "redirect": 3,
+            "param": 2,
+            "sensitive": 5,
+            "idor": 4,
+            "ssrf": 5,
+            "xss": 4,
+            "sqli": 5,
+        }
+    )
     custom_keyword_bonus: int = 2
-    contexts: dict[str, dict] = field(default_factory=lambda: {
-        "api_heavy": {"bonus": 3, "keywords": ["/api/", "/v1/", "/v2/", "graphql"]},
-        "auth_heavy": {"bonus": 4, "keywords": ["/auth", "/login", "/oauth", "token", "session"]},
-        "file_heavy": {"bonus": 3, "keywords": ["upload", "download", "file", "export"]},
-    })
-    modes: dict[str, dict] = field(default_factory=lambda: {
-        "full": {"param_bonus": 2, "parameter_keywords": ["id", "user", "account"], "path_keywords": ["/api/", "/admin/"]},
-        "idor": {"param_bonus": 5, "parameter_keywords": ["id", "user_id", "account_id"], "path_keywords": []},
-        "ssrf": {"param_bonus": 5, "parameter_keywords": ["url", "uri", "dest", "redirect"], "path_keywords": []},
-    })
+    contexts: dict[str, dict] = field(
+        default_factory=lambda: {
+            "api_heavy": {"bonus": 3, "keywords": ["/api/", "/v1/", "/v2/", "graphql"]},
+            "auth_heavy": {
+                "bonus": 4,
+                "keywords": ["/auth", "/login", "/oauth", "token", "session"],
+            },
+            "file_heavy": {"bonus": 3, "keywords": ["upload", "download", "file", "export"]},
+        }
+    )
+    modes: dict[str, dict] = field(
+        default_factory=lambda: {
+            "full": {
+                "param_bonus": 2,
+                "parameter_keywords": ["id", "user", "account"],
+                "path_keywords": ["/api/", "/admin/"],
+            },
+            "idor": {
+                "param_bonus": 5,
+                "parameter_keywords": ["id", "user_id", "account_id"],
+                "path_keywords": [],
+            },
+            "ssrf": {
+                "param_bonus": 5,
+                "parameter_keywords": ["url", "uri", "dest", "redirect"],
+                "path_keywords": [],
+            },
+        }
+    )
 
 
 @dataclass
 class FilterConfig(TypedConfig):
-    ignore_extensions: list[str] = field(default_factory=lambda: [
-        "css", "js", "png", "jpg", "jpeg", "gif", "svg", "woff", "woff2",
-        "ttf", "eot", "ico", "pdf", "zip", "gz", "tar", "rar", "7z",
-        "mp4", "webm", "mp3", "wav", "ogg", "flac", "avi", "mov",
-    ])
-    priority_keywords: list[str] = field(default_factory=lambda: [
-        "admin", "api", "auth", "login", "oauth", "token", "session",
-        "password", "reset", "register", "signup", "register",
-    ])
+    ignore_extensions: list[str] = field(
+        default_factory=lambda: [
+            "css",
+            "js",
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+            "svg",
+            "woff",
+            "woff2",
+            "ttf",
+            "eot",
+            "ico",
+            "pdf",
+            "zip",
+            "gz",
+            "tar",
+            "rar",
+            "7z",
+            "mp4",
+            "webm",
+            "mp3",
+            "wav",
+            "ogg",
+            "flac",
+            "avi",
+            "mov",
+        ]
+    )
+    priority_keywords: list[str] = field(
+        default_factory=lambda: [
+            "admin",
+            "api",
+            "auth",
+            "login",
+            "oauth",
+            "token",
+            "session",
+            "password",
+            "reset",
+            "register",
+            "signup",
+            "register",
+        ]
+    )
     priority_limit: int = 100
     adaptive_url_cap: bool = True
     archive_host_threshold: int = 250
@@ -231,6 +290,7 @@ class ValidatedPipelineConfig(TypedConfig):
     This is the v2 canonical configuration model. It replaces the legacy
     ``Config`` dataclass from ``src.core.models.config``.
     """
+
     target_name: str
     output_dir: str
     http_timeout_seconds: int = 12
@@ -305,6 +365,7 @@ PipelineConfig = ValidatedPipelineConfig
 # Private helpers (re-exported from loader.py for backward compat)
 # ============================================================
 
+
 def _require_text(raw: dict[str, Any], key: str) -> str:
     value = str(raw.get(key, "")).strip()
     if not value:
@@ -336,6 +397,7 @@ def _positive_int(value: object, name: str) -> int:
 # Registration helpers
 # ============================================================
 
+
 def load_config(path: Path | str) -> ValidatedPipelineConfig:
     """Load configuration from a JSON file with env var interpolation.
 
@@ -357,6 +419,7 @@ def load_config(path: Path | str) -> ValidatedPipelineConfig:
 def register_config(config: ValidatedPipelineConfig) -> None:
     """Register config instance with DI container."""
     from src.core.di.container import container
+
     container.register_instance(ValidatedPipelineConfig, config)
 
 
@@ -364,12 +427,15 @@ def register_config(config: ValidatedPipelineConfig) -> None:
 # Adaptive overrides (ported from loader.py)
 # ============================================================
 
+
 def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Shallow-merge *override* keys into a copy of *base*."""
     return {**base, **override}
 
 
-def apply_adaptive_overrides(config: ValidatedPipelineConfig, adaptive_dict: dict[str, Any]) -> ValidatedPipelineConfig:
+def apply_adaptive_overrides(
+    config: ValidatedPipelineConfig, adaptive_dict: dict[str, Any]
+) -> ValidatedPipelineConfig:
     """Shallow-merge adaptive-learning overrides into an existing *config*.
 
     For the three nested-section fields ``scoring``, ``analysis``, and

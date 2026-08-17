@@ -188,7 +188,9 @@ class FallbackDB:
                         )
                         conn.commit()
                     except Exception:
-                        logger.debug("FallbackDB: SQLite set operation failed, rolling back", exc_info=True)
+                        logger.debug(
+                            "FallbackDB: SQLite set operation failed, rolling back", exc_info=True
+                        )
                         conn.rollback()
                         raise
 
@@ -213,7 +215,9 @@ class FallbackDB:
                         conn.commit()
                         return int(deleted)
                     except Exception:
-                        logger.debug("FallbackDB: SQLite del operation failed, rolling back", exc_info=True)
+                        logger.debug(
+                            "FallbackDB: SQLite del operation failed, rolling back", exc_info=True
+                        )
                         conn.rollback()
                         raise
 

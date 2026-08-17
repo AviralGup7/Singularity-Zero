@@ -17,28 +17,24 @@ class QueryBuilder(abc.ABC):
     """Abstract query builder for type-safe queries."""
 
     @abc.abstractmethod
-    async def find(self, filters: dict[str, Any] = None, limit: int = 100, offset: int = 0) -> list[Any]:
-        ...
+    async def find(
+        self, filters: dict[str, Any] = None, limit: int = 100, offset: int = 0
+    ) -> list[Any]: ...
 
     @abc.abstractmethod
-    async def find_one(self, filters: dict[str, Any]) -> Any | None:
-        ...
+    async def find_one(self, filters: dict[str, Any]) -> Any | None: ...
 
     @abc.abstractmethod
-    async def insert(self, data: dict[str, Any]) -> str:
-        ...
+    async def insert(self, data: dict[str, Any]) -> str: ...
 
     @abc.abstractmethod
-    async def update(self, id: str, data: dict[str, Any]) -> bool:
-        ...
+    async def update(self, id: str, data: dict[str, Any]) -> bool: ...
 
     @abc.abstractmethod
-    async def delete(self, id: str) -> bool:
-        ...
+    async def delete(self, id: str) -> bool: ...
 
     @abc.abstractmethod
-    async def count(self, filters: dict[str, Any] = None) -> int:
-        ...
+    async def count(self, filters: dict[str, Any] = None) -> int: ...
 
 
 @dataclass
@@ -46,28 +42,22 @@ class Repository[T](abc.ABC):
     """Base repository with common CRUD operations."""
 
     @abc.abstractmethod
-    async def create(self, entity: T) -> T:
-        ...
+    async def create(self, entity: T) -> T: ...
 
     @abc.abstractmethod
-    async def get(self, id: str) -> T | None:
-        ...
+    async def get(self, id: str) -> T | None: ...
 
     @abc.abstractmethod
-    async def update(self, entity: T) -> T:
-        ...
+    async def update(self, entity: T) -> T: ...
 
     @abc.abstractmethod
-    async def delete(self, id: str) -> bool:
-        ...
+    async def delete(self, id: str) -> bool: ...
 
     @abc.abstractmethod
-    async def list(self, filters: dict = None, limit: int = 100, offset: int = 0) -> list[T]:
-        ...
+    async def list(self, filters: dict = None, limit: int = 100, offset: int = 0) -> list[T]: ...
 
     @abc.abstractmethod
-    async def count(self, filters: dict = None) -> int:
-        ...
+    async def count(self, filters: dict = None) -> int: ...
 
 
 @dataclass
@@ -75,25 +65,20 @@ class UnitOfWork(abc.ABC):
     """Unit of work pattern for transactional boundaries."""
 
     @abc.abstractmethod
-    async def commit(self) -> None:
-        ...
+    async def commit(self) -> None: ...
 
     @abc.abstractmethod
-    async def rollback(self) -> None:
-        ...
+    async def rollback(self) -> None: ...
 
     @abc.abstractmethod
-    async def __aenter__(self) -> UnitOfWork:
-        ...
+    async def __aenter__(self) -> UnitOfWork: ...
 
     @abc.abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        ...
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None: ...
 
     @property
     @abc.abstractmethod
-    def repositories(self) -> dict[str, Any]:
-        ...
+    def repositories(self) -> dict[str, Any]: ...
 
 
 @dataclass
@@ -124,6 +109,7 @@ class TransactionManager:
 
 # --- Base model with common fields ---
 
+
 @dataclass
 class BaseModel:
     id: str = field(default_factory=lambda: uuid4().hex)
@@ -143,13 +129,18 @@ class BaseModel:
     def from_dict(cls, data: dict[str, Any]) -> BaseModel:
         return cls(
             id=data.get("id", uuid4().hex),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else datetime.now(),
+            created_at=datetime.fromisoformat(data["created_at"])
+            if data.get("created_at")
+            else datetime.now(),
+            updated_at=datetime.fromisoformat(data["updated_at"])
+            if data.get("updated_at")
+            else datetime.now(),
             version=data.get("version", 1),
         )
 
 
 # --- Pagination ---
+
 
 @dataclass
 class Page:
@@ -190,6 +181,7 @@ class PaginationParams:
 
 # --- Soft delete support ---
 
+
 @dataclass
 class SoftDeleteMixin:
     deleted_at: datetime | None = None
@@ -210,6 +202,7 @@ class SoftDeleteMixin:
 
 # --- Optimistic locking ---
 
+
 @dataclass
 class OptimisticLockMixin:
     version: int = 1
@@ -222,6 +215,7 @@ class OptimisticLockMixin:
 
 
 # --- Filter and sort utilities ---
+
 
 @dataclass
 class Filter:
@@ -249,9 +243,11 @@ class QueryOptions:
 
 # --- Result types ---
 
+
 @dataclass
 class Result[T]:
     """Result wrapper with success/error handling."""
+
     success: bool
     data: T | None = None
     error: str | None = None
@@ -297,10 +293,10 @@ async def transactional[T](func: Callable[..., T]) -> Callable[..., T]:
 
 # --- Specification pattern ---
 
+
 class Specification[T](abc.ABC):
     @abc.abstractmethod
-    def is_satisfied_by(self, candidate: T) -> bool:
-        ...
+    def is_satisfied_by(self, candidate: T) -> bool: ...
 
     def and_(self, other: Specification[T]) -> Specification[T]:
         return AndSpecification(self, other)

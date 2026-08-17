@@ -69,6 +69,7 @@ def health_check() -> dict[str, Any]:
         from src.infrastructure.cache.cache_manager import (  # noqa: F401
             CacheManager,
         )
+
         cache_ok = True
     except ImportError as exc:
         cache_ok = False
@@ -77,6 +78,7 @@ def health_check() -> dict[str, Any]:
         from src.infrastructure.notifications.manager import (  # noqa: F401
             NotificationManager,
         )
+
         notify_ok = True
     except ImportError as exc:
         notify_ok = False

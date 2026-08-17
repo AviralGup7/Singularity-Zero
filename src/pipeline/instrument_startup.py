@@ -70,20 +70,27 @@ def instrument(cls, method_name, prefix=None):
 # Patch key classes and functions
 # ---------------------------------------------------------------------------
 
+
 def _apply_instrumentation():
     """Apply instrumentation patches to key pipeline components."""
     instrument_logger.info("Applying startup instrumentation patches...")
 
     # 1. PipelineOrchestrator.run
     from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+
     instrument(PipelineOrchestrator, "run", prefix="PipelineOrchestrator.run")
     instrument(PipelineOrchestrator, "_run_secured", prefix="PipelineOrchestrator._run_secured")
-    instrument(PipelineOrchestrator, "_acquire_distributed_lock", prefix="PipelineOrchestrator._acquire_distributed_lock")
+    instrument(
+        PipelineOrchestrator,
+        "_acquire_distributed_lock",
+        prefix="PipelineOrchestrator._acquire_distributed_lock",
+    )
 
     # 2. bootstrap_pipeline
     from src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap import (
         bootstrap_pipeline,
     )
+
     original_bootstrap = bootstrap_pipeline
 
     @functools.wraps(original_bootstrap)
@@ -92,7 +99,11 @@ def _apply_instrumentation():
         start = time.time()
         try:
             result = original_bootstrap(args)
-            log_exit("bootstrap_pipeline", elapsed=f"{time.time() - start:.3f}s", result_type=type(result).__name__)
+            log_exit(
+                "bootstrap_pipeline",
+                elapsed=f"{time.time() - start:.3f}s",
+                result_type=type(result).__name__,
+            )
             return result
         except Exception as exc:
             log_block("bootstrap_pipeline", f"exception={exc}")
@@ -100,10 +111,12 @@ def _apply_instrumentation():
 
     # Monkey-patch the module
     import src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap as bootstrap_mod
+
     bootstrap_mod.bootstrap_pipeline = wrapped_bootstrap
 
     # 3. run_secured
     from src.pipeline.services.pipeline_orchestrator._orchestrator.security import run_secured
+
     original_run_secured = run_secured
 
     @functools.wraps(original_run_secured)
@@ -119,10 +132,12 @@ def _apply_instrumentation():
             raise
 
     import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+
     security_mod.run_secured = wrapped_run_secured
 
     # 4. execute_remaining_stages
     from src.pipeline.services.pipeline_orchestrator._run_execution import execute_remaining_stages
+
     original_exec = execute_remaining_stages
 
     @functools.wraps(original_exec)
@@ -131,26 +146,33 @@ def _apply_instrumentation():
         start = time.time()
         try:
             result = await original_exec(*args, **kwargs)
-            log_exit("execute_remaining_stages", elapsed=f"{time.time() - start:.3f}s", result=result)
+            log_exit(
+                "execute_remaining_stages", elapsed=f"{time.time() - start:.3f}s", result=result
+            )
             return result
         except Exception as exc:
             log_block("execute_remaining_stages", f"exception={exc}")
             raise
 
     import src.pipeline.services.pipeline_orchestrator._run_execution as exec_mod
+
     exec_mod.execute_remaining_stages = wrapped_execute
 
     # 5. ActorScheduler.run
     from src.pipeline.services.pipeline_orchestrator.actor_scheduler import ActorScheduler
+
     instrument(ActorScheduler, "run", prefix="ActorScheduler.run")
     instrument(ActorScheduler, "_collect_ready_nodes", prefix="ActorScheduler._collect_ready_nodes")
     instrument(ActorScheduler, "_dispatch", prefix="ActorScheduler._dispatch")
-    instrument(ActorScheduler, "_await_any_completion", prefix="ActorScheduler._await_any_completion")
+    instrument(
+        ActorScheduler, "_await_any_completion", prefix="ActorScheduler._await_any_completion"
+    )
     instrument(ActorScheduler, "_condition_holds", prefix="ActorScheduler._condition_holds")
     instrument(ActorScheduler, "_deps_satisfied", prefix="ActorScheduler._deps_satisfied")
 
     # 6. build_pipeline_graph
     from src.pipeline.services.pipeline_orchestrator.graph_builder import build_pipeline_graph
+
     original_build = build_pipeline_graph
 
     @functools.wraps(original_build)
@@ -159,28 +181,36 @@ def _apply_instrumentation():
         start = time.time()
         try:
             result = original_build(*args, **kwargs)
-            log_exit("build_pipeline_graph", elapsed=f"{time.time() - start:.3f}s", nodes=len(result.nodes) if hasattr(result, "nodes") else "?")
+            log_exit(
+                "build_pipeline_graph",
+                elapsed=f"{time.time() - start:.3f}s",
+                nodes=len(result.nodes) if hasattr(result, "nodes") else "?",
+            )
             return result
         except Exception as exc:
             log_block("build_pipeline_graph", f"exception={exc}")
             raise
 
     import src.pipeline.services.pipeline_orchestrator.graph_builder as gb_mod
+
     gb_mod.build_pipeline_graph = wrapped_build
 
     # 7. StagePlanner.plan_stages
     try:
         from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
+
         instrument(StagePlanner, "plan_stages", prefix="StagePlanner.plan_stages")
     except ImportError:
         pass
 
     # 8. CacheManager init
     from src.infrastructure.cache.cache_manager import CacheManager
+
     instrument(CacheManager, "__init__", prefix="CacheManager.__init__")
 
     # 9. attempt_recovery
     from src.core.checkpoint import attempt_recovery
+
     original_attempt = attempt_recovery
 
     @functools.wraps(original_attempt)
@@ -196,6 +226,7 @@ def _apply_instrumentation():
             raise
 
     import src.core.checkpoint as cp_mod
+
     cp_mod.attempt_recovery = wrapped_attempt
 
     instrument_logger.info("Instrumentation patches applied.")
@@ -204,6 +235,7 @@ def _apply_instrumentation():
 # ---------------------------------------------------------------------------
 # Run the instrumented pipeline
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(description="Instrumented pipeline runtime")
@@ -215,13 +247,19 @@ def main():
     _apply_instrumentation()
 
     from src.pipeline.runtime import main as runtime_main
+
     log_enter("runtime_main")
     start = time.time()
     try:
-        exit_code = runtime_main([
-            "--config", args.config,
-            "--scope", args.scope,
-        ] + (["--force-fresh-run"] if args.force_fresh_run else []))
+        exit_code = runtime_main(
+            [
+                "--config",
+                args.config,
+                "--scope",
+                args.scope,
+            ]
+            + (["--force-fresh-run"] if args.force_fresh_run else [])
+        )
         log_exit("runtime_main", elapsed=f"{time.time() - start:.3f}s", exit_code=exit_code)
         sys.exit(exit_code)
     except Exception as exc:
@@ -231,4 +269,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

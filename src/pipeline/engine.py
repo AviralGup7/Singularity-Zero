@@ -16,6 +16,7 @@ T = TypeVar("T")
 # Core Pipeline Stages
 # ============================================================
 
+
 class Stage:
     """Base class for pipeline stages."""
 
@@ -52,6 +53,7 @@ class Stage:
 @dataclass
 class StageArtifacts:
     """Artifacts produced by a stage."""
+
     subdomains: frozenset[str] = frozenset()
     live_hosts: frozenset[str] = frozenset()
     urls: frozenset[str] = frozenset()
@@ -107,6 +109,7 @@ class StageMetrics:
 @dataclass
 class StageExecution:
     """Mutable execution state for a single stage."""
+
     name: str
     status: StageStatus = StageStatus.PENDING
     metrics: StageMetrics = field(default_factory=StageMetrics)
@@ -119,10 +122,19 @@ class StageExecution:
         self.status = StageStatus.RUNNING
         self.metrics.started_at = datetime.now()
 
-    def complete(self, artifacts: StageArtifacts | None = None, items_processed: int = 0, items_output: int = 0) -> None:
+    def complete(
+        self,
+        artifacts: StageArtifacts | None = None,
+        items_processed: int = 0,
+        items_output: int = 0,
+    ) -> None:
         self.status = StageStatus.COMPLETED
         self.metrics.finished_at = datetime.now()
-        self.metrics.duration_seconds = (self.metrics.finished_at - self.metrics.started_at).total_seconds() if self.metrics.started_at else 0
+        self.metrics.duration_seconds = (
+            (self.metrics.finished_at - self.metrics.started_at).total_seconds()
+            if self.metrics.started_at
+            else 0
+        )
         self.metrics.items_processed = items_processed
         self.metrics.items_output = items_output
         if artifacts:
@@ -131,7 +143,11 @@ class StageExecution:
     def fail(self, error: str, retry: bool = False) -> None:
         self.status = StageStatus.FAILED
         self.metrics.finished_at = datetime.now()
-        self.metrics.duration_seconds = (self.metrics.finished_at - self.metrics.started_at).total_seconds() if self.metrics.started_at else 0
+        self.metrics.duration_seconds = (
+            (self.metrics.finished_at - self.metrics.started_at).total_seconds()
+            if self.metrics.started_at
+            else 0
+        )
         self.metrics.error = error
         if retry:
             self.retry_count += 1
@@ -140,7 +156,11 @@ class StageExecution:
     def skip(self, reason: str = "") -> None:
         self.status = StageStatus.SKIPPED
         self.metrics.finished_at = datetime.now()
-        self.metrics.duration_seconds = (self.metrics.finished_at - self.metrics.started_at).total_seconds() if self.metrics.started_at else 0
+        self.metrics.duration_seconds = (
+            (self.metrics.finished_at - self.metrics.started_at).total_seconds()
+            if self.metrics.started_at
+            else 0
+        )
         self.metrics.custom["skip_reason"] = reason
 
 
@@ -148,9 +168,11 @@ class StageExecution:
 # Pipeline State
 # ============================================================
 
+
 @dataclass
 class PipelineState:
     """Aggregated pipeline execution state."""
+
     run_id: str
     target_name: str
     scope_entries: list[str]
@@ -183,20 +205,27 @@ class PipelineState:
             "scope_entries": self.scope_entries,
             "started_at": self.started_at.isoformat(),
             "current_stage": self.current_stage,
-            "stages": {k: {
-                "name": v.name,
-                "status": v.status.value,
-                "metrics": {
-                    "duration_seconds": v.metrics.duration_seconds,
-                    "started_at": v.metrics.started_at.isoformat() if v.metrics.started_at else None,
-                    "finished_at": v.metrics.finished_at.isoformat() if v.metrics.finished_at else None,
-                    "items_processed": v.metrics.items_processed,
-                    "items_output": v.metrics.items_output,
-                    "error": v.metrics.error,
-                    "reason": v.metrics.reason,
-                },
-                "artifacts": v.artifacts.to_dict(),
-            } for k, v in self.stages.items()},
+            "stages": {
+                k: {
+                    "name": v.name,
+                    "status": v.status.value,
+                    "metrics": {
+                        "duration_seconds": v.metrics.duration_seconds,
+                        "started_at": v.metrics.started_at.isoformat()
+                        if v.metrics.started_at
+                        else None,
+                        "finished_at": v.metrics.finished_at.isoformat()
+                        if v.metrics.finished_at
+                        else None,
+                        "items_processed": v.metrics.items_processed,
+                        "items_output": v.metrics.items_output,
+                        "error": v.metrics.error,
+                        "reason": v.metrics.reason,
+                    },
+                    "artifacts": v.artifacts.to_dict(),
+                }
+                for k, v in self.stages.items()
+            },
         }
 
     @classmethod
@@ -215,7 +244,9 @@ class PipelineState:
             stage.metrics = StageMetrics(
                 duration_seconds=m.get("duration_seconds", 0),
                 started_at=datetime.fromisoformat(m["started_at"]) if m.get("started_at") else None,
-                finished_at=datetime.fromisoformat(m["finished_at"]) if m.get("finished_at") else None,
+                finished_at=datetime.fromisoformat(m["finished_at"])
+                if m.get("finished_at")
+                else None,
                 items_processed=m.get("items_processed", 0),
                 items_output=m.get("items_output", 0),
                 error=m.get("error"),
@@ -245,6 +276,7 @@ class PipelineState:
 # Pipeline Execution Context
 # ============================================================
 
+
 @dataclass
 class ExecutionContext:
     """Context passed to stage execution."""
@@ -265,6 +297,7 @@ class ExecutionContext:
 # ============================================================
 # Pipeline Engine
 # ============================================================
+
 
 class PipelineEngine:
     """Executes pipeline stages with dependency resolution and error handling."""
@@ -350,15 +383,24 @@ class PipelineEngine:
                     artifacts = await stage.execute(state, self.context)
                     execution.complete(artifacts)
                     await stage.on_complete(state, artifacts)
-                    self.context.logger.info("Stage %s completed in %.2fs", stage_name, execution.metrics.duration_seconds)
+                    self.context.logger.info(
+                        "Stage %s completed in %.2fs",
+                        stage_name,
+                        execution.metrics.duration_seconds,
+                    )
                     break
                 except asyncio.CancelledError:
                     execution.fail("Pipeline cancelled")
                     raise
                 except Exception as e:
                     if execution.retry_count < self.max_retries:
-                        self.context.logger.warning("Stage %s failed (attempt %d/%d): %s. Retrying...",
-                                                  stage_name, execution.retry_count + 1, self.max_retries + 1, e)
+                        self.context.logger.warning(
+                            "Stage %s failed (attempt %d/%d): %s. Retrying...",
+                            stage_name,
+                            execution.retry_count + 1,
+                            self.max_retries + 1,
+                            e,
+                        )
                         await asyncio.sleep(self.retry_delay * (execution.retry_count + 1))
                         execution.fail(str(e), retry=True)
                         continue
@@ -374,8 +416,11 @@ class PipelineEngine:
                     # Save checkpoint after each stage attempt
                     await self._save_checkpoint(state)
 
-        self.context.logger.info("Pipeline finished. Completed: %d, Failed: %d",
-                               len(state.completed_stages), len(state.failed_stages))
+        self.context.logger.info(
+            "Pipeline finished. Completed: %d, Failed: %d",
+            len(state.completed_stages),
+            len(state.failed_stages),
+        )
         return state
 
     async def _save_checkpoint(self, state: PipelineState) -> None:

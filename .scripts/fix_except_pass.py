@@ -1,4 +1,5 @@
 """Batch-fix silent except Exception: pass blocks across the src/ tree."""
+
 import os
 import re
 import sys
@@ -7,9 +8,10 @@ SRC = r"D:\cyber security test pipeline - Copy\src"
 
 # Files where silent except is intentional (cleanup/disposal patterns)
 INTENTIONAL_SILENCE = {
-    r"dashboard\fastapi\lifespan.py",      # cleanup on shutdown
-    r"core\utils\shared_sessions.py",       # cleanup
+    r"dashboard\fastapi\lifespan.py",  # cleanup on shutdown
+    r"core\utils\shared_sessions.py",  # cleanup
 }
+
 
 def fix_file(filepath: str) -> bool:
     """Fix except Exception: pass blocks. Returns True if changes made."""
@@ -44,7 +46,7 @@ def fix_file(filepath: str) -> bool:
         while insert_idx < len(lines) and lines[insert_idx].strip() == "":
             insert_idx += 1
             break
-        lines.insert(insert_idx, 'logger = logging.getLogger(__name__)')
+        lines.insert(insert_idx, "logger = logging.getLogger(__name__)")
         lines.insert(insert_idx + 1, "")
         content = "\n".join(lines)
         has_logger = True
@@ -65,7 +67,7 @@ def fix_file(filepath: str) -> bool:
         except_line = m.group(2)
         indent2 = m.group(3)
         msg = f"Operation failed in {basename}"
-        return f"{indent1}{except_line}{indent2}logger.warning(\"{msg}\", exc_info=True)"
+        return f'{indent1}{except_line}{indent2}logger.warning("{msg}", exc_info=True)'
 
     new_content, count = pattern.subn(replacer, content)
 

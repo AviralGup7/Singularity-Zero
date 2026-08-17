@@ -94,15 +94,14 @@ class LifecycleManager:
         """
         try:
             from src.core.task_registry import get_task_registry
+
             registry = get_task_registry()
             # Bug #8: Use the public adopt_task() API instead of reaching
             # into private _tasks/_lock/_owner_tasks/_next_id() internals.
             if hasattr(task, "get_name"):
                 # Check if already tracked before adopting
                 with registry._lock:
-                    already_tracked = any(
-                        task is t for t in registry._tasks.values()
-                    )
+                    already_tracked = any(task is t for t in registry._tasks.values())
                 if not already_tracked:
                     registry.adopt_task(task, owner="lifecycle", name=name)
         except ImportError:
@@ -142,7 +141,8 @@ class LifecycleManager:
                 if thread.is_alive():
                     logger.warning(
                         "Thread %r did not finish within %.1fs shutdown timeout",
-                        name, self._THREAD_JOIN_TIMEOUT,
+                        name,
+                        self._THREAD_JOIN_TIMEOUT,
                     )
 
     def register_callback(self, group: str, callback: Callable) -> None:
@@ -191,16 +191,20 @@ class LifecycleManager:
             try:
                 loop = asyncio.get_running_loop()
                 if loop.is_running():
+
                     async def _await_cancelled() -> None:
                         _, still_pending = await asyncio.wait(
-                            pending, timeout=_SHUTDOWN_TASK_TIMEOUT,
+                            pending,
+                            timeout=_SHUTDOWN_TASK_TIMEOUT,
                         )
                         if still_pending:
                             logger.warning(
                                 "Lifecycle: %d tasks did not complete within "
                                 "%.1fs shutdown timeout",
-                                len(still_pending), _SHUTDOWN_TASK_TIMEOUT,
+                                len(still_pending),
+                                _SHUTDOWN_TASK_TIMEOUT,
                             )
+
                     try:
                         asyncio.ensure_future(_await_cancelled())
                     except RuntimeError:
@@ -210,6 +214,7 @@ class LifecycleManager:
                 for task in pending:
                     try:
                         import concurrent.futures
+
                         f = concurrent.futures.Future()
 
                         def _done_cb(t, _f=f):
@@ -217,8 +222,13 @@ class LifecycleManager:
 
                         task.add_done_callback(_done_cb)
                         f.result(timeout=min(_SHUTDOWN_TASK_TIMEOUT, 2.0))
-                    except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError) as _lif_exc:
-                        logger.debug("Sync shutdown wait failed for task: %s", _lif_exc, exc_info=True)
+                    except (
+                        concurrent.futures.TimeoutError,
+                        concurrent.futures.CancelledError,
+                    ) as _lif_exc:
+                        logger.debug(
+                            "Sync shutdown wait failed for task: %s", _lif_exc, exc_info=True
+                        )
 
         # Phase 3: Cancel tasks tracked by the TaskRegistry (Bug #8).
         try:
@@ -227,18 +237,16 @@ class LifecycleManager:
             registry = get_task_registry()
             active = registry.active_count()
             if active:
-                logger.info(
-                    "Lifecycle: cancelling %d registry-tracked tasks", active
-                )
+                logger.info("Lifecycle: cancelling %d registry-tracked tasks", active)
             try:
                 loop = asyncio.get_running_loop()
                 if loop.is_running():
                     shutdown_task = asyncio.ensure_future(registry.shutdown_all())
                     shutdown_task.add_done_callback(
-                        lambda t: logger.debug("Registry shutdown_all completed")
-                        if t.exception() is None
-                        else logger.warning(
-                            "Registry shutdown_all failed: %s", t.exception()
+                        lambda t: (
+                            logger.debug("Registry shutdown_all completed")
+                            if t.exception() is None
+                            else logger.warning("Registry shutdown_all failed: %s", t.exception())
                         )
                     )
             except RuntimeError:
@@ -251,7 +259,9 @@ class LifecycleManager:
                 except Exception as exc:
                     logger.debug("Registry shutdown_all failed in sync path: %s", exc)
         except ImportError:
-            logger.debug("TaskRegistry not available during shutdown — skipping registry task cancellation")
+            logger.debug(
+                "TaskRegistry not available during shutdown — skipping registry task cancellation"
+            )
 
     def _run_tracked_callbacks(self) -> None:
         """Execute and clear all registered callback groups."""
@@ -354,6 +364,7 @@ class LifecycleManager:
         registry_active = 0
         try:
             from src.core.task_registry import get_task_registry
+
             registry_active = get_task_registry().active_count()
         except ImportError:
             registry_active = 0

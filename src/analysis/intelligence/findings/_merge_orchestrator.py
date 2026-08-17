@@ -88,17 +88,15 @@ def _merge_finding_context(target: dict[str, Any], source: dict[str, Any]) -> No
     elif source_rank < target_rank and source_validation_state:
         # Allow downgrade only when source explicitly contradicts AND brings
         # new signal evidence (not just missing data).
-        source_signals = set(
-            str(s).lower() for s in source_evidence.get("signals", [])
-        )
-        target_signals = set(
-            str(s).lower() for s in target_evidence.get("signals", [])
-        )
+        source_signals = set(str(s).lower() for s in source_evidence.get("signals", []))
+        target_signals = set(str(s).lower() for s in target_evidence.get("signals", []))
         # Source brings new signals that target didn't have — it has
         # independent observation power, so its contradictory state matters.
         has_new_evidence = bool(source_signals - target_signals)
         explicit_contradiction = source_validation_state in (
-            "false_positive", "heuristic_candidate", ""
+            "false_positive",
+            "heuristic_candidate",
+            "",
         )
         if has_new_evidence and explicit_contradiction:
             target_validation_state = source_validation_state
@@ -187,8 +185,7 @@ def _dedup_cross_module(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
             max_score = max(max_score, item.get("score", 0))
             _merge_finding_context(base, item)
             item_signals = set(
-                str(s).lower()
-                for s in ((item.get("evidence") or {}).get("signals") or [])
+                str(s).lower() for s in ((item.get("evidence") or {}).get("signals") or [])
             )
             module_signal_sets.append(item_signals)
 
@@ -501,7 +498,8 @@ def _deduplicate_explanation(explanation: str) -> str:
 
     # Split into sentences on period+space or period+newline boundaries
     import re
-    sentences = re.split(r'(?<=\.)\s+', explanation.strip())
+
+    sentences = re.split(r"(?<=\.)\s+", explanation.strip())
     seen: set[str] = set()
     deduped: list[str] = []
     for sentence in sentences:

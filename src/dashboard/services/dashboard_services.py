@@ -12,6 +12,7 @@ from .query_service import DashboardQueryService
 class DashboardServices:
     def __init__(self, workspace_root: Path, output_root: Path, config_template: Path):
         import logging as _logging
+
         self.lock = threading.Lock()
         self.jobs: dict[str, dict[str, Any]] = {}
         self._job_store: JobStore | None = None  # Set externally via init_persistence()
@@ -63,6 +64,7 @@ class DashboardServices:
         # Load existing jobs from disk
         persisted = self._job_store.load_all()
         import logging as _logging
+
         _logging.getLogger(__name__).info(
             "INIT_PERSISTENCE loaded_count=%d jobs_keys_before=%s instance_id=%d",
             len(persisted),

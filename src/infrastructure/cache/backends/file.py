@@ -229,6 +229,7 @@ class FileBackend:
                 ).inc()
             except Exception:
                 logger.warning("FileBackend: Failed to record write failure metric", exc_info=True)
+
     def _delete_file(self, key: str) -> bool:
         """Delete cache files for a key."""
         deleted = False

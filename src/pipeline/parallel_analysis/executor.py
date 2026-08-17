@@ -128,7 +128,8 @@ async def _run_layer_with_work_stealing(
                             "Parallel analyzer '%s' slot bypass active (%d "
                             "workers bypassing limits). This indicates "
                             "possible self-deadlock or pool exhaustion.",
-                            name, _bypass_count,
+                            name,
+                            _bypass_count,
                         )
                 result = await _run_single_analyzer(name, fn, context, timeout, duration_cache)
                 async with results_lock:
@@ -147,6 +148,7 @@ async def _run_layer_with_work_stealing(
     governor_acquired = 0
     try:
         from src.core.concurrency_governor import get_governor
+
         governor = get_governor()
         governor_available = True
     except ImportError:
@@ -168,9 +170,7 @@ async def _run_layer_with_work_stealing(
                 break
             governor_acquired += 1
         try:
-            workers.append(
-                asyncio.create_task(_worker(idx), name=f"parallel-analyzer-{idx}")
-            )
+            workers.append(asyncio.create_task(_worker(idx), name=f"parallel-analyzer-{idx}"))
         except Exception:
             # Bug #7: If create_task fails, immediately release the
             # governor slot we just acquired to prevent accounting drift.

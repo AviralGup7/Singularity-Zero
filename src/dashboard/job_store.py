@@ -109,6 +109,7 @@ class _ConnWrapper:
             on_close(conn)
         except Exception:
             logger.warning("Operation failed in job_store.py", exc_info=True)
+
     def close(self) -> None:
         """Explicitly close the connection — preferred over relying on GC."""
         if self._finalizer.detach():
@@ -116,6 +117,8 @@ class _ConnWrapper:
                 self.on_close(self.conn)
             except Exception:
                 logger.warning("Operation failed in job_store.py", exc_info=True)
+
+
 class JobStore:
     """SQLite-backed persistent store for job records."""
 
@@ -143,6 +146,7 @@ class JobStore:
             )
         except ImportError:
             logger.warning("Operation failed in job_store.py", exc_info=True)
+
     def _get_conn(self) -> sqlite3.Connection:
         wrapper = getattr(self._local, "wrapper", None)
         # Check if existing connection is too old (fix #42: max lifetime)
@@ -306,6 +310,7 @@ class JobStore:
     def load_all(self) -> dict[str, dict[str, Any]]:
         """Load all jobs, returning a dict keyed by job_id."""
         import logging as _logging
+
         try:
             rows = self._with_retry(
                 lambda conn: conn.execute(

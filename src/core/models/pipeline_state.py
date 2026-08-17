@@ -17,6 +17,7 @@ class StageStatus(StrEnum):
 @dataclass(frozen=True)
 class StageMetrics:
     """Immutable metrics for a single stage."""
+
     duration_seconds: float = 0.0
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -29,6 +30,7 @@ class StageMetrics:
 @dataclass(frozen=True)
 class StageArtifacts:
     """Immutable artifact references for a stage."""
+
     subdomains: frozenset[str] = frozenset()
     live_hosts: frozenset[str] = frozenset()
     urls: frozenset[str] = frozenset()
@@ -64,6 +66,7 @@ class StageArtifacts:
 @dataclass
 class StageExecution:
     """Mutable execution state for a single stage."""
+
     name: str
     status: StageStatus = StageStatus.PENDING
     metrics: StageMetrics = field(default_factory=StageMetrics)
@@ -103,7 +106,8 @@ class StageExecution:
         self.status = StageStatus.DEGRADED
         self.metrics = StageMetrics(
             duration_seconds=(datetime.now() - self.metrics.started_at).total_seconds()
-            if self.metrics.started_at else 0,
+            if self.metrics.started_at
+            else 0,
             finished_at=datetime.now(),
             error=error,
             reason=reason,
@@ -117,6 +121,7 @@ class StageExecution:
 @dataclass
 class PipelineState:
     """Aggregated pipeline execution state."""
+
     run_id: str
     target_name: str
     scope_entries: list[str]
@@ -170,8 +175,12 @@ class PipelineState:
                     "status": v.status.value,
                     "metrics": {
                         "duration_seconds": v.metrics.duration_seconds,
-                        "started_at": v.metrics.started_at.isoformat() if v.metrics.started_at else None,
-                        "finished_at": v.metrics.finished_at.isoformat() if v.metrics.finished_at else None,
+                        "started_at": v.metrics.started_at.isoformat()
+                        if v.metrics.started_at
+                        else None,
+                        "finished_at": v.metrics.finished_at.isoformat()
+                        if v.metrics.finished_at
+                        else None,
                         "items_processed": v.metrics.items_processed,
                         "items_output": v.metrics.items_output,
                         "error": v.metrics.error,
@@ -199,7 +208,9 @@ class PipelineState:
             stage.metrics = StageMetrics(
                 duration_seconds=m.get("duration_seconds", 0),
                 started_at=datetime.fromisoformat(m["started_at"]) if m.get("started_at") else None,
-                finished_at=datetime.fromisoformat(m["finished_at"]) if m.get("finished_at") else None,
+                finished_at=datetime.fromisoformat(m["finished_at"])
+                if m.get("finished_at")
+                else None,
                 items_processed=m.get("items_processed", 0),
                 items_output=m.get("items_output", 0),
                 error=m.get("error"),

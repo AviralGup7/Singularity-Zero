@@ -251,7 +251,13 @@ class SecurityStore:
             self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS, check_same_thread=False
         )
         try:
-            configure_connection(conn, busy_timeout_ms=_BUSY_TIMEOUT_MS, wal=True, foreign_keys=True, synchronous="NORMAL")
+            configure_connection(
+                conn,
+                busy_timeout_ms=_BUSY_TIMEOUT_MS,
+                wal=True,
+                foreign_keys=True,
+                synchronous="NORMAL",
+            )
         except Exception:
             safe_close(conn)
             raise

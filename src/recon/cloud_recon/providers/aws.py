@@ -82,7 +82,9 @@ async def check_aws_bucket(
                 except Exception:
                     logger.warning("Operation failed in aws.py", exc_info=True)
             website_findings = await _probe_s3_website(
-                session, bucket, timeout_seconds=timeout_seconds,
+                session,
+                bucket,
+                timeout_seconds=timeout_seconds,
                 s3_website_regions=s3_website_regions,
             )
             if website_findings:
@@ -93,15 +95,15 @@ async def check_aws_bucket(
                 )
 
             public_objects = await _probe_common_object_paths(
-                session, url, timeout_seconds=timeout_seconds,
+                session,
+                url,
+                timeout_seconds=timeout_seconds,
                 s3_object_paths=s3_object_paths,
             )
             if public_objects:
                 finding["permissions"]["public_objects"] = public_objects
                 finding["severity"] = "high"
-                finding["details"] += (
-                    f" Publicly readable object(s): {', '.join(public_objects)}."
-                )
+                finding["details"] += f" Publicly readable object(s): {', '.join(public_objects)}."
 
             try:
                 async with session.get(
@@ -359,9 +361,7 @@ async def probe_s3_access_points(
                                 "region": region,
                                 "status": "detected",
                                 "severity": "info",
-                                "details": (
-                                    f"S3 Access Point responded with HTTP {resp.status}."
-                                ),
+                                "details": (f"S3 Access Point responded with HTTP {resp.status}."),
                             }
                         )
             except Exception:
@@ -381,12 +381,8 @@ async def probe_multi_region_s3(
 
     findings: list[dict[str, Any]] = []
     regions = aws_regions or _DEFAULT_AWS_REGIONS
-    path_style_urls = [
-        f"https://s3.{region}.amazonaws.com/{bucket}" for region in regions
-    ]
-    vhost_style_urls = [
-        f"https://{bucket}.s3.{region}.amazonaws.com" for region in regions
-    ]
+    path_style_urls = [f"https://s3.{region}.amazonaws.com/{bucket}" for region in regions]
+    vhost_style_urls = [f"https://{bucket}.s3.{region}.amazonaws.com" for region in regions]
     urls = path_style_urls + vhost_style_urls
     for url in urls:
         try:

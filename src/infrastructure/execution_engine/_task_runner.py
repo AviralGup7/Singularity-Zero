@@ -86,8 +86,7 @@ def _cancellation_aware_wrapper(
             # Function completed but after cancellation was requested.
             # The result is stale — discard it but log the orphan.
             logger.warning(
-                "Task '%s' completed after timeout (orphan thread %s). "
-                "Result discarded.",
+                "Task '%s' completed after timeout (orphan thread %s). Result discarded.",
                 task_name,
                 thread_name,
             )
@@ -187,6 +186,7 @@ class _TaskRunner:
         # Check concurrency governor
         try:
             from src.core.concurrency_governor import get_governor
+
             governor = get_governor()
             snap = governor.snapshot()
             if snap["total_active"] >= snap["global_max"] * 0.9:
@@ -303,7 +303,11 @@ class _TaskRunner:
             future = loop.run_in_executor(
                 None,
                 _cancellation_aware_wrapper,
-                fn, args, kwargs, token, self._task.name,
+                fn,
+                args,
+                kwargs,
+                token,
+                self._task.name,
             )
             try:
                 result = await asyncio.wait_for(future, timeout=timeout)
@@ -312,9 +316,7 @@ class _TaskRunner:
                 token.cancel()
                 thread_key_prefix = f"{self._task.name}:"
                 with _orphan_lock:
-                    orphan_keys = [
-                        k for k in _orphan_threads if k.startswith(thread_key_prefix)
-                    ]
+                    orphan_keys = [k for k in _orphan_threads if k.startswith(thread_key_prefix)]
                     for k in orphan_keys:
                         logger.warning(
                             "Orphan thread detected after timeout: task '%s', thread %s. "
@@ -350,9 +352,7 @@ class _TaskRunner:
             )
 
         loop = asyncio.get_running_loop()
-        future = loop.run_in_executor(
-            self._cpu_executor, _cpu_bound_wrapper, fn, args, kwargs
-        )
+        future = loop.run_in_executor(self._cpu_executor, _cpu_bound_wrapper, fn, args, kwargs)
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
         except (TimeoutError, asyncio.CancelledError):

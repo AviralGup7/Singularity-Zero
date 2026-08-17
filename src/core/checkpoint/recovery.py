@@ -126,8 +126,7 @@ def attempt_recovery(
 
     if best[0] < 0:
         logger.warning(
-            "Recovery selected checkpoint with %d failed stage(s) – "
-            "no clean candidate available",
+            "Recovery selected checkpoint with %d failed stage(s) – no clean candidate available",
             -best[0],
         )
 

@@ -156,6 +156,7 @@ def _propagate_false_positive(finding_payload: dict[str, Any]) -> None:
             # Bug #1: Register with TaskRegistry for proper lifecycle tracking
             try:
                 from src.core.task_registry import get_task_registry
+
                 get_task_registry().create_task(
                     _tracked_fp_update(),
                     owner="findings_crud",

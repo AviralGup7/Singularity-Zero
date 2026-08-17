@@ -161,13 +161,14 @@ class AdaptiveScanCoordinator:
             task = asyncio.create_task(self._scan_batch(urls))
             try:
                 batch_results = await asyncio.wait_for(
-                    asyncio.shield(task), timeout=_BATCH_TIMEOUT,
+                    asyncio.shield(task),
+                    timeout=_BATCH_TIMEOUT,
                 )
             except TimeoutError:
                 logger.warning(
-                    "Adaptive scan batch %d timed out after %.0fs; "
-                    "cancelling batch task",
-                    batch_num, _BATCH_TIMEOUT,
+                    "Adaptive scan batch %d timed out after %.0fs; cancelling batch task",
+                    batch_num,
+                    _BATCH_TIMEOUT,
                 )
                 task.cancel()
                 try:
@@ -312,7 +313,8 @@ class AdaptiveScanCoordinator:
             # Wait if we've hit the concurrency limit
             while len(pending) >= self._concurrency:
                 done, pending = await asyncio.wait(
-                    pending, return_when=asyncio.FIRST_COMPLETED,
+                    pending,
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
                 for completed_task in done:
                     try:

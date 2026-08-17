@@ -125,7 +125,10 @@ class LearningIntegration:
         with _integration_lock:
             if _integration_instance is not None:
                 # Check for config contamination (Bug #19)
-                if _integration_config_hash is not None and _integration_config_hash != new_fingerprint:
+                if (
+                    _integration_config_hash is not None
+                    and _integration_config_hash != new_fingerprint
+                ):
                     logger.warning(
                         "Learning config changed (fingerprint %s -> %s); "
                         "resetting singleton to prevent cross-target contamination",
@@ -319,6 +322,7 @@ class LearningIntegration:
                         loop.create_task(coro)
                     except RuntimeError:
                         logger.warning("Operation failed in __init__.py", exc_info=True)
+
             if self._mesh_sync:
                 try:
                     run_coro(self._mesh_sync.stop())

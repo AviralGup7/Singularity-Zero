@@ -180,6 +180,7 @@ class FrontierRingBus:
                             _gov = None
                             try:
                                 from src.core.concurrency_governor import get_governor
+
                                 _gov = get_governor()
                                 if not _gov.allow("ring_bus"):
                                     continue
@@ -187,9 +188,11 @@ class FrontierRingBus:
                                 _gov = None
 
                             try:
+
                                 async def _guarded(h=handler, e=event, sem=self._task_semaphore):
                                     async with sem:
                                         await h(e)
+
                                 task = asyncio.create_task(_guarded())
                             except Exception as exc:
                                 # Finding 3: Release the governor permit if
@@ -198,7 +201,7 @@ class FrontierRingBus:
                                     try:
                                         _gov.release("ring_bus")
                                     except Exception:
-                                            logger.debug("Non-critical cleanup error", exc_info=True)
+                                        logger.debug("Non-critical cleanup error", exc_info=True)
                                 logger.warning("RingBus create_task failed: %s", exc)
                                 continue
 
@@ -250,15 +253,19 @@ class FrontierRingBus:
                             # path to prevent invisible task explosion.
                             try:
                                 from src.core.concurrency_governor import get_governor
+
                                 if not get_governor().allow("ring_bus"):
                                     self._pending_task_drops += 1
                                     continue
                             except ImportError:
                                 pass
 
-                            async def _guarded_shutdown(h=handler, e=event, sem=self._task_semaphore):
+                            async def _guarded_shutdown(
+                                h=handler, e=event, sem=self._task_semaphore
+                            ):
                                 async with sem:
                                     await h(e)
+
                             task = asyncio.create_task(_guarded_shutdown())
                             self._pending_tasks.add(task)
                             task.add_done_callback(self._pending_tasks.discard)
@@ -267,6 +274,7 @@ class FrontierRingBus:
                                 self._pending_tasks.discard(t)
                                 try:
                                     from src.core.concurrency_governor import get_governor
+
                                     get_governor().release("ring_bus")
                                 except (ImportError, Exception):
                                     pass
@@ -297,7 +305,8 @@ class FrontierRingBus:
         if self._pending_tasks:
             _drain_deadline = 10.0  # seconds
             done, pending = await asyncio.wait(
-                self._pending_tasks, timeout=_drain_deadline,
+                self._pending_tasks,
+                timeout=_drain_deadline,
             )
             if pending:
                 logger.warning(

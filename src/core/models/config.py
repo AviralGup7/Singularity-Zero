@@ -42,6 +42,7 @@ class Config:
         This class is retained as a compatibility shim during the v2 config
         unification and will be removed in a future release.
     """
+
     target_name: str
     output_dir: Path
     http_timeout_seconds: int

@@ -309,7 +309,7 @@ async def run_stage_with_retry(
             _reg.histogram("scan_duration_seconds", labels={"stage": stage_name}).observe(elapsed)
             _reg.counter("total_jobs").inc()
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
         if isinstance(result, StageOutput):
             import dataclasses
@@ -323,7 +323,7 @@ async def run_stage_with_retry(
 
                 _get_metrics().counter("completed_jobs").inc()
             except Exception:
-                    logger.debug("Metrics tracking error", exc_info=True)
+                logger.debug("Metrics tracking error", exc_info=True)
 
             orchestrator._emit_event(
                 EventType.STAGE_COMPLETED,
@@ -364,7 +364,7 @@ async def run_stage_with_retry(
 
             _get_metrics().counter("completed_jobs").inc()
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
         orchestrator._emit_event(
             EventType.STAGE_COMPLETED,
@@ -510,7 +510,7 @@ async def run_stage_with_retry(
 
                 _get_metrics().counter("failed_jobs").inc()
             except Exception:
-                    logger.debug("Metrics tracking error", exc_info=True)
+                logger.debug("Metrics tracking error", exc_info=True)
             stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
             ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
             ctx.result.module_metrics[stage_name] = {
@@ -578,7 +578,7 @@ async def run_stage_with_retry(
 
             _get_metrics().counter("retries_total").inc()
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
         if policy.is_budget_exhausted():
             err = "Stage retry budget exhausted"

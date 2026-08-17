@@ -299,6 +299,7 @@ def start_cache_analytics(app: Any) -> asyncio.Task[None]:
     """
     try:
         from src.core.task_registry import get_task_registry
+
         task = get_task_registry().create_task(
             cache_analytics_loop(app),
             owner="cache_analytics",

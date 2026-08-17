@@ -43,9 +43,7 @@ class ConfigurationServiceImpl(ConfigurationService):
             RuntimeError: If no configuration has been loaded yet.
         """
         if self._config is None:
-            raise RuntimeError(
-                "No configuration loaded. Call load() or register() first."
-            )
+            raise RuntimeError("No configuration loaded. Call load() or register() first.")
         return self._config
 
     def register(self, config: ValidatedPipelineConfig) -> None:

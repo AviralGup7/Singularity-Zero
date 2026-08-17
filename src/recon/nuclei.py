@@ -598,7 +598,9 @@ def _verify_templates(config: PipelineConfig) -> None:
 # ---------------------------------------------------------------------------
 
 
-def run_nuclei(priority_urls: Iterable[str], config: PipelineConfig, tags: list[str] | None = None) -> str:
+def run_nuclei(
+    priority_urls: Iterable[str], config: PipelineConfig, tags: list[str] | None = None
+) -> str:
     """Run nuclei scanning and return raw stdout text.
 
     .. deprecated::

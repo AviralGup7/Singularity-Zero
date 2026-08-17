@@ -150,6 +150,7 @@ class ETAEngine:
             return
         self._running = True
         from src.core.task_registry import get_task_registry
+
         self._task = get_task_registry().create_task(
             self._background_loop(), owner="eta_engine", name="background_loop"
         )

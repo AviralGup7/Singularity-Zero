@@ -140,13 +140,20 @@ class ThreatIntelEnricher:
             try:
                 cves = self._extract_cves(finding)
             except Exception:
-                logger.warning("ThreatIntelEnricher: Failed to extract CVEs from finding", exc_info=True)
+                logger.warning(
+                    "ThreatIntelEnricher: Failed to extract CVEs from finding", exc_info=True
+                )
                 cves = []
             for cve in cves:
                 try:
                     record = self._get_epss().lookup(cve)
                 except Exception as exc:
-                    logger.warning("ThreatIntelEnricher: EPSS lookup failed for %s: %s", cve, exc, exc_info=True)
+                    logger.warning(
+                        "ThreatIntelEnricher: EPSS lookup failed for %s: %s",
+                        cve,
+                        exc,
+                        exc_info=True,
+                    )
                     record = None
                 if record is None:
                     continue
@@ -167,7 +174,9 @@ class ThreatIntelEnricher:
                 try:
                     record = self._get_kev().lookup(cve)
                 except Exception as exc:
-                    logger.warning("ThreatIntelEnricher: KEV lookup failed for %s: %s", cve, exc, exc_info=True)
+                    logger.warning(
+                        "ThreatIntelEnricher: KEV lookup failed for %s: %s", cve, exc, exc_info=True
+                    )
                     record = None
                 if record is None:
                     continue
@@ -228,7 +237,9 @@ class ThreatIntelEnricher:
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
             except Exception:
-                logger.warning("ThreatIntelEnricher: Failed to correlate CVEs from category", exc_info=True)
+                logger.warning(
+                    "ThreatIntelEnricher: Failed to correlate CVEs from category", exc_info=True
+                )
         return [c for c in cves if c]
 
     @staticmethod

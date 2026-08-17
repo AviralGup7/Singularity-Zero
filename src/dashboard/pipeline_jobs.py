@@ -221,8 +221,7 @@ def run_pipeline_job(
             remaining = _CONSUMER_JOIN_HARD_CAP - (time.time() - _consumer_join_start)
             if remaining <= 0:
                 logger.warning(
-                    "Stream consumers exhausted hard cap of %ds; "
-                    "proceeding with finalization",
+                    "Stream consumers exhausted hard cap of %ds; proceeding with finalization",
                     _CONSUMER_JOIN_HARD_CAP,
                 )
                 break

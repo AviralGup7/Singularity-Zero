@@ -94,6 +94,8 @@ def _cleanup_pool_on_exit() -> None:
                 _pool_manager.clear()
             except Exception as exc:
                 logger.warning("Failed to clear pool on exit: %s", exc, exc_info=True)
+
+
 def _register_with_lifecycle() -> None:
     try:
         from src.core.lifecycle import get_lifecycle_manager
@@ -105,6 +107,8 @@ def _register_with_lifecycle() -> None:
         )
     except ImportError:
         logger.warning("Operation failed in http_pool.py", exc_info=True)
+
+
 _register_with_lifecycle()
 
 

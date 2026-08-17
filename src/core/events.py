@@ -186,12 +186,14 @@ class EventBus:
 
     # Event types that must never be silently dropped — they carry
     # correctness-critical data (e.g. security findings).
-    _CRITICAL_EVENT_TYPES: frozenset[EventType] = frozenset({
-        EventType.FINDING_CREATED,
-        EventType.FINDING_DISCOVERED,
-        EventType.PIPELINE_COMPLETE,
-        EventType.PIPELINE_ERROR,
-    })
+    _CRITICAL_EVENT_TYPES: frozenset[EventType] = frozenset(
+        {
+            EventType.FINDING_CREATED,
+            EventType.FINDING_DISCOVERED,
+            EventType.PIPELINE_COMPLETE,
+            EventType.PIPELINE_ERROR,
+        }
+    )
     _MAX_CRITICAL_BUFFER = 256
 
     def __init__(
@@ -507,9 +509,7 @@ class EventBus:
 
                                 def _run_in_thread() -> None:
                                     try:
-                                        _res_box[0] = ctx.run(
-                                            lambda: asyncio.run(handler(event))
-                                        )
+                                        _res_box[0] = ctx.run(lambda: asyncio.run(handler(event)))
                                     except Exception as e:
                                         _exc_box[0] = e
 

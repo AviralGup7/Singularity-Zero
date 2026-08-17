@@ -101,6 +101,7 @@ async def task_group(name: str = "group") -> Any:
 @dataclass
 class SemaphorePool:
     """Bounded semaphore pool with metrics."""
+
     max_concurrent: int
     _semaphore: asyncio.Semaphore = field(init=False)
     _active: int = field(default=0, init=False)
@@ -146,6 +147,7 @@ class SemaphorePool:
 @dataclass
 class RateLimiter:
     """Token bucket rate limiter."""
+
     rate_per_second: float
     burst: int = 1
     _tokens: float = field(init=False)
@@ -313,7 +315,8 @@ class RetryPolicy:
 
     def get_delay(self, attempt: int) -> float:
         import random
-        delay = min(self.base_delay * (self.exponential_base ** attempt), self.max_delay)
+
+        delay = min(self.base_delay * (self.exponential_base**attempt), self.max_delay)
         jitter_range = delay * self.jitter
         return delay + random.uniform(-jitter_range, jitter_range)
 
@@ -326,7 +329,12 @@ class RetryPolicy:
                 last_exception = e
                 if attempt < self.max_attempts - 1:
                     delay = self.get_delay(attempt)
-                    logger.warning("Attempt %d/%d failed: %s. Retrying in %.2fs",
-                                 attempt + 1, self.max_attempts, e, delay)
+                    logger.warning(
+                        "Attempt %d/%d failed: %s. Retrying in %.2fs",
+                        attempt + 1,
+                        self.max_attempts,
+                        e,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
         raise last_exception

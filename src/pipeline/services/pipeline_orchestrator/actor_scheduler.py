@@ -172,7 +172,9 @@ class ActorScheduler:
         self._outcome = SchedulerOutcome()
         self._deferral_count: dict[str, int] = {}
         self._max_deferrals: int = 5
-        print(f"[INSTRUMENT] ActorScheduler.__init__: done nodes={len(self._graph.nodes)}", flush=True)
+        print(
+            f"[INSTRUMENT] ActorScheduler.__init__: done nodes={len(self._graph.nodes)}", flush=True
+        )
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -203,7 +205,10 @@ class ActorScheduler:
         overridden_keys: set[str] = set()
 
         while True:
-            print(f"[INSTRUMENT] ActorScheduler.run: loop iteration start failed_critical={self._failed_critical}", flush=True)
+            print(
+                f"[INSTRUMENT] ActorScheduler.run: loop iteration start failed_critical={self._failed_critical}",
+                flush=True,
+            )
             if self._failed_critical is not None:
                 if self._outcome.exit_code is None:
                     self._outcome.exit_code = 3
@@ -233,7 +238,10 @@ class ActorScheduler:
                         overridden_keys.add(config_key)
 
             ready = self._collect_ready_nodes()
-            print(f"[INSTRUMENT] ActorScheduler.run: ready_nodes={[n.name for n in ready]} in_flight={len(self._in_flight)} remaining={len(self._remaining)}", flush=True)
+            print(
+                f"[INSTRUMENT] ActorScheduler.run: ready_nodes={[n.name for n in ready]} in_flight={len(self._in_flight)} remaining={len(self._remaining)}",
+                flush=True,
+            )
             if ready:
                 try:
                     from src.infrastructure.resource_guard import ResourceGuard
@@ -257,6 +265,7 @@ class ActorScheduler:
                 # Bug #25: Use unified CapacityManager for all dispatch decisions.
                 try:
                     from src.core.capacity_manager import get_capacity_manager
+
                     capacity_mgr = get_capacity_manager()
                 except ImportError:
                     capacity_mgr = None
@@ -291,6 +300,7 @@ class ActorScheduler:
                         # Fallback: legacy ConcurrencyGovernor check
                         try:
                             from src.core.concurrency_governor import get_governor
+
                             governor = get_governor()
                             if not governor.allow("actor_scheduler"):
                                 logger.debug(
@@ -303,7 +313,10 @@ class ActorScheduler:
 
                     self._dispatch(node)
             if self._in_flight:
-                print(f"[INSTRUMENT] ActorScheduler.run: awaiting {len(self._in_flight)} tasks", flush=True)
+                print(
+                    f"[INSTRUMENT] ActorScheduler.run: awaiting {len(self._in_flight)} tasks",
+                    flush=True,
+                )
                 await self._await_any_completion()
                 print("[INSTRUMENT] ActorScheduler.run: after _await_any_completion", flush=True)
                 continue
@@ -363,7 +376,10 @@ class ActorScheduler:
         """
         ready: list[tuple[int, int, StageNode]] = []
         for index, node in enumerate(self._graph.nodes):
-            print(f"[INSTRUMENT] ActorScheduler._collect_ready_nodes: checking node={node.name} completed={node.name in self._completed} launched={node.name in self._launched} remaining={node.name in self._remaining}", flush=True)
+            print(
+                f"[INSTRUMENT] ActorScheduler._collect_ready_nodes: checking node={node.name} completed={node.name in self._completed} launched={node.name in self._launched} remaining={node.name in self._remaining}",
+                flush=True,
+            )
             if node.name in self._completed or node.name in self._skipped:
                 continue
             if node.name in self._launched:
@@ -436,10 +452,15 @@ class ActorScheduler:
         )
 
     def _condition_holds(self, node: StageNode) -> bool:
-        print(f"[INSTRUMENT] ActorScheduler._condition_holds: checking node={node.name}", flush=True)
+        print(
+            f"[INSTRUMENT] ActorScheduler._condition_holds: checking node={node.name}", flush=True
+        )
         try:
             result = bool(node.when.is_satisfied(self._ctx, self._runtime_flags))
-            print(f"[INSTRUMENT] ActorScheduler._condition_holds: node={node.name} result={result}", flush=True)
+            print(
+                f"[INSTRUMENT] ActorScheduler._condition_holds: node={node.name} result={result}",
+                flush=True,
+            )
             return result
         except Exception as exc:  # noqa: BLE001 — broad catch intentional, condition predicates may raise arbitrary errors
             # A condition predicate that raises is almost certainly a bug,
@@ -488,6 +509,7 @@ class ActorScheduler:
         import time as _time
 
         from src.core.task_registry import get_task_registry
+
         task = get_task_registry().create_task(
             self._execute_node(node, method),
             owner="actor_scheduler",
@@ -553,6 +575,7 @@ class ActorScheduler:
         # Bug #25: Release via unified CapacityManager instead of ConcurrencyGovernor
         try:
             from src.core.capacity_manager import get_capacity_manager
+
             capacity_mgr = get_capacity_manager()
         except ImportError:
             capacity_mgr = None
@@ -570,6 +593,7 @@ class ActorScheduler:
                 # slot permanently, eventually exhausting the global limit.
                 try:
                     from src.core.concurrency_governor import get_governor
+
                     get_governor().release("actor_scheduler")
                 except (ImportError, Exception):
                     pass
@@ -804,4 +828,3 @@ def _utcnow_iso() -> str:
     import datetime
 
     return datetime.datetime.now(datetime.UTC).isoformat()
-

@@ -68,7 +68,9 @@ class StageRegistry:
         result: list[StageNodeDefinition] = []
         with self._lock:
             for defn in self._definitions.values():
-                if defn.when is not None and _condition_references_capability(defn.when, capability):
+                if defn.when is not None and _condition_references_capability(
+                    defn.when, capability
+                ):
                     result.append(defn)
         return result
 

@@ -103,13 +103,9 @@ async def _shutdown(app: FastAPI, ws_services: Any) -> None:
                                 process.kill()
                                 process.wait(timeout=3.0)
                             except Exception:
-                                logger.warning(
-                                    "Failed to kill process for job %s", job_id
-                                )
+                                logger.warning("Failed to kill process for job %s", job_id)
                     except Exception as exc:
-                        logger.warning(
-                            "Failed to terminate process for job %s: %s", job_id, exc
-                        )
+                        logger.warning("Failed to terminate process for job %s: %s", job_id, exc)
 
     await asyncio.sleep(0.5)
 
@@ -234,6 +230,7 @@ def _reset_singletons() -> None:
     # Reset TaskRegistry singleton
     try:
         import src.core.task_registry as _tr_mod
+
         _tr_mod._registry = None
     except (ImportError, AttributeError):
         pass
@@ -241,6 +238,7 @@ def _reset_singletons() -> None:
     # Reset ConcurrencyGovernor singleton
     try:
         from src.core.concurrency_governor import reset_governor
+
         reset_governor()
     except (ImportError, Exception):
         pass
@@ -248,6 +246,7 @@ def _reset_singletons() -> None:
     # Bug #25: Reset CapacityManager singleton
     try:
         import src.core.capacity_manager as _cm_mod
+
         _cm_mod._capacity_manager = None
     except (ImportError, AttributeError):
         pass
@@ -255,6 +254,7 @@ def _reset_singletons() -> None:
     # Reset LifecycleManager singleton
     try:
         import src.core.lifecycle as _lc_mod
+
         _lc_mod._manager = None
         _lc_mod._atexit_registered = False
     except (ImportError, AttributeError):
@@ -263,6 +263,7 @@ def _reset_singletons() -> None:
     # Reset bridge executor
     try:
         import src.core.utils.async_bridge as _ab_mod
+
         if _ab_mod._bridge_executor is not None:
             _ab_mod._bridge_executor.shutdown(wait=False)
             _ab_mod._bridge_executor = None

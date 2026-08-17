@@ -66,6 +66,7 @@ class MetricsCollector:
 
     def timing(self, name: str, labels: dict[str, str] | None = None):
         """Context manager for timing operations."""
+
         class Timer:
             def __init__(self, collector, name, labels):
                 self.collector = collector
@@ -97,12 +98,18 @@ class MetricsCollector:
                 metrics.append(Metric(name=key, type=MetricType.GAUGE, value=value))
             for key, values in self._histograms.items():
                 if values:
-                    metrics.append(Metric(
-                        name=key,
-                        type=MetricType.HISTOGRAM,
-                        value=sum(values) / len(values),
-                        labels={"count": str(len(values)), "min": str(min(values)), "max": str(max(values))}
-                    ))
+                    metrics.append(
+                        Metric(
+                            name=key,
+                            type=MetricType.HISTOGRAM,
+                            value=sum(values) / len(values),
+                            labels={
+                                "count": str(len(values)),
+                                "min": str(min(values)),
+                                "max": str(max(values)),
+                            },
+                        )
+                    )
             return metrics
 
     def to_prometheus(self) -> str:
@@ -129,6 +136,7 @@ def get_metrics() -> MetricsCollector:
 
 def timed(name: str, labels: dict[str, str] | None = None):
     """Decorator to time async function execution."""
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
@@ -145,13 +153,16 @@ def timed(name: str, labels: dict[str, str] | None = None):
                 await get_metrics().inc(f"{name}_errors_total", 1.0, error_labels)
                 await get_metrics().observe(f"{name}_duration_seconds", duration, error_labels)
                 raise
+
         return wrapper
+
     return decorator
 
 
 # ============================================================
 # Health Checks
 # ============================================================
+
 
 class HealthStatus(Enum):
     HEALTHY = "healthy"
@@ -226,6 +237,7 @@ class HealthCheckRegistry:
 # Distributed Tracing
 # ============================================================
 
+
 @dataclass
 class Span:
     trace_id: str
@@ -274,7 +286,9 @@ class Tracer:
         trace_id = carrier.get("trace-id")
         span_id = carrier.get("span-id")
         if trace_id and span_id:
-            return Span(trace_id=trace_id, span_id=span_id, parent_span_id=None, operation="", start_time=0)
+            return Span(
+                trace_id=trace_id, span_id=span_id, parent_span_id=None, operation="", start_time=0
+            )
         return None
 
 
@@ -290,6 +304,7 @@ def get_tracer() -> Tracer:
 
 def trace(operation: str):
     """Decorator for automatic tracing."""
+
     def decorator(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -305,5 +320,7 @@ def trace(operation: str):
                 raise
             finally:
                 span.finish()
+
         return async_wrapper
+
     return decorator

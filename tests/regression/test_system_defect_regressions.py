@@ -36,7 +36,10 @@ class TestDefect1RetryIncrement:
         from src.infrastructure.queue.lua_scripts import FAIL_JOB_SCRIPT
 
         # Script should NOT use ARGV[2] for retries (the old broken path)
-        assert "ARGV[2]" not in FAIL_JOB_SCRIPT or "retries" not in FAIL_JOB_SCRIPT.split("ARGV[2]")[0].split("\n")[-1]
+        assert (
+            "ARGV[2]" not in FAIL_JOB_SCRIPT
+            or "retries" not in FAIL_JOB_SCRIPT.split("ARGV[2]")[0].split("\n")[-1]
+        )
 
     @pytest.mark.regression
     def test_fail_job_script_dead_letter_after_max_retries(self) -> None:
@@ -78,8 +81,9 @@ class TestDefect1RetryIncrement:
         source = inspect.getsource(LiteWorker._process_job)
         # The old code had: retries_str = await self._redis.hget(job_key, "retries")
         # This line must NOT exist — retries are now read atomically in Lua.
-        assert not re.search(r'hget\(.*"retries"\)', source), \
+        assert not re.search(r'hget\(.*"retries"\)', source), (
             "Old pattern 'hget(... \"retries\" ...)' still present; retries should be read in Lua"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +275,9 @@ class TestDefect3RedisFailureResilience:
                     mock_proc.returncode = 1
                     mock_sub.return_value = mock_proc
 
-                    await worker._process_job("job1", "subdomains", {"payload": {"target": "x.com"}})
+                    await worker._process_job(
+                        "job1", "subdomains", {"payload": {"target": "x.com"}}
+                    )
 
         # evalsha should have been called multiple times (retries)
         assert worker._redis.evalsha.call_count >= 3
@@ -314,7 +320,9 @@ class TestDefect3RedisFailureResilience:
                     mock_proc.returncode = 1
                     mock_sub.return_value = mock_proc
 
-                    await worker._process_job("job1", "subdomains", {"payload": {"target": "x.com"}})
+                    await worker._process_job(
+                        "job1", "subdomains", {"payload": {"target": "x.com"}}
+                    )
 
         # After evalsha failures, hset should be called with state="failed"
         hset_calls = worker._redis.hset.call_args_list
@@ -376,9 +384,11 @@ class TestDefect4SingletonExceptionSafe:
                     pass  # May fail to create new instance, that's OK
 
             # The singleton should have been nulled despite close() failure
-            assert integ_mod._integration_instance != mock_instance or \
-                   integ_mod._integration_config_hash != "old_hash" or \
-                   integ_mod._integration_instance is None
+            assert (
+                integ_mod._integration_instance != mock_instance
+                or integ_mod._integration_config_hash != "old_hash"
+                or integ_mod._integration_instance is None
+            )
         finally:
             # Restore original state
             integ_mod._integration_instance = orig_instance

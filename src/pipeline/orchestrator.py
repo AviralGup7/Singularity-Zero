@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PipelineServices:
     """Central service container for the pipeline."""
+
     config: ValidatedPipelineConfig
     storage: Any
     event_bus: EventBus
@@ -40,7 +41,9 @@ _services: PipelineServices | None = None
 def get_services() -> PipelineServices:
     global _services
     if _services is None:
-        raise RuntimeError("Pipeline services not initialized. Call setup_pipeline_services() first.")
+        raise RuntimeError(
+            "Pipeline services not initialized. Call setup_pipeline_services() first."
+        )
     return _services
 
 
@@ -59,6 +62,7 @@ def setup_pipeline_services(config_path: str | None = None) -> PipelineServices:
 
     # Register config
     from src.core.config.typed_config import register_config
+
     register_config(config)
 
     # Create services
@@ -115,9 +119,12 @@ class SubdomainDiscoveryStage(Stage):
             tools=context.config.get("tools", {}),
         )
 
-        enumerator = getattr(context, "subdomain_enumerator", None) or context.config.get("subdomain_enumerator")
+        enumerator = getattr(context, "subdomain_enumerator", None) or context.config.get(
+            "subdomain_enumerator"
+        )
         if enumerator is None:
             from src.recon.subdomains import enumerate_subdomains
+
             enumerator = enumerate_subdomains
 
         subdomains = await enumerator(state.scope_entries, config, skip_crtsh=False)
@@ -132,9 +139,12 @@ class LiveHostProbingStage(Stage):
         super().__init__("live_host_probing", config)
 
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
-        prober = getattr(context, "live_host_prober", None) or context.config.get("live_host_prober")
+        prober = getattr(context, "live_host_prober", None) or context.config.get(
+            "live_host_prober"
+        )
         if prober is None:
             from src.recon.live_hosts import probe_live_hosts
+
             prober = probe_live_hosts
 
         live_hosts, live_records = await prober(
@@ -308,7 +318,9 @@ class ReportingStage(Stage):
 
         # Generate HTML report
         generate_run_report(
-            run_dir=Path(context.config.get("output_dir", "output")) / context.target_name / context.run_id,
+            run_dir=Path(context.config.get("output_dir", "output"))
+            / context.target_name
+            / context.run_id,
             summary=summary,
             diff_summary=None,
             screenshots=[],
@@ -319,7 +331,9 @@ class ReportingStage(Stage):
 
         # Write signed report package
         write_report_package(
-            run_dir=Path(context.config.get("output_dir", "output")) / context.target_name / context.run_id,
+            run_dir=Path(context.config.get("output_dir", "output"))
+            / context.target_name
+            / context.run_id,
             target_name=context.target_name,
             summary=summary,
             findings=state.findings,
@@ -351,16 +365,16 @@ def create_default_stages(config: dict) -> list[Stage]:
 
     # Set dependencies
     stages[1].depends_on("subdomain_discovery")  # live_hosts depends on subdomains
-    stages[2].depends_on("live_host_probing")    # urls depends on live_hosts
-    stages[3].depends_on("url_collection")       # parameters depends on urls
-    stages[4].depends_on("url_collection")       # profiling depends on urls
-    stages[5].depends_on("target_profiling")     # ranking depends on profiling
+    stages[2].depends_on("live_host_probing")  # urls depends on live_hosts
+    stages[3].depends_on("url_collection")  # parameters depends on urls
+    stages[4].depends_on("url_collection")  # profiling depends on urls
+    stages[5].depends_on("target_profiling")  # ranking depends on profiling
     if len(stages) > 6:
-        stages[6].depends_on("url_ranking")      # deep_analysis depends on ranking
+        stages[6].depends_on("url_ranking")  # deep_analysis depends on ranking
     if len(stages) > 7:
-        stages[7].depends_on("deep_analysis")    # validation depends on analysis
+        stages[7].depends_on("deep_analysis")  # validation depends on analysis
     if len(stages) > 8:
-        stages[8].depends_on("validation")       # reporting depends on validation
+        stages[8].depends_on("validation")  # reporting depends on validation
 
     return stages
 

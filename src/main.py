@@ -51,12 +51,14 @@ class AnalysisStage(Stage):
         logger.info("Running analysis stage")
         await asyncio.sleep(0.5)
         return StageArtifacts(
-            findings=({
-                "title": "Example Finding",
-                "severity": "medium",
-                "url": "https://example.com",
-                "category": "example",
-            },),
+            findings=(
+                {
+                    "title": "Example Finding",
+                    "severity": "medium",
+                    "url": "https://example.com",
+                    "category": "example",
+                },
+            ),
         )
 
 
@@ -69,7 +71,9 @@ async def run_pipeline(config: PipelineConfig, run_id: str) -> None:
     event_bus = get_event_bus()
     await event_bus.start()
 
-    checkpoint_store = LocalCheckpointStore(Path(config.output_dir) / config.target_name / "checkpoints")
+    checkpoint_store = LocalCheckpointStore(
+        Path(config.output_dir) / config.target_name / "checkpoints"
+    )
     checkpoint_mgr = CheckpointManager(checkpoint_store, run_id)
 
     # Try to resume from checkpoint
@@ -97,6 +101,7 @@ async def run_pipeline(config: PipelineConfig, run_id: str) -> None:
 
     # Initial state
     from src.core.models.pipeline_state import PipelineState
+
     state = PipelineState(
         run_id=run_id,
         target_name=config.target_name,
@@ -116,12 +121,16 @@ async def run_pipeline(config: PipelineConfig, run_id: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Cyber Security Test Pipeline")
-    parser.add_argument("--config", type=Path, default=Path("config.json"), help="Configuration file")
+    parser.add_argument(
+        "--config", type=Path, default=Path("config.json"), help="Configuration file"
+    )
     parser.add_argument("--target", help="Target name (overrides config)")
     parser.add_argument("--mode", default="default", help="Scan mode")
     parser.add_argument("--run-id", help="Run ID (auto-generated if not provided)")
     parser.add_argument("--output-dir", help="Output directory (overrides config)")
-    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    parser.add_argument(
+        "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
+    )
     return parser.parse_args()
 
 

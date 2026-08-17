@@ -91,7 +91,7 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name, "operation": "enqueue"},
             ).inc(count)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     async def record_dequeue(
         self, worker_id: str = "unknown", job_type: str = "unknown", count: int = 1
@@ -126,7 +126,7 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name, "operation": "dequeue"},
             ).inc(count)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     async def update_lag(self, lag: int) -> None:
         """Update consumer lag metric.
@@ -153,7 +153,7 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name},
             ).set(lag)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     async def record_processing_time(
         self, duration_seconds: float, job_type: str = "unknown"
@@ -176,7 +176,7 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name, "job_type": sanitized},
             ).observe(duration_seconds)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     async def record_batch_size(self, batch_size: int, worker_id: str = "unknown") -> None:
         """Record batch processing size.
@@ -196,7 +196,7 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name, "worker_id": bounded_worker_id},
             ).observe(float(batch_size))
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     async def record_retry(self, job_type: str = "unknown", reason: str = "timeout") -> None:
         """Record a job retry event.
@@ -216,7 +216,7 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name, "job_type": sanitized, "reason": reason},
             ).inc()
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)
 
     async def record_dead_letter(
         self, job_type: str = "unknown", error_type: str = "unknown"
@@ -243,7 +243,7 @@ class QueueMetricsCollector:
                 },
             ).inc()
         except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
+            logger.warning("Suppressed exception", exc_info=True)
 
     async def update_queue_depth(self, depth: int) -> None:
         """Update current queue depth gauge.
@@ -254,7 +254,6 @@ class QueueMetricsCollector:
         try:
             from src.infrastructure.observability.metrics import get_metrics
 
-
             metrics = get_metrics()
             metrics.gauge(
                 "queue_depth_current",
@@ -262,4 +261,4 @@ class QueueMetricsCollector:
                 labels={"queue": self._queue_name},
             ).set(depth)
         except Exception:
-                logger.debug("Metrics tracking error", exc_info=True)
+            logger.debug("Metrics tracking error", exc_info=True)

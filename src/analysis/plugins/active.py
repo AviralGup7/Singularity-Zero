@@ -98,7 +98,6 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "Detect GraphQL endpoints, test schema introspection exposure, query depth abuse, batch aliasing, and mutation surfaces.",
         "active",
     ),
-
     spec(
         "http2_probe",
         "HTTP/2 Probe",
@@ -111,7 +110,6 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "Analyze OAuth/SAML endpoints for implicit flow, missing PKCE, open redirect, and token exposure.",
         "active",
     ),
-
     spec(
         "path_traversal_active_probe",
         "Path Traversal Probe",

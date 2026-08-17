@@ -119,21 +119,27 @@ class CloudBucketScanner:
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
         return await check_azure_bucket(
-            session, bucket, timeout_seconds=self.timeout_seconds,
+            session,
+            bucket,
+            timeout_seconds=self.timeout_seconds,
         )
 
     async def check_alibaba_bucket(
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
         return await check_alibaba_bucket(
-            session, bucket, timeout_seconds=self.timeout_seconds,
+            session,
+            bucket,
+            timeout_seconds=self.timeout_seconds,
         )
 
     async def check_tencent_bucket(
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
         return await check_tencent_bucket(
-            session, bucket, timeout_seconds=self.timeout_seconds,
+            session,
+            bucket,
+            timeout_seconds=self.timeout_seconds,
         )
 
     async def scan_bucket(
@@ -164,7 +170,8 @@ class CloudBucketScanner:
         candidate_urls: set[str] = set()
         candidate_urls.update(
             build_cloud_run_1st_gen_candidates(
-                target, enable_cloud_run_enum=self.enable_cloud_run_enum,
+                target,
+                enable_cloud_run_enum=self.enable_cloud_run_enum,
             )
         )
         candidate_urls.update(
@@ -228,63 +235,90 @@ class CloudBucketScanner:
             for coro in (
                 self.probe_cloud_run(session, target),
                 probe_gcp_cloud_functions(
-                    session, project_id,
-                    timeout_seconds=self.timeout_seconds, gcp_regions=self.gcp_regions,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
+                    gcp_regions=self.gcp_regions,
                 ),
                 probe_gcp_app_engine(
-                    session, project_id, timeout_seconds=self.timeout_seconds,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
                 ),
                 probe_aws_lambda_urls(
-                    session, project_id,
-                    timeout_seconds=self.timeout_seconds, aws_regions=self.aws_regions,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
+                    aws_regions=self.aws_regions,
                 ),
                 probe_api_gateway(
-                    session, project_id,
-                    timeout_seconds=self.timeout_seconds, aws_regions=self.aws_regions,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
+                    aws_regions=self.aws_regions,
                 ),
                 probe_aws_amplify(
-                    session, project_id, timeout_seconds=self.timeout_seconds,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
                 ),
                 probe_firebase_hosting(
-                    session, project_id, timeout_seconds=self.timeout_seconds,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
                 ),
                 probe_azure_functions(
-                    session, project_id,
+                    session,
+                    project_id,
                     timeout_seconds=self.timeout_seconds,
                     azure_function_regions=self.azure_function_regions,
                 ),
                 probe_azure_logic_apps(
-                    session, project_id,
+                    session,
+                    project_id,
                     timeout_seconds=self.timeout_seconds,
                     azure_function_regions=self.azure_function_regions,
                 ),
                 probe_azure_static_web_apps(
-                    session, project_id, timeout_seconds=self.timeout_seconds,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
                 ),
                 probe_s3_access_points(
-                    session, core_name,
-                    timeout_seconds=self.timeout_seconds, aws_regions=self.aws_regions,
+                    session,
+                    core_name,
+                    timeout_seconds=self.timeout_seconds,
+                    aws_regions=self.aws_regions,
                 ),
                 probe_multi_region_s3(
-                    session, core_name,
-                    timeout_seconds=self.timeout_seconds, aws_regions=self.aws_regions,
+                    session,
+                    core_name,
+                    timeout_seconds=self.timeout_seconds,
+                    aws_regions=self.aws_regions,
                 ),
                 probe_digitalocean_spaces(
-                    session, project_id,
-                    timeout_seconds=self.timeout_seconds, do_regions=self.do_regions,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
+                    do_regions=self.do_regions,
                 ),
                 probe_backblaze_b2(
-                    session, project_id,
+                    session,
+                    project_id,
                     timeout_seconds=self.timeout_seconds,
                     backblaze_regions=self.backblaze_regions,
                 ),
                 probe_wasabi(
-                    session, project_id,
-                    timeout_seconds=self.timeout_seconds, wasabi_regions=self.wasabi_regions,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
+                    wasabi_regions=self.wasabi_regions,
                 ),
                 probe_oci_object_storage(
-                    session, project_id,
-                    timeout_seconds=self.timeout_seconds, oci_regions=self.oci_regions,
+                    session,
+                    project_id,
+                    timeout_seconds=self.timeout_seconds,
+                    oci_regions=self.oci_regions,
                 ),
             ):
                 t = asyncio.create_task(_bounded(coro))

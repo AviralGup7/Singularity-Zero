@@ -87,9 +87,6 @@ def _extract_js_ast_endpoints(content: str) -> set[str]:
     return candidates
 
 
-
-
-
 def _extract_js_candidate_urls(
     content: str,
     base_url: str,

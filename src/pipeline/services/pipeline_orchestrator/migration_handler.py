@@ -70,6 +70,7 @@ class ProactiveMigrationHandler:
             return
         self._active = True
         from src.core.task_registry import get_task_registry
+
         self._monitor_task = get_task_registry().create_task(
             self._run_monitor(), owner="migration_handler", name="monitor"
         )

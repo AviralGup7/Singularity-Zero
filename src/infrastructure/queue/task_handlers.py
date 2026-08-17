@@ -113,8 +113,7 @@ class WorkerTaskHandlersMixin:
 
                     if not get_governor().allow("queue_workers"):
                         logger.warning(
-                            "Job %s deferred: global concurrency governor "
-                            "limit reached",
+                            "Job %s deferred: global concurrency governor limit reached",
                             job.id,
                         )
                         await self.queue.fail_job(

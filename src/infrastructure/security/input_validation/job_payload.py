@@ -44,6 +44,7 @@ class JobPayloadValidator:
 
         if target_name:
             from src.infrastructure.security.input_validation.target_name import TargetNameValidator
+
             name_validator = TargetNameValidator(self.config)
             name_result = name_validator.validate(target_name)
             if not name_result.is_valid:

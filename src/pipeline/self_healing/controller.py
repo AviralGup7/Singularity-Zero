@@ -176,9 +176,17 @@ class SelfHealingController:
             return
         try:
             raw_comp = data.get("component_name") or data.get("component", "")
-            comp = raw_comp if isinstance(raw_comp, HealthComponent) else HealthComponent(str(raw_comp))
+            comp = (
+                raw_comp
+                if isinstance(raw_comp, HealthComponent)
+                else HealthComponent(str(raw_comp))
+            )
             raw_status = data.get("status", HealthStatus.OK.value)
-            status = raw_status if isinstance(raw_status, HealthStatus) else HealthStatus(str(raw_status))
+            status = (
+                raw_status
+                if isinstance(raw_status, HealthStatus)
+                else HealthStatus(str(raw_status))
+            )
             metric = HealthMetric(
                 component=comp,
                 name=data.get("metric_name") or data.get("name", ""),

@@ -71,12 +71,11 @@ def _check_escaped(response_text: str, marker: str) -> int:
     try:
         from urllib.parse import quote
 
-
         url_encoded = quote(marker, safe="")
         if url_encoded in response_text or url_encoded.lower() in response_text.lower():
             return 80
     except Exception:
-            logger.warning("Suppressed exception", exc_info=True)
+        logger.warning("Suppressed exception", exc_info=True)
 
     # Backslash escaping
     escaped = "\\" + marker

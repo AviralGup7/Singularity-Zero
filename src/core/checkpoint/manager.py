@@ -15,6 +15,7 @@ T = TypeVar("T")
 @dataclass
 class CheckpointData:
     """Immutable checkpoint snapshot."""
+
     run_id: str
     version: int
     timestamp: float
@@ -65,6 +66,7 @@ class CheckpointStore(abc.ABC):
 @dataclass
 class CheckpointManager:
     """High-level checkpoint management."""
+
     store: Any  # CheckpointStore
     run_id: str
     _current: CheckpointData | None = None
@@ -111,6 +113,7 @@ class CheckpointManager:
 
     async def auto_save(self, interval: float = 30.0):
         """Start auto-save background task."""
+
         async def _auto_save():
             while True:
                 await asyncio.sleep(interval)

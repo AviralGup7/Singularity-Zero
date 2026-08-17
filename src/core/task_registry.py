@@ -91,9 +91,7 @@ class TaskRegistry:
             # No running loop or wrong-loop call.  Fall back to creating
             # the task on the *current* running loop to avoid crashing
             # the caller, but log a warning.
-            logger.warning(
-                "TaskRegistry.create_task fell back to raw create_task: %s", exc
-            )
+            logger.warning("TaskRegistry.create_task fell back to raw create_task: %s", exc)
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -231,6 +229,7 @@ class TaskRegistry:
         """
         try:
             from src.core.lifecycle import get_lifecycle_manager
+
             lm = get_lifecycle_manager()
             lm_order = lm._resolve_order()
             # LifecycleManager order is cleanup-first; we need reverse for tasks
@@ -341,9 +340,7 @@ class TaskRegistry:
         to prevent unbounded memory growth from completed tasks.
         """
         with self._lock:
-            ghost_count = sum(
-                1 for t in self._tasks.values() if t.done() or t.cancelled()
-            )
+            ghost_count = sum(1 for t in self._tasks.values() if t.done() or t.cancelled())
         # Defect 8 fix: Proactively reconcile when ghosts accumulate
         if ghost_count > 10:
             self.reconcile()

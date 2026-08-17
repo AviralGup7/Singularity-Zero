@@ -173,6 +173,7 @@ class DashboardQueryService:
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         import logging as _logging
+
         _logging.getLogger(__name__).info(
             "GET job_id=%s jobs_keys=%s instance_id=%d found=%s",
             job_id,

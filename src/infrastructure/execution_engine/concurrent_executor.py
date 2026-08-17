@@ -351,10 +351,7 @@ class ConcurrentExecutor:
         if self._tasks and not self._results:
             return
 
-        pending = [
-            tid for tid in self._tasks
-            if tid not in self._results
-        ]
+        pending = [tid for tid in self._tasks if tid not in self._results]
         if not pending:
             return
 

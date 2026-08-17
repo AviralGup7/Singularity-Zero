@@ -139,9 +139,7 @@ async def probe_azure_logic_apps(
                                 "region": region,
                                 "status": "detected",
                                 "severity": "info",
-                                "details": (
-                                    f"Logic Apps URL responded with HTTP {resp.status}."
-                                ),
+                                "details": (f"Logic Apps URL responded with HTTP {resp.status}."),
                             }
                         )
             except Exception:

@@ -59,6 +59,7 @@ def register_admin_routes(app: Any, services: Any, *, admin_api_key: str | None 
     routes should not rely on client-supplied role headers such as
     ``x-user-roles``; roles must come from server-side resolvers.
     """
+
     @app.get("/admin/websocket/connections")
     async def list_connections(request: Request) -> dict[str, Any]:
         _require_admin(request, "list_connections", admin_api_key=admin_api_key)

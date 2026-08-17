@@ -27,6 +27,7 @@ class _PendingRefresh:
         self.key = key
         self.task = task
         import time
+
         self.started_at = time.time()
 
 

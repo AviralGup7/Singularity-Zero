@@ -207,7 +207,7 @@ async def execute_remaining_stages(
                     if status == "completed":
                         completed_stages.add(stage_name)
         except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
+            logger.warning("Suppressed exception", exc_info=True)
 
     # The recon validator is a post-completion hook on ``urls``.  It
     # sets ``recon_validation=FAILED`` in the context when the URL
@@ -317,7 +317,7 @@ def resolve_pipeline_exit_code(
                 ci=policy.ci,
             )
         except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
+            logger.warning("Suppressed exception", exc_info=True)
     branch = _resolve_branch(args, config) if args is not None else ""
 
     evaluation: PolicyEvaluation

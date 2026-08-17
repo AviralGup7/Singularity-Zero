@@ -309,7 +309,7 @@ def _check_rate_limit_replay(
                 rate_limited += 1
                 break
         except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
+            logger.warning("Suppressed exception", exc_info=True)
         time.sleep(0.1)
     return _record(
         "rate_limit_replay",
@@ -351,7 +351,7 @@ def _check_subdomain_scope(
                 if result.get("status_code") == 200:
                     subdomain_hits.append({"url": u, "status_code": 200})
             except Exception:
-                    logger.warning("Suppressed exception", exc_info=True)
+                logger.warning("Suppressed exception", exc_info=True)
     return _record(
         "subdomain_scope",
         "Use key on different subdomains/services",
@@ -383,7 +383,7 @@ def _check_privilege_escalation(
             if result.get("status_code") == 200:
                 privilege_hits.append({"endpoint": endpoint, "status_code": 200})
         except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
+            logger.warning("Suppressed exception", exc_info=True)
     return _record(
         "privilege_escalation",
         "Privilege escalation endpoints with key",
@@ -598,7 +598,7 @@ def _check_write_actions(
                     }
                 )
         except Exception:
-                logger.warning("Suppressed exception", exc_info=True)
+            logger.warning("Suppressed exception", exc_info=True)
     return _record(
         "write_actions",
         "Write actions with key",

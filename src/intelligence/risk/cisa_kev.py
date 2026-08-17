@@ -236,7 +236,9 @@ class CISAKEVClient:
 
                 cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
             except Exception:
-                logger.warning("CISAKEVClient: Failed to correlate CVEs from category", exc_info=True)
+                logger.warning(
+                    "CISAKEVClient: Failed to correlate CVEs from category", exc_info=True
+                )
         return [c for c in cves if c]
 
     def _network_disabled(self) -> bool:

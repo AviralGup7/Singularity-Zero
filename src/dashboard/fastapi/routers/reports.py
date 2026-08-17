@@ -468,9 +468,7 @@ async def list_platforms(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
     return {"clients": out}
 
 
-def _mark_finding_reported_on_disk(
-    findings_path: Path, finding_id: str, platform: str
-) -> None:
+def _mark_finding_reported_on_disk(findings_path: Path, finding_id: str, platform: str) -> None:
     """Atomically write already_reported flag to findings.json.
 
     Defect 4 fix: Uses temp-file + rename for atomic write to prevent
@@ -488,9 +486,7 @@ def _mark_finding_reported_on_disk(
             break
     if not modified:
         return
-    tmp_fd, tmp_path = tempfile.mkstemp(
-        dir=findings_path.parent, suffix=".tmp", prefix="findings_"
-    )
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=findings_path.parent, suffix=".tmp", prefix="findings_")
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as tmp_f:
             json.dump(findings_list, tmp_f, indent=2)

@@ -248,6 +248,7 @@ def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
         try:
             import src.analysis.plugin_registration  # noqa: F401
             from src.analysis.plugins import get_analysis_plugin_specs
+
             get_analysis_plugin_specs()
         except ImportError:
             pass
@@ -256,6 +257,7 @@ def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
     if len(specs) < len(bindings):
         try:
             from src.analysis.plugins import get_analysis_plugin_specs
+
             get_analysis_plugin_specs()
             specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
         except ImportError:

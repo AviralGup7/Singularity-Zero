@@ -57,6 +57,7 @@ async def stream_job_progress(
     job = await get_cached_job(job_id, services)
     tenant_id = (_auth or {}).get("tenant_id", "default")
     import logging as _logging
+
     _logging.getLogger(__name__).info(
         "AUTH stream_job_progress job_id=%s user=%r role=%s tenant=%s auth_method=%s",
         job_id,
@@ -120,7 +121,9 @@ async def stream_job_progress(
                 status=initial_status,
                 progress_percent=100 if initial_status == "completed" else initial_progress,
                 stage=initial_stage,
-                stage_label=STAGE_LABELS.get(initial_stage, initial_stage.replace("_", " ").title()),
+                stage_label=STAGE_LABELS.get(
+                    initial_stage, initial_stage.replace("_", " ").title()
+                ),
                 total_duration_seconds=round(elapsed, 1),
                 total_findings=job_dict.get("total_findings", 0),
                 failed_stage=job_dict.get("failed_stage") or None,
@@ -145,7 +148,9 @@ async def stream_job_progress(
                 yield emitter.heartbeat(
                     progress_percent=initial_progress,
                     stage=initial_stage,
-                    stage_label=STAGE_LABELS.get(initial_stage, initial_stage.replace("_", " ").title()),
+                    stage_label=STAGE_LABELS.get(
+                        initial_stage, initial_stage.replace("_", " ").title()
+                    ),
                     stalled=False,
                     seconds_since_last_update=0,
                 )

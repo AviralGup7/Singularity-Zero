@@ -31,7 +31,6 @@ from src.recon.common import normalize_url
 logger = logging.getLogger(__name__)
 
 
-
 def _extract_field_value(payload: dict[str, Any] | list[Any], field_path: str) -> Any | None:
     """Extract a value from a nested JSON payload by field path.
 

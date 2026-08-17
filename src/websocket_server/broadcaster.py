@@ -52,7 +52,10 @@ class CircuitBreaker:
         from pathlib import Path
 
         self._instance_id = uuid.uuid4().hex[:8]
-        self._state_file = Path(tempfile.gettempdir()) / f"redis_breaker_state_{os.getpid()}_{self._instance_id}.json"
+        self._state_file = (
+            Path(tempfile.gettempdir())
+            / f"redis_breaker_state_{os.getpid()}_{self._instance_id}.json"
+        )
         self._load_state()
 
     def _load_state(self) -> None:
@@ -195,7 +198,13 @@ class Broadcaster:
         # Bug fix: Include target in dedup key to prevent cross-target
         # message loss when two different targets receive broadcasts with
         # the same message ID (e.g., heartbeat pings, retry broadcasts).
-        return f"{scope}:{target}:{message_id}" if scope else f"{target}:{message_id}" if target else message_id
+        return (
+            f"{scope}:{target}:{message_id}"
+            if scope
+            else f"{target}:{message_id}"
+            if target
+            else message_id
+        )
 
     def _is_duplicate(self, message_id: str, scope: str = "", target: str = "") -> bool:
         """Check if a message has already been processed."""

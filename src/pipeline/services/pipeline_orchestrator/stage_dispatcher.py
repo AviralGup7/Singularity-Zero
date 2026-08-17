@@ -46,6 +46,7 @@ class StageDispatcher:
                 get_system_sampler()._queue = queue
             except Exception:
                 logger.warning("Operation failed in stage_dispatcher.py", exc_info=True)
+
     async def enqueue_stage(
         self,
         stage_name: str,

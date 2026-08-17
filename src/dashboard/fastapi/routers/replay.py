@@ -90,6 +90,7 @@ async def replay_request(
     if replay_headers_for_mode is None:
         try:
             from src.bootstrap.startup_registration import ensure_protocol_bindings_registered
+
             ensure_protocol_bindings_registered()
             replay_headers_for_mode = get_exploit_replay()
         except Exception:
@@ -100,6 +101,7 @@ async def replay_request(
             from src.execution.exploiters.exploit_automation import (
                 replay_headers_for_mode as _r_headers,
             )
+
             replay_headers_for_mode = _r_headers
         except Exception:
             raise HTTPException(status_code=500, detail="Exploit replay protocol not available")
@@ -134,6 +136,7 @@ async def replay_request(
     if fetch_response_provider is None:
         try:
             from src.bootstrap.startup_registration import ensure_protocol_bindings_registered
+
             ensure_protocol_bindings_registered()
             fetch_response_provider = get_fetch_response_provider()
             artifact_loader = get_plugin_artifact_loader()
@@ -144,6 +147,7 @@ async def replay_request(
     if fetch_response_provider is None:
         try:
             from src.analysis.passive.runtime import _get_fetch_response
+
             fetch_response_provider = _get_fetch_response
         except Exception:
             raise HTTPException(status_code=500, detail="Fetch response provider not available")
@@ -185,7 +189,11 @@ async def replay_request(
         except Exception:
             records = None
 
-    if (records is None or len(records) == 0) and artifact_loader is not None and hasattr(artifact_loader, "load_plugin_artifact"):
+    if (
+        (records is None or len(records) == 0)
+        and artifact_loader is not None
+        and hasattr(artifact_loader, "load_plugin_artifact")
+    ):
         try:
             records = artifact_loader.load_plugin_artifact(run_dir, "behavior_analysis_layer")
         except Exception:
@@ -242,8 +250,10 @@ async def replay_request(
     if compare_response_records is None:
         try:
             from src.analysis.behavior.analysis_support import compare_response_records as _comp
+
             compare_response_records = _comp
         except Exception:
+
             def compare_response_records(b, r):  # type: ignore[misc]
                 """Fallback when the behaviour-analysis module is unavailable."""
                 return {}

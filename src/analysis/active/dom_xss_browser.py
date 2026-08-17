@@ -125,7 +125,9 @@ class DOMXSSBrowserProbe:
                 try:
                     await page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 except Exception as exc:
-                    logger.warning("Failed to navigate to %s in postMessage probe: %s", url, exc, exc_info=True)
+                    logger.warning(
+                        "Failed to navigate to %s in postMessage probe: %s", url, exc, exc_info=True
+                    )
                     await browser.close()
                     return findings
 

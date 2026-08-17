@@ -30,24 +30,19 @@ class StorageBackend[T](abc.ABC):
     """Abstract storage interface - business code depends only on this."""
 
     @abc.abstractmethod
-    async def put(self, key: str, data: bytes, metadata: dict | None = None) -> ArtifactRef:
-        ...
+    async def put(self, key: str, data: bytes, metadata: dict | None = None) -> ArtifactRef: ...
 
     @abc.abstractmethod
-    async def get(self, key: str) -> bytes | None:
-        ...
+    async def get(self, key: str) -> bytes | None: ...
 
     @abc.abstractmethod
-    async def exists(self, key: str) -> bool:
-        ...
+    async def exists(self, key: str) -> bool: ...
 
     @abc.abstractmethod
-    async def delete(self, key: str) -> bool:
-        ...
+    async def delete(self, key: str) -> bool: ...
 
     @abc.abstractmethod
-    async def list(self, prefix: str = "") -> list[str]:
-        ...
+    async def list(self, prefix: str = "") -> list[str]: ...
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[StorageTransaction]:
@@ -76,6 +71,7 @@ class StorageTransaction:
 
 # --- Local filesystem implementation ---
 
+
 class LocalStorageBackend:
     def __init__(self, root: Path):
         self.root = Path(root)
@@ -91,6 +87,7 @@ class LocalStorageBackend:
         path.write_bytes(data)
 
         import hashlib
+
         checksum = hashlib.sha256(data).hexdigest()
 
         if metadata:
@@ -121,10 +118,15 @@ class LocalStorageBackend:
         base = self._path(prefix)
         if not base.exists():
             return []
-        return [str(p.relative_to(self.root)) for p in base.rglob("*") if p.is_file() and not p.name.endswith(".meta.json")]
+        return [
+            str(p.relative_to(self.root))
+            for p in base.rglob("*")
+            if p.is_file() and not p.name.endswith(".meta.json")
+        ]
 
 
 # --- S3 implementation ---
+
 
 class S3StorageBackend:
     def __init__(self, bucket: str, prefix: str = "", **client_kwargs):
@@ -132,6 +134,7 @@ class S3StorageBackend:
         self.prefix = prefix
         try:
             import boto3
+
             self._s3 = boto3.client("s3", **client_kwargs)
         except ImportError:
             raise RuntimeError("boto3 required for S3 backend. Install with: pip install boto3")
@@ -141,6 +144,7 @@ class S3StorageBackend:
 
     async def put(self, key: str, data: bytes, metadata: dict | None = None) -> ArtifactRef:
         import hashlib
+
         checksum = hashlib.sha256(data).hexdigest()
         full_key = self._key(key)
 
@@ -184,7 +188,7 @@ class S3StorageBackend:
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 if self.prefix:
-                    key = key[len(self.prefix):].lstrip("/")
+                    key = key[len(self.prefix) :].lstrip("/")
                 keys.append(key)
         return keys
 
@@ -193,6 +197,7 @@ class S3StorageBackend:
 
 
 # --- Factory ---
+
 
 def create_storage_backend(config: dict) -> Any:
     backend = config.get("backend", "local").lower()
@@ -219,16 +224,22 @@ class RedisStorageBackend:
     async def _get_pool(self):
         if self._pool is None:
             import redis.asyncio as redis
+
             self._pool = redis.ConnectionPool.from_url(self.redis_url)
         return self._pool
 
     async def put(self, key: str, data: bytes, metadata: dict | None = None) -> ArtifactRef:
         import hashlib
+
         checksum = hashlib.sha256(data).hexdigest()
         redis = await self._get_pool()
         if await redis.exists(key):
             meta_raw = await redis.hgetall(f"{key}:meta")
-            existing_meta = {k.decode(): json.loads(v.decode()) for k, v in meta_raw.items()} if meta_raw else (metadata or {})
+            existing_meta = (
+                {k.decode(): json.loads(v.decode()) for k, v in meta_raw.items()}
+                if meta_raw
+                else (metadata or {})
+            )
             return ArtifactRef(key=key, size=len(data), checksum=checksum, metadata=existing_meta)
 
         await redis.set(key, data)

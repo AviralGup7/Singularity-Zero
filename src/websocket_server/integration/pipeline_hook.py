@@ -49,12 +49,14 @@ def integrate_with_pipeline_progress(services: Any) -> None:
     ) -> Any:
         result = _orig_apply_progress(job_id, stage, percent, detail=detail, **kwargs)
         if asyncio.iscoroutine(result):
+
             async def _awaited() -> Any:
                 val = await result
                 _do_broadcast_progress(job_id, stage, percent, detail)
                 if log_line:
                     _do_broadcast_log(job_id, log_line)
                 return val
+
             return _awaited()
         else:
             _do_broadcast_progress(job_id, stage, percent, detail)

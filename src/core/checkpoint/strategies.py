@@ -75,7 +75,9 @@ class CheckpointManager:
     # ------------------------------------------------------------------
 
     async def _replicate_with_retry(
-        self, state: CheckpointState, run_id: str,
+        self,
+        state: CheckpointState,
+        run_id: str,
     ) -> bool:
         """Replicate checkpoint to distributed store with retry and backoff.
 
@@ -92,20 +94,28 @@ class CheckpointManager:
                 if result is True:
                     logger.info(
                         "Distributed replication succeeded for checkpoint %s v%s (attempt %d)",
-                        state.pipeline_run_id, state.checkpoint_version, attempt,
+                        state.pipeline_run_id,
+                        state.checkpoint_version,
+                        attempt,
                     )
                     return True
                 logger.warning(
                     "Distributed replication returned %s for checkpoint %s v%s (attempt %d/%d)",
-                    result, state.pipeline_run_id, state.checkpoint_version,
-                    attempt, self._REPLICATION_MAX_RETRIES,
+                    result,
+                    state.pipeline_run_id,
+                    state.checkpoint_version,
+                    attempt,
+                    self._REPLICATION_MAX_RETRIES,
                 )
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
                 logger.warning(
                     "Distributed replication attempt %d/%d failed for checkpoint %s v%s: %s",
-                    attempt, self._REPLICATION_MAX_RETRIES,
-                    state.pipeline_run_id, state.checkpoint_version, exc,
+                    attempt,
+                    self._REPLICATION_MAX_RETRIES,
+                    state.pipeline_run_id,
+                    state.checkpoint_version,
+                    exc,
                 )
 
             if attempt < self._REPLICATION_MAX_RETRIES:
@@ -116,7 +126,9 @@ class CheckpointManager:
             "Distributed replication failed after %d attempts for checkpoint %s v%s: %s. "
             "Local checkpoint remains intact.",
             self._REPLICATION_MAX_RETRIES,
-            state.pipeline_run_id, state.checkpoint_version, last_exc,
+            state.pipeline_run_id,
+            state.checkpoint_version,
+            last_exc,
         )
         return False
 
@@ -149,7 +161,9 @@ class CheckpointManager:
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "Synchronous distributed replication failed for checkpoint %s v%s: %s",
-                    state.pipeline_run_id, state.checkpoint_version, exc,
+                    state.pipeline_run_id,
+                    state.checkpoint_version,
+                    exc,
                 )
 
         thread = threading.Thread(
@@ -161,6 +175,7 @@ class CheckpointManager:
         # shutdown instead of being killed mid-flight by the OS.
         try:
             from src.core.lifecycle import get_lifecycle_manager
+
             lm = get_lifecycle_manager()
             lm.register_thread(thread.name, thread)
         except ImportError:
@@ -168,10 +183,12 @@ class CheckpointManager:
         with self._replication_thread_lock:
             self._replication_threads.add(thread)
         thread.start()
+
         # Auto-remove from tracking when thread finishes
         def _on_thread_done() -> None:
             with self._replication_thread_lock:
                 self._replication_threads.discard(thread)
+
         thread.join_event = getattr(thread, "join_event", None)  # type: ignore[attr-defined]
         # Use a small watcher thread to clean up (daemon, so won't block shutdown)
         threading.Thread(target=lambda: (thread.join(), _on_thread_done()), daemon=True).start()
@@ -197,7 +214,8 @@ class CheckpointManager:
 
         logger.info(
             "Waiting for %d replication task(s) and %d replication thread(s)…",
-            len(tasks), len(threads),
+            len(tasks),
+            len(threads),
         )
 
         all_done = True
@@ -208,7 +226,8 @@ class CheckpointManager:
             if pending:
                 logger.warning(
                     "%d replication task(s) still pending after %.1fs shutdown timeout",
-                    len(pending), timeout,
+                    len(pending),
+                    timeout,
                 )
                 all_done = False
 
@@ -223,7 +242,9 @@ class CheckpointManager:
                     try:
                         future.result()
                     except Exception:
-                        logger.warning("Future wait failed during checkpoint replication", exc_info=True)
+                        logger.warning(
+                            "Future wait failed during checkpoint replication", exc_info=True
+                        )
                         all_done = False
 
         return all_done
@@ -587,7 +608,9 @@ class CheckpointManager:
         return h.hexdigest()
 
     def record_artifact_hashes(
-        self, stage_name: str, artifact_paths: list[str],
+        self,
+        stage_name: str,
+        artifact_paths: list[str],
     ) -> dict[str, str]:
         """Hash the given artifact files and store them in checkpoint state.
 
@@ -609,7 +632,9 @@ class CheckpointManager:
             current = self.ensure_state()
             current.artifact_hashes[stage_name] = hashes
         logger.debug(
-            "Recorded %d artifact hash(es) for stage %s", len(hashes), stage_name,
+            "Recorded %d artifact hash(es) for stage %s",
+            len(hashes),
+            stage_name,
         )
         return hashes
 
@@ -634,7 +659,9 @@ class CheckpointManager:
                 if not os.path.isfile(path):
                     missing.append(path)
                     logger.warning(
-                        "Artifact missing: stage=%s path=%s", stage_name, path,
+                        "Artifact missing: stage=%s path=%s",
+                        stage_name,
+                        path,
                     )
                     continue
                 try:
@@ -643,15 +670,19 @@ class CheckpointManager:
                     missing.append(path)
                     logger.warning(
                         "Artifact unreadable: stage=%s path=%s: %s",
-                        stage_name, path, exc,
+                        stage_name,
+                        path,
+                        exc,
                     )
                     continue
                 if actual_hash != expected_hash:
                     corrupted.append(path)
                     logger.warning(
-                        "Artifact corrupted: stage=%s path=%s "
-                        "expected=%s actual=%s",
-                        stage_name, path, expected_hash, actual_hash,
+                        "Artifact corrupted: stage=%s path=%s expected=%s actual=%s",
+                        stage_name,
+                        path,
+                        expected_hash,
+                        actual_hash,
                     )
                 else:
                     valid.append(path)
@@ -659,7 +690,9 @@ class CheckpointManager:
         if corrupted or missing:
             logger.warning(
                 "Artifact integrity check: %d valid, %d corrupted, %d missing",
-                len(valid), len(corrupted), len(missing),
+                len(valid),
+                len(corrupted),
+                len(missing),
             )
         return {"valid": valid, "corrupted": corrupted, "missing": missing}
 

@@ -52,79 +52,104 @@ REFRESH_THROTTLE_SECONDS = 5.0
 # Stages are only imported when actually resolved, not at catalog init time.
 _LAZY_STAGE_REGISTRY: dict[tuple[str, str], tuple[str, str]] = {
     (RECON_PROVIDER, "subdomains"): (
-        ".pipeline_orchestrator.stages.recon", "run_subdomain_enumeration",
+        ".pipeline_orchestrator.stages.recon",
+        "run_subdomain_enumeration",
     ),
     (RECON_PROVIDER, "live_hosts"): (
-        ".pipeline_orchestrator.stages.recon", "run_live_hosts",
+        ".pipeline_orchestrator.stages.recon",
+        "run_live_hosts",
     ),
     (RECON_PROVIDER, "urls"): (
-        ".pipeline_orchestrator.stages.recon", "run_url_collection",
+        ".pipeline_orchestrator.stages.recon",
+        "run_url_collection",
     ),
     (RECON_PROVIDER, "parameters"): (
-        ".pipeline_orchestrator.stages.recon", "run_parameter_extraction",
+        ".pipeline_orchestrator.stages.recon",
+        "run_parameter_extraction",
     ),
     (RECON_PROVIDER, "ranking"): (
-        ".pipeline_orchestrator.stages.recon", "run_priority_ranking",
+        ".pipeline_orchestrator.stages.recon",
+        "run_priority_ranking",
     ),
     (RECON_PROVIDER, "subdomain_takeover"): (
-        ".pipeline_orchestrator.stages.adaptive_extra", "run_subdomain_takeover",
+        ".pipeline_orchestrator.stages.adaptive_extra",
+        "run_subdomain_takeover",
     ),
     (RECON_PROVIDER, "git_diff_crawl"): (
-        ".pipeline_orchestrator.stages.git_diff_crawl", "run_git_diff_crawl",
+        ".pipeline_orchestrator.stages.git_diff_crawl",
+        "run_git_diff_crawl",
     ),
     (SCANNER, "passive_scan"): (
-        ".pipeline_orchestrator.stages.analysis", "run_passive_scanning",
+        ".pipeline_orchestrator.stages.analysis",
+        "run_passive_scanning",
     ),
     (SCANNER, "active_scan"): (
-        ".pipeline_orchestrator.stages.active_scan", "run_active_scanning",
+        ".pipeline_orchestrator.stages.active_scan",
+        "run_active_scanning",
     ),
     (SCANNER, "nuclei"): (
-        ".pipeline_orchestrator.stages.nuclei", "run_nuclei_stage",
+        ".pipeline_orchestrator.stages.nuclei",
+        "run_nuclei_stage",
     ),
     (SCANNER, "semgrep"): (
-        ".pipeline_orchestrator.stages.semgrep", "run_semgrep_stage",
+        ".pipeline_orchestrator.stages.semgrep",
+        "run_semgrep_stage",
     ),
     (SCANNER, "sca_scan"): (
-        ".pipeline_orchestrator.stages.sca_scan", "run_sca_scan_stage",
+        ".pipeline_orchestrator.stages.sca_scan",
+        "run_sca_scan_stage",
     ),
     (SCANNER, "container_scan"): (
-        ".pipeline_orchestrator.stages.container_scan", "run_container_scan_stage",
+        ".pipeline_orchestrator.stages.container_scan",
+        "run_container_scan_stage",
     ),
     (SCANNER, "iac_scan"): (
-        ".pipeline_orchestrator.stages.iac_scan", "run_iac_scan_stage",
+        ".pipeline_orchestrator.stages.iac_scan",
+        "run_iac_scan_stage",
     ),
     (SCANNER, "sbom_generate"): (
-        ".pipeline_orchestrator.stages.sbom_generate", "run_sbom_generate_stage",
+        ".pipeline_orchestrator.stages.sbom_generate",
+        "run_sbom_generate_stage",
     ),
     (SCANNER, "sbom_diff"): (
-        ".pipeline_orchestrator.stages.sbom_diff", "run_sbom_diff_stage",
+        ".pipeline_orchestrator.stages.sbom_diff",
+        "run_sbom_diff_stage",
     ),
     (SCANNER, "git_secret_scan"): (
-        ".pipeline_orchestrator.stages.git_secret_scan", "run_git_secret_scan_stage",
+        ".pipeline_orchestrator.stages.git_secret_scan",
+        "run_git_secret_scan_stage",
     ),
     (VALIDATOR, "access_control"): (
-        ".pipeline_orchestrator.stages.access_control", "run_access_control_testing",
+        ".pipeline_orchestrator.stages.access_control",
+        "run_access_control_testing",
     ),
     (VALIDATOR, "validation"): (
-        ".pipeline_orchestrator.stages.validation", "run_validation",
+        ".pipeline_orchestrator.stages.validation",
+        "run_validation",
     ),
     (VALIDATOR, "finding_revalidation"): (
-        ".pipeline_orchestrator.stages.finding_revalidation", "run_finding_revalidation",
+        ".pipeline_orchestrator.stages.finding_revalidation",
+        "run_finding_revalidation",
     ),
     (ENRICHMENT_PROVIDER, "intelligence"): (
-        ".pipeline_orchestrator.stages.enrichment", "run_post_analysis_enrichments",
+        ".pipeline_orchestrator.stages.enrichment",
+        "run_post_analysis_enrichments",
     ),
     (ENRICHMENT_PROVIDER, "threat_modeling"): (
-        ".pipeline_orchestrator.stages.adaptive_extra", "run_threat_modeling",
+        ".pipeline_orchestrator.stages.adaptive_extra",
+        "run_threat_modeling",
     ),
     (EXPORTER, "reporting"): (
-        ".pipeline_orchestrator.stages.reporting", "run_reporting",
+        ".pipeline_orchestrator.stages.reporting",
+        "run_reporting",
     ),
     (EXPORTER, "sarif_export"): (
-        ".pipeline_orchestrator.stages.sarif_export", "run_sarif_export",
+        ".pipeline_orchestrator.stages.sarif_export",
+        "run_sarif_export",
     ),
     (EXPORTER, "report_distribution"): (
-        ".pipeline_orchestrator.stages.report_distribution", "run_report_distribution",
+        ".pipeline_orchestrator.stages.report_distribution",
+        "run_report_distribution",
     ),
 }
 

@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PipelineServices:
     """Central service container for the pipeline."""
+
     config: ValidatedPipelineConfig
     storage: StorageBackend
     event_bus: EventBus
@@ -31,7 +32,9 @@ _services: PipelineServices | None = None
 def get_services() -> PipelineServices:
     global _services
     if _services is None:
-        raise RuntimeError("Pipeline services not initialized. Call setup_pipeline_services() first.")
+        raise RuntimeError(
+            "Pipeline services not initialized. Call setup_pipeline_services() first."
+        )
     return _services
 
 

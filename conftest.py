@@ -1,4 +1,5 @@
 """Root conftest -- shared pytest configuration for all test suites."""
+
 import sys
 from pathlib import Path
 

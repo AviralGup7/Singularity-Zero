@@ -190,9 +190,7 @@ class WebSocketHandler:
         channel name to prevent channel injection.
         """
         raw_job_id = websocket.query_params.get("job_id", "")
-        safe_job_id = (
-            raw_job_id.replace(":", "").replace("\r", "").replace("\n", "")[:256]
-        )
+        safe_job_id = raw_job_id.replace(":", "").replace("\r", "").replace("\n", "")[:256]
         default_channels: set[str] = {self._tenant_global_channel()}
         if safe_job_id:
             default_channels.add(f"job:{safe_job_id}")

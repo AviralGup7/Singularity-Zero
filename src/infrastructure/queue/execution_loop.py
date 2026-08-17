@@ -45,6 +45,7 @@ class WorkerExecutionLoopMixin:
         await self._handle_stale_checkpoints()
 
         from src.core.task_registry import get_task_registry
+
         heartbeat_task = get_task_registry().create_task(
             self._heartbeat(), owner="queue_worker", name="heartbeat"
         )
@@ -92,8 +93,11 @@ class WorkerExecutionLoopMixin:
                     continue
 
                 from src.core.task_registry import get_task_registry
+
                 task = get_task_registry().create_task(
-                    self._process_job(job), owner="queue_worker", name=str(getattr(job, 'job_id', 'unknown'))
+                    self._process_job(job),
+                    owner="queue_worker",
+                    name=str(getattr(job, "job_id", "unknown")),
                 )
                 self._active_tasks.add(task)
                 task.add_done_callback(self._active_tasks.discard)
