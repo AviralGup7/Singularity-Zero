@@ -102,7 +102,7 @@ def test_filter_rule_contains_and_inverse() -> None:
 @pytest.mark.unit
 def test_filter_rule_equals_and_regex_and_headers() -> None:
     assert FilterRule("m", "method", "equals", "get").matches({"method": "GET"}) is True
-    assert FilterRule("st", "status", "regex", r"^2\\d\\d$").matches({"status_code": 200}) is True
+    assert FilterRule("st", "status", "regex", r"^2\d\d$").matches({"status_code": 200}) is True
     headers_rule = FilterRule("auth", "headers", "contains", "bearer")
     assert headers_rule.matches({"request_headers": {"Authorization": "Bearer x"}}) is True
 

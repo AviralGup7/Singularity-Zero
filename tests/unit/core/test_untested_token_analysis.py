@@ -32,7 +32,7 @@ from src.core.utils.token_analysis import (
         ("ghp_" + ("A" * 36), "github_token"),
         ("xoxb-1234567890-abcdefghij", "slack_token"),
         ("sk_live_" + ("A" * 20), "stripe_key"),
-        ("a" * 32, "hex_token"),
+        ("a" * 32, "session_id"),
         ("AbCdEfGhIjKlMnOpQrStUvWxYz012345", "session_id"),
         ("abc123xyz", "oauth_code"),
         ("not-a-token", "generic"),

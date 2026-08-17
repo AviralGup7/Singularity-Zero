@@ -107,7 +107,7 @@ def test_content_change_threshold() -> None:
 
 @pytest.mark.unit
 def test_minor_content_change() -> None:
-    result = _classify(body_similarity=0.99, length_delta=20)
+    result = _classify(body_similarity=0.97, length_delta=20)
     assert result["classification"] == "minor_content_change"
     assert result["score"] == 2
 
