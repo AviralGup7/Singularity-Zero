@@ -7,8 +7,8 @@ import {
   useReconnectBackoff,
   useDedupSet,
   useHeartbeat,
-  type ConnectionState,
 } from './realtime/shared';
+import type { ConnectionState } from './realtime/shared';
 
 export interface SseEventData {
   [key: string]: unknown;
