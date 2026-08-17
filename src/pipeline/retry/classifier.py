@@ -48,8 +48,23 @@ _HTTP_TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
 _HTTP_PERMANENT_CODES = {400, 401, 403, 404, 405, 410, 422}
 
 
+# OSError is treated as transient (network-ish), but several OSError
+# subclasses are local filesystem/permission failures that will never
+# succeed on retry. Check those first so FileNotFoundError is not
+# retried just because it inherits from OSError.
+_PERMANENT_OS_ERRORS: tuple[type[BaseException], ...] = (
+    FileNotFoundError,
+    PermissionError,
+    IsADirectoryError,
+    NotADirectoryError,
+    FileExistsError,
+)
+
+
 def classify_error(exc: BaseException) -> str:
     """Classify an exception as 'transient', 'permanent', or 'unknown'."""
+    if isinstance(exc, _PERMANENT_OS_ERRORS):
+        return "permanent"
     if isinstance(exc, _TRANSIENT_EXCEPTIONS):
         return "transient"
     if isinstance(exc, _PERMANENT_EXCEPTIONS):

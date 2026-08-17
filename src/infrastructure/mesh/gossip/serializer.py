@@ -57,11 +57,22 @@ def make_envelope(
     return json.dumps(envelope, separators=(",", ":")).encode("utf-8")
 
 
-def parse_envelope(data: bytes) -> tuple[Any, bool]:
-    """Decode and verify a wire envelope, returning (body, is_valid)."""
+def parse_envelope(data: bytes, secret: bytes | None = None) -> tuple[Any, bool]:
+    """Decode and HMAC-verify a wire envelope, returning (body, is_valid).
+
+    A well-formed JSON envelope is not enough: ``is_valid`` is True only
+    when ``secret`` is provided and the HMAC over the canonical body
+    matches. Unsigned or tampered envelopes return ``(None, False)``.
+    """
     try:
         envelope = json.loads(data.decode("utf-8"))
         body = envelope["body"]
+        signature = envelope.get("sig", "")
+        if not isinstance(body, dict) or not isinstance(signature, str) or secret is None:
+            return None, False
+        if not verify(secret, canonical_json(body), signature):
+            logger.debug("gossip/serializer: HMAC verification failed")
+            return None, False
         return body, True
     except Exception:
         logger.debug("gossip/serializer: dropped malformed envelope", exc_info=True)
