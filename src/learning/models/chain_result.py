@@ -54,7 +54,13 @@ class ChainValidation:
         )
 
         confidences = [f.get("confidence", 0.5) for f in self.findings]
-        geom_mean = max(0.01, confidences[0]) ** (1.0 / len(confidences)) if confidences else 0.5
+        if not confidences:
+            geom_mean = 0.5
+        else:
+            product = 1.0
+            for value in confidences:
+                product *= max(0.01, float(value or 0.0))
+            geom_mean = product ** (1.0 / len(confidences))
 
         length_bonus = 1.0 + 0.1 * len(self.findings)
         return round(max_sev * geom_mean * length_bonus, 4)
