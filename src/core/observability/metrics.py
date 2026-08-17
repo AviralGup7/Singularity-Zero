@@ -4,9 +4,10 @@ import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
+from functools import wraps
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, TypeVar
+from typing import Any, Awaitable, Callable, TypeVar
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)

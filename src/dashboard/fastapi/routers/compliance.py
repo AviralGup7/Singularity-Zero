@@ -14,6 +14,7 @@ import uuid
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 
 from src.dashboard.fastapi.dependencies import require_admin, require_auth
 

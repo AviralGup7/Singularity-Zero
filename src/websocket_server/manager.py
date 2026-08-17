@@ -129,6 +129,7 @@ class ConnectionManager:
         max_connections_per_user: int = 10,
         max_connections_per_ip: int = 20,
         stale_timeout: float = 120.0,
+        redis_presence_backend: Any | None = None,
     ) -> None:
         """Initialize the connection manager.
 

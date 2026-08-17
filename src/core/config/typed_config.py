@@ -5,7 +5,10 @@ import os
 import re
 from dataclasses import dataclass, field, fields, MISSING
 from pathlib import Path
-from typing import Any, get_type_hints, get_origin, get_args
+from typing import TYPE_CHECKING, Any, get_type_hints, get_origin, get_args
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from src.core.models.config import Config
 
 
 # ============================================================

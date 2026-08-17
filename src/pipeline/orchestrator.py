@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import os
 import re
 import json
@@ -24,7 +25,7 @@ from src.pipeline.engine import (
     StageExecution,
     StageStatus,
 )
-from src.core.config.typed_config import ValidatedPipelineConfig
+from src.core.config.typed_config import ValidatedPipelineConfig, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -76,18 +77,22 @@ def setup_pipeline_services(config_path: str | None = None) -> PipelineServices:
         run_id=config.target_name,
         storage=storage,
     )
-    handler = WebSocketHandler(
-        manager, broadcaster, heartbeat, reconnect, allowed_origins=allowed_origins
+    services = PipelineServices(
+        config=config,
+        storage=storage,
+        event_bus=event_bus,
+        checkpoint_manager=checkpoint,
     )
 
-    services = PipelineServices(
-        manager=manager,
-        broadcaster=broadcaster,
-        heartbeat=heartbeat,
-        handler=handler,
-        reconnect=reconnect,
-    )
-    _ws_services = services
+    # Register with the DI container, exactly as the canonical
+    # implementation in src/core/services/pipeline.py does.
+    container.register_instance(StorageBackend, storage)
+    container.register_instance(EventBus, event_bus)
+    container.register_instance(CheckpointManager, checkpoint)
+    container.register_instance(ValidatedPipelineConfig, config)
+
+    _services = services
+    logger.info("Pipeline services initialized")
     return services
 
 

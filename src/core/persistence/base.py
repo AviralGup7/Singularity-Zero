@@ -6,7 +6,10 @@ import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, AsyncIterator, Generic, TypeVar
+from uuid import uuid4
+from typing import Any, AsyncIterator, Callable, Generic, TypeVar
+
+from src.core.di.container import container
 
 T = TypeVar("T")
 
