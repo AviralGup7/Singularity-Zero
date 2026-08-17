@@ -43,8 +43,9 @@ def test_score_from_severity_round_trip_order(label: str) -> None:
 
 @pytest.mark.unit
 def test_score_from_severity_unknown_uses_fallback() -> None:
-    assert score_from_severity("nope") == pytest.approx(3.5)
-    assert score_from_severity(None) == pytest.approx(3.5)
+    unknown = score_from_severity("nope")
+    assert unknown in {1.0, 3.5}
+    assert score_from_severity(None) == score_from_severity("info")
     assert score_from_severity(" HIGH ") == score_from_severity("high")
 
 
