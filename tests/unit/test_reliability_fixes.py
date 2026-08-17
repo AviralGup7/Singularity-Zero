@@ -24,14 +24,14 @@ class TestCircuitBreakerHalfOpenRecovery(unittest.TestCase):
     """Verify HALF_OPEN transitions work correctly after the fix."""
 
     def test_half_open_probe_allowed_after_recovery_timeout(self) -> None:
-        cb = ToolCircuitBreaker(failure_threshold=2, recovery_timeout=1.0)
+        cb = ToolCircuitBreaker(failure_threshold=2, recovery_timeout=0.05)
         cb.record_failure("svc", "error")
         cb.record_failure("svc", "error")
         self.assertEqual(cb.get_state("svc"), CircuitState.OPEN)
 
         self.assertFalse(cb.can_execute("svc"))
 
-        time.sleep(1.1)
+        time.sleep(0.06)
         self.assertTrue(cb.can_execute("svc"))
         self.assertEqual(cb.get_state("svc"), CircuitState.HALF_OPEN)
 
@@ -59,15 +59,15 @@ class TestCircuitBreakerHalfOpenRecovery(unittest.TestCase):
     def test_half_open_not_prematurely_expired(self) -> None:
         """_opened_at is updated on HALF_OPEN entry so the trial gets the
         full recovery_timeout window, not the original open time."""
-        cb = ToolCircuitBreaker(failure_threshold=2, recovery_timeout=1.0)
+        cb = ToolCircuitBreaker(failure_threshold=2, recovery_timeout=0.2)
         cb.record_failure("svc", "error")
         cb.record_failure("svc", "error")
 
-        time.sleep(1.1)
+        time.sleep(0.22)
         self.assertTrue(cb.can_execute("svc"))
         self.assertEqual(cb.get_state("svc"), CircuitState.HALF_OPEN)
 
-        time.sleep(0.3)
+        time.sleep(0.05)
         self.assertEqual(cb.get_state("svc"), CircuitState.HALF_OPEN)
 
     def test_half_open_trial_used_prevents_second_probe(self) -> None:

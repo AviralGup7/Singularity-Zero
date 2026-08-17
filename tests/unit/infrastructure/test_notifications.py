@@ -216,7 +216,7 @@ async def test_notification_manager_deduplication() -> None:
         channels=[
             ChannelEntry(name="mock_dedup", config={}),
         ],
-        deduplication_window_seconds=1.0,
+        deduplication_window_seconds=0.05,
     )
 
     register_channel("mock_dedup", MockNotifier)
@@ -250,7 +250,7 @@ async def test_notification_manager_deduplication() -> None:
         assert len(notifier.sent_payloads) == 1
 
         # 3. Wait for deduplication window to expire
-        await asyncio.sleep(1.1)
+        await asyncio.sleep(0.06)
 
         # 4. Send alert again (should pass through now)
         res3 = await manager.send(

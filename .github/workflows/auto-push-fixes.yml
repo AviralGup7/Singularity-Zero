@@ -1,9 +1,6 @@
 name: Auto-Push Fixes
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
   workflow_dispatch:
 
 permissions:

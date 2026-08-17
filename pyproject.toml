@@ -59,6 +59,14 @@ cyber-dashboard-fastapi = "src.dashboard.fastapi.main:main"
 cstp-dashboard = "src.dashboard.fastapi.main:main"
 
 [project.optional-dependencies]
+test = [
+    "hypothesis>=6.151.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-snapshot>=0.7.0",
+]
 dev = [
     "detect-secrets==1.5.0",
     "hypothesis>=6.151.0",
@@ -96,7 +104,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
-addopts = "-v --tb=short --strict-markers --import-mode=importlib -p no:locust"
+addopts = "-q --tb=short --strict-markers --import-mode=importlib -p no:locust"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",

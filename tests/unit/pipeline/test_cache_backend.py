@@ -32,7 +32,7 @@ class TestPersistentCacheGetSet(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_set_and_get_string_value(self) -> None:
@@ -100,7 +100,7 @@ class TestPersistentCacheTTL(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_get_before_ttl_expires(self) -> None:
@@ -153,7 +153,7 @@ class TestPersistentCacheDelete(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_delete_existing_key(self) -> None:
@@ -185,7 +185,7 @@ class TestPersistentCacheClear(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_clear_removes_all_entries(self) -> None:
@@ -213,7 +213,7 @@ class TestPersistentCacheSize(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_size_empty_cache(self) -> None:
@@ -243,7 +243,7 @@ class TestPersistentCacheCleanupExpired(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_cleanup_expired_entries(self) -> None:
@@ -286,7 +286,7 @@ class TestPersistentCacheTelemetry(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_efficiency_snapshot_tracks_hit_miss_expiry_and_latency(self) -> None:
@@ -336,7 +336,7 @@ class TestPersistentCacheThreadSafety(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_concurrent_set_get(self) -> None:
@@ -382,7 +382,7 @@ class TestPersistentCacheValidateIntegrity(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_healthy_database(self) -> None:
@@ -428,7 +428,7 @@ class TestPersistentCacheRecoverFromCorruption(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_healthy_database_returns_true(self) -> None:
@@ -464,7 +464,7 @@ class TestPersistentCacheGetDiskUsage(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_returns_usage_info(self) -> None:
@@ -496,7 +496,7 @@ class TestPersistentCacheEdgeCases(unittest.TestCase):
         import time
 
         gc.collect()
-        time.sleep(0.1)
+        time.sleep(0.02)
         self._tmp.cleanup()
 
     def test_set_empty_string(self) -> None:

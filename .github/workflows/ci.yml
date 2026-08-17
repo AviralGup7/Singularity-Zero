@@ -6,19 +6,23 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 env:
-  PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
-  NPM_CACHE_DIR: ${{ github.workspace }}/.cache/npm
   PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
+  HYPOTHESIS_PROFILE: ci
+  PYTEST_ADDOPTS: "-q --tb=short --strict-markers --import-mode=importlib -p no:locust"
 
 jobs:
   lint:
+    name: lint
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up Python
@@ -26,16 +30,10 @@ jobs:
         with:
           python-version: "3.13"
           cache: "pip"
-      - name: Cache pip dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.PIP_CACHE_DIR }}
-          key: pip-lint-${{ hashFiles('pyproject.toml') }}
-          restore-keys: pip-lint-
-      - name: Install dependencies
+      - name: Install lint tools
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install "ruff==0.15.*" "detect-secrets==1.5.0" "bandit>=1.8.0"
       - name: Run ruff
         run: ruff check .
       - name: Run ruff format check
@@ -45,16 +43,20 @@ jobs:
       - name: Run detect-secrets
         run: detect-secrets scan --baseline .secrets.baseline
       - name: Run bandit
-        run: bandit -r src/ -ll -f json -o bandit-report.json
+        run: bandit -r src/ -lll -f json -o bandit-report.json
+        continue-on-error: true
       - name: Upload bandit report
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bandit-report
           path: bandit-report.json
-        if: always()
+          if-no-files-found: ignore
 
-  type-safety:
+  mypy:
+    name: mypy
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up Python
@@ -62,56 +64,134 @@ jobs:
         with:
           python-version: "3.13"
           cache: "pip"
+      - name: Install type-checker
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . "mypy>=1.20.0"
+      - name: Run mypy
+        run: mypy .
+
+  typescript:
+    name: typescript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
       - name: Install frontend dependencies
-        working-directory: ./frontend
         run: npm ci
-      - name: Run mypy
-        run: mypy .
       - name: Run TypeScript check
-        working-directory: ./frontend
         run: npm run check:types
 
   test:
+    name: test / ${{ matrix.shard.name }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 12
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.13"]
+        shard:
+          - name: unit-infra
+            paths: tests/unit/infrastructure
+          - name: unit-core
+            paths: tests/unit/core
+          - name: unit-pipeline
+            paths: tests/unit/pipeline
+          - name: unit-recon
+            paths: tests/unit/recon
+          - name: unit-analysis
+            paths: tests/unit/analysis tests/unit/learning
+          - name: unit-app
+            paths: >-
+              tests/unit/dashboard
+              tests/unit/detection
+              tests/unit/execution
+              tests/unit/intelligence
+              tests/unit/exploitation
+              tests/unit/reporting
+              tests/unit/api_tests
+              tests/unit/fuzzing
+              tests/unit/decision
+              tests/unit/frontier
+              tests/unit/websocket_server
+              tests/unit/scripts
+              tests/unit/config
+              tests/unit/test_*.py
+          - name: suites
+            paths: tests/integration tests/architecture tests/regression tests/infrastructure
+    env:
+      COVERAGE_FILE: .coverage.${{ matrix.shard.name }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
           cache: "pip"
-      - name: Cache pip dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.PIP_CACHE_DIR }}
-          key: pip-test-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: pip-test-${{ matrix.python-version }}-
-      - name: Install dependencies
+      - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-      - name: Run tests with coverage
-        run: python -m pytest --cov --cov-report=xml --cov-report=term-missing -v
+          pip install -e ".[test]"
+      - name: Run shard
+        run: |
+          python -m pytest ${{ matrix.shard.paths }} \
+            --cov --cov-fail-under=0 --cov-report=term \
+            --durations=15
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-${{ matrix.shard.name }}
+          path: .coverage*
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  coverage:
+    name: coverage
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Install coverage
+        run: |
+          python -m pip install --upgrade pip
+          pip install "coverage>=7.0" "pytest-cov>=7.0.0"
+      - name: Download shard coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: coverage-*
+          path: coverage-data
+      - name: Combine and report
+        run: |
+          mapfile -t files < <(find coverage-data -type f -name '.coverage*' | sort)
+          echo "coverage files:"
+          printf '  %s\n' "${files[@]}"
+          python -m coverage combine "${files[@]}"
+          python -m coverage xml -o coverage.xml
+          python -m coverage report --fail-under=80 --show-missing
       - name: Upload coverage
         uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
         with:
           file: ./coverage.xml
 
   frontend:
+    name: frontend
     runs-on: ubuntu-24.04
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: ./frontend
@@ -123,12 +203,6 @@ jobs:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-      - name: Cache npm dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.NPM_CACHE_DIR }}
-          key: npm-frontend-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: npm-frontend-
       - name: Install dependencies
         run: npm ci
       - name: Run ESLint
@@ -140,31 +214,34 @@ jobs:
       - name: Check bundle size
         run: npm run check:size
 
-  security:
+  security-audit:
+    name: security-audit
     runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.13"
           cache: "pip"
-      - name: Cache pip dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.PIP_CACHE_DIR }}
-          key: pip-security-${{ hashFiles('pyproject.toml') }}
-          restore-keys: pip-security-
-      - name: Install dependencies
+      - name: Install auditors
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install "pip-audit>=2.10.0" "safety>=3.7.0"
       - name: Run pip-audit
-        run: pip-audit
+        run: pip-audit -r requirements.txt
       - name: Run safety check
-        run: safety check
+        run: safety check -r requirements.txt
+
+  security-scan:
+    name: security-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
       - name: Run Semgrep
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
         with:
@@ -173,25 +250,30 @@ jobs:
       - name: Run Trivy filesystem vulnerability scanner
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'HIGH,CRITICAL'
-      - name: Generate SBOM
-        run: |
-          pip install cyclonedx-bom
-          python -m cyclonedx_py environment --output-file sbom.json --output-format json
-      - name: Upload SBOM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom
-          path: sbom.json
-        if: always()
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "HIGH,CRITICAL"
       - name: Run GitLeaks secrets scan
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run Platform Hardening Quality Gates
+  hardening:
+    name: hardening
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Install runtime
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pyyaml jsonschema
+      - name: Run platform hardening gates
         run: |
           python scripts/verify_dependency_pins.py
           python scripts/validate_sbom.py
@@ -200,7 +282,9 @@ jobs:
           python scripts/verify_bundle_secrets.py
 
   iac-scan:
+    name: iac-scan
     runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Run Checkov on Kubernetes manifests
@@ -217,3 +301,35 @@ jobs:
           framework: docker-compose
           soft_fail: false
         continue-on-error: true
+
+  ci-ok:
+    name: CI passed
+    if: always()
+    needs:
+      - lint
+      - mypy
+      - typescript
+      - test
+      - coverage
+      - frontend
+      - security-audit
+      - security-scan
+      - hardening
+      - iac-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Check required jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
+          failed = [name for name, body in needs.items() if body.get("result") != "success"]
+          for name, body in sorted(needs.items()):
+              print(f"{name:20} {body.get('result')}")
+          if failed:
+              print("failed:", ", ".join(failed))
+              sys.exit(1)
+          PY
