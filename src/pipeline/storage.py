@@ -13,9 +13,9 @@ from types import MappingProxyType
 from typing import Any
 
 from src.core.config import load_config as load_core_config
+from src.core.config.typed_config import PipelineConfig
 from src.core.contracts.pipeline import JSON_FORMAT
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.config.typed_config import PipelineConfig
 
 logger = get_pipeline_logger(__name__)
 

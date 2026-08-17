@@ -1,17 +1,15 @@
 """Unit tests for core.events module."""
 
+# Explicitly import root file module src/core/events.py
+import importlib.util
 import threading
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import sys
-from pathlib import Path
-
-# Explicitly import root file module src/core/events.py
-import importlib.util
 spec = importlib.util.spec_from_file_location("root_events", Path(__file__).resolve().parent.parent.parent.parent / "src" / "core" / "events.py")
 root_events = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(root_events)

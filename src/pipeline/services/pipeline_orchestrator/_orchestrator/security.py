@@ -54,7 +54,6 @@ def attempt_recovery(*args: Any, **kwargs: Any) -> Any:
     return _ar(*args, **kwargs)
 
 
-from src.core.checkpoint import StageCheckpointGuard
 
 
 def _merge_and_diff_scopes(

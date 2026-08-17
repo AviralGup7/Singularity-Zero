@@ -67,6 +67,7 @@ def test_csrf_endpoint_sets_httponly_samesite_cookie(monkeypatch):
 
 def test_security_events_requires_admin(monkeypatch):
     from fastapi.testclient import TestClient
+
     from src.dashboard.fastapi import dependencies as deps
 
     async def _read_only_user():
@@ -159,6 +160,7 @@ def test_security_headers_middleware_applies_csp_and_hsts(monkeypatch):
 
 def test_mesh_elect_leader_requires_admin(monkeypatch):
     from fastapi.testclient import TestClient
+
     from src.dashboard.fastapi import dependencies as deps
 
     async def _read_only_user():

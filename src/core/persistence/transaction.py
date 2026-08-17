@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import abc
 import asyncio
 import logging
 import time
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, AsyncIterator, Awaitable, Generic, TypeVar
+from typing import Any, TypeVar
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -93,9 +92,10 @@ class UnitOfWork:
 
 # --- Retry policies ---
 
-from enum import Enum
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
+from enum import Enum
+
 
 class RetryStrategy(Enum):
     FIXED = "fixed"
@@ -154,6 +154,7 @@ async def retry_async(
 
 from enum import Enum
 
+
 class CircuitState(Enum):
     CLOSED = "closed"
     OPEN = "open"
@@ -186,7 +187,7 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             await self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             await self._on_failure()
             raise
 
@@ -248,9 +249,14 @@ class ResourcePool:
         if self.health_check and not await self.health_check(resource):
             # Resource unhealthy, create new one if under max
             if self._created < self.max_size:
+                # The replacement was created and then DROPPED: `_created`
+                # was incremented for a resource that never entered the pool,
+                # so the accounting drifted up by one on every unhealthy
+                # release until the pool believed it was full and starved.
                 new_resource = await self.factory()
                 async with self._lock:
                     self._created += 1
+                await self._pool.put(new_resource)
                 return
             else:
                 # At max, just drop the unhealthy resource

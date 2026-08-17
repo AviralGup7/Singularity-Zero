@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from contextlib import asynccontextmanager
-from functools import wraps
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable, TypeVar
+from functools import wraps
+from typing import Any, TypeVar
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -19,8 +19,8 @@ T = TypeVar("T")
 # Metrics Collection
 # ============================================================
 
-from enum import Enum
 from collections import defaultdict
+from enum import Enum
 
 
 class MetricType(Enum):
@@ -194,7 +194,7 @@ class HealthCheckRegistry:
                     "details": details,
                     "critical": check.critical,
                 }
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 results[check.name] = {
                     "status": HealthStatus.UNHEALTHY.value,
                     "details": "Timeout",

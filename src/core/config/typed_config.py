@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass, field, fields, MISSING
+from dataclasses import MISSING, dataclass, field, fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, get_type_hints, get_origin, get_args
+from typing import TYPE_CHECKING, Any, get_args, get_origin, get_type_hints
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from src.core.models.config import Config
@@ -122,12 +122,12 @@ class TypedConfig:
     """Base class for type-safe, validated configuration."""
 
     @classmethod
-    def load(cls, path: Path | str) -> "TypedConfig":
+    def load(cls, path: Path | str) -> TypedConfig:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls._from_dict(raw)
 
     @classmethod
-    def _from_dict(cls, data: dict[str, Any]) -> "TypedConfig":
+    def _from_dict(cls, data: dict[str, Any]) -> TypedConfig:
         kwargs = {}
         hints = get_type_hints(cls)
 
@@ -260,7 +260,7 @@ class ValidatedPipelineConfig(TypedConfig):
         return Path(self.output_dir)
 
     @classmethod
-    def from_legacy_config(cls, config: "Config") -> "ValidatedPipelineConfig":
+    def from_legacy_config(cls, config: Config) -> ValidatedPipelineConfig:
         """Create a ValidatedPipelineConfig from the legacy Config dataclass.
 
         This is the canonical migration bridge during the v2 config unification.
@@ -354,7 +354,7 @@ def load_config(path: Path | str) -> ValidatedPipelineConfig:
     return ValidatedPipelineConfig._from_dict(raw)
 
 
-def register_config(config: "ValidatedPipelineConfig") -> None:
+def register_config(config: ValidatedPipelineConfig) -> None:
     """Register config instance with DI container."""
     from src.core.di.container import container
     container.register_instance(ValidatedPipelineConfig, config)

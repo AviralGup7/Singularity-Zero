@@ -7,10 +7,8 @@ requiring a live Redis instance.
 
 from __future__ import annotations
 
-import asyncio
-import time
 import threading
-import uuid
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -72,8 +70,8 @@ class TestDefect1RetryIncrement:
     @pytest.mark.regression
     def test_worker_lite_fail_job_omits_stale_retries_fetch(self) -> None:
         """worker_lite._process_job must NOT fetch retries from Redis before passing to script."""
-        import re
         import inspect
+        import re
 
         from src.infrastructure.queue.worker_lite import LiteWorker
 

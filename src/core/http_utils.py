@@ -21,7 +21,6 @@ from src.core.utils.shared_sessions import (
     get_async_client as _get_async_client,
 )
 from src.core.utils.shared_sessions import (
-    get_shared_sync_session,
     get_shared_sync_session as _get_sync_session,
 )
 from src.core.utils.url_validation import is_safe_url

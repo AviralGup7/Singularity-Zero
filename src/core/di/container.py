@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import inspect
 import threading
+from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar, get_type_hints
+from typing import Any, TypeVar, get_type_hints
 
 T = TypeVar("T")
 

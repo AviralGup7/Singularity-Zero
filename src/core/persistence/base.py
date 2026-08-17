@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import abc
-import asyncio
-import logging
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, Generic, TypeVar
 from uuid import uuid4
-from typing import Any, AsyncIterator, Callable, Generic, TypeVar
 
 from src.core.di.container import container
 
@@ -84,7 +83,7 @@ class UnitOfWork(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def __aenter__(self) -> "UnitOfWork":
+    async def __aenter__(self) -> UnitOfWork:
         ...
 
     @abc.abstractmethod
@@ -141,7 +140,7 @@ class BaseModel:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BaseModel":
+    def from_dict(cls, data: dict[str, Any]) -> BaseModel:
         return cls(
             id=data.get("id", uuid4().hex),
             created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
@@ -259,11 +258,11 @@ class Result(Generic[T]):
     error_code: str | None = None
 
     @classmethod
-    def ok(cls, data: T) -> "Result[T]":
+    def ok(cls, data: T) -> Result[T]:
         return cls(success=True, data=data)
 
     @classmethod
-    def err(cls, error: str, code: str = None) -> "Result[T]":
+    def err(cls, error: str, code: str = None) -> Result[T]:
         return cls(success=False, error=error, error_code=code)
 
     def unwrap(self) -> T:
@@ -282,9 +281,18 @@ async def transactional(func: Callable[..., T]) -> Callable[..., T]:
     @wraps(func)
     async def wrapper(*args, **kwargs) -> T:
         tx_manager = container.resolve(TransactionManager)
-        async with tx_manager.transaction() as uow:
+        # The unit of work is entered for its side effects (begin/commit or
+        # rollback); the wrapped function reaches it through the container,
+        # so the handle itself is deliberately not bound to a name.
+        async with tx_manager.transaction():
             return await func(*args, **kwargs)
-    return func
+
+    # RETURNS THE WRAPPER, NOT THE ORIGINAL. This said `return func`, which
+    # made the decorator a no-op: every function decorated with it ran with
+    # no transaction at all, silently. Latent today (no call sites yet), and
+    # exactly the kind of thing that is discovered after it has corrupted
+    # something, so it is fixed now rather than annotated.
+    return wrapper
 
 
 # --- Specification pattern ---
@@ -294,13 +302,13 @@ class Specification(abc.ABC, Generic[T]):
     def is_satisfied_by(self, candidate: T) -> bool:
         ...
 
-    def and_(self, other: "Specification[T]") -> "Specification[T]":
+    def and_(self, other: Specification[T]) -> Specification[T]:
         return AndSpecification(self, other)
 
-    def or_(self, other: "Specification[T]") -> "Specification[T]":
+    def or_(self, other: Specification[T]) -> Specification[T]:
         return OrSpecification(self, other)
 
-    def not_(self) -> "Specification[T]":
+    def not_(self) -> Specification[T]:
         return NotSpecification(self)
 
 

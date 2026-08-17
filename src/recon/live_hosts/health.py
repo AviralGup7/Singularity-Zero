@@ -13,8 +13,8 @@ from typing import Any
 
 import urllib3
 
-from src.core.models import DEFAULT_USER_AGENT
 from src.core.config.typed_config import PipelineConfig
+from src.core.models import DEFAULT_USER_AGENT
 from src.core.utils.http_pool import get_pooled_connection
 from src.core.utils.url_validation import is_safe_url
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import hashlib
 import json
 import time
-import hashlib
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator, Generic, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -27,7 +26,7 @@ class CheckpointData:
         return json.dumps(self.__dict__, sort_keys=True)
 
     @classmethod
-    def from_json(cls, data: str) -> "CheckpointData":
+    def from_json(cls, data: str) -> CheckpointData:
         return cls(**json.loads(data))
 
     def checksum(self) -> str:

@@ -20,14 +20,19 @@ def rate_limit_signal_analyzer(
     bulk_findings: list[dict[str, Any]] | None = None,
     limit: int = 60,
 ) -> list[dict[str, Any]]:
-    items = bulk_items if bulk_items is not None else (bulk_findings or [])
     """Analyze responses for rate limiting signals and misconfigurations.
 
     Detects missing rate limit headers, zero limits, 429 responses,
     retry-after values, body-based rate limit indicators, inconsistent
     rate limiting across related endpoints, and rate limit bypass patterns.
     """
-    bulk_urls = {item.get("url", "") for item in bulk_findings}
+    # Both parameters are optional; iterating `bulk_findings` directly
+    # raised TypeError whenever it was omitted (the default is None) or
+    # when only `bulk_items` was supplied. The coalescing line that
+    # guarded this had been placed ABOVE the docstring, where it was
+    # both inert as documentation and unused as code.
+    items = bulk_items if bulk_items is not None else (bulk_findings or [])
+    bulk_urls = {item.get("url", "") for item in items}
     findings: list[dict[str, Any]] = []
     rate_limit_headers = {
         "x-ratelimit-limit",

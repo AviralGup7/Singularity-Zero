@@ -1,31 +1,24 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
-import os
-import re
-import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, TypeVar
-from uuid import uuid4
+from typing import Any
 
-from src.core.di.container import container, inject
-from src.core.events.event_bus import EventBus, Event
+from src.core.checkpoint.manager import CheckpointManager
+from src.core.config.typed_config import ValidatedPipelineConfig, load_config
+from src.core.di.container import container
+from src.core.events.event_bus import EventBus
 from src.core.storage.abstraction import StorageBackend, create_storage_backend
-from src.core.checkpoint.manager import CheckpointManager, LocalCheckpointStore
 from src.pipeline.engine import (
     ExecutionContext,
     PipelineEngine,
     PipelineState,
     Stage,
     StageArtifacts,
-    StageExecution,
-    StageStatus,
 )
-from src.core.config.typed_config import ValidatedPipelineConfig, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +62,6 @@ def setup_pipeline_services(config_path: str | None = None) -> PipelineServices:
     register_config(config)
 
     # Create services
-    from src.core.storage.abstraction import create_storage_backend
 
     storage = create_storage_backend(config.storage)
     event_bus = EventBus()
@@ -122,14 +114,14 @@ class SubdomainDiscoveryStage(Stage):
             cache=context.config.get("cache", {}),
             tools=context.config.get("tools", {}),
         )
-        
+
         enumerator = getattr(context, "subdomain_enumerator", None) or context.config.get("subdomain_enumerator")
         if enumerator is None:
             from src.recon.subdomains import enumerate_subdomains
             enumerator = enumerate_subdomains
 
         subdomains = await enumerator(state.scope_entries, config, skip_crtsh=False)
-        
+
         return StageArtifacts(
             subdomains=frozenset(subdomains),
         )
@@ -144,13 +136,13 @@ class LiveHostProbingStage(Stage):
         if prober is None:
             from src.recon.live_hosts import probe_live_hosts
             prober = probe_live_hosts
-        
+
         live_hosts, live_records = await prober(
             state.subdomains,
             context.config,
             lambda msg, pct: logger.info(msg),
         )
-        
+
         return StageArtifacts(
             live_hosts=frozenset(live_hosts),
             live_records=live_records,
@@ -163,14 +155,14 @@ class URLCollectionStage(Stage):
 
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
         from src.recon.urls import collect_urls
-        
+
         urls = await collect_urls(
             state.live_hosts,
             state.scope_entries,
             context.config,
             lambda msg, pct: logger.info(msg),
         )
-        
+
         return StageArtifacts(
             urls=frozenset(urls),
         )
@@ -182,9 +174,9 @@ class ParameterDiscoveryStage(Stage):
 
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
         from src.recon.filters import extract_parameters
-        
+
         params = extract_parameters(state.urls)
-        
+
         return StageArtifacts(
             parameters=frozenset(params),
         )
@@ -196,9 +188,9 @@ class TargetProfilingStage(Stage):
 
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
         from src.recon.scoring import infer_target_profile
-        
+
         profile = infer_target_profile(state.urls)
-        
+
         return StageArtifacts(
             technology_summary=(profile,),
         )
@@ -209,9 +201,9 @@ class URLRankingStage(Stage):
         super().__init__("url_ranking", config)
 
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
-        from src.recon.scoring import rank_urls
         from src.recon.filters import filter_similar
-        
+        from src.recon.scoring import rank_urls
+
         ranked = rank_urls(
             list(state.urls),
             state.scope_entries,
@@ -220,7 +212,7 @@ class URLRankingStage(Stage):
             context.config.get("mode", "default"),
             context.config.get("profile"),
         )
-        
+
         # Apply URL cap
         limit = context.config.get("filters", {}).get("max_collected_urls", 5000)
         if context.config.get("filters", {}).get("adaptive_url_cap", True):
@@ -228,10 +220,10 @@ class URLRankingStage(Stage):
                 limit *= 4
             elif len(state.scope_entries) >= 75:
                 limit *= 2
-        
+
         if len(ranked) > limit:
             ranked = filter_similar(ranked, max_results=limit)
-        
+
         return StageArtifacts(
             priority_urls=ranked,
         )
@@ -245,9 +237,9 @@ class DeepAnalysisStage(Stage):
         # Run analysis modules
         from src.analysis.behavior import analyze_behavior
         from src.analysis.intelligence import analyze_intelligence
-        
+
         findings = []
-        
+
         # Run behavior analysis
         behavior_findings = await analyze_behavior(
             state.priority_urls,
@@ -255,7 +247,7 @@ class DeepAnalysisStage(Stage):
             context.config,
         )
         findings.extend(behavior_findings)
-        
+
         # Run intelligence analysis
         intel_findings = await analyze_intelligence(
             state.priority_urls,
@@ -263,7 +255,7 @@ class DeepAnalysisStage(Stage):
             context.config,
         )
         findings.extend(intel_findings)
-        
+
         return StageArtifacts(
             findings=tuple(findings),
         )
@@ -275,13 +267,13 @@ class ValidationStage(Stage):
 
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
         from src.execution.validators.facade import validate_findings
-        
+
         validated = await validate_findings(
             state.findings,
             state.scope_entries,
             context.config,
         )
-        
+
         return StageArtifacts(
             findings=tuple(validated),
         )
@@ -294,7 +286,7 @@ class ReportingStage(Stage):
     async def execute(self, state: PipelineState, context: ExecutionContext) -> StageArtifacts:
         from src.reporting.pages import generate_run_report
         from src.reporting.report_artifacts import write_report_package
-        
+
         summary = {
             "target_name": context.target_name,
             "generated_at_utc": datetime.now().isoformat(),
@@ -313,7 +305,7 @@ class ReportingStage(Stage):
             "parameters": state.parameters,
             "priority_urls": state.priority_urls,
         }
-        
+
         # Generate HTML report
         generate_run_report(
             run_dir=Path(context.config.get("output_dir", "output")) / context.target_name / context.run_id,
@@ -324,7 +316,7 @@ class ReportingStage(Stage):
             parameters=state.parameters,
             analysis_results={},
         )
-        
+
         # Write signed report package
         write_report_package(
             run_dir=Path(context.config.get("output_dir", "output")) / context.target_name / context.run_id,
@@ -333,7 +325,7 @@ class ReportingStage(Stage):
             findings=state.findings,
             diff_summary=None,
         )
-        
+
         return StageArtifacts()
 
 
@@ -348,15 +340,15 @@ def create_default_stages(config: dict) -> list[Stage]:
         TargetProfilingStage(config.get("tools")),
         URLRankingStage(config.get("tools")),
     ]
-    
+
     if config.get("analysis", {}).get("enabled", True):
         stages.append(DeepAnalysisStage(config.get("analysis")))
-    
+
     if config.get("validation", {}).get("enabled", True):
         stages.append(ValidationStage(config.get("validation")))
-    
+
     stages.append(ReportingStage(config.get("output")))
-    
+
     # Set dependencies
     stages[1].depends_on("subdomain_discovery")  # live_hosts depends on subdomains
     stages[2].depends_on("live_host_probing")    # urls depends on live_hosts
@@ -369,14 +361,14 @@ def create_default_stages(config: dict) -> list[Stage]:
         stages[7].depends_on("deep_analysis")    # validation depends on analysis
     if len(stages) > 8:
         stages[8].depends_on("validation")       # reporting depends on validation
-    
+
     return stages
 
 
 def create_pipeline_engine(config: ValidatedPipelineConfig) -> PipelineEngine:
     """Create pipeline engine with all stages."""
     stages = create_default_stages(config.__dict__)
-    
+
     context = ExecutionContext(
         run_id=f"run_{int(time.time())}",
         target_name=config.target_name,
@@ -385,7 +377,7 @@ def create_pipeline_engine(config: ValidatedPipelineConfig) -> PipelineEngine:
         event_bus=None,  # Will be set at runtime
         checkpoint_manager=None,  # Will be set at runtime
     )
-    
+
     engine = PipelineEngine(
         stages=stages,
         config=config.__dict__,
@@ -393,7 +385,7 @@ def create_pipeline_engine(config: ValidatedPipelineConfig) -> PipelineEngine:
         max_retries=config.tools.get("retry_attempts", 2),
         retry_delay=config.tools.get("retry_backoff_seconds", 2.0),
     )
-    
+
     return engine
 
 
@@ -401,7 +393,7 @@ async def run_pipeline(config: ValidatedPipelineConfig, run_id: str) -> Pipeline
     """Run complete pipeline with all services."""
     # Setup services
     services = setup_pipeline_services()
-    
+
     # Create engine with proper context
     context = ExecutionContext(
         run_id=run_id,
@@ -411,10 +403,10 @@ async def run_pipeline(config: ValidatedPipelineConfig, run_id: str) -> Pipeline
         event_bus=services.event_bus,
         checkpoint_manager=services.checkpoint_manager,
     )
-    
+
     engine = create_pipeline_engine(config)
     engine.context = context
-    
+
     # Try to resume from checkpoint
     checkpoint = await services.checkpoint_manager.load()
     if checkpoint:
@@ -425,7 +417,7 @@ async def run_pipeline(config: ValidatedPipelineConfig, run_id: str) -> Pipeline
             target_name=config.target_name,
             scope_entries=config.scope_entries or [],
         )
-    
+
     # Execute
     try:
         final_state = await engine.execute(state)

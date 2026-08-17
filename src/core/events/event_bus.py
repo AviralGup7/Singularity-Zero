@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -79,7 +78,7 @@ class Event:
         })
 
     @classmethod
-    def from_json(cls, data: str) -> "Event":
+    def from_json(cls, data: str) -> Event:
         d = json.loads(data)
         d["timestamp"] = datetime.fromisoformat(d["timestamp"])
         return cls(**d)
@@ -254,7 +253,7 @@ class EventBus:
         if tasks:
             try:
                 await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._metrics["failed"] += 1
                 return False
         self._metrics["delivered"] += 1
@@ -263,7 +262,7 @@ class EventBus:
     async def _safe_handle(self, sub: Subscription, event: Event) -> None:
         try:
             await sub.handler.handle(event)
-        except Exception as e:
+        except Exception:
             self._metrics["failed"] += 1
             await self._dlq.put_nowait(event)
 
@@ -288,7 +287,7 @@ class EventBus:
         while self._running:
             try:
                 event = await asyncio.wait_for(self._queue.get(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
             tasks = []

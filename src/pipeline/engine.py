@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, TypeVar
-from uuid import uuid4
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +28,7 @@ class Stage:
     def dependencies(self) -> list[str]:
         return self._dependencies
 
-    def depends_on(self, *stages: str) -> "Stage":
+    def depends_on(self, *stages: str) -> Stage:
         self._dependencies = list(stages)
         return self
 
@@ -203,7 +200,7 @@ class PipelineState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PipelineState":
+    def from_dict(cls, data: dict) -> PipelineState:
         state = cls(
             run_id=data["run_id"],
             target_name=data["target_name"],
@@ -274,9 +271,9 @@ class PipelineEngine:
 
     def __init__(
         self,
-        stages: list["Stage"],
+        stages: list[Stage],
         config: dict,
-        context: "ExecutionContext",
+        context: ExecutionContext,
         max_retries: int = 2,
         retry_delay: float = 5.0,
     ):

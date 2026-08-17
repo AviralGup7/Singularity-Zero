@@ -4,16 +4,16 @@ from typing import Any
 
 from src.core.config.typed_config import ValidatedPipelineConfig
 from src.core.storage.abstraction import StorageBackend, create_storage_backend
+from src.core.storage.factory import (
+    create_artifact_store,
+    create_checkpoint_store,
+    create_finding_store,
+)
 from src.core.storage.interfaces import (
     ArtifactStore,
     CheckpointStore,
     FindingStore,
     VersionId,
-)
-from src.core.storage.factory import (
-    create_artifact_store,
-    create_checkpoint_store,
-    create_finding_store,
 )
 
 

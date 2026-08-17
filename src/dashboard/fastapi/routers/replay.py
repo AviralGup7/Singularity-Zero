@@ -97,7 +97,9 @@ async def replay_request(
 
     if replay_headers_for_mode is None:
         try:
-            from src.execution.exploiters.exploit_automation import replay_headers_for_mode as _r_headers
+            from src.execution.exploiters.exploit_automation import (
+                replay_headers_for_mode as _r_headers,
+            )
             replay_headers_for_mode = _r_headers
         except Exception:
             raise HTTPException(status_code=500, detail="Exploit replay protocol not available")

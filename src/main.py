@@ -16,14 +16,11 @@ import sys
 import time
 from pathlib import Path
 
-from src.core.di.container import container
-from src.core.config.typed_config import PipelineConfig, load_config, register_config
-from src.core.observability.metrics import MetricsCollector
-from src.pipeline.engine import PipelineEngine, ExecutionContext
-from src.core.events.event_bus import get_event_bus, Event
 from src.core.checkpoint.manager import CheckpointManager, LocalCheckpointStore
+from src.core.config.typed_config import PipelineConfig, load_config, register_config
+from src.core.events.event_bus import get_event_bus
 from src.core.storage.abstraction import create_storage_backend
-from src.pipeline.engine import Stage, StageArtifacts, StageStatus
+from src.pipeline.engine import ExecutionContext, PipelineEngine, Stage, StageArtifacts
 
 logger = logging.getLogger(__name__)
 

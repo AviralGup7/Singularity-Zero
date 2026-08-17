@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import time
 import logging
+import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class TaskGroup:
             if self._tasks:
                 await asyncio.gather(*self._tasks, return_exceptions=True)
 
-    async def __aenter__(self) -> "TaskGroup":
+    async def __aenter__(self) -> TaskGroup:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -224,7 +224,7 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             await self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             await self._on_failure()
             raise
 

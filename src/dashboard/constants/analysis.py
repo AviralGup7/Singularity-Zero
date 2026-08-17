@@ -1,4 +1,5 @@
 from typing import Any
+
 from src.core.contracts.protocol_registry import get_analysis_check_options
 
 ANALYSIS_CONTROL_GROUPS = [

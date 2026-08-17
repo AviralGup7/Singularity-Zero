@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import abc
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -49,14 +50,14 @@ class StorageBackend(abc.ABC, Generic[T]):
         ...
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncIterator["StorageTransaction"]:
+    async def transaction(self) -> AsyncIterator[StorageTransaction]:
         """Optional: for backends supporting atomic writes."""
         yield StorageTransaction(self)
 
 
 @dataclass
 class StorageTransaction:
-    backend: "StorageBackend"
+    backend: StorageBackend
     _operations: list = field(default_factory=list)
 
     def put(self, key: str, data: bytes, metadata: dict | None = None):
@@ -142,13 +143,13 @@ class S3StorageBackend:
         import hashlib
         checksum = hashlib.sha256(data).hexdigest()
         full_key = self._key(key)
-        
+
         extra_args = {"ContentLength": len(data)}
         if metadata:
             extra_args["Metadata"] = {k: str(v) for k, v in metadata.items()}
-        
+
         self._s3.put_object(Bucket=self.bucket, Key=full_key, Body=data, **extra_args)
-        
+
         return ArtifactRef(key=key, size=len(data), checksum=checksum, metadata=metadata or {})
 
     async def get(self, key: str) -> bytes | None:
@@ -229,7 +230,7 @@ class RedisStorageBackend:
             meta_raw = await redis.hgetall(f"{key}:meta")
             existing_meta = {k.decode(): json.loads(v.decode()) for k, v in meta_raw.items()} if meta_raw else (metadata or {})
             return ArtifactRef(key=key, size=len(data), checksum=checksum, metadata=existing_meta)
-        
+
         await redis.set(key, data)
         if metadata:
             await redis.hset(f"{key}:meta", mapping={k: json.dumps(v) for k, v in metadata.items()})

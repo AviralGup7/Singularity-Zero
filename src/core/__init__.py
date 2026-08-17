@@ -101,6 +101,7 @@ from src.core.checkpoint import (
     create_checkpoint_manager,
     generate_run_id,
 )
+from src.core.config.typed_config import PipelineConfig
 from src.core.exceptions import ScopeViolationError
 from src.core.middleware import (
     OutboundRequestInterceptor,
@@ -111,7 +112,6 @@ from src.core.middleware import (
     validate_url_scope,
 )
 from src.core.models import Finding, Request, Response, ValidationResult
-from src.core.config.typed_config import PipelineConfig
 from src.core.session import Session, SessionRegistry
 
 __all__ = [

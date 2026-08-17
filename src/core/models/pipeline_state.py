@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any
 from enum import StrEnum
 
 
@@ -187,7 +184,7 @@ class PipelineState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PipelineState":
+    def from_dict(cls, data: dict) -> PipelineState:
         state = cls(
             run_id=data["run_id"],
             target_name=data["target_name"],
@@ -197,7 +194,7 @@ class PipelineState:
         for name, stage_data in data.get("stages", {}).items():
             stage = StageExecution(name=name)
             stage.status = StageStatus(stage_data["status"])
-            
+
             m = stage_data["metrics"]
             stage.metrics = StageMetrics(
                 duration_seconds=m.get("duration_seconds", 0),
