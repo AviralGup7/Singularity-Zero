@@ -7,7 +7,8 @@ _OOM_SIGNATURES = [
     "out of memory",
     "oom-killer",
     "cannot allocate memory",
-    "killed",
+    "killed process",
+    "process killed",
 ]
 
 

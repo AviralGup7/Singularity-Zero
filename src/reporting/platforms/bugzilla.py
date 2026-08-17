@@ -21,12 +21,14 @@ class MozillaClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = os.environ.get("MOZILLA_BASE_URL", "https://bugzilla.mozilla.org"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_key = api_key or os.environ.get("MOZILLA_BUGZILLA_API_KEY", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (
+            base_url or os.environ.get("MOZILLA_BASE_URL") or "https://bugzilla.mozilla.org"
+        ).rstrip("/")
 
     @property
     def ready(self) -> bool:
