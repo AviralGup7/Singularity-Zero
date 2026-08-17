@@ -197,7 +197,21 @@ class BaselineTracker:
         if path.exists():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                self._baselines = [RunBaseline(**item) for item in data.get("baselines", [])]
+                loaded: list[RunBaseline] = []
+                for item in data.get("baselines", []):
+                    if not isinstance(item, dict):
+                        continue
+                    payload = dict(item)
+                    stored_checksum = str(payload.pop("checksum", "") or "")
+                    baseline = RunBaseline(**payload)
+                    if stored_checksum and stored_checksum != baseline.checksum:
+                        logger.warning(
+                            "Skipping tampered baseline %s (checksum mismatch)",
+                            baseline.run_id,
+                        )
+                        continue
+                    loaded.append(baseline)
+                self._baselines = loaded
                 self._window_size = data.get("window_size", self._window_size)
                 logger.info("Loaded %d baselines from %s", len(self._baselines), path)
             except (json.JSONDecodeError, TypeError, KeyError) as exc:

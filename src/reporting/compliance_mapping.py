@@ -278,6 +278,11 @@ BSIMM_SAMM: dict[str, list[str]] = {
 }
 
 
+def _normalize_category(category: str) -> str:
+    """Fold display labels like ``SQL Injection`` onto map keys."""
+    return (category or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
 def map_finding_to_compliance(category: str) -> dict[str, list[str]]:
     """Map a finding category to compliance framework references.
 
@@ -287,33 +292,34 @@ def map_finding_to_compliance(category: str) -> dict[str, list[str]]:
     Returns:
         Dict mapping framework name to list of control references.
     """
+    key = _normalize_category(category)
     return {
-        "OWASP Top 10 (2021)": OWASP_TOP_10.get(category, []),
-        "OWASP Top 10 (2023)": OWASP_TOP_10_2023.get(category, []),
-        "NIST SP 800-53": NIST_CONTROLS.get(category, []),
-        "ISO 27001:2022": ISO_27001_CONTROLS.get(category, []),
-        "PCI DSS v4.0": PCI_DSS.get(category, []),
-        "SOC2 TSC": SOC2_TSC.get(category, []),
-        "NIST CSF 2.0": NIST_CSF_2_0.get(category, []),
-        "NIST SP 800-171": NIST_SP_800_171.get(category, []),
-        "NIST SP 800-218 (SSDF)": NIST_SP_800_218.get(category, []),
-        "ISO 27701": ISO_27701.get(category, []),
-        "CSA CCM v4": CSA_CCM_V4.get(category, []),
-        "AWS Well-Architected Security Pillar": AWS_WELL_ARCHITECTED.get(category, []),
-        "Microsoft Cloud Security Benchmark": MICROSOFT_MCSB.get(category, []),
-        "Google Cloud Security Health Analytics": GOOGLE_CLOUD_SHA.get(category, []),
-        "GDPR": GDPR.get(category, []),
-        "CCPA/CPRA": CCPA_CPRA.get(category, []),
-        "HIPAA": HIPAA.get(category, []),
-        "FedRAMP / DoD IL": FEDRAMP.get(category, []),
-        "MITRE ATT&CK": MITRE_ATTACK.get(category, []),
-        "MITRE CAPEC": MITRE_CAPEC.get(category, []),
-        "MITRE D3FEND": MITRE_D3FEND.get(category, []),
-        "OWASP ASVS": OWASP_ASVS.get(category, []),
-        "OWASP API Security Top 10": OWASP_API_SECURITY.get(category, []),
-        "OWASP Mobile Top 10": OWASP_MOBILE.get(category, []),
-        "OWASP LLM Top 10": OWASP_LLM.get(category, []),
-        "BSIMM / SAMM": BSIMM_SAMM.get(category, []),
+        "OWASP Top 10 (2021)": OWASP_TOP_10.get(key, []),
+        "OWASP Top 10 (2023)": OWASP_TOP_10_2023.get(key, []),
+        "NIST SP 800-53": NIST_CONTROLS.get(key, []),
+        "ISO 27001:2022": ISO_27001_CONTROLS.get(key, []),
+        "PCI DSS v4.0": PCI_DSS.get(key, []),
+        "SOC2 TSC": SOC2_TSC.get(key, []),
+        "NIST CSF 2.0": NIST_CSF_2_0.get(key, []),
+        "NIST SP 800-171": NIST_SP_800_171.get(key, []),
+        "NIST SP 800-218 (SSDF)": NIST_SP_800_218.get(key, []),
+        "ISO 27701": ISO_27701.get(key, []),
+        "CSA CCM v4": CSA_CCM_V4.get(key, []),
+        "AWS Well-Architected Security Pillar": AWS_WELL_ARCHITECTED.get(key, []),
+        "Microsoft Cloud Security Benchmark": MICROSOFT_MCSB.get(key, []),
+        "Google Cloud Security Health Analytics": GOOGLE_CLOUD_SHA.get(key, []),
+        "GDPR": GDPR.get(key, []),
+        "CCPA/CPRA": CCPA_CPRA.get(key, []),
+        "HIPAA": HIPAA.get(key, []),
+        "FedRAMP / DoD IL": FEDRAMP.get(key, []),
+        "MITRE ATT&CK": MITRE_ATTACK.get(key, []),
+        "MITRE CAPEC": MITRE_CAPEC.get(key, []),
+        "MITRE D3FEND": MITRE_D3FEND.get(key, []),
+        "OWASP ASVS": OWASP_ASVS.get(key, []),
+        "OWASP API Security Top 10": OWASP_API_SECURITY.get(key, []),
+        "OWASP Mobile Top 10": OWASP_MOBILE.get(key, []),
+        "OWASP LLM Top 10": OWASP_LLM.get(key, []),
+        "BSIMM / SAMM": BSIMM_SAMM.get(key, []),
     }
 
 
@@ -334,7 +340,7 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
 
     findings_by_category: dict[str, list[dict[str, Any]]] = {}
     for finding in findings:
-        category = finding.get("category") or finding.get("type") or "unknown"
+        category = _normalize_category(finding.get("category") or finding.get("type") or "unknown")
         findings_by_category.setdefault(category, []).append(finding)
         category_counts[category] = category_counts.get(category, 0) + 1
 

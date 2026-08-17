@@ -246,7 +246,7 @@ class CredentialVault:
             if credential.value:
                 parts.append(f"{credential.name}={credential.value}")
             headers["Cookie"] = "; ".join(parts)
-        elif credential.type in {"bearing", "authorization"}:
+        elif credential.type in {"bearer", "authorization"}:
             headers.setdefault("Authorization", credential.value)
         else:
             headers.setdefault("Authorization", f"Bearer {credential.value}")

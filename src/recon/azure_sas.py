@@ -309,7 +309,8 @@ def _generate_sas_patterns(
         return []
     expiry_dt = _dt.datetime.now(_dt.UTC) + _dt.timedelta(hours=expiry_hours)
     expiry_str = expiry_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-    base_path = f"/{account}/{quote(container, safe='$')}"
+    # Account is already the hostname; the blob path is /{container}[/{blob}].
+    base_path = f"/{quote(container, safe='$')}"
     if blob:
         base_path += f"/{quote(blob, safe='/')}"
     patterns: list[AzureSasUrlPattern] = []

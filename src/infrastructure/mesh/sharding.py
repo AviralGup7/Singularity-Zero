@@ -107,7 +107,7 @@ class MeshShardManager:
         self._rejected_rebalance_total: int = 0
         self._moved_keys_total: int = 0
         self._lock = threading.RLock()
-        self._last_target_sample: tuple[list[str], set[str]] | None = None
+        self._last_target_sample: tuple[list[str], dict[str, str | None]] | None = None
 
     # --------------------------------------------------------------- mutators
 
@@ -318,19 +318,12 @@ class MeshShardManager:
                 current = {t: self.get_shard_leader(t) for t in sample}
                 moved = 0
                 if self._last_target_sample is not None:
-                    prev_targets, prev_hashes = self._last_target_sample
-                    for t, leader in current.items():
-                        prev_idx = prev_targets.index(t) if t in prev_targets else -1
-                        if prev_idx == -1:
-                            continue
-                        prev_hashes_target = list(prev_hashes)
-                        if (
-                            prev_idx < len(prev_hashes_target)
-                            and prev_hashes_target[prev_idx] != leader
-                        ):
+                    _prev_targets, prev_leaders = self._last_target_sample
+                    for target, leader in current.items():
+                        if target in prev_leaders and prev_leaders[target] != leader:
                             moved += 1
                 stats.last_target_sample_moved = moved
-                self._last_target_sample = (sample, {str(v) for v in current.values()})
+                self._last_target_sample = (sample, current)
             return stats
 
     # --------------------------------------------------------------- internal

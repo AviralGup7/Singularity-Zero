@@ -220,7 +220,7 @@ class SelfHealingController:
         correction = await self.actions.execute(finding)
         self._history_store.record(correction.action, correction.success)
         self._dampening_window.record_fire(corrective_action, finding.component)
-        if correction.success and self._history_store.should_escalate(corrective_action):
+        if (not correction.success) and self._history_store.should_escalate(corrective_action):
             degraded_finding = HealthFinding(
                 component=finding.component,
                 status=HealthStatus.CRITICAL,

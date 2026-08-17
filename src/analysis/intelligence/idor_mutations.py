@@ -73,21 +73,15 @@ def generate_all_mutations(url: str) -> list[dict[str, Any]]:
             continue
         if re.match(r"^\d{2,}$", segment):
             num = int(segment)
-            path_prefix = "/" + "/".join(path_segments[:seg_idx]) + "/"
-            path_suffix = (
-                "/" + "/".join(path_segments[seg_idx + 1 :])
-                if seg_idx < len(path_segments) - 1
-                else ""
-            )
-            if not path_suffix and seg_idx == len(path_segments) - 1:
-                path_suffix = ""
             for strategy_name, mutated_value in [
                 ("numeric_path_increment", str(num + 1)),
                 ("numeric_path_decrement", str(max(0, num - 1))),
                 ("numeric_path_zero", "0"),
                 ("numeric_path_large", str(num + 1000)),
             ]:
-                updated_path = f"{path_prefix}{mutated_value}{path_suffix}"
+                updated_segments = list(path_segments)
+                updated_segments[seg_idx] = mutated_value
+                updated_path = "/" + "/".join(updated_segments)
                 mutations.append(
                     {
                         "parameter": f"path_segment_{seg_idx}",
@@ -302,10 +296,18 @@ def replace_identifier(
     parsed = urlparse(url)
     if location == "path":
         path = parsed.path or ""
-        if original_value not in path:
+        if not original_value:
             return ""
-        updated_path = path.replace(original_value, mutated_value, 1)
-        return normalize_url(urlunparse(parsed._replace(path=updated_path)))
+        segments = path.split("/")
+        replaced = False
+        for index, segment in enumerate(segments):
+            if segment == original_value:
+                segments[index] = mutated_value
+                replaced = True
+                break
+        if not replaced:
+            return ""
+        return normalize_url(urlunparse(parsed._replace(path="/".join(segments))))
     query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
     updated = []
     found = False
