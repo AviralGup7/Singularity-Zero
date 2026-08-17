@@ -42,10 +42,10 @@ dependencies = [
     "mmh3==5.1.0",
     "argon2-cffi==23.1.0",
     "msgspec==0.21.1",
-    "msgpack==1.0.0",
+    "msgpack==1.1.0",
     "cloudpickle==3.0.0",
     "watchfiles==1.0.4",
-    "scipy==1.14.0",
+    "scipy==1.14.1",
     "pykka==4.0.0",
 ]
 
@@ -83,7 +83,7 @@ dev = [
     "line-profiler>=4.2.0",
 ]
 ml = [
-    "scipy>=1.14.0",
+    "scipy>=1.14.1",
 ]
 wasm = [
     "pykka==4.0.0",
