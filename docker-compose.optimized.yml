@@ -87,7 +87,7 @@ services:
   # ──────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7.6-alpine
-    # Pin: redis:7.6-alpine (update with scheduled Renovate/Dependabot rule)
+    # Pin: redis:7.6-alpine (pin updates are manual; Dependabot is disabled)
     container_name: cyber-pipeline-redis
     command: >
       /bin/sh -c '

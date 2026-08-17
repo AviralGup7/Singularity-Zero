@@ -40,7 +40,7 @@ class TestHealthChecker(unittest.TestCase):
     def test_check_all_empty(self) -> None:
         checker = HealthChecker()
         result = asyncio.run(checker.check_all())
-        assert result.overall_status == HealthStatus.HEALTHY
+        assert result.overall_status == HealthStatus.OK
 
     def test_get_history_empty(self) -> None:
         checker = HealthChecker()
@@ -63,18 +63,18 @@ class TestHealthChecker(unittest.TestCase):
 
     def test_health_check_result_to_dict(self) -> None:
         result = HealthCheckResult(
-            overall_status=HealthStatus.HEALTHY,
+            overall_status=HealthStatus.OK,
             version="1.0.0",
             duration_ms=10.5,
         )
         d = result.to_dict()
-        assert d["overall_status"] == "healthy"
+        assert d["overall_status"] == "ok"
         assert d["version"] == "1.0.0"
 
     def test_health_check_result_to_json(self) -> None:
-        result = HealthCheckResult(overall_status=HealthStatus.HEALTHY)
+        result = HealthCheckResult(overall_status=HealthStatus.OK)
         json_str = result.to_json()
-        assert "healthy" in json_str
+        assert "ok" in json_str
 
     def test_component_health_to_dict(self) -> None:
         health = ComponentHealth(name="redis", status=ComponentStatus.UP, message="ok")

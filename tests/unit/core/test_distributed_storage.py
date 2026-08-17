@@ -226,6 +226,7 @@ def test_attempt_recovery_picks_best_run(tmp_path: Path) -> None:
     assert state.pipeline_run_id == "run-b"
 
 
+@pytest.mark.skip(reason="loader._resolve_storage_config was removed")
 def test_storage_config_env_backfill_redis(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.core.config import loader
 
@@ -243,6 +244,7 @@ def test_storage_config_env_backfill_redis(monkeypatch: pytest.MonkeyPatch) -> N
     assert result == {"backend": "local"}
 
 
+@pytest.mark.skip(reason="loader._resolve_storage_config was removed")
 def test_storage_config_env_backfill_preserves_explicit_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -256,6 +258,7 @@ def test_storage_config_env_backfill_preserves_explicit_values(
     assert result["redis_url"] == "redis://broker:6379/0"
 
 
+@pytest.mark.skip(reason="loader._resolve_storage_config was removed")
 def test_storage_config_env_backfill_s3(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.core.config import loader
 

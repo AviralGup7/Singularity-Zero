@@ -10,7 +10,7 @@ if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
 try:
-    from hypothesis import settings
+    from hypothesis import settings  # type: ignore[import-not-found]
 
     settings.register_profile("ci", max_examples=20, deadline=None)
     settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))

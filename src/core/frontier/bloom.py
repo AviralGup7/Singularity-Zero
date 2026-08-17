@@ -298,7 +298,7 @@ class NeuralBloomFilter:
         import numpy as np
 
         with self._lock:
-            ones = int(np.unpackbits(self.bits).sum())
+            ones = int(np.count_nonzero(np.unpackbits(self.bits)))
             fill_ratio = float(ones / self.bit_size)
             # Fix S0-2: Use standard theoretical formula for Bloom filter FP probability
             false_positive_probability = float(

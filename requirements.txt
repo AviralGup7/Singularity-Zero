@@ -41,3 +41,4 @@ msgspec==0.21.1
 msgpack==1.2.1
 cloudpickle==3.0.0
 watchfiles==1.0.4
+defusedxml==0.7.1
