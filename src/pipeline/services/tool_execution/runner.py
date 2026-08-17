@@ -19,12 +19,15 @@ from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import classify_stderr_lines
 from src.core.utils.subprocess_utils import (
+    SHELL_META as SHELL_META,
     _clean_env,
     _coerce_output_text,
     _get_creationflags,
 )
 from src.pipeline.services.circuit_breaker import (
     CircuitBreaker,
+    load_all_breakers as load_all_breakers,
+    persist_all_breakers as persist_all_breakers,
 )
 from src.pipeline.services.tool_execution.contracts import CompletedToolRun
 

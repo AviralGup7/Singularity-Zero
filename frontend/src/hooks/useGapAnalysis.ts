@@ -25,8 +25,8 @@ export function useGapAnalysis() {
       const res = await getGapAnalysis(targetToFetch || null);
       setData(res);
     } catch (err) {
-      const msg = (err as Error).message || 'Failed to load gap analysis data';
-      setError(msg);
+      const detail = (err as Error).message || 'unknown error';
+      setError(`Failed to load gap analysis data: ${detail}`);
       showErrorToast(err, 'Failed to load gap analysis data');
     } finally {
       setLoading(false);

@@ -96,9 +96,11 @@ describe('GapAnalysisPage Component', () => {
       result = render(<GapAnalysisPage />);
     });
 
-    // Skeletons are rendered by default
-    const skeletons = document.querySelectorAll('[class*="bg-[var(--panel-2)]"]');
-    expect(skeletons.length).toBeGreaterThan(0);
+    // Skeletons use animate-pulse + surface tokens (not the old CSS-var class)
+    await waitFor(() => {
+      const skeletons = document.querySelectorAll('.animate-pulse');
+      expect(skeletons.length).toBeGreaterThan(0);
+    });
 
     // Clean up
     resolveGap!(mockGapData);
