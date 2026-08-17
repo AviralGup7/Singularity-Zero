@@ -1,8 +1,9 @@
-import pytest
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.skip(reason="pre-existing contract drift on remote CI")

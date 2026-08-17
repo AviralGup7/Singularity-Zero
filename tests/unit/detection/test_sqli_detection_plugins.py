@@ -1,5 +1,6 @@
-import pytest
 import json
+
+import pytest
 
 from src.analysis.active.injection.sqli import sqli_safe_probe
 from src.analysis.passive.detectors.detector_sqli import sql_error_exposure_detector

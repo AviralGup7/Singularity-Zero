@@ -1,7 +1,8 @@
-import pytest
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
+
+import pytest
 
 from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
 from src.analysis.active.injection.ssrf import ssrf_active_probe

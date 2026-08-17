@@ -1,4 +1,5 @@
 import pytest
+
 """Tests for R1 (registry unification) and R2 (scope enforcement) and Bug G (cache key)."""
 
 import unittest

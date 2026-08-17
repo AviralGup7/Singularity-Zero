@@ -1,5 +1,6 @@
-import pytest
 import time
+
+import pytest
 
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
 
