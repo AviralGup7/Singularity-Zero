@@ -67,6 +67,9 @@ def vercel_preview_candidates(
         if not user:
             continue
         for branch in branches or ["main"]:
+            branch = str(branch).strip().lower()
+            if not branch:
+                continue
             candidates.add(f"{project}-git-{branch}-{user}.vercel.app")
     return candidates
 

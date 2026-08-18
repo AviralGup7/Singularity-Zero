@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -47,21 +48,21 @@ class MetricsCollector:
         self._counters: dict[str, float] = defaultdict(float)
         self._gauges: dict[str, float] = {}
         self._histograms: dict[str, list[float]] = defaultdict(list)
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()
 
     def inc(self, name: str, value: float = 1.0, labels: dict[str, str] | None = None) -> None:
         key = self._make_key(name, labels)
-        with asyncio.Lock():
+        with self._lock:
             self._counters[key] += value
 
     def gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
         key = self._make_key(name, labels)
-        with asyncio.Lock():
+        with self._lock:
             self._gauges[key] = value
 
     def observe(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
         key = self._make_key(name, labels)
-        with asyncio.Lock():
+        with self._lock:
             self._histograms[key].append(value)
 
     def timing(self, name: str, labels: dict[str, str] | None = None):

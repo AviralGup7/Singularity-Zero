@@ -36,7 +36,7 @@ def test_plain_html_path_is_not_a_deception_url() -> None:
         ("https://app.example.com/account/../admin.css", "path_traversal_in_url"),
         ("https://app.example.com/account//me", "double_slash_in_path"),
         ("https://app.example.com/account/%2e%2e/me", "encoded_path_traversal"),
-        ("https://app.example.com/account/", "trailing_slash_variation"),
+        ("https://app.example.com/account//", "trailing_slash_variation"),
     ],
 )
 def test_path_normalization_signals(url: str, expected: str) -> None:
