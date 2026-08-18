@@ -98,5 +98,5 @@ def test_extract_auth_headers_api_key_regex_and_empty_inputs() -> None:
 
 @pytest.mark.unit
 def test_extra_paths_without_leading_slash_are_normalized() -> None:
-    urls = _candidate_spec_urls("https://shop.example.com/app", ["docs/openapi.json"])
-    assert "https://shop.example.com/docs/openapi.json" in urls
+    urls = _candidate_spec_urls("https://example.com/app", ["docs/openapi.json"])
+    assert "https://example.com/docs/openapi.json" in urls
