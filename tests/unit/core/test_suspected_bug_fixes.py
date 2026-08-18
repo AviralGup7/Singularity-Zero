@@ -11,8 +11,10 @@ import pytest
 
 from src.api_tests.apitester.api_key_workflows.scope import extract_registrable_domain
 from src.core.checkpoint.manager import CheckpointData, LocalCheckpointStore
-from src.core.ids import generate_run_id, new_job_id
+from src.core.ids import generate_run_id, new_job_id, new_worker_id
+from src.core.telemetry import normalize_telemetry_event
 from src.core.utils.url_validation import detect_dns_rebinding
+from src.execution.frontier.chameleon_evasion import TimingPermutator
 
 
 @pytest.mark.unit
@@ -83,3 +85,23 @@ def test_local_checkpoint_store_skips_corrupt_version(tmp_path: Path) -> None:
 
     loaded = asyncio.run(store.load(run_id, version=1))
     assert loaded is None
+
+
+@pytest.mark.unit
+def test_normalize_telemetry_keeps_epoch_zero() -> None:
+    event = normalize_telemetry_event({"event_type": "x", "stage": "recon", "epoch": 0.0})
+    assert event["epoch"] == 0.0
+
+
+@pytest.mark.unit
+def test_chameleon_seed_zero_is_kept() -> None:
+    assert TimingPermutator(seed=0.0)._seed == 0.0
+
+
+@pytest.mark.unit
+def test_new_worker_id_is_not_six_hex() -> None:
+    wid = new_worker_id("lite-worker-")
+    assert wid.startswith("lite-worker-")
+    suffix = wid.removeprefix("lite-worker-")
+    assert len(suffix) == 32
+    assert new_worker_id("lite-worker-") != wid
