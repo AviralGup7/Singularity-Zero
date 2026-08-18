@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +10,7 @@ from src.core.checkpoint.manager import CheckpointManager
 from src.core.config.typed_config import ValidatedPipelineConfig, load_config
 from src.core.di.container import container
 from src.core.events.event_bus import EventBus
+from src.core.ids import generate_run_id
 from src.core.storage.abstraction import StorageBackend, create_storage_backend
 from src.pipeline.engine import (
     ExecutionContext,
@@ -384,7 +384,7 @@ def create_pipeline_engine(config: ValidatedPipelineConfig) -> PipelineEngine:
     stages = create_default_stages(config.__dict__)
 
     context = ExecutionContext(
-        run_id=f"run_{int(time.time())}",
+        run_id=generate_run_id(),
         target_name=config.target_name,
         config=config.__dict__,
         storage=None,  # Will be set at runtime

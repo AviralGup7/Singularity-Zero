@@ -289,7 +289,7 @@ def detect_dns_rebinding(hostname: str, *, rounds: int = 8, timeout: float = 2.0
     for _ in range(rounds):
         try:
             ips_this_round: list[str] = []
-            addr_infos = socket.getaddrinfo(hostname, None, socket.AF_INET)
+            addr_infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC)
             for _, _, _, _, sockaddr in addr_infos:
                 ip_str = str(sockaddr[0])
                 ips_this_round.append(ip_str)

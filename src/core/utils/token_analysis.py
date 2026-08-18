@@ -130,38 +130,32 @@ def has_remote_scheme(value: str) -> bool:
     return decoded.startswith(("http://", "https://", "ftp://", "gopher://", "file://"))
 
 
+def _hostname_for_internal_check(value: str) -> str:
+    """Return the hostname (no userinfo/path/port) used for RFC1918 checks."""
+    host = value
+    if "://" in host:
+        host = host.split("://", 1)[1]
+    host = host.split("/")[0].split("?")[0].split("#")[0]
+    host = host.split("@")[-1].strip("[]")
+    if host.count(":") == 1 and host.rsplit(":", 1)[-1].isdigit():
+        host = host.rsplit(":", 1)[0].strip("[]")
+    return host
+
+
 def is_internal_host_value(value: str) -> bool:
     """Check if a value references an internal/private network host."""
     lowered = decode_candidate_value(value).lower()
     host = extract_host_candidate(lowered) or lowered
+    hostname = _hostname_for_internal_check(host)
 
-    standard_tokens = (
-        "127.0.0.1",
-        "169.254.",
-        "172.16.",
-        "172.17.",
-        "172.18.",
-        "172.19.",
-        "172.20.",
-        "172.21.",
-        "172.22.",
-        "172.23.",
-        "172.24.",
-        "172.25.",
-        "172.26.",
-        "172.27.",
-        "172.28.",
-        "172.29.",
-        "172.30.",
-        "172.31.",
-        "192.168.",
-        "10.",
-        "localhost",
-    )
-    if any(token in host for token in standard_tokens):
+    # Prefix-anchored RFC1918 / loopback / link-local. Substring "10." used
+    # to false-positive public 110.x / 210.x (and hosts like foo10.example).
+    if IP_RE.match(hostname):
+        return True
+    if hostname in {"localhost", "localhost.localdomain"}:
         return True
 
-    if host.startswith(("::1", "fe80:", "fc00:", "fd00:")):
+    if hostname.startswith(("::1", "fe80:", "fc00:", "fd00:")):
         return True
 
     if any(

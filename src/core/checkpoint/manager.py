@@ -28,7 +28,13 @@ class CheckpointData:
 
     @classmethod
     def from_json(cls, data: str) -> CheckpointData:
-        return cls(**json.loads(data))
+        try:
+            parsed = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise ValueError("corrupt checkpoint json") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("corrupt checkpoint json")
+        return cls(**parsed)
 
     def checksum(self) -> str:
         return hashlib.sha256(self.to_json().encode()).hexdigest()

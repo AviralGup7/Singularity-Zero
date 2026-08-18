@@ -1,10 +1,10 @@
 import json
 import threading
-import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from src.core.ids import new_job_id
 from src.dashboard.configuration import (
     apply_mode_selection,
     apply_module_selection,
@@ -63,7 +63,7 @@ class DashboardLaunchService:
         elif not pasted_scope:
             raise ValueError("Enter a base URL or paste a bug bounty scope block.")
 
-        job_id = uuid.uuid4().hex[:8]
+        job_id = new_job_id()
         launcher_dir = self.output_root / "launcher" / job_id
         launcher_dir.mkdir(parents=True, exist_ok=True)
 

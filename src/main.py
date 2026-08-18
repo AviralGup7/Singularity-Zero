@@ -13,7 +13,6 @@ import argparse
 import asyncio
 import logging
 import sys
-import time
 from pathlib import Path
 
 from src.core.checkpoint.manager import CheckpointManager, LocalCheckpointStore
@@ -164,8 +163,11 @@ async def main() -> int:
     if args.output_dir:
         config.output_dir = args.output_dir
 
-    # Run ID
-    run_id = args.run_id or f"run_{int(time.time())}"
+    # Run ID — include a random suffix so two launches in the same second
+    # do not share a checkpoint directory.
+    from src.core.ids import generate_run_id
+
+    run_id = args.run_id or generate_run_id()
 
     # Register config with DI
     register_config(config)

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from .shared import (
     base_headers,
@@ -12,6 +13,26 @@ from .shared import (
     print_summary_header,
     request,
 )
+
+
+def extract_registrable_domain(base_url: str) -> str:
+    """Return the registrable host from *base_url*, ignoring userinfo.
+
+    ``http://evil.com@trusted.com`` must resolve to ``trusted.com``, not
+    ``evil.com``. String replace of the scheme used to keep the userinfo
+    label and aim subsequent probes at the attacker-controlled host.
+    """
+    candidate = (base_url or "").strip()
+    if not candidate:
+        return ""
+    parsed = urlparse(candidate if "://" in candidate else f"https://{candidate}")
+    host = (parsed.hostname or "").strip(".").lower()
+    if not host:
+        return ""
+    labels = [part for part in host.split(".") if part]
+    if len(labels) >= 2:
+        return ".".join(labels[-2:])
+    return host
 
 
 def subdomain_privilege_methods_test(
@@ -56,8 +77,9 @@ def subdomain_privilege_methods_test(
                 "console",
                 "portal",
             ]
-            main_domain = base_url.replace("https://", "").replace("http://", "").split("/")[0]
-            base_domain = ".".join(main_domain.split(".")[-2:])
+            base_domain = extract_registrable_domain(base_url)
+            if not base_domain:
+                continue
             for sub in subdomains:
                 test_url = f"https://{sub}.{base_domain}/"
                 try:

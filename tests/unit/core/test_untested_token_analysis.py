@@ -158,6 +158,15 @@ def test_public_host_is_not_internal() -> None:
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "value",
+    ["110.1.2.3", "210.10.0.1", "https://110.20.30.40/login", "foo10.example.com"],
+)
+def test_public_10_lookalikes_are_not_internal(value: str) -> None:
+    assert is_internal_host_value(value) is False
+
+
+@pytest.mark.unit
 def test_dns_callback_requires_public_multi_label_host() -> None:
     assert looks_like_dns_callback("abc.def.burpcollaborator.net") is True
     assert looks_like_dns_callback("localhost") is False
