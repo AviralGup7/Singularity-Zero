@@ -101,8 +101,7 @@ def test_check_response_oauth_issues_detects_tokens_and_missing_expiry() -> None
         {
             "url": "https://idp.example.com/oauth/token",
             "body_text": (
-                '{"access_token": "abcdefghijklmnop",'
-                ' "refresh_token": "rstuvwxyzabcdefg"}'
+                '{"access_token": "abcdefghijklmnop", "refresh_token": "rstuvwxyzabcdefg"}'
             ),
             "headers": {},
         }

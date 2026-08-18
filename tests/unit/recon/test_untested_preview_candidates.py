@@ -102,8 +102,6 @@ def test_extract_title_and_guess_project_name() -> None:
     assert _extract_title("<html><title>  Hello </title></html>") == "Hello"
     assert _extract_title("<div>no title</div>") == ""
     assert _guess_project_name_from_inputs(repo_slug="Acme/My_App") == "my-app"
-    assert (
-        _guess_project_name_from_inputs(git_remote="https://github.com/acme/shop.git") == "shop"
-    )
+    assert _guess_project_name_from_inputs(git_remote="https://github.com/acme/shop.git") == "shop"
     assert _guess_project_name_from_inputs(git_remote="git@github.com:acme/shop.git") == "shop"
     assert _guess_project_name_from_inputs() == ""

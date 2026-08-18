@@ -11,7 +11,6 @@ from src.core.observability.metrics import (
     HealthCheckRegistry,
     HealthStatus,
     MetricsCollector,
-    Span,
     Tracer,
     get_metrics,
     get_tracer,
