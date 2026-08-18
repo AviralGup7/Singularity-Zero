@@ -260,11 +260,7 @@ class EventBus:
         return subscription_id
 
     def _handler_key(self, handler: Callable[..., Any]) -> str:
-        return (
-            f"{getattr(handler, '__module__', '?')}."
-            f"{getattr(handler, '__qualname__', '?')}:"
-            f"{id(handler)}"
-        )
+        return f"{getattr(handler, '__module__', '?')}.{getattr(handler, '__qualname', '?')}:{id(handler)}"
 
     def _is_handler_circuit_broken(self, handler: Callable[..., Any]) -> bool:
         key = self._handler_key(handler)
