@@ -74,13 +74,14 @@ class SLATracker:
                 compliant_findings.append(finding_copy)
                 continue
 
-            disc_ts = (
-                finding.get("timestamp")
-                or finding.get("discovered_at")
-                or finding.get("created_at")
-                or finding.get("detected_at")
-                or ref_time
+            disc_ts = _first_present(
+                finding.get("timestamp"),
+                finding.get("discovered_at"),
+                finding.get("created_at"),
+                finding.get("detected_at"),
             )
+            if disc_ts is None:
+                disc_ts = ref_time
             if isinstance(disc_ts, str):
                 try:
                     import datetime
@@ -312,10 +313,12 @@ def _compute_lifecycle_metrics(finding: dict[str, Any], ref_time: float) -> dict
         "verification_days": None,
     }
     discovered_at = _coerce_ts(
-        finding.get("timestamp")
-        or finding.get("discovered_at")
-        or finding.get("created_at")
-        or finding.get("detected_at")
+        _first_present(
+            finding.get("timestamp"),
+            finding.get("discovered_at"),
+            finding.get("created_at"),
+            finding.get("detected_at"),
+        )
     )
     triaged_at = _coerce_ts(finding.get("triaged_at"))
     remediation_started_at = _coerce_ts(finding.get("remediation_started_at"))
@@ -340,6 +343,15 @@ def _compute_lifecycle_metrics(finding: dict[str, Any], ref_time: float) -> dict
     elif fixed_at is not None and verified_at is None:
         metrics["verification_days"] = round(max(0.0, (ref_time - fixed_at) / 86400.0), 3)
     return metrics
+
+
+def _first_present(*values: Any) -> Any:
+    """Return the first value that is not None/False/empty-string (0 is valid)."""
+    for value in values:
+        if value is None or value is False or value == "":
+            continue
+        return value
+    return None
 
 
 def _coerce_ts(value: Any) -> float | None:

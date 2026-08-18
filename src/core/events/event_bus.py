@@ -274,7 +274,7 @@ class EventBus:
             await sub.handler.handle(event)
         except Exception:
             self._metrics["failed"] += 1
-            await self._dlq.put_nowait(event)
+            self._dlq.put_nowait(event)
 
     async def start(self) -> None:
         """Start the event dispatcher."""
