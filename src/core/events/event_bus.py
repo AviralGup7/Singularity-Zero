@@ -271,7 +271,15 @@ class EventBus:
 
     async def _safe_handle(self, sub: Subscription, event: Event) -> None:
         try:
-            await sub.handler.handle(event)
+            handler = sub.handler
+            if hasattr(handler, "handle"):
+                result = handler.handle(event)
+            elif callable(handler):
+                result = handler(event)
+            else:
+                raise TypeError(f"unusable event handler: {handler!r}")
+            if inspect.isawaitable(result):
+                await result
         except Exception:
             self._metrics["failed"] += 1
             self._dlq.put_nowait(event)

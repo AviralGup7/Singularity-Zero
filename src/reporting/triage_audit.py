@@ -93,9 +93,18 @@ def calculate_team_triage_metrics(
         if assignee:
             assigned_count += 1
 
-        disc_at = finding.get("discovered_at") or finding.get("timestamp")
+        disc_at = finding.get("discovered_at")
+        if disc_at is None or disc_at is False or disc_at == "":
+            disc_at = finding.get("timestamp")
         triaged_at = finding.get("triaged_at")
-        if disc_at and triaged_at:
+        if (
+            disc_at is not None
+            and disc_at is not False
+            and disc_at != ""
+            and triaged_at is not None
+            and triaged_at is not False
+            and triaged_at != ""
+        ):
             try:
                 diff = float(triaged_at) - float(disc_at)
                 if diff > 0:

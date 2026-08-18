@@ -62,7 +62,7 @@ class KEVRecord:
     def days_until_due(self, now: float | None = None) -> float | None:
         if not self.due_date_ts:
             return None
-        return (self.due_date_ts - (now or time.time())) / 86400.0
+        return (self.due_date_ts - (time.time() if now is None else now)) / 86400.0
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -293,7 +293,11 @@ class InMemoryRateLimiter:
     ) -> tuple[bool, int, int | None]:
         """Check whether a request is allowed and record it if so."""
         now = time.monotonic()
-        limit = limit_override or self._config.get_limit_for_endpoint(endpoint)
+        limit = (
+            self._config.get_limit_for_endpoint(endpoint)
+            if limit_override is None
+            else limit_override
+        )
         key = f"{client_key}:{endpoint}"
 
         async with self._lock:

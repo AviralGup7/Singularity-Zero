@@ -23,14 +23,19 @@ def flatten_finding_for_export(finding: dict[str, Any]) -> dict[str, Any]:
 
     description = finding.get("description") or finding.get("explanation") or ""
 
-    timestamp = (
-        finding.get("timestamp")
-        or finding.get("created_at")
-        or finding.get("detected_at")
-        or finding.get("generated_at_ist")
-        or finding.get("generated_at_utc")
-        or ""
-    )
+    timestamp = ""
+    for key in (
+        "timestamp",
+        "created_at",
+        "detected_at",
+        "generated_at_ist",
+        "generated_at_utc",
+    ):
+        value = finding.get(key)
+        if value is None or value is False or value == "":
+            continue
+        timestamp = value
+        break
 
     return {
         "severity": finding.get("severity", ""),

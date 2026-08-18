@@ -25,3 +25,22 @@ async def test_failed_handler_puts_on_dlq_without_awaiting_put_nowait() -> None:
     assert bus._dlq.qsize() == 1
     assert bus.get_metrics()["failed"] == 1
     assert bus._dlq.get_nowait().id == event.id
+
+
+def _sync_boom(_event: Event) -> None:
+    raise RuntimeError("sync boom")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_callable_handler_failure_also_reaches_dlq() -> None:
+    bus = EventBus()
+    event = Event(type="x")
+    await bus._safe_handle(Subscription(handler=_sync_boom, event_types=["x"]), event)
+    assert bus._dlq.qsize() == 1
+
+
+@pytest.mark.unit
+def test_event_timestamp_is_timezone_aware() -> None:
+    event = Event(type="x")
+    assert event.timestamp.tzinfo is not None

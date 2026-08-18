@@ -101,7 +101,7 @@ class CompensatingControl:
     def is_expired(self, now: float | None = None) -> bool:
         if not self.expires_at:
             return False
-        return (now or time.time()) >= float(self.expires_at)
+        return (time.time() if now is None else now) >= float(self.expires_at)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -118,7 +118,9 @@ class CompensatingControl:
             owner=str(payload.get("owner", "")),
             expires_at=float(payload.get("expires_at", 0.0) or 0.0),
             active=bool(payload.get("active", True)),
-            created_at=float(payload.get("created_at", time.time()) or time.time()),
+            created_at=float(payload["created_at"])
+            if payload.get("created_at") is not None
+            else time.time(),
             metadata=dict(payload.get("metadata", {}) or {}),
         )
 

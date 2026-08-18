@@ -93,12 +93,12 @@ class RiskAcceptance:
             return False
         if not self.accepted_until:
             return True
-        return (now or time.time()) < float(self.accepted_until)
+        return (time.time() if now is None else now) < float(self.accepted_until)
 
     def days_until_expiry(self, now: float | None = None) -> float | None:
         if not self.accepted_until:
             return None
-        return (float(self.accepted_until) - (now or time.time())) / 86400.0
+        return (float(self.accepted_until) - (time.time() if now is None else now)) / 86400.0
 
     def is_expiry_warning(self, now: float | None = None) -> bool:
         delta = self.days_until_expiry(now=now)
@@ -120,7 +120,9 @@ class RiskAcceptance:
             review_date=float(payload.get("review_date", 0.0) or 0.0),
             scope=str(payload.get("scope", ACCEPTANCE_SCOPE_GLOBAL)),
             state=str(payload.get("state", ACCEPTANCE_STATE_ACTIVE)),
-            created_at=float(payload.get("created_at", time.time()) or time.time()),
+            created_at=float(payload["created_at"])
+            if payload.get("created_at") is not None
+            else time.time(),
             created_by=str(payload.get("created_by", "")),
             metadata=dict(payload.get("metadata", {}) or {}),
         )
@@ -194,7 +196,7 @@ class RiskAcceptanceManager:
             return list(self._by_id.values())
 
     def expiring_within(self, days: float, *, now: float | None = None) -> list[RiskAcceptance]:
-        threshold = (now or time.time()) + days * 86400.0
+        threshold = (time.time() if now is None else now) + days * 86400.0
         with self._lock:
             return [
                 a
