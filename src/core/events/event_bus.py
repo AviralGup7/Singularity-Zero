@@ -61,7 +61,7 @@ class Event:
 
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     type: str = ""
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     source: str = ""
     payload: dict = field(default_factory=dict)
     correlation_id: str = ""

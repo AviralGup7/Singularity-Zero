@@ -35,6 +35,8 @@ def test_lifecycle_summary_honors_epoch_zero() -> None:
             "lifecycle_state": "OPEN",
         }
     ]
-    summary = SLATracker.lifecycle_summary(findings, current_time=0.0)
+    # Sabotage check: if timestamp 0 is dropped, lag is missing and avg stays 0
+    # even after two days on the clock. Keeping 0 must yield a 2-day wait.
+    summary = SLATracker.lifecycle_summary(findings, current_time=2 * 86400)
     assert summary["total"] == 1
-    assert summary["avg_triage_lag_days"] == 0.0
+    assert summary["avg_triage_lag_days"] == 2.0

@@ -23,7 +23,9 @@ def test_triage_metrics_count_epoch_zero_discovery() -> None:
         ],
     )
     assert metrics["triaged_count"] == 1
+    # Old `if disc_at and triaged_at` skipped epoch 0 and left avg at 0.0.
     assert metrics["avg_triage_hours"] == 1.0
+    assert metrics["avg_triage_hours"] != 0.0
 
 
 @pytest.mark.unit

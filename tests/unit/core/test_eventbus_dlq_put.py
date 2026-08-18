@@ -42,5 +42,9 @@ async def test_callable_handler_failure_also_reaches_dlq() -> None:
 
 @pytest.mark.unit
 def test_event_timestamp_is_timezone_aware() -> None:
+    from datetime import UTC
+
     event = Event(type="x")
     assert event.timestamp.tzinfo is not None
+    assert event.timestamp.utcoffset() is not None
+    assert event.timestamp.tzinfo == UTC
