@@ -178,7 +178,10 @@ class LocalCheckpointStore:
         path = self._version_file(run_id, version)
         if not path.exists():
             return None
-        return CheckpointData.from_json(path.read_text())
+        try:
+            return CheckpointData.from_json(path.read_text())
+        except (ValueError, TypeError):
+            return None
 
     async def list_versions(self, run_id: str) -> list[int]:
         run_dir = self._run_dir(run_id)
