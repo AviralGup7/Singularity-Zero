@@ -55,7 +55,7 @@ class SLATracker:
             Dict containing counts, compliant list, overdue/breached lists,
             and per-stage lifecycle metrics.
         """
-        ref_time = current_time or time.time()
+        ref_time = time.time() if current_time is None else current_time
         overdue_findings = []
         compliant_findings = []
 
@@ -135,7 +135,7 @@ class SLATracker:
         "verification SLA compliance" as separate KPIs from the
         legacy "remediation within N days" metric.
         """
-        ref_time = current_time or time.time()
+        ref_time = time.time() if current_time is None else current_time
         triage_total = 0.0
         triage_count = 0
         triage_breach_count = 0

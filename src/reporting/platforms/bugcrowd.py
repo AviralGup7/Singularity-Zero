@@ -11,6 +11,7 @@ from src.reporting.platforms.base import (
     SubmissionResult,
     _BaseClient,
     logger,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -54,13 +55,13 @@ class BugcrowdClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_code: str | None = None,
-        base_url: str = os.environ.get("BUGCROWD_BASE_URL", "https://api.bugcrowd.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_token = api_token or os.environ.get("BUGCROWD_API_TOKEN", "")
         self.program_code = program_code or os.environ.get("BUGCROWD_PROGRAM_CODE", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(base_url, "BUGCROWD_BASE_URL", "https://api.bugcrowd.com")
 
     @property
     def ready(self) -> bool:

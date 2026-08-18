@@ -11,6 +11,7 @@ from src.reporting.platforms.base import (
     SubmissionResult,
     _BaseClient,
     logger,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -39,13 +40,15 @@ class HackerOneClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_handle: str | None = None,
-        base_url: str = os.environ.get("HACKERONE_BASE_URL", "https://api.hackerone.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_token = api_token or os.environ.get("HACKERONE_API_TOKEN", "")
         self.program_handle = program_handle or os.environ.get("HACKERONE_PROGRAM_HANDLE", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "HACKERONE_BASE_URL", "https://api.hackerone.com"
+        )
 
     @property
     def ready(self) -> bool:

@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -22,15 +23,15 @@ class GoogleVRPClient(_BaseClient):
         self,
         api_key: str | None = None,
         tracker_id: str | None = None,
-        base_url: str = os.environ.get(
-            "GOOGLE_VRP_BASE_URL", "https://issuetracker.googleapis.com"
-        ),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_key = api_key or os.environ.get("GOOGLE_VRP_API_KEY", "")
         self.tracker_id = tracker_id or os.environ.get("GOOGLE_VRP_TRACKER_ID", "default")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "GOOGLE_VRP_BASE_URL", "https://issuetracker.googleapis.com"
+        )
 
     @property
     def ready(self) -> bool:

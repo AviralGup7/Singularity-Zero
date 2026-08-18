@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -22,13 +23,15 @@ class YesWeHackClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_slug: str | None = None,
-        base_url: str = os.environ.get("YESWEHACK_BASE_URL", "https://api.yeswehack.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_token = api_token or os.environ.get("YESWEHACK_API_TOKEN", "")
         self.program_slug = program_slug or os.environ.get("YESWEHACK_PROGRAM_SLUG", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "YESWEHACK_BASE_URL", "https://api.yeswehack.com"
+        )
 
     @property
     def ready(self) -> bool:

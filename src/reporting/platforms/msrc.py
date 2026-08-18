@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -26,9 +27,9 @@ class MSRCAgent(_BaseClient):
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_key = api_key or os.environ.get("MSRC_API_KEY", "")
-        self.base_url = (
-            base_url or os.environ.get("MSRC_BASE_URL") or "https://api.msrc.microsoft.com"
-        ).rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "MSRC_BASE_URL", "https://api.msrc.microsoft.com"
+        )
 
     @property
     def ready(self) -> bool:

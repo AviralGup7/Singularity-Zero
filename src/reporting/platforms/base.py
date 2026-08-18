@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -8,6 +9,11 @@ from typing import Any
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_base_url(explicit: str | None, env_name: str, default: str) -> str:
+    """Resolve a platform base URL at construct time (not import time)."""
+    return (explicit or os.environ.get(env_name) or default).rstrip("/")
 
 
 @dataclass(slots=True)

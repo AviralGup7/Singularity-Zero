@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -21,12 +22,12 @@ class MetaClient(_BaseClient):
     def __init__(
         self,
         access_token: str | None = None,
-        base_url: str = os.environ.get("META_BASE_URL", "https://graph.facebook.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.access_token = access_token or os.environ.get("META_APP_ACCESS_TOKEN", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(base_url, "META_BASE_URL", "https://graph.facebook.com")
 
     @property
     def ready(self) -> bool:

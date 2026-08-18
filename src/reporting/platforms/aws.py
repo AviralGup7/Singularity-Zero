@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -21,12 +22,14 @@ class AWSClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = os.environ.get("AWS_BASE_URL", "https://security-report.aws.amazon.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_key = api_key or os.environ.get("AWS_SECURITY_API_KEY", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "AWS_BASE_URL", "https://security-report.aws.amazon.com"
+        )
 
     @property
     def ready(self) -> bool:

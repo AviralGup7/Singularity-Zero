@@ -11,6 +11,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 from src.reporting.sarif_exporter import _intigriti_weakness_id
@@ -53,13 +54,15 @@ class IntigritiClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_id: str | None = None,
-        base_url: str = os.environ.get("INTIGRITI_BASE_URL", "https://api.intigriti.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_token = api_token or os.environ.get("INTIGRITI_API_TOKEN", "")
         self.program_id = program_id or os.environ.get("INTIGRITI_PROGRAM_ID", "")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "INTIGRITI_BASE_URL", "https://api.intigriti.com"
+        )
 
     @property
     def ready(self) -> bool:

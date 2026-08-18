@@ -136,7 +136,9 @@ class SLAEvent:
             finding_id=str(payload.get("finding_id", "")),
             from_state=str(payload.get("from_state", "")),
             to_state=str(payload.get("to_state", "")),
-            timestamp=float(payload.get("timestamp", time.time()) or time.time()),
+            timestamp=float(payload["timestamp"])
+            if payload.get("timestamp") is not None
+            else time.time(),
             actor=str(payload.get("actor", "")),
             note=str(payload.get("note", "")),
             metadata=dict(payload.get("metadata", {}) or {}),
@@ -158,19 +160,19 @@ class FindingLifecycleRecord:
 
     @property
     def triage_lag_days(self) -> float | None:
-        if not self.triaged_at or not self.discovered_at:
+        if self.triaged_at is None or self.discovered_at is None:
             return None
         return max(0.0, (self.triaged_at - self.discovered_at) / 86400.0)
 
     @property
     def remediation_days(self) -> float | None:
-        if not self.fixed_at or not self.remediation_started_at:
+        if self.fixed_at is None or self.remediation_started_at is None:
             return None
         return max(0.0, (self.fixed_at - self.remediation_started_at) / 86400.0)
 
     @property
     def verification_days(self) -> float | None:
-        if not self.verified_at or not self.fixed_at:
+        if self.verified_at is None or self.fixed_at is None:
             return None
         return max(0.0, (self.verified_at - self.fixed_at) / 86400.0)
 
@@ -233,7 +235,7 @@ class FindingLifecycleManager:
             raise ValueError(
                 f"Illegal transition {record.current_state.value} -> {target_state.value} for {finding_id}"
             )
-        ts = float(timestamp) if timestamp else time.time()
+        ts = float(timestamp) if timestamp is not None else time.time()
         record.events.append(
             SLAEvent(
                 event_id="",
@@ -247,13 +249,13 @@ class FindingLifecycleManager:
             )
         )
         record.current_state = target_state
-        if target_state is FindingState.TRIAGED and not record.triaged_at:
+        if target_state is FindingState.TRIAGED and record.triaged_at is None:
             record.triaged_at = ts
-        elif target_state is FindingState.IN_REMEDIATION and not record.remediation_started_at:
+        elif target_state is FindingState.IN_REMEDIATION and record.remediation_started_at is None:
             record.remediation_started_at = ts
-        elif target_state is FindingState.FIXED and not record.fixed_at:
+        elif target_state is FindingState.FIXED and record.fixed_at is None:
             record.fixed_at = ts
-        elif target_state is FindingState.VERIFIED and not record.verified_at:
+        elif target_state is FindingState.VERIFIED and record.verified_at is None:
             record.verified_at = ts
         return record
 
@@ -341,7 +343,7 @@ class FindingLifecycleManager:
 
     def breaches(self, *, now: float | None = None) -> list[dict[str, Any]]:
         """Return a list of lifecycle records that have breached a stage SLA."""
-        now = now or time.time()
+        now = time.time() if now is None else now
         targets = DEFAULT_STAGE_TARGETS_DAYS
         breached: list[dict[str, Any]] = []
         for record in self._records.values():
@@ -393,7 +395,7 @@ class FindingLifecycleManager:
         if conn is None:
             return self.summary()
         try:
-            cutoff = (now or time.time()) - days * 86400.0
+            cutoff = (time.time() if now is None else now) - days * 86400.0
             cursor = conn.execute(
                 "SELECT finding_id, from_state, to_state, timestamp "
                 "FROM sla_events WHERE timestamp >= ? "

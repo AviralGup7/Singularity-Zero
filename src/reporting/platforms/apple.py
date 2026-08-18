@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -22,13 +23,15 @@ class AppleClient(_BaseClient):
         self,
         dev_token: str | None = None,
         program_id: str | None = None,
-        base_url: str = os.environ.get("APPLE_BASE_URL", "https://api.apple-security.com"),
+        base_url: str | None = None,
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
         self.dev_token = dev_token or os.environ.get("APPLE_DEVELOPER_TOKEN", "")
         self.program_id = program_id or os.environ.get("APPLE_PROGRAM_ID", "default")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "APPLE_BASE_URL", "https://api.apple-security.com"
+        )
 
     @property
     def ready(self) -> bool:

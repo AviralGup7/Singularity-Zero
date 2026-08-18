@@ -324,7 +324,11 @@ class RedisRateLimiter:
     ) -> tuple[bool, int, int | None]:
         """Check whether a request is allowed using Redis-based sliding window."""
         now = time.time()
-        limit = limit_override or self._config.get_limit_for_endpoint(endpoint)
+        limit = (
+            self._config.get_limit_for_endpoint(endpoint)
+            if limit_override is None
+            else limit_override
+        )
         key = f"rate_limit:{client_key}:{endpoint}"
         window = self._config.window_seconds
 

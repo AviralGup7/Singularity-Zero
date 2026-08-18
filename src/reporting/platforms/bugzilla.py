@@ -9,6 +9,7 @@ from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
     _BaseClient,
+    resolve_base_url,
     to_envelope,
 )
 
@@ -26,9 +27,9 @@ class MozillaClient(_BaseClient):
     ) -> None:
         super().__init__(timeout=timeout)
         self.api_key = api_key or os.environ.get("MOZILLA_BUGZILLA_API_KEY", "")
-        self.base_url = (
-            base_url or os.environ.get("MOZILLA_BASE_URL") or "https://bugzilla.mozilla.org"
-        ).rstrip("/")
+        self.base_url = resolve_base_url(
+            base_url, "MOZILLA_BASE_URL", "https://bugzilla.mozilla.org"
+        )
 
     @property
     def ready(self) -> bool:
