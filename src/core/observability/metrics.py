@@ -91,7 +91,7 @@ class MetricsCollector:
         return f"{name}{{{label_str}}}"
 
     def get_all(self) -> list[Metric]:
-        with asyncio.Lock():
+        with self._lock:
             metrics = []
             for key, value in self._counters.items():
                 metrics.append(Metric(name=key, type=MetricType.COUNTER, value=value))
