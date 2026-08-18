@@ -45,8 +45,8 @@ def test_candidate_spec_urls_empty_or_unsafe_host() -> None:
 
 @pytest.mark.unit
 def test_candidate_spec_urls_enhanced_adds_more_families() -> None:
-    basic = set(_candidate_spec_urls("api.example.com", None))
-    enhanced = set(_candidate_spec_urls_enhanced("api.example.com"))
+    basic = set(_candidate_spec_urls("example.com", None))
+    enhanced = set(_candidate_spec_urls_enhanced("example.com"))
     assert basic.issubset(enhanced)
     assert len(enhanced) > len(basic)
     joined = " ".join(enhanced)
@@ -56,7 +56,7 @@ def test_candidate_spec_urls_enhanced_adds_more_families() -> None:
 @pytest.mark.unit
 def test_candidate_spec_urls_enhanced_can_disable_families() -> None:
     slim = _candidate_spec_urls_enhanced(
-        "api.example.com",
+        "example.com",
         include_asyncapi=False,
         include_graphql_sdl=False,
         include_proto=False,
@@ -65,7 +65,7 @@ def test_candidate_spec_urls_enhanced_can_disable_families() -> None:
         include_avro=False,
         include_grpc_paths=False,
     )
-    fat = _candidate_spec_urls_enhanced("api.example.com")
+    fat = _candidate_spec_urls_enhanced("example.com")
     assert len(slim) < len(fat)
 
 

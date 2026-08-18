@@ -125,13 +125,18 @@ def _candidate_spec_urls_enhanced(
         raw_url = urljoin(origin.rstrip("/") + "/", path.lstrip("/"))
         if raw_url in seen:
             continue
-        seen.add(raw_url)
         if not is_safe_url(raw_url):
+            seen.add(raw_url)
             continue
-        for expanded in _expand_server_variables(raw_url, server_variable_overrides):
-            if expanded not in seen:
-                seen.add(expanded)
-                urls.append(expanded)
+        # Include the raw URL plus any {var} expansions. Adding raw_url to
+        # ``seen`` *before* iterating expansions used to drop every candidate
+        # because ``_expand_server_variables`` returns the original URL when
+        # there are no placeholders.
+        for expanded in (raw_url, *_expand_server_variables(raw_url, server_variable_overrides)):
+            if expanded in seen or not is_safe_url(expanded):
+                continue
+            seen.add(expanded)
+            urls.append(expanded)
     return urls
 
 
