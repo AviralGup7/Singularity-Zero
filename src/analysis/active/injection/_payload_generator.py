@@ -145,8 +145,6 @@ class PayloadGenerator:
                 self._script_vectors(vectors, ctx)
             elif ctx.context == "comment":
                 self._comment_vectors(vectors, ctx)
-            elif ctx.context == "html":
-                self._html_vectors(vectors, ctx)
 
         # Add generic evasion payloads at lower confidence
         if self._include_evasion:

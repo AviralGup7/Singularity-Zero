@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable
@@ -264,6 +265,6 @@ class ResourcePool:
         while not self._pool.empty():
             resource = self._pool.get_nowait()
             if hasattr(resource, "close"):
-                await resource.close()
-            elif hasattr(resource, "close"):
-                resource.close()
+                result = resource.close()
+                if inspect.isawaitable(result):
+                    await result
