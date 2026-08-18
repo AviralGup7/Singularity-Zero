@@ -170,12 +170,14 @@ class RateLimiter:
                     self._tokens -= tokens
                     return
 
-                # Wait for tokens to replenish
+                # Wait for tokens to replenish *outside* the lock.
+                # The previous loop never broke, so a drained bucket spun
+                # forever while holding ``_lock``.
                 wait = (tokens - self._tokens) / self.rate_per_second
-                wait = min(max(wait, 0.001), 60)  # Cap wait time
+                wait = min(max(wait, 0.001), 60)
+                break
 
         await asyncio.sleep(wait)
-        # Retry after waiting
         await self.acquire(tokens)
 
     def stats(self) -> dict:
@@ -219,8 +221,10 @@ class CircuitBreaker:
                 else:
                     raise CircuitBreakerOpenError("Circuit breaker is open")
 
-            if self._state == "half-open" and self._half_open_calls >= self.half_open_max_calls:
-                raise CircuitBreakerOpenError("Circuit breaker half-open limit reached")
+            if self._state == "half-open":
+                if self._half_open_calls >= self.half_open_max_calls:
+                    raise CircuitBreakerOpenError("Circuit breaker half-open limit reached")
+                self._half_open_calls += 1
 
         try:
             result = await func(*args, **kwargs)

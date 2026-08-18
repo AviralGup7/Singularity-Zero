@@ -171,9 +171,22 @@ class LocalCheckpointStore:
     async def load(self, run_id: str, version: int | None = None) -> CheckpointData | None:
         if version is None:
             latest = self._latest_link(run_id)
-            if not latest.exists():
+            if not latest.exists() and not latest.is_symlink():
                 return None
-            version = int(latest.read_text().strip().split(".")[0].replace("v", ""))
+            # ``save`` writes a symlink to ``v000001.json``. Following it with
+            # ``read_text()`` returns checkpoint JSON, which ``int(...)``
+            # cannot parse. Resolve the version from the target filename.
+            target = latest.resolve() if latest.exists() or latest.is_symlink() else None
+            if target is None or not target.exists():
+                return None
+            stem = target.stem
+            if stem.startswith("v") and stem[1:].isdigit():
+                version = int(stem[1:])
+            else:
+                try:
+                    return CheckpointData.from_json(target.read_text())
+                except (ValueError, TypeError):
+                    return None
 
         path = self._version_file(run_id, version)
         if not path.exists():

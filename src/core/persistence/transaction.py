@@ -175,7 +175,7 @@ class CircuitBreaker:
         return self._state
 
     async def call(self, func: callable, *args, **kwargs) -> Any:
-        if await self.state == CircuitState.OPEN:
+        if self.state == CircuitState.OPEN:
             raise CircuitBreakerOpenError("Circuit breaker is open")
 
         try:
