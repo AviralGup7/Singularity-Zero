@@ -202,7 +202,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     async def health_check_live() -> dict[str, Any]:
         from src.dashboard.fastapi.lifespan import _START_TIME
 
-        return {"status": "ok", "uptime": time.time() - (_START_TIME or time.time())}
+        boot = _START_TIME if _START_TIME is not None else time.time()
+        return {"status": "ok", "uptime": time.time() - boot}
 
     @app.get("/health", tags=["System"])
     async def health_alias() -> dict[str, Any]:
@@ -258,7 +259,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "status": status,
             "subsystems": subsystems,
             "degraded_reasons": degraded_reasons,
-            "uptime": time.time() - (_START_TIME or time.time()),
+            "uptime": time.time() - (_START_TIME if _START_TIME is not None else time.time()),
         }
 
     @app.get("/api/version", tags=["System"])
@@ -270,7 +271,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "build": os.getenv("BUILD_SHA", "dev"),
             "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "boot_time": _START_TIME,
-            "uptime_seconds": round(time.time() - (_START_TIME or time.time()), 1),
+            "uptime_seconds": round(
+                time.time() - (_START_TIME if _START_TIME is not None else time.time()), 1
+            ),
         }
 
     @app.get("/metrics", tags=["System"], dependencies=[Depends(require_admin)])

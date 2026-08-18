@@ -9,7 +9,6 @@ import subprocess
 import sys
 import threading
 import time
-import uuid
 from pathlib import Path
 
 from src.cli.types import Namespace
@@ -150,7 +149,9 @@ def handle_launch(args: Namespace) -> None:
         queue = JobQueue(RedisClient(), args.queue)
         register_all_plugin_handlers(queue)
 
-        worker_id = f"launch-worker-{uuid.uuid4().hex[:6]}"
+        from src.core.ids import new_worker_id
+
+        worker_id = new_worker_id("launch-worker-")
         worker = Worker(
             worker_id=worker_id,
             queue=queue,

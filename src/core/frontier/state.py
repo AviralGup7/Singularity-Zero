@@ -531,7 +531,11 @@ class NeuralState:
         """Serialize complete convergence state, including HLC, tombstones and WAL cursors."""
         return {
             "format": "neural-state-crdt-v3",
-            "created_at": getattr(self, "created_at", None) or time.time(),
+            "created_at": (
+                getattr(self, "created_at", None)
+                if getattr(self, "created_at", None) is not None
+                else time.time()
+            ),
             "last_wal_id": self.last_wal_id,
             "applied_wal_ids": sorted(self.applied_wal_ids),
             "hlc": self.hlc.to_dict(),

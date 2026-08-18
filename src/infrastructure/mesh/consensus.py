@@ -208,7 +208,7 @@ class MeshConsensus:
         refreshed = _LeaderRecord(
             node_id=self.gossip.local_node.id,
             term=self.term,
-            acquired_at=current.acquired_at or time.time(),
+            acquired_at=current.acquired_at if current.acquired_at is not None else time.time(),
         )
         ok = await self._set_lease(client, refreshed, ttl_ms=self._lease_ttl_ms)
         if ok:

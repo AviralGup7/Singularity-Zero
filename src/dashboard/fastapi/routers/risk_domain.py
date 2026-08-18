@@ -466,7 +466,7 @@ async def record_reviewer_action(
             payload.get("structured_note"),
             payload.get("from_state"),
             payload.get("to_state"),
-            payload.get("timestamp") or time.time(),
+            payload["timestamp"] if payload.get("timestamp") is not None else time.time(),
             json.dumps(payload.get("metadata") or {}),
         ],
     )
@@ -594,7 +594,7 @@ async def transition_finding(
             finding_id,
             from_state or "unknown",
             to_state,
-            payload.get("timestamp") or time.time(),
+            payload["timestamp"] if payload.get("timestamp") is not None else time.time(),
             payload.get("actor"),
             payload.get("note"),
             json.dumps(payload.get("metadata") or {}),

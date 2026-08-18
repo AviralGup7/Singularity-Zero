@@ -25,6 +25,14 @@ def test_lag_metrics_allow_epoch_zero() -> None:
     assert record.triage_lag_days == 1.0
     assert record.remediation_days == 1.0
     assert record.verification_days == 1.0
+    # verified_at=0.0 must not be treated as missing (or-chain would use now).
+    closed = FindingLifecycleRecord(
+        finding_id="g",
+        discovered_at=0.0,
+        fixed_at=0.0,
+        verified_at=0.0,
+    )
+    assert closed.total_open_days == 0.0
 
 
 @pytest.mark.unit

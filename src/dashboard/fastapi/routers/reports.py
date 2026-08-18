@@ -253,13 +253,15 @@ async def get_sla_trending(
                 total_findings += 1
 
                 # Determine discovery and remediation timestamp
-                disc_ts = f.get("discovered_at") or f.get("timestamp")
+                disc_ts = f.get("discovered_at")
+                if disc_ts is None:
+                    disc_ts = f.get("timestamp")
                 if isinstance(disc_ts, str):
                     try:
                         disc_ts = datetime.datetime.fromisoformat(disc_ts).timestamp()
                     except Exception:
-                        disc_ts = time.time()
-                disc_ts = float(disc_ts or time.time())
+                        disc_ts = None
+                disc_ts = time.time() if disc_ts is None else float(disc_ts)
 
                 # Group by month for trending
                 # SECURITY: the loop variable is named ``report_dt`` to
@@ -283,13 +285,17 @@ async def get_sla_trending(
 
                 if is_remediated:
                     total_remediated += 1
-                    rem_ts = f.get("remediated_at") or f.get("resolved_at") or f.get("timestamp")
+                    rem_ts = f.get("remediated_at")
+                    if rem_ts is None:
+                        rem_ts = f.get("resolved_at")
+                    if rem_ts is None:
+                        rem_ts = f.get("timestamp")
                     if isinstance(rem_ts, str):
                         try:
                             rem_ts = datetime.datetime.fromisoformat(rem_ts).timestamp()
                         except Exception:
-                            rem_ts = time.time()
-                    rem_ts = float(rem_ts or time.time())
+                            rem_ts = None
+                    rem_ts = time.time() if rem_ts is None else float(rem_ts)
 
                     duration = max(0.0, rem_ts - disc_ts)
                     mttr_durations.append(duration)

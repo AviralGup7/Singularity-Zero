@@ -165,7 +165,7 @@ class OTLPExporter:
                 if parent_id
                 else None,
                 start_time=int(span.start_time * 1e9),
-                end_time=int((span.end_time or time.time()) * 1e9),
+                end_time=int((span.end_time if span.end_time is not None else time.time()) * 1e9),
                 status=otel_status,
                 attributes=dict(span.attributes) if span.attributes else None,
             )

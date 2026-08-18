@@ -48,7 +48,7 @@ class TimingPermutator:
 
     def __init__(self, seed: float | None = None):
         self._next_allowed: float = 0.0
-        self._seed = seed or time.time()
+        self._seed = time.time() if seed is None else float(seed)
         self._rng = secrets.SystemRandom()
 
     def exponential_delay(

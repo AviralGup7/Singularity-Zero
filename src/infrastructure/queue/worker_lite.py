@@ -17,7 +17,6 @@ import signal
 import socket
 import sys
 import time
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -791,7 +790,9 @@ def main(argv: list[str] | None = None) -> None:
             logger.error("Setup failed: %s", exc)
             sys.exit(1)
 
-    worker_id = args.worker_id or f"lite-worker-{uuid.uuid4().hex[:6]}"
+    from src.core.ids import new_worker_id
+
+    worker_id = args.worker_id or new_worker_id("lite-worker-")
 
     worker = LiteWorker(
         worker_id=worker_id,

@@ -178,7 +178,12 @@ class FindingLifecycleRecord:
 
     @property
     def total_open_days(self) -> float:
-        end = self.verified_at or self.fixed_at or time.time()
+        if self.verified_at is not None:
+            end = self.verified_at
+        elif self.fixed_at is not None:
+            end = self.fixed_at
+        else:
+            end = time.time()
         return max(0.0, (end - self.discovered_at) / 86400.0)
 
     def to_dict(self) -> dict[str, Any]:

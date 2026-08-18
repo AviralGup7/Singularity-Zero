@@ -169,5 +169,5 @@ def normalize_telemetry_event(raw: dict[str, Any], *, fallback_stage: str = "") 
         metrics=dict(raw.get("metrics") or {}),
         payload=dict(raw.get("payload") or {}),
         event_id=str(raw.get("event_id") or ""),
-        epoch=float(raw.get("epoch") or time.time()),
+        epoch=float(raw["epoch"]) if raw.get("epoch") is not None else time.time(),
     )
