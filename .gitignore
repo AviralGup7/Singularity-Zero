@@ -40,9 +40,10 @@ playwright-report/
 blob-report/
 screenshots/
 
-# Output artifacts
-output/
-output_test/
+# Output artifacts (repo-root only — do not swallow src/dashboard/output fixtures)
+/output/
+/output_test/
+src/output/
 
 # OS
 .DS_Store
@@ -188,37 +189,30 @@ GEMINI.md
 *.tmp
 *.temp
 
-# Test fixture data tracked in source (override output/ and dist/ ignores)
-!src/dashboard/output/
-!src/dashboard/output/square.com/
-!src/dashboard/output/square.com/**
-!frontend/dist/
-!frontend/dist/**
-
-# Security: never commit pipeline launch artifacts that may contain secrets
-src/dashboard/output/launcher/*/config.json
-src/dashboard/output/launcher/*/scope.txt
-src/dashboard/output/launcher/*/*.log
-
-# Ignore runtime launcher job data
-launcher/
-src/dashboard/output/launcher/
-
-# Exceptions for launcher static test fixtures
-!src/dashboard/output/jobs.db
+# Dashboard runtime output (jobs.db, locks, live scan dumps).
+# Ignore *contents* of the directory so fixtures can be un-ignored.
+# Do not ignore the directory itself (`output/`) — git cannot re-include
+# children of an ignored directory.
+src/dashboard/output/*
 !src/dashboard/output/launcher/
+src/dashboard/output/launcher/*
+/launcher/
+
+# Keep only the square.com launcher forensic fixtures used by unit tests
+# (SQUARE_BASELINE_JOB_IDS in src/dashboard/forensics/launcher.py).
 !src/dashboard/output/launcher/3ed7c0ee/
 !src/dashboard/output/launcher/3ed7c0ee/**
 !src/dashboard/output/launcher/59d5e72d/
 !src/dashboard/output/launcher/59d5e72d/**
 !src/dashboard/output/launcher/5e20a0db/
 !src/dashboard/output/launcher/5e20a0db/**
-!src/dashboard/output/launcher/694da23d/
-!src/dashboard/output/launcher/694da23d/**
 !src/dashboard/output/launcher/70771cc8/
 !src/dashboard/output/launcher/70771cc8/**
 !src/dashboard/output/launcher/a0b71b8e/
 !src/dashboard/output/launcher/a0b71b8e/**
+!src/dashboard/output/square.com/
+src/dashboard/output/square.com/*
+!src/dashboard/output/square.com/state_transition_analyzer.json
 
 # Generated Cython C source files
 src/core/frontier/_state_cython.c
