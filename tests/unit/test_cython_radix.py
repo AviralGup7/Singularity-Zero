@@ -1,3 +1,5 @@
+import pytest
+
 from src.core.frontier.state import radix_sort_timestamps
 
 
@@ -18,14 +20,10 @@ def test_radix_sort_behavior():
 
 
 def test_cython_radix_fallback():
-    """Ensure that the Cython module is importable and matches python-only fallback if compiled."""
-    try:
-        from src.core.frontier import _state_cython
+    """Assert the compiled accelerator when present; skip if it was not built."""
+    pytest.importorskip("src.core.frontier._state_cython")
+    from src.core.frontier import _state_cython
 
-        if _state_cython is not None:
-            data = [("a", 1.5), ("b", 0.5), ("c", 2.5)]
-            result = _state_cython.radix_sort_timestamps(data)
-            assert [item[0] for item in result] == ["b", "a", "c"]
-    except ImportError:
-        # Fallback is expected when C C++ build tools are missing (e.g. locally)
-        pass
+    data = [("a", 1.5), ("b", 0.5), ("c", 2.5)]
+    result = _state_cython.radix_sort_timestamps(data)
+    assert [item[0] for item in result] == ["b", "a", "c"]

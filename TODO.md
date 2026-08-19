@@ -68,9 +68,10 @@ still missing.
 3. Ensure exit code mapping:
    - prefer exit `4` (partial) unless policy says otherwise
 
-**Status:** Partial — CLI `--max-duration` and `check_max_duration()` already
-exist in `runner_support.py` / `runtime.py`. ActorScheduler still does not
-stop dispatch on the global deadline.
+**Status:** Partial — CLI `--max-duration` and `check_max_duration()` exist
+in `runner_support.py` / `runtime.py`. ActorScheduler now stops dispatch
+and skips remaining stages with `global_deadline_exceeded` when the
+budget is set.
 
 ### P0.3 Retry-After aware backoff override
 **Target files (likely):**

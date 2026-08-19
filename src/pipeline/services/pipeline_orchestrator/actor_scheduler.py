@@ -23,6 +23,7 @@ code are still loadable by the new one and vice-versa.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -172,9 +173,16 @@ class ActorScheduler:
         self._outcome = SchedulerOutcome()
         self._deferral_count: dict[str, int] = {}
         self._max_deferrals: int = 5
-        print(
-            f"[INSTRUMENT] ActorScheduler.__init__: done nodes={len(self._graph.nodes)}", flush=True
-        )
+        self._run_started_at = time.monotonic()
+        max_duration = getattr(self._args, "max_duration_seconds", None)
+        if max_duration is None:
+            max_duration = getattr(self._config, "max_duration_seconds", None)
+        try:
+            self._max_duration_seconds = float(max_duration) if max_duration else None
+        except (TypeError, ValueError):
+            self._max_duration_seconds = None
+        if self._max_duration_seconds is not None and self._max_duration_seconds <= 0:
+            self._max_duration_seconds = None
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -205,13 +213,15 @@ class ActorScheduler:
         overridden_keys: set[str] = set()
 
         while True:
-            print(
-                f"[INSTRUMENT] ActorScheduler.run: loop iteration start failed_critical={self._failed_critical}",
-                flush=True,
-            )
             if self._failed_critical is not None:
                 if self._outcome.exit_code is None:
                     self._outcome.exit_code = 3
+                break
+            if self._deadline_exceeded():
+                logger.warning("ActorScheduler: global max-duration exceeded; stopping dispatch")
+                if self._outcome.exit_code is None:
+                    self._outcome.exit_code = 4
+                self._skip_remaining_for_deadline()
                 break
             if self._shutdown_requested():
                 logger.warning("Shutdown flag detected by ActorScheduler, stopping.")
@@ -238,10 +248,6 @@ class ActorScheduler:
                         overridden_keys.add(config_key)
 
             ready = self._collect_ready_nodes()
-            print(
-                f"[INSTRUMENT] ActorScheduler.run: ready_nodes={[n.name for n in ready]} in_flight={len(self._in_flight)} remaining={len(self._remaining)}",
-                flush=True,
-            )
             if ready:
                 try:
                     from src.infrastructure.resource_guard import ResourceGuard
@@ -313,12 +319,7 @@ class ActorScheduler:
 
                     self._dispatch(node)
             if self._in_flight:
-                print(
-                    f"[INSTRUMENT] ActorScheduler.run: awaiting {len(self._in_flight)} tasks",
-                    flush=True,
-                )
                 await self._await_any_completion()
-                print("[INSTRUMENT] ActorScheduler.run: after _await_any_completion", flush=True)
                 continue
 
             if not self._in_flight:
@@ -333,12 +334,8 @@ class ActorScheduler:
                     if self._in_flight:
                         await self._await_any_completion()
                         continue
-                print("[INSTRUMENT] ActorScheduler.run: no in_flight, breaking", flush=True)
                 break
-            print("[INSTRUMENT] ActorScheduler.run: awaiting any completion (no ready)", flush=True)
             await self._await_any_completion()
-
-        print("[INSTRUMENT] ActorScheduler.run: loop exited", flush=True)
 
         self._apply_re_scheduling()
 
@@ -376,10 +373,6 @@ class ActorScheduler:
         """
         ready: list[tuple[int, int, StageNode]] = []
         for index, node in enumerate(self._graph.nodes):
-            print(
-                f"[INSTRUMENT] ActorScheduler._collect_ready_nodes: checking node={node.name} completed={node.name in self._completed} launched={node.name in self._launched} remaining={node.name in self._remaining}",
-                flush=True,
-            )
             if node.name in self._completed or node.name in self._skipped:
                 continue
             if node.name in self._launched:
@@ -452,15 +445,8 @@ class ActorScheduler:
         )
 
     def _condition_holds(self, node: StageNode) -> bool:
-        print(
-            f"[INSTRUMENT] ActorScheduler._condition_holds: checking node={node.name}", flush=True
-        )
         try:
             result = bool(node.when.is_satisfied(self._ctx, self._runtime_flags))
-            print(
-                f"[INSTRUMENT] ActorScheduler._condition_holds: node={node.name} result={result}",
-                flush=True,
-            )
             return result
         except Exception as exc:  # noqa: BLE001 — broad catch intentional, condition predicates may raise arbitrary errors
             # A condition predicate that raises is almost certainly a bug,
@@ -792,6 +778,23 @@ class ActorScheduler:
     # ------------------------------------------------------------------
     # Cancellation / shutdown helpers
     # ------------------------------------------------------------------
+
+    def _deadline_exceeded(self) -> bool:
+        if self._max_duration_seconds is None:
+            return False
+        return (time.monotonic() - self._run_started_at) >= self._max_duration_seconds
+
+    def _skip_remaining_for_deadline(self) -> None:
+        for node in self._graph.nodes:
+            if node.name in self._completed or node.name in self._skipped:
+                continue
+            if node.name in self._outcome.skipped:
+                continue
+            if node.name not in self._remaining:
+                continue
+            if node.name in self._launched:
+                continue
+            self._mark_skipped(node, reason="global_deadline_exceeded")
 
     def _shutdown_requested(self) -> bool:
         try:
