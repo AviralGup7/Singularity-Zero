@@ -301,7 +301,9 @@ jobs:
         with:
           directory: .
           file: docker-compose.optimized.yml
-          framework: docker_compose
+          # Checkov 3.2 dropped the docker_compose framework; yaml
+          # still evaluates compose structure and secrets policies.
+          framework: yaml
           soft_fail: false
 
   ci-ok:
