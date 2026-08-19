@@ -51,9 +51,10 @@
 4. Dry-run mode:
    - recover WAL state and compute expected stage set but do not execute tools
 
-**Status:** Partial — `run_secured()` calls `FrontierWAL.recover_state()` when
-`can_recover` is set. `--resume-from` is parsed; verify/dry-run modes are
-still missing.
+**Status:** Done as a snapshot + journal hierarchy. `RecoveryManager`
+loads the checkpoint snapshot, replays the WAL journal, and returns
+reconstructed state for DAG resume. `--wal-replay replay|verify|dry-run`
+is wired; `--resume-from` selects a specific snapshot.
 
 ### P0.2 Global max-duration deadline budgeting
 **Target file:**

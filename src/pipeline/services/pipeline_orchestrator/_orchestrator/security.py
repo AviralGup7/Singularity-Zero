@@ -150,14 +150,13 @@ async def run_secured(
     tool_status: dict[str, Any],
     pre_recovered_state: Any | None = None,
 ) -> int:
-    from src.core.checkpoint import (
-        attempt_recovery,
-        create_checkpoint_manager,
-        generate_run_id,
-    )
+    from src.core.checkpoint import create_checkpoint_manager
+    from src.core.recovery import RecoveryManager, WalReplayMode
 
     started_at = time.time()
     force_fresh = getattr(args, "force_fresh_run", False)
+    resume_from = getattr(args, "resume_from", None) or getattr(config, "_resume_from", None)
+    wal_replay = getattr(args, "wal_replay", None) or "replay"
 
     # Defect 1 fix: Acquire distributed run lock before recovery to prevent
     # split-brain when multiple processes attempt recovery for the same target.
@@ -182,123 +181,60 @@ async def run_secured(
             logger.debug("Recovery lock acquisition failed (non-fatal): %s", exc)
             recovery_lock = None
 
-    # Bug fix: Use pre-recovered state if provided to avoid double recovery
-    # call race where two calls to attempt_recovery() may select different
-    # checkpoints, causing state divergence.
-    if pre_recovered_state is not None:
-        can_recover = True
-        recovered_state = pre_recovered_state
-    else:
-        can_recover, recovered_state = attempt_recovery(
-            Path(config.output_dir),
-            config.target_name,
-            force_fresh=force_fresh,
-            storage_config=config.storage,
-        )
-
+    recovery = RecoveryManager(
+        Path(config.output_dir),
+        config.target_name,
+        redis_url=getattr(config, "redis_url", None),
+        storage_config=config.storage,
+        stage_order=STAGE_ORDER,
+        min_checkpoint_version=CHECKPOINT_MIN_VERSION,
+    )
+    reconstructed = recovery.recover(
+        force_fresh=force_fresh,
+        resume_from=resume_from,
+        wal_replay=wal_replay,
+        pre_recovered_state=pre_recovered_state,
+    )
+    can_recover = reconstructed.can_recover
+    recovered_state = reconstructed.checkpoint
+    recovered_payload = reconstructed.context_payload
+    recovered_completed_stages = set(reconstructed.completed_stages)
+    remaining_stages = list(reconstructed.remaining_stages)
+    run_id = reconstructed.run_id
+    checkpoint_mgr = reconstructed.checkpoint_mgr
+    orchestrator._wal = reconstructed.wal
     ctx = None
-    checkpoint_mgr = None
-    run_id = None
-    remaining_stages: list[str] = []
-    recovered_completed_stages = set()
 
-    if can_recover and recovered_state:
-        rec_run_id = recovered_state.pipeline_run_id
-        recovered_checkpoint_mgr = create_checkpoint_manager(
-            Path(config.output_dir),
-            config.target_name,
-            run_id=rec_run_id,
-            storage_config=config.storage,
+    if can_recover and recovered_state and recovered_payload is not None:
+        logger.info(
+            "Recovery Manager: snapshot+journal resume run=%s source=%s completed=%s",
+            run_id,
+            reconstructed.source,
+            recovered_state.completed_stages,
         )
-        recovered_completed_stages = {
-            str(stage).strip()
-            for stage in (getattr(recovered_state, "completed_stages", []) or [])
-            if str(stage).strip()
-        }
-        if hasattr(recovered_checkpoint_mgr, "load_latest_context_snapshot"):
-            recovered_payload = recovered_checkpoint_mgr.load_latest_context_snapshot(
-                recovered_completed_stages
-            )
-        else:
-            recovered_payload = recovered_state.to_dict()
-        if isinstance(recovered_payload, dict) and {
-            "scope_entries",
-            "stage_status",
-        }.issubset(recovered_payload):
-            # Validate the checkpoint is for the same target AND a
-            # compatible schema version. The previous implementation
-            # accepted any payload with these two top-level keys, so a
-            # stale checkpoint from a previous run with the same target
-            # name would be silently resumed — replaying thousands of
-            # stages against a stale world.
-            payload_target = str(recovered_payload.get("target_name", "")).strip()
-            payload_version = recovered_payload.get("checkpoint_version", 0)
+        ctx = PipelineContext.restore(recovered_payload)
+        _merge_and_diff_scopes(ctx, recovered_completed_stages, scope_entries)
+        remaining_stages = [
+            stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
+        ]
+        if checkpoint_mgr is not None:
+            checkpoint_mgr.save_context_snapshot("_scope_merge", ctx.to_dict())
+        wal = reconstructed.wal
+        if wal is not None and hasattr(wal, "compact_after_snapshot"):
             try:
-                payload_version_int = int(payload_version)
-            except (TypeError, ValueError):
-                payload_version_int = 0
-            if payload_target and payload_target != config.target_name:
-                logger.warning(
-                    "Skipping checkpoint recovery for run=%s: target mismatch (%r != %r)",
-                    rec_run_id,
-                    payload_target,
-                    config.target_name,
-                )
-            elif payload_version_int < CHECKPOINT_MIN_VERSION:
-                logger.warning(
-                    "Skipping checkpoint recovery for run=%s: checkpoint_version %s is below "
-                    "supported minimum %s",
-                    rec_run_id,
-                    payload_version_int,
-                    CHECKPOINT_MIN_VERSION,
-                )
-            else:
-                logger.info(
-                    "Recovering from full context checkpoint: run=%s completed_stages=%s",
-                    rec_run_id,
-                    recovered_state.completed_stages,
-                )
-                ctx = PipelineContext.restore(recovered_payload)
-                _merge_and_diff_scopes(ctx, recovered_completed_stages, scope_entries)
+                from src.core.frontier.state import NeuralState
 
-                # Defect 6 fix: Immediately checkpoint after scope merge to
-                # prevent data loss if a crash occurs before the next stage
-                # saves its own checkpoint. Without this, recovery would
-                # replay WAL deltas for pruned scope entries.
-                checkpoint_mgr = recovered_checkpoint_mgr
-                checkpoint_mgr.save_context_snapshot(
-                    "_scope_merge",
-                    ctx.to_dict(),
-                )
-                # Defect 6 fix: Compact WAL to remove stale deltas for
-                # scope entries that were pruned during the merge.
-                wal = getattr(orchestrator, "_wal", None)
-                if wal is not None and hasattr(wal, "compact_after_snapshot"):
-                    try:
-                        from src.core.frontier.state import NeuralState
-
-                        wal_state = getattr(ctx.result, "_neural_state", None)
-                        if isinstance(wal_state, NeuralState):
-                            wal.compact_after_snapshot(wal_state, keep_entries=500)
-                    except Exception as exc:  # noqa: BLE001
-                        logger.debug("WAL compaction after scope merge failed: %s", exc)
-
-                orchestrator._checkpoint_mgr = checkpoint_mgr
-                run_id = rec_run_id
-                remaining_stages = [
-                    stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
-                ]
-
-        else:
-            logger.warning(
-                "Skipping checkpoint recovery for run=%s: incompatible checkpoint payload "
-                "missing pipeline context fields",
-                rec_run_id,
-            )
-
-    if run_id is None:
-        run_id = generate_run_id()
-        remaining_stages = list(STAGE_ORDER)
+                snap_state = getattr(ctx.result, "_neural_state", None)
+                if isinstance(snap_state, NeuralState):
+                    wal.compact_after_snapshot(snap_state, keep_entries=500)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("WAL compaction after scope merge failed: %s", exc)
+        orchestrator._checkpoint_mgr = checkpoint_mgr
+    elif recovered_state is not None:
+        logger.warning(
+            "Recovery Manager: skipping snapshot for run=%s: incompatible or missing context",
+            recovered_state.pipeline_run_id,
+        )
 
     output_store = PipelineOutputStore.create(
         config.output_dir,
@@ -368,60 +304,57 @@ async def run_secured(
                 },
             )
 
-    # Distributed Write-Ahead Log (WAL)
-    from src.infrastructure.frontier.wal import FrontierWAL
+    if getattr(orchestrator, "_wal", None) is None:
+        from src.infrastructure.frontier.wal import FrontierWAL
 
-    wal_aof_dir = Path(config.output_dir) / ".wal"
-    orchestrator._wal = FrontierWAL(
-        getattr(config, "redis_url", None),
+        wal_aof_dir = Path(config.output_dir) / ".wal"
+        orchestrator._wal = FrontierWAL(
+            getattr(config, "redis_url", None),
+            run_id,
+            aof_dir=wal_aof_dir,
+        )
+    logger.info(
+        "Recovery Manager: WAL journal ready stream=cyber:wal:%s source=%s mode=%s",
         run_id,
-        aof_dir=wal_aof_dir,
+        reconstructed.source,
+        reconstructed.mode.value,
     )
-    logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
-    if can_recover and recovered_state and hasattr(orchestrator._wal, "recover_state"):
-        try:
-            # 1. Rebuild CRDT state from WAL snapshot + delta replay
-            wal_state = orchestrator._wal.recover_state()
-            if (
-                wal_state is not None
-                and ctx is not None
-                and ctx.result is not None
-                and hasattr(ctx.result, "_neural_state")
-            ):
-                ctx.result._neural_state.merge(wal_state)
-
-                # 2. Replay raw deltas through apply_state_delta so non-CRDT fields
-                #    (live_hosts, parameters, module_metrics, etc.) are also recovered.
-                for entry in orchestrator._wal.recover_deltas():
-                    delta = entry.get("delta")
+    wal_state = reconstructed.wal_state
+    if (
+        wal_state is not None
+        and ctx is not None
+        and ctx.result is not None
+        and hasattr(ctx.result, "_neural_state")
+    ):
+        ctx.result._neural_state.merge(wal_state)
+        # Replay raw journal deltas so non-CRDT fields (live_hosts,
+        # parameters, module_metrics) come back with the snapshot.
+        wal = getattr(orchestrator, "_wal", None)
+        if (
+            wal is not None
+            and hasattr(wal, "recover_deltas")
+            and hasattr(ctx.result, "apply_state_delta")
+        ):
+            try:
+                for entry in wal.recover_deltas():
+                    delta = entry.get("delta") if isinstance(entry, dict) else None
                     if isinstance(delta, dict):
                         delta.setdefault("_wal_id", entry.get("id"))
                         ctx.result.apply_state_delta(delta)
-
-                # 3. Sync context fields from neural state
-                ctx.subdomains = ctx.result._neural_state.subdomains.to_set()
-                ctx.urls = ctx.result._neural_state.urls.to_set()
-                ctx.reportable_findings = list(ctx.result._neural_state.findings.values())
-                logger.info(
-
-                    "WAL replay: merged %d subdomains, %d urls, %d findings into recovered context "
-                    "for run %s",
-                    len(ctx.subdomains),
-                    len(ctx.urls),
-                    len(ctx.reportable_findings),
-                    run_id,
-
-                    "WAL replay: merged %d subdomains, %d urls, %d findings "
-                    "into recovered context for run %s",
-                    len(ctx.subdomains), len(ctx.urls), len(ctx.reportable_findings), run_id,
-
-                )
-            else:
-                logger.debug(
-                    "WAL recover_state returned None or context not ready for run %s", run_id
-                )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Frontier WAL recover_state failed for run %s: %s", run_id, exc)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("WAL apply_state_delta replay failed: %s", exc)
+        ctx.subdomains = ctx.result._neural_state.subdomains.to_set()
+        ctx.urls = ctx.result._neural_state.urls.to_set()
+        ctx.reportable_findings = list(ctx.result._neural_state.findings.values())
+        logger.info(
+            "WAL journal applied: %d subdomains, %d urls, %d findings (run %s)",
+            len(ctx.subdomains),
+            len(ctx.urls),
+            len(ctx.reportable_findings),
+            run_id,
+        )
+    if reconstructed.mode is WalReplayMode.VERIFY and reconstructed.verify_report:
+        logger.info("WAL verify report: %s", reconstructed.verify_report)
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
@@ -517,11 +450,17 @@ async def run_secured(
     stage_methods = orchestrator._build_stage_methods()
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) or not reconstructed.execute_stages:
         logger.info(
-            "Dry-run mode: config and tools validated successfully; skipping stage execution."
+            "Dry-run / WAL dry-run: reconstructed source=%s remaining=%s; skipping stage execution.",
+            reconstructed.source,
+            remaining_stages,
         )
-        print(f"Dry run complete. scope_entries: {scope_entries}", flush=True)
+        print(
+            f"Dry run complete. source={reconstructed.source} "
+            f"remaining_stages={remaining_stages} scope_entries: {scope_entries}",
+            flush=True,
+        )
         emit_progress("startup", "Dry-run complete", 100, status="completed")
         return 0
 

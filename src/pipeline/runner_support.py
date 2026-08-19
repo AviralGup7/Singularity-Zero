@@ -129,6 +129,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Checkpoint run ID to resume from (skips completed stages).",
     )
     parser.add_argument(
+        "--wal-replay",
+        default="replay",
+        dest="wal_replay",
+        choices=["replay", "verify", "dry-run"],
+        help="WAL journal mode on resume: replay (default), verify snapshot-vs-journal, "
+        "or dry-run (reconstruct remaining stages without executing).",
+    )
+    parser.add_argument(
         "--replay-stage",
         default=None,
         dest="replay_stage",
