@@ -380,8 +380,19 @@ async def run_secured(
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
     if can_recover and recovered_state and hasattr(orchestrator._wal, "recover_state"):
         try:
-            orchestrator._wal.recover_state()
-            logger.info("Frontier WAL recovered for run %s", run_id)
+            wal_state = orchestrator._wal.recover_state()
+            if wal_state is not None and ctx is not None and ctx.result is not None and hasattr(ctx.result, "_neural_state"):
+                ctx.result._neural_state.merge(wal_state)
+                ctx.subdomains = ctx.result._neural_state.subdomains.to_set()
+                ctx.urls = ctx.result._neural_state.urls.to_set()
+                ctx.reportable_findings = list(ctx.result._neural_state.findings.values())
+                logger.info(
+                    "WAL replay: merged %d subdomains, %d urls, %d findings into recovered context "
+                    "for run %s",
+                    len(ctx.subdomains), len(ctx.urls), len(ctx.reportable_findings), run_id,
+                )
+            else:
+                logger.debug("WAL recover_state returned None or context not ready for run %s", run_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Frontier WAL recover_state failed for run %s: %s", run_id, exc)
 
