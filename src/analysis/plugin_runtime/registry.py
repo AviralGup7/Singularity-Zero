@@ -21,6 +21,23 @@ ANALYZER_BINDING = "analyzer_binding"
 _BINDINGS_REGISTERED = False
 
 
+_INPUT_KIND_TO_CONSUMES: dict[str, tuple[str, ...]] = {
+    "responses_only": ("responses",),
+    "urls_only": ("urls",),
+    "priority_urls_and_cache": ("priority_urls", "response_cache"),
+    "priority_urls_only": ("priority_urls",),
+    "urls_and_responses": ("urls", "responses"),
+    "ranked_items_and_cache": ("ranked_items", "response_cache"),
+    "responses_and_bulk_items": ("responses", "bulk_items"),
+    "behavior_analysis": ("urls", "responses"),
+    "header_targets_and_cache": ("header_targets", "response_cache"),
+    "urls_and_cache": ("urls", "response_cache"),
+    "dynamic_analysis_context": ("urls", "responses"),
+    "flow_items_and_cache": ("flow_items", "response_cache"),
+    "flow_items_only": ("flow_items",),
+}
+
+
 def _binding(
     input_kind: str,
     runner: Callable[..., list[dict[str, Any]]] | None = None,

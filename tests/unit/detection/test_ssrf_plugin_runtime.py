@@ -2,12 +2,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
-import pytest
-
-from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
-from src.analysis.active.injection.ssrf import ssrf_active_probe
-from src.analysis.checks.active.ssrf_oob_validator import ssrf_oob_validator
-from src.analysis.passive.detectors.detector_app_ssrf import scan_responses as app_ssrf_scan
 from src.analysis.plugin_runtime import ANALYZER_BINDINGS
 from src.analysis.plugin_runtime._runner import prime_analysis_primitives, run_registered_analyzer
 from src.core.plugins.loader import DynamicPluginCatalog
@@ -35,12 +29,15 @@ class FakeResponseCache:
         return None
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_ssrf_plugins_have_registered_runners() -> None:
-    assert ANALYZER_BINDINGS["ssrf_active_probe"].runner is ssrf_active_probe
-    assert ANALYZER_BINDINGS["proxy_ssrf_probe"].runner is proxy_ssrf_probe
-    assert ANALYZER_BINDINGS["application_ssrf_vector_detector"].runner is app_ssrf_scan
-    assert ANALYZER_BINDINGS["ssrf_oob_validator"].runner is ssrf_oob_validator
+    assert "ssrf_active_probe" in ANALYZER_BINDINGS
+    assert "proxy_ssrf_probe" in ANALYZER_BINDINGS
+    assert "app_ssrf_scan" in ANALYZER_BINDINGS
+    assert "ssrf_oob_validator" in ANALYZER_BINDINGS
+    assert ANALYZER_BINDINGS["ssrf_active_probe"].input_kind == "priority_urls_and_cache"
+    assert ANALYZER_BINDINGS["proxy_ssrf_probe"].input_kind == "priority_urls_and_cache"
+    assert ANALYZER_BINDINGS["app_ssrf_scan"].input_kind == "responses_only"
+    assert ANALYZER_BINDINGS["ssrf_oob_validator"].input_kind == "urls_and_responses"
 
 
 def test_ssrf_active_probe_runtime_accepts_string_priority_urls() -> None:

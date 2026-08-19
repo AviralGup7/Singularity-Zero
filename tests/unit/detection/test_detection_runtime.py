@@ -1,5 +1,3 @@
-import pytest
-
 """Tests for detection runtime module."""
 
 from src.analysis.plugin_runtime import AnalysisExecutionContext
@@ -141,7 +139,6 @@ class TestDetectionDispatch:
 
         assert set(result.keys()) == set(ANALYZER_BINDINGS.keys())
 
-    @pytest.mark.skip(reason="pre-existing contract drift on remote CI")
     def test_access_control_and_idor_plugins_emit_findings_from_representative_fixtures(
         self,
     ) -> None:

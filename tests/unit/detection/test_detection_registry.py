@@ -236,7 +236,6 @@ class TestDetectionRegistry:
         for plugin in DETECTION_PLUGINS:
             assert plugin.group in valid_groups
 
-    @pytest.mark.skip(reason="pre-existing contract drift on remote CI")
     def test_plugin_input_kinds_are_valid(self) -> None:
         from src.detection.registry import DETECTION_PLUGINS
 
@@ -252,6 +251,8 @@ class TestDetectionRegistry:
             "header_targets_and_cache",
             "urls_and_cache",
             "dynamic_analysis_context",
+            "flow_items_and_cache",
+            "flow_items_only",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.input_kind in valid_kinds

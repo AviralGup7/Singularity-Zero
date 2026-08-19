@@ -66,7 +66,6 @@ def test_isolated_runner_kills_infinite_loop_at_budget_wall() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 async def test_try_probe_replaces_unpicklable_response_cache_for_child_process() -> None:
     name, findings, ok = await _try_probe(
         "sqli",

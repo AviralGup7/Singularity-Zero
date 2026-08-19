@@ -24,8 +24,9 @@ warnings.warn(
 # Keep legacy Config importable for backward compatibility
 # Re-export canonical implementations from typed_config
 # Re-export private helpers for backward compatibility with tests
-from src.core.config.typed_config import (  # noqa: E402  # noqa: E402
+from src.core.config.typed_config import (  # noqa: E402
     ValidatedPipelineConfig,
+    _resolve_storage_config,
     apply_adaptive_overrides,
     load_config,
 )
@@ -36,4 +37,5 @@ __all__ = [
     "Config",
     "load_config",
     "ValidatedPipelineConfig",
+    "_resolve_storage_config",
 ]

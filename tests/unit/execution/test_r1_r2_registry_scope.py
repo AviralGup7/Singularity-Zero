@@ -1,5 +1,3 @@
-import pytest
-
 """Tests for R1 (registry unification) and R2 (scope enforcement) and Bug G (cache key)."""
 
 import unittest
@@ -58,7 +56,6 @@ class TestR1RegistryUnification(unittest.TestCase):
         ):
             self.assertIn(name, registry_builder.VALIDATOR_REGISTRY)
 
-    @pytest.mark.skip(reason="pre-existing contract drift on remote CI")
     def test_engine_registry_matches_facade(self) -> None:
         engine = set(build_validator_registry().keys())
         facade = set(registry_builder.VALIDATOR_REGISTRY.keys())
