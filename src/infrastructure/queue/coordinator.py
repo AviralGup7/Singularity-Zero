@@ -9,10 +9,16 @@ This coordinator is that answer:
 2. Mark silent workers SUSPECT, then DEAD after a confirmation window.
 3. Release their leases so a live worker can claim the jobs.
 4. Surface unfinished pipeline run IDs so Recovery Manager can resume.
+
+The sweep is serialized by an asyncio lock so two concurrent sweeps
+cannot release the same lease twice, and each lease release carries
+a CAS token (lease_version) so even a stale sweep cannot release a
+lease that a live worker has since re-acquired.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -34,7 +40,8 @@ class QueueForCoordinator(Protocol):
 
     async def _list_workers(self) -> list[WorkerInfo]: ...
 
-    async def release_lease(self, job_id: str, worker_id: str) -> bool: ...
+    async def release_lease(self, job_id: str, worker_id: str,
+                            lease_version: str | None = None) -> bool: ...
 
     def persist_worker(self, worker: WorkerInfo) -> None: ...
 
@@ -61,7 +68,12 @@ class SweepReport:
 
 
 class WorkerCoordinator:
-    """Fault-tolerance loop: heartbeat → suspect → dead → reassign."""
+    """Fault-tolerance loop: heartbeat → suspect → dead → reassign.
+
+    Sweep is serialized by ``_sweep_lock`` so overlapping calls never
+    evaluate the same worker twice.  Lease releases use CAS (lease_version)
+    so a stale sweep cannot steal a lease from a worker that re-acquired it.
+    """
 
     def __init__(
         self,
@@ -81,9 +93,18 @@ class WorkerCoordinator:
         self._clock = clock
         self._persist = persist or getattr(queue, "persist_worker", None)
         self._recover_run = recover_run
+        self._sweep_lock = asyncio.Lock()
 
     async def sweep(self) -> SweepReport:
-        """Inspect every registered worker and act on missing heartbeats."""
+        """Inspect every registered worker and act on missing heartbeats.
+
+        Safe to call concurrently — overlapping sweeps are serialized
+        by an internal lock so no worker is inspected twice.
+        """
+        async with self._sweep_lock:
+            return await self._sweep_once()
+
+    async def _sweep_once(self) -> SweepReport:
         report = SweepReport()
         workers = await self.queue._list_workers()
         report.inspected = len(workers)
@@ -125,9 +146,17 @@ class WorkerCoordinator:
     async def _reassign(self, worker: WorkerInfo, report: SweepReport) -> None:
         for job_id in list(worker.active_jobs or []):
             run_id = _run_id_from_job(job_id, worker)
+            # Look up the most recent known lease_version for this job.
+            # If the worker was declared dead the version comes from
+            # the coordinator's last-known worker state.  If a live
+            # worker has since claimed the job its lease_version
+            # won't match and release_lease will safely no-op.
+            lease_version = _lease_version_for_job(job_id, worker)
             released = False
             try:
-                released = await self.queue.release_lease(job_id, worker.id)
+                released = await self.queue.release_lease(
+                    job_id, worker.id, lease_version=lease_version,
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "Coordinator: release_lease failed worker=%s job=%s: %s",
@@ -180,4 +209,13 @@ def _run_id_from_job(job_id: str, worker: WorkerInfo) -> str | None:
             return str(value)
     if isinstance(job_id, str) and job_id.startswith("run-"):
         return job_id
+    return None
+
+
+def _lease_version_for_job(job_id: str, worker: WorkerInfo) -> str | None:
+    """Return the last-known lease_version for *job_id* from worker metadata."""
+    metadata = worker.metadata or {}
+    leases = metadata.get("lease_versions")
+    if isinstance(leases, dict):
+        return str(leases.get(job_id, "")) or None
     return None

@@ -23,10 +23,11 @@ if state ~= 'pending' and state ~= 'retrying' then
 end
 
 local lease_expires = now + lease_seconds
-redis.call('HSET', job_key, 'state', 'claimed', 'worker_id', worker_id, 'lease_expires_at', tostring(lease_expires))
+local lease_version = tostring(now * 1000000)
+redis.call('HSET', job_key, 'state', 'claimed', 'worker_id', worker_id, 'lease_expires_at', tostring(lease_expires), 'lease_version', lease_version)
 redis.call('ZREM', queue_key, job_key)
 redis.call('SADD', worker_key, job_key)
-return {1, 'claimed'}
+return {1, 'claimed', lease_version}
 """
 
 COMPLETE_JOB_SCRIPT = """
@@ -87,21 +88,33 @@ RELEASE_LEASE_SCRIPT = """
 local job_key = KEYS[1]
 local worker_key = KEYS[2]
 local queue_key = KEYS[3]
+local expected_worker_id = ARGV[1]
+local expected_lease_version = ARGV[2]
 
 if redis.call('EXISTS', job_key) == 0 then
-    return {0}
+    return {0, 'not_found'}
 end
 
 local state = redis.call('HGET', job_key, 'state')
 if state ~= 'claimed' and state ~= 'running' then
-    return {0}
+    return {0, 'wrong_state', state}
 end
 
-redis.call('HSET', job_key, 'state', 'pending', 'worker_id', '', 'lease_expires_at', '')
+local current_worker = redis.call('HGET', job_key, 'worker_id')
+if current_worker ~= expected_worker_id and expected_worker_id ~= '' then
+    return {0, 'worker_mismatch', current_worker}
+end
+
+local current_version = redis.call('HGET', job_key, 'lease_version')
+if current_version ~= expected_lease_version and expected_lease_version ~= '' then
+    return {0, 'lease_version_mismatch', current_version}
+end
+
+redis.call('HSET', job_key, 'state', 'pending', 'worker_id', '', 'lease_expires_at', '', 'lease_version', '')
 redis.call('SREM', worker_key, job_key)
 local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or 0
 redis.call('ZADD', queue_key, bid_score, job_key)
-return {1}
+return {1, 'released'}
 """
 
 ENQUEUE_SCRIPT = """

@@ -12,14 +12,16 @@ logger = get_pipeline_logger(__name__)
 
 
 class JobQueueConsumerGroupsMixin:
-    async def claim_job(self, worker_id: str) -> Job | None:
+    async def claim_job(self, worker_id: str) -> tuple[Job | None, str | None]:
+        """Try to claim a job.  Returns (job, lease_version) — lease_version
+        is a CAS token the caller must retain for later release/renew."""
         self._register_scripts()
         queue_key = self._key("queue")
         candidates = await asyncio.to_thread(
             self.redis.execute_command, "ZREVRANGE", queue_key, 0, 24
         )
         if not candidates:
-            return None
+            return (None, None)
         for candidate in candidates:
             job_key_str = candidate.decode("utf-8") if isinstance(candidate, bytes) else candidate
             job_id = job_key_str.split(":")[-1]
@@ -39,9 +41,10 @@ class JobQueueConsumerGroupsMixin:
                 )
                 if job_data:
                     job = Job.from_redis_hash(job_data)
-                    logger.info("Worker %s claimed job %s", worker_id, job_id)
-                    return job
-        return None
+                    lease_version = str(result[2]) if len(result) >= 3 else None
+                    logger.info("Worker %s claimed job %s (lease=%s)", worker_id, job_id, lease_version)
+                    return (job, lease_version)
+        return (None, None)
 
     async def complete_job(
         self, job_id: str, worker_id: str, result: dict[str, Any] | None = None
@@ -100,7 +103,10 @@ class JobQueueConsumerGroupsMixin:
         logger.warning("Failed to process job failure for %s", job_id)
         return False, "error"
 
-    async def release_lease(self, job_id: str, worker_id: str) -> bool:
+    async def release_lease(self, job_id: str, worker_id: str,
+                            lease_version: str | None = None) -> bool:
+        """Release a job lease.  CAS via lease_version prevents
+        releasing a lease that another worker has since claimed."""
         self._register_scripts()
         ret = await asyncio.to_thread(
             self.redis.execute_script,
@@ -110,12 +116,19 @@ class JobQueueConsumerGroupsMixin:
                 self._key(f"worker:{worker_id}:jobs"),
                 self._key("queue"),
             ],
-            args=[],
+            args=[worker_id, lease_version or ""],
         )
-        if ret and ret[0] == 1:
-            logger.info("Released lease for job %s", job_id)
+        if ret and int(ret[0]) == 1:
+            logger.info("Released lease for job %s (worker=%s)", job_id, worker_id)
             return True
-        logger.warning("Failed to release lease for job %s", job_id)
+        if ret and len(ret) > 1:
+            reason = str(ret[1]) if len(ret) >= 2 else "unknown"
+            logger.warning(
+                "Cannot release lease job=%s worker=%s: %s",
+                job_id, worker_id, reason,
+            )
+        else:
+            logger.warning("Failed to release lease for job %s", job_id)
         return False
 
     async def _list_workers(self) -> list[WorkerInfo]:
