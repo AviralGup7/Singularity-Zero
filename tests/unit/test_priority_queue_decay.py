@@ -1,7 +1,5 @@
 import time
 
-import pytest
-
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
 
 
@@ -56,7 +54,6 @@ def test_priority_queue_boost_decay() -> None:
     assert abs(target.effective_priority - 31.0) < 0.05
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_queue_pop_resolves_decay_and_aging() -> None:
     """Verify that popping from CorrelationPriorityQueue re-heapifies items using effective priority."""
     t1 = ScanTarget(url="http://example.com/t1", base_priority=10.0, current_priority=10.0)

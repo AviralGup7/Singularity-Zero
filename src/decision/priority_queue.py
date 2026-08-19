@@ -335,6 +335,14 @@ class CorrelationPriorityQueue:
     # Core queue operations
     # ------------------------------------------------------------------
 
+    def _refresh_heap(self) -> None:
+        """Recompute bids and restore heap order after aging/decay."""
+        for target in self._targets:
+            target.refresh_bid()
+        heapq.heapify(self._targets)
+        for index, target in enumerate(self._targets):
+            target.heap_idx = index
+
     def pop(self) -> ScanTarget | None:
         """Remove and return the highest-priority target.
 
@@ -342,8 +350,10 @@ class CorrelationPriorityQueue:
         with self._lock:
             if not self._targets:
                 return None
-            self._targets[0].refresh_bid()
+            self._refresh_heap()
             target = heapq.heappop(self._targets)
+            for index, remaining in enumerate(self._targets):
+                remaining.heap_idx = index
             target.scanned = True
             self._pop_count += 1
             return target
@@ -353,8 +363,8 @@ class CorrelationPriorityQueue:
         with self._lock:
             if not self._targets:
                 return None
-            self._targets[0].refresh_bid()
-            return self._targets[0] if self._targets else None
+            self._refresh_heap()
+            return self._targets[0]
 
     def push(self, target: ScanTarget) -> None:
         """Add a new target to the queue.

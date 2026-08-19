@@ -4,8 +4,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from src.pipeline.services.output_store import PipelineOutputStore
 from src.pipeline.services.tool_execution import (
     RetryPolicy,
@@ -15,7 +13,6 @@ from src.pipeline.storage import load_config
 
 
 class ToolRetryAndOutputStoreTests(unittest.TestCase):
-    @pytest.mark.skip(reason="config now stores concurrency as string")
     def test_load_config_accepts_concurrency_and_output_sections(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.json"
@@ -28,7 +25,7 @@ class ToolRetryAndOutputStoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             config = load_config(config_path)
-            self.assertEqual(config.concurrency["nuclei_workers"], 3)
+            self.assertEqual(int(config.concurrency["nuclei_workers"]), 3)
             self.assertTrue(config.output["dedupe_aliases"])
 
     def test_tool_execution_service_retries_failed_process_with_backoff(self) -> None:

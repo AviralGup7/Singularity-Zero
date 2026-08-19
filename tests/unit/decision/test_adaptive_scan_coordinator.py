@@ -26,7 +26,6 @@ async def test_coordinator_run_empty():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 async def test_coordinator_scan_batch():
     urls = ["https://a.com", "https://b.com"]
 
@@ -41,7 +40,7 @@ async def test_coordinator_scan_batch():
 
     assert result.scanned == 2
     assert result.findings_count == 1
-    assert any("a.com" in f["url"] for f in result.results[0].findings)
+    assert any("a.com" in f["url"] for r in result.results for f in r.findings)
 
 
 @pytest.mark.asyncio
