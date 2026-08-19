@@ -261,14 +261,26 @@ class WebSocketActiveProbe:
                 break
             try:
                 hdr = await asyncio.wait_for(reader.readexactly(2), timeout=self.frame_timeout)
+                extra = 0
+                length7 = hdr[1] & 0x7F
+                if length7 == 126:
+                    extra += 2
+                elif length7 == 127:
+                    extra += 8
+                if hdr[1] & 0x80:
+                    extra += 4
+                if extra:
+                    hdr += await asyncio.wait_for(
+                        reader.readexactly(extra), timeout=self.frame_timeout
+                    )
                 decoded = _decode_frame_header(hdr)
                 if not decoded:
                     continue
-                _, _, length, header_end = decoded
+                _fin, opcode, length, _header_end = decoded
                 body = await asyncio.wait_for(
                     reader.readexactly(length), timeout=self.frame_timeout
                 )
-                received.append((_OP_TEXT, body))
+                received.append((opcode, body))
             except TimeoutError as exc:
                 logger.warning("Operation failed in active_probe.py: %s", exc, exc_info=True)  # noqa: BLE001
             except (ConnectionError, OSError) as exc:

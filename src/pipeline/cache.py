@@ -144,20 +144,15 @@ def response_cache_fresh(
     max_age_seconds = ttl_hours * 3600
     if age_seconds < max_age_seconds:
         return True
-    if ttl_mode == TTLMode.STALE_WHILE_REVALIDATE and background_callback is not None:
+    stale_limit = (
+        stale_threshold_hours * 3600 if stale_threshold_hours is not None else max_age_seconds
+    )
+    if (
+        ttl_mode == TTLMode.STALE_WHILE_REVALIDATE
+        and age_seconds < stale_limit
+        and background_callback is not None
+    ):
         background_callback(record)
-    return False
-    try:
-        fetched_at = float(record.get("cached_at_epoch", 0))
-    except (TypeError, ValueError):
-        return False
-    if fetched_at <= 0:
-        return False
-    if content_hash and record.get("content_hash") != content_hash:
-        return False
-    age_seconds = time.time() - fetched_at
-    max_age_seconds = ttl_hours * 3600
-    if age_seconds < max_age_seconds:
         return True
     if ttl_mode == TTLMode.STALE_WHILE_REVALIDATE and background_callback is not None:
         background_callback(record)

@@ -121,6 +121,10 @@ class AuthFlowRunner:
         ctx = SessionContext()
         for i, step in enumerate(spec.steps):
             status, headers, body, set_cookies = await self._invoke(step)
+            if status >= 400:
+                raise RuntimeError(
+                    f"AuthFlowRunner step {i} ({step.method} {step.url}) failed with HTTP {status}"
+                )
             for raw in set_cookies:
                 cookie_name, cookie_value = _parse_set_cookie(raw)
                 if cookie_name:
@@ -175,6 +179,8 @@ class AuthFlowRunner:
         if not ctx.is_expired():
             return ctx
         status, headers, body, set_cookies = await self._invoke(refresh)
+        if status >= 400:
+            raise RuntimeError(f"AuthFlowRunner refresh failed with HTTP {status}")
         for raw in set_cookies:
             name, value = _parse_set_cookie(raw)
             if name:

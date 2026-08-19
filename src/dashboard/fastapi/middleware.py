@@ -79,6 +79,15 @@ def _extract_real_client_ip(request: Request) -> str:
     the RFC 7239 ``Forwarded`` header, and only use the socket peer
     as a last resort.
     """
+    trusted = os.getenv("TRUSTED_PROXIES", "").strip()
+    peer = request.client.host if request.client is not None else ""
+    if trusted:
+        allowed = {p.strip() for p in trusted.split(",") if p.strip()}
+        if peer not in allowed:
+            return peer or "unknown"
+    elif os.getenv("APP_ENV") == "production":
+        # Do not honor client-supplied XFF unless TRUSTED_PROXIES is set.
+        return peer or "unknown"
     fwd_for = request.headers.get(_FORWARDED_HEADER, "")
     if fwd_for:
         # Take the left-most IP - that's the original client. Limit the
