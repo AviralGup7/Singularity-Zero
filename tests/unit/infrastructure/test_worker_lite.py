@@ -142,7 +142,6 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.asyncio
     @patch("asyncio.create_subprocess_exec")
-    @pytest.mark.skip(reason="LiteWorker lua sha contract changed")
     async def test_process_job_failure(self, mock_subprocess: MagicMock) -> None:
         # Mock failing subprocess execution
         mock_process = AsyncMock()
@@ -235,7 +234,6 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
             )
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="LiteWorker lua sha contract changed")
     async def test_cleanup(self) -> None:
         worker = LiteWorker(
             worker_id=self.worker_id,
@@ -244,14 +242,12 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         worker._redis = self.mock_redis
         worker._shas = {"release_lease": "release_sha"}
 
-        # Mock active tasks
         task_mock = MagicMock()
-        task_mock.get_name = MagicMock(return_value="job_999")
-        worker._active_tasks.add(task_mock)
+        worker._job_task_map["job_999"] = task_mock
+        self.mock_redis.hget = AsyncMock(return_value="running")
 
         await worker._cleanup()
 
-        # Verify active task lease was released
         self.mock_redis.evalsha.assert_called_with(
             "release_sha",
             3,
@@ -260,7 +256,6 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
             "queue:security-pipeline:queue",
         )
 
-        # Verify worker is deleted
         self.mock_redis.delete.assert_called_with("queue:security-pipeline:worker:test-lite-worker")
         self.mock_redis.srem.assert_called_with("queue:security-pipeline:workers", self.worker_id)
 
