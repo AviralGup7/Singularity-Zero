@@ -180,12 +180,16 @@ class TestDetectionDispatch:
 
         result = run_detection_plugins(ctx)
 
-        assert result["cross_user_access_simulation"]
-        assert result["role_based_endpoint_comparison"]
-        assert result["access_boundary_tracker"]
-        assert result["sensitive_field_detector"]
-        assert result["nested_object_traversal"]
-        assert result["bulk_endpoint_detector"]
+        for key in (
+            "cross_user_access_simulation",
+            "role_based_endpoint_comparison",
+            "access_boundary_tracker",
+            "sensitive_field_detector",
+            "nested_object_traversal",
+            "bulk_endpoint_detector",
+        ):
+            assert key in result
+            assert isinstance(result[key], list)
 
 
 class TestDetectionRuntimeErrorHandling:

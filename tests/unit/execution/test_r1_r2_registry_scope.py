@@ -59,9 +59,10 @@ class TestR1RegistryUnification(unittest.TestCase):
     def test_engine_registry_matches_facade(self) -> None:
         engine = set(build_validator_registry().keys())
         facade = set(registry_builder.VALIDATOR_REGISTRY.keys())
-        # Engine registry can be a superset (sandbox validators) but must
-        # contain all facade entries.
-        self.assertTrue(facade.issubset(engine))
+        # Pipeline-stage validators are registered in the facade but excluded
+        # from the engine to avoid double-execution.
+        excluded = {"access_control", "validation"}
+        self.assertTrue((facade - excluded).issubset(engine))
 
     def test_order_contains_new_validators(self) -> None:
         for name in (

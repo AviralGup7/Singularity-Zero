@@ -51,6 +51,8 @@ def _binding(
     produces: tuple[str, ...] = (),
 ) -> AnalyzerBinding:
     """Create an analyzer binding for the plugin runtime engine."""
+    if not consumes:
+        consumes = _INPUT_KIND_TO_CONSUMES.get(input_kind, ())
     return AnalyzerBinding(
         input_kind=input_kind,
         runner=runner,

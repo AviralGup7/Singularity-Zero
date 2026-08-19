@@ -267,130 +267,91 @@ async def _try_probe(
             error_accumulator.append({"probe": name, "reason": reason, "message": message})
         return name, [], False
 
+    active_manifest = None
     try:
         from src.core.contracts.protocol_registry import get_active_manifest_registry
 
         _registry = get_active_manifest_registry()
-        active_manifest = (manifest or (_registry.get(name) if _registry else None)).with_timeout(
-            timeout_seconds
-        )
-    except (AttributeError, KeyError):
+        candidate = manifest or (_registry.get(name) if _registry else None)
+        if candidate is not None and hasattr(candidate, "with_timeout"):
+            active_manifest = candidate.with_timeout(timeout_seconds)
+        else:
+            active_manifest = candidate
+    except (AttributeError, KeyError, TypeError):
         active_manifest = None
 
-        if (
-            active_manifest is not None
-            and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off"
-        ):
-            _RESPONSE_CACHE_CAP = "response_cache"
-            try:
-                from src.core.contracts.protocol_registry import get_isolated_execution
-
-                _isolated_fn = get_isolated_execution()
-            except ImportError:
-                _isolated_fn = None
-
-            if _isolated_fn is None:
-                # Fallback: try direct import if protocol not registered yet
-                try:
-                    from src.execution.isolated import (
-                        replace_unpicklable_response_caches,
-                        run_callable_isolated,
-                    )
-                except ImportError:
-                    replace_unpicklable_response_caches = None
-                    run_callable_isolated = None
-            else:
-                # The isolated execution protocol returns a callable that
-                # wraps the isolated runner. We use it directly.
-                run_callable_isolated = _isolated_fn
-                # replace_unpicklable_response_caches is not part of the
-                # protocol; fall back to direct import for it.
-                try:
-                    from src.execution.isolated import replace_unpicklable_response_caches
-                except ImportError:
-                    replace_unpicklable_response_caches = None
-
-            isolated_args = args
-            isolated_kwargs = kwargs
-            if (
-                active_manifest.required_capabilities
-                and _RESPONSE_CACHE_CAP in active_manifest.required_capabilities
-            ):
-                if replace_unpicklable_response_caches is not None:
-                    isolated_args = replace_unpicklable_response_caches(args)
-                    isolated_kwargs = replace_unpicklable_response_caches(kwargs)
-            if run_callable_isolated is not None:
-                result = await asyncio.to_thread(
-                    run_callable_isolated,
-                    probe_fn,
-                    isolated_args,
-                    isolated_kwargs,
-                    active_manifest,
-                )
-            if result.reason == "serialization_error" and os.environ.get("PYTEST_CURRENT_TEST"):
-                logger.debug("Falling back to in-process probe execution for pytest-local callable")
-            elif result.reason == "serialization_error":
-                return _record_failure(
-                    "serialization_error",
-                    f"Probe '{name}' could not enter isolated execution: {result.error}",
-                )
-            else:
-                if not result.ok:
-                    reason = result.reason or "error"
-                    message = (
-                        f"Probe '{name}' failed in isolated process: {result.error}"
-                        if reason != "timeout"
-                        else f"Probe '{name}' timed out after {active_manifest.budget.timeout_seconds}s"
-                    )
-                    return _record_failure(reason, message)
-
-                findings = cast(
-                    list[dict[str, Any]],
-                    result.value
-                    if isinstance(result.value, list)
-                    else ([result.value] if result.value else []),
-                )
-                # Mark success *before* emitting the completion telemetry.
-                # The previous ordering could leave ``success=False`` if
-                # ``emit_progress`` raised, causing the ``finally`` block
-                # to record a false failure after a successful probe.
-                success = True
-                findings_list = findings
-                emit_progress(
-                    "active_scan",
-                    f"Completed active check {name} with {len(findings)} findings",
-                    92,
-                    check_id=name,
-                    sub_stage=name,
-                    telemetry_event_type="check.completed",
-                    targets_done=len(findings),
-                    stage_status="running",
-                )
-                return name, findings, True
-
-        async def _execute_probe() -> object:
-            if inspect.iscoroutinefunction(probe_fn):
-                return await probe_fn(*args, **kwargs)
-
-            result = await asyncio.to_thread(probe_fn, *args, **kwargs)
-            if inspect.isawaitable(result):
-                return await result
-            return result
-
+    isolated_result = None
+    if active_manifest is not None and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off":
+        _RESPONSE_CACHE_CAP = "response_cache"
         try:
-            if timeout_seconds is not None and timeout_seconds > 0:
-                probe_result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
-            else:
-                probe_result = await _execute_probe()
+            from src.core.contracts.protocol_registry import get_isolated_execution
+
+            _isolated_fn = get_isolated_execution()
+        except ImportError:
+            _isolated_fn = None
+
+        replace_unpicklable_response_caches = None
+        run_callable_isolated = None
+        if _isolated_fn is None:
+            try:
+                from src.execution.isolated import (
+                    replace_unpicklable_response_caches,
+                    run_callable_isolated,
+                )
+            except ImportError:
+                replace_unpicklable_response_caches = None
+                run_callable_isolated = None
+        else:
+            run_callable_isolated = _isolated_fn
+            try:
+                from src.execution.isolated import replace_unpicklable_response_caches
+            except ImportError:
+                replace_unpicklable_response_caches = None
+
+        isolated_args = args
+        isolated_kwargs = kwargs
+        if (
+            getattr(active_manifest, "required_capabilities", None)
+            and _RESPONSE_CACHE_CAP in active_manifest.required_capabilities
+            and replace_unpicklable_response_caches is not None
+        ):
+            isolated_args = replace_unpicklable_response_caches(args)
+            isolated_kwargs = replace_unpicklable_response_caches(kwargs)
+        if run_callable_isolated is not None:
+            isolated_result = await asyncio.to_thread(
+                run_callable_isolated,
+                probe_fn,
+                isolated_args,
+                isolated_kwargs,
+                active_manifest,
+            )
+
+    if isolated_result is not None:
+        if isolated_result.reason == "serialization_error" and os.environ.get(
+            "PYTEST_CURRENT_TEST"
+        ):
+            logger.debug("Falling back to in-process probe execution for pytest-local callable")
+        elif isolated_result.reason == "serialization_error":
+            return _record_failure(
+                "serialization_error",
+                f"Probe '{name}' could not enter isolated execution: {isolated_result.error}",
+            )
+        elif not isolated_result.ok:
+            reason = isolated_result.reason or "error"
+            timeout_s = getattr(getattr(active_manifest, "budget", None), "timeout_seconds", None)
+            message = (
+                f"Probe '{name}' failed in isolated process: {isolated_result.error}"
+                if reason != "timeout"
+                else f"Probe '{name}' timed out after {timeout_s}s"
+            )
+            return _record_failure(reason, message)
+        else:
             findings = cast(
                 list[dict[str, Any]],
-                probe_result
-                if isinstance(probe_result, list)
-                else ([probe_result] if probe_result else []),
+                isolated_result.value
+                if isinstance(isolated_result.value, list)
+                else ([isolated_result.value] if isolated_result.value else []),
             )
-            # Mark ``success`` *before* the success-only telemetry emit so
-            # that even if ``emit_progress`` raises (extremely unlikely),
-            # the ``finally`` block below records an accurate status.
             success = True
             findings_list = findings
             emit_progress(
@@ -404,12 +365,43 @@ async def _try_probe(
                 stage_status="running",
             )
             return name, findings, True
-        except TimeoutError:
-            msg = f"Probe '{name}' timed out after {timeout_seconds}s"
-            return _record_failure("timeout", msg)
-        except Exception as exc:
-            msg = f"Probe '{name}' failed: {exc}"
-            return _record_failure("error", msg)
+
+    async def _execute_probe() -> object:
+        if inspect.iscoroutinefunction(probe_fn):
+            return await probe_fn(*args, **kwargs)
+        result = await asyncio.to_thread(probe_fn, *args, **kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    try:
+        if timeout_seconds is not None and timeout_seconds > 0:
+            probe_result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
+        else:
+            probe_result = await _execute_probe()
+        findings = cast(
+            list[dict[str, Any]],
+            probe_result
+            if isinstance(probe_result, list)
+            else ([probe_result] if probe_result else []),
+        )
+        success = True
+        findings_list = findings
+        emit_progress(
+            "active_scan",
+            f"Completed active check {name} with {len(findings)} findings",
+            92,
+            check_id=name,
+            sub_stage=name,
+            telemetry_event_type="check.completed",
+            targets_done=len(findings),
+            stage_status="running",
+        )
+        return name, findings, True
+    except TimeoutError:
+        return _record_failure("timeout", f"Probe '{name}' timed out after {timeout_seconds}s")
+    except Exception as exc:
+        return _record_failure("error", f"Probe '{name}' failed: {exc}")
     finally:
         latency = time.perf_counter() - start_time
         mem_footprint = max(0.0, get_memory_usage() - start_mem)
