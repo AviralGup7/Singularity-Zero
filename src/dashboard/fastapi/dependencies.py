@@ -345,7 +345,7 @@ async def require_worker(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Worker authentication required",
         )
-    if _SECURITY_ENABLED:
+    if _security_enabled():
         principal = Principal(
             user=auth.get("user", ""),
             role=auth.get("role", "viewer"),
@@ -353,7 +353,7 @@ async def require_worker(
             api_key_id=auth.get("api_key_id") or None,
             auth_method=auth.get("auth_method", "api_key"),
         )
-        raise_for_roles(principal, {"operator", "admin", "guest"})
+        raise_for_roles(principal, {"operator", "admin"})
     return auth
 
 

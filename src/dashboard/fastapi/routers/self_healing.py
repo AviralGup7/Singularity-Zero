@@ -7,7 +7,11 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from src.dashboard.fastapi.dependencies import get_tool_execution_service, require_admin, require_auth
+from src.dashboard.fastapi.dependencies import (
+    get_tool_execution_service,
+    require_admin,
+    require_auth,
+)
 
 router = APIRouter(prefix="/api/health/self-healing", tags=["Self-Healing"])
 

@@ -152,8 +152,12 @@ async def handle_triage_websocket(
     run_id: str,
     service: TriageCollaborationService,
 ) -> None:
-    from src.dashboard.fastapi.security import app_secret_key, api_security_enabled
-    from src.websocket_server.auth import AuthenticationError, authenticate_websocket, send_auth_error
+    from src.dashboard.fastapi.security import api_security_enabled, app_secret_key
+    from src.websocket_server.auth import (
+        AuthenticationError,
+        authenticate_websocket,
+        send_auth_error,
+    )
 
     try:
         auth = await authenticate_websocket(

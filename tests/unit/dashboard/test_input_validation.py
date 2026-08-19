@@ -111,8 +111,8 @@ class ValidateJsonPayloadTests(unittest.TestCase):
     def test_rejects_null_bytes(self) -> None:
         self.assertIsNone(validate_json_payload(b'{"key": "val\x00ue"}'))
 
-    def test_rejects_json_array(self) -> None:
-        self.assertIsNone(validate_json_payload(b"[1,2,3]"))
+    def test_wraps_json_array_as_results(self) -> None:
+        self.assertEqual(validate_json_payload(b"[1,2,3]"), {"results": [1, 2, 3]})
 
     def test_rejects_invalid_json(self) -> None:
         self.assertIsNone(validate_json_payload(b"{invalid}"))

@@ -10,16 +10,15 @@ import time
 from pathlib import Path
 from typing import Any
 
-from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import (
-    is_scanner_crash,
-    run_scanner,
-)
-
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
+from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import (
+    is_scanner_crash,
+    run_scanner,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -132,14 +131,8 @@ async def run_git_secret_scan_stage(
             if gitleaks_config.exists():
                 cmd.extend(["--config", str(gitleaks_config)])
 
-            result = subprocess.run(  # noqa: S603
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600,
-                check=False,
-            )
-            if result.returncode not in (0, 1):
+            result = await run_scanner(cmd, timeout=600)
+            if is_scanner_crash(result.returncode):
                 logger.warning("Gitleaks exited with code %d: %s", result.returncode, result.stderr)
 
             if output_file.exists():

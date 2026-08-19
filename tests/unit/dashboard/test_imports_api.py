@@ -9,8 +9,14 @@ class DummyUpload:
         self._content = content
         self.content_type = "application/json"
 
-    async def read(self) -> bytes:
-        return self._content
+    async def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            data = self._content
+            self._content = b""
+            return data
+        chunk = self._content[:size]
+        self._content = self._content[size:]
+        return chunk
 
 
 def test_import_semgrep_writes_file(tmp_path: Path):

@@ -8,16 +8,15 @@ import time
 from pathlib import Path
 from typing import Any
 
-from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import (
-    is_scanner_crash,
-    run_scanner,
-)
-
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
+from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import (
+    is_scanner_crash,
+    run_scanner,
+)
 
 logger = get_pipeline_logger(__name__)
 

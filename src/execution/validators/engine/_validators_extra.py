@@ -103,26 +103,26 @@ class JWTValidator(BaseValidator):
             if not token:
                 continue
             in_scope = (not target_url) or (target_url in in_scope_urls)
+            probe_url = target_url
+
+            def _jwt_evaluate(ctoken: str, url: str = probe_url) -> dict[str, Any]:
+                return cast(dict[str, Any], context.http_client.jwt_probe(ctoken, url))
+
+            def _kid_evaluate(ctoken: str, kid: str, url: str = probe_url) -> dict[str, Any]:
+                return cast(dict[str, Any], context.http_client.jwt_probe(ctoken, url))
+
             try:
                 evaluation = evaluate_jwt(
                     token=token,
                     scoring=scoring,
                     candidate_secrets=candidate_secrets,
                     jwt_evaluate=(
-                        (
-                            lambda ctoken, url=target_url: context.http_client.jwt_probe(
-                                ctoken, url
-                            )
-                        )
+                        _jwt_evaluate
                         if target_url and hasattr(context.http_client, "jwt_probe")
                         else None
                     ),
                     kid_evaluate=(
-                        (
-                            lambda ctoken, kid, url=target_url: context.http_client.jwt_probe(
-                                ctoken, url
-                            )
-                        )
+                        _kid_evaluate
                         if target_url and hasattr(context.http_client, "jwt_probe")
                         else None
                     ),

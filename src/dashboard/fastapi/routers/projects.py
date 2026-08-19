@@ -75,9 +75,9 @@ async def get_project(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Return full project preset including config and scope."""
-    from fastapi import HTTPException
-
     import re
+
+    from fastapi import HTTPException
 
     if not re.fullmatch(r"[A-Za-z0-9_-]+", project_id or ""):
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")

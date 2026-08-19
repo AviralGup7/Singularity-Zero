@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from src.dashboard.fastapi.security import (
     ROLE_ORDER,
+    _sha256_api_key_digest,
     compare_key,
     has_role,
     verify_api_key,
-    _sha256_api_key_digest,
 )
 
 
