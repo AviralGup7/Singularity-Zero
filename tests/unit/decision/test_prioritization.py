@@ -32,7 +32,7 @@ class TestClassifyFinding:
             "combined_signal": "",
         }
         result = classify_finding(item)
-        assert result["decision"] in {"DROP", "LOW"}
+        assert result["decision"] == "DROP"
 
     def test_reproducible_finding_returns_high(self) -> None:
         item = {

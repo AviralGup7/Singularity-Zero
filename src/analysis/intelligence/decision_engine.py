@@ -158,7 +158,16 @@ def classify_finding(
         if is_fp:
             fp_reason = f"Suppressed: matches {fp_category} false-positive pattern"
 
-    if not signal_quality.reportable and not strong_confirmation:
+    weak_signal = (
+        confidence < FINDING_LOW_THRESHOLD
+        and not combined_signal
+        and diff_score == 0
+        and not strong_confirmation
+    )
+
+    if weak_signal:
+        decision = "DROP"
+    elif not signal_quality.reportable and not strong_confirmation:
         decision = "DROP"
     elif fp_reason and not strong_confirmation:
         decision = "DROP"
