@@ -225,7 +225,7 @@ def verify_api_key(api_key: str, stored_hash: str) -> bool:
 def mask_api_key(api_key: str | None = None, prefix: str | None = None) -> str:
     if api_key:
         if len(api_key) <= 10:
-            return f"{api_key[:2]}...{api_key[-2:]}"
+            return "****"
         return f"{api_key[:6]}...{api_key[-4:]}"
     if prefix:
         return f"{prefix}..."

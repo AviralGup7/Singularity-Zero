@@ -341,8 +341,6 @@ class RedisRateLimiter:
                 pipe = self._redis.pipeline()
                 pipe.zremrangebyscore(key, 0, now - window)
                 pipe.zcard(key)
-                pipe.zadd(key, {str(now): now})
-                pipe.expire(key, int(window) + 1)
                 results = pipe.execute()
 
                 count = results[1]
@@ -355,10 +353,14 @@ class RedisRateLimiter:
                         retry_after = max(1, int(window - (now - oldest[0][1])) + 1)
                     return False, 0, retry_after
 
+                admit = self._redis.pipeline()
+                admit.zadd(key, {str(now): now})
+                admit.expire(key, int(window) + 1)
+                admit.execute()
                 return True, limit - (count + 1), None
             except Exception as exc:
                 logger.error("Redis rate limit check failed: %s", exc)
-                return True, 999, None
+                return False, 0, 1
 
         return await asyncio.to_thread(_redis_check)
 

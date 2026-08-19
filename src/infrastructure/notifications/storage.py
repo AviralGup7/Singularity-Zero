@@ -91,10 +91,14 @@ class NotificationStorage:
         entity_id: str | None = None,
         entity_type: str | None = None,
         href: str | None = None,
+        tenant_id: str | None = None,
     ) -> str:
         """Persist a notification and return its ID."""
         notif_id = f"notif-{uuid.uuid4().hex}"
         now = datetime.now(UTC).isoformat()
+        from src.core.tenant_context import TenantContext
+
+        tenant = tenant_id or TenantContext.get_current_tenant() or "default"
 
         with self._lock:
             conn: sqlite3.Connection | None = None
@@ -104,8 +108,8 @@ class NotificationStorage:
                 conn.execute(
                     """INSERT INTO notifications
                        (id, event, priority, title, message, metadata, source,
-                        correlation_id, entity_id, entity_type, href, read, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+                        correlation_id, entity_id, entity_type, href, read, created_at, tenant_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)""",
                     (
                         notif_id,
                         event,
@@ -119,6 +123,7 @@ class NotificationStorage:
                         entity_type,
                         href,
                         now,
+                        tenant,
                     ),
                 )
                 conn.commit()
@@ -196,15 +201,15 @@ class NotificationStorage:
             finally:
                 safe_close(conn)
 
-    def mark_read(self, notification_id: str) -> bool:
+    def mark_read(self, notification_id: str, *, tenant_id: str = "default") -> bool:
         """Mark a single notification as read. Returns True if a row was updated."""
         with self._lock:
             conn: sqlite3.Connection | None = None
             try:
                 conn = sqlite3.connect(self._db_path, timeout=5.0)
                 cursor = conn.execute(
-                    "UPDATE notifications SET read = 1 WHERE id = ? AND read = 0",
-                    (notification_id,),
+                    "UPDATE notifications SET read = 1 WHERE id = ? AND read = 0 AND tenant_id = ?",
+                    (notification_id, tenant_id or "default"),
                 )
                 conn.commit()
                 return cursor.rowcount > 0
@@ -232,13 +237,16 @@ class NotificationStorage:
             finally:
                 safe_close(conn)
 
-    def delete(self, notification_id: str) -> bool:
+    def delete(self, notification_id: str, *, tenant_id: str = "default") -> bool:
         """Delete a single notification."""
         with self._lock:
             conn: sqlite3.Connection | None = None
             try:
                 conn = sqlite3.connect(self._db_path, timeout=5.0)
-                cursor = conn.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
+                cursor = conn.execute(
+                    "DELETE FROM notifications WHERE id = ? AND tenant_id = ?",
+                    (notification_id, tenant_id or "default"),
+                )
                 conn.commit()
                 return cursor.rowcount > 0
             except Exception:

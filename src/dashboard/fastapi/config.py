@@ -73,9 +73,9 @@ class DashboardConfig(BaseSettings):
         # Validate output_root doesn't escape project root (Finding #182)
         resolved_output = self.output_root.resolve()
         resolved_project = self.workspace_root.resolve()
-        if not str(resolved_output).startswith(str(resolved_project)):
+        if not resolved_output.is_relative_to(resolved_project):
             raise ValueError(
-                f"output_root must be within the project root. "
+                "output_root must be within the project root. "
                 f"Got: {resolved_output}, expected under: {resolved_project}"
             )
         # Validate frontend_dist exists; fall back to project-relative path

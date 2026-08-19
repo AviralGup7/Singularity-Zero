@@ -119,8 +119,9 @@ async def mark_notification_read(
 ) -> dict[str, Any]:
     """Mark a single notification as read."""
     storage = _get_storage(request)
-    success = storage.mark_read(notification_id)
-    unread_count = storage.count_unread()
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    success = storage.mark_read(notification_id, tenant_id=tenant_id)
+    unread_count = storage.count_unread(tenant_id=tenant_id)
     return {"success": success, "unread_count": unread_count}
 
 
@@ -145,7 +146,8 @@ async def delete_notification(
 ) -> dict[str, Any]:
     """Delete a single notification."""
     storage = _get_storage(request)
-    success = storage.delete(notification_id)
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    success = storage.delete(notification_id, tenant_id=tenant_id)
     return {"success": success, "deleted": 1 if success else 0}
 
 
@@ -156,7 +158,8 @@ async def delete_all_notifications(
 ) -> dict[str, Any]:
     """Delete all notifications."""
     storage = _get_storage(request)
-    deleted = storage.delete_all()
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    deleted = storage.delete_all(tenant_id=tenant_id)
     return {"success": True, "deleted": deleted}
 
 

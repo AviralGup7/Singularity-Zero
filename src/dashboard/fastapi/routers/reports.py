@@ -129,7 +129,16 @@ async def list_report_library(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
-    return build_report_library(services.query.output_root)  # type: ignore[no-any-return]
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    library = build_report_library(services.query.output_root)
+    reports = [
+        report
+        for report in library.get("reports", [])
+        if is_target_owned_by_tenant(str(report.get("target", "")), tenant_id)
+    ]
+    return {"reports": reports, "total": len(reports)}
 
 
 @router.get(
@@ -147,6 +156,13 @@ async def get_compliance_pdf(
     services: Any = Depends(get_queue_client),
 ) -> FileResponse:
     """Return the compliance attestation PDF for the latest run of *target*."""
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    if not is_target_owned_by_tenant(target, tenant_id):
+        raise HTTPException(
+            status_code=403, detail="Access denied to requested target infrastructure"
+        )
     output_root = services.query.output_root
     run_dir = _get_latest_run_dir_safe(output_root, target)
 

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from src.core.utils.url_validation import is_safe_url
-from src.dashboard.fastapi.dependencies import require_auth
+from src.dashboard.fastapi.dependencies import require_admin
 from src.dashboard.fastapi.validation import validate_url
 from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
 from src.infrastructure.notifications.manager import (
@@ -133,7 +133,7 @@ async def test_webhook(
 @router.post("/test-slack")
 async def test_slack(
     payload: SlackTestRequest,
-    auth: Any = Depends(require_auth),
+    auth: Any = Depends(require_admin),
 ) -> dict[str, Any]:
     """Test a Slack Incoming Webhook integration."""
     _enforce_webhook_rate_limit((auth or {}).get("tenant_id", "default"))

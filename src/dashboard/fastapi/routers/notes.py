@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.dashboard.fastapi.dependencies import (
     check_rate_limit,
@@ -11,6 +11,7 @@ from src.dashboard.fastapi.dependencies import (
     require_admin,
     require_auth,
 )
+from src.dashboard.fastapi.routers.targets.validation import verify_tenant_boundary
 from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     NoteCreateRequest,
@@ -31,14 +32,25 @@ def _validate_target_name(name: str) -> bool:
     return validate_target_name(name)
 
 
+def _enforce_note_tenant(http_request: Request, target_name: str, auth: Any) -> None:
+    tenant_id = (auth or {}).get("tenant_id", "default") if isinstance(auth, dict) else "default"
+    user_id = (auth or {}).get("user") if isinstance(auth, dict) else None
+    verify_tenant_boundary(http_request, target_name, tenant_id, user_id)
+
+
 @router.get(
     "/{target_name}",
     response_model=NoteListResponse,
-    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
     summary="Get notes for a target",
 )
 async def get_notes(
     target_name: str,
+    http_request: Request,
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> NoteListResponse:
@@ -47,6 +59,7 @@ async def get_notes(
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
+    _enforce_note_tenant(http_request, target_name, _auth)
 
     output_root = services.query.output_root
     notes_impl = get_analyst_notes()
@@ -65,12 +78,17 @@ async def get_notes(
     "/{target_name}",
     response_model=NoteResponse,
     status_code=201,
-    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
     summary="Create a new note",
 )
 async def create_note(
     target_name: str,
     request: NoteCreateRequest,
+    http_request: Request,
     _auth: Any = Depends(require_auth),
     _rate_limit: Any = Depends(check_rate_limit),
     services: Any = Depends(get_queue_client),
@@ -80,6 +98,7 @@ async def create_note(
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
+    _enforce_note_tenant(http_request, target_name, _auth)
 
     output_root = services.query.output_root
     notes_impl = get_analyst_notes()
@@ -150,6 +169,7 @@ async def update_note(
         400: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
     },
     summary="Delete a note",
 )
@@ -157,6 +177,7 @@ async def delete_note(
     target_name: str,
     note_id: str,
     finding_id: str,
+    http_request: Request,
     _auth: Any = Depends(require_admin),
     _rate_limit: Any = Depends(check_rate_limit),
     services: Any = Depends(get_queue_client),
@@ -166,6 +187,7 @@ async def delete_note(
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
+    _enforce_note_tenant(http_request, target_name, _auth)
 
     output_root = services.query.output_root
     notes_impl = get_analyst_notes()

@@ -42,8 +42,7 @@ def setup_spa_routes(app: FastAPI) -> None:
                 "<body style='background:#0a0a0a;color:#f85149;"
                 "padding:2rem;font-family:monospace;'>"
                 "<h1>FATAL: Frontend Build Missing</h1>"
-                f"<p>Artifacts not found at: "
-                f"<code>{config.frontend_dist}</code></p>"
+                "<p>Built frontend artifacts were not found.</p>"
                 "<p>Run: <code>cd frontend && npm install && npm run build"
                 "</code></p></body></html>"
             ),
