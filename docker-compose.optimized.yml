@@ -54,7 +54,13 @@ x-healthcheck-dashboard: &healthcheck-dashboard
   start_period: 30s
 
 x-healthcheck-worker: &healthcheck-worker
-  test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD}'); r.ping()"]
+  test:
+    [
+      "CMD",
+      "python",
+      "-c",
+      "import os,time,redis; r=redis.Redis(host=os.environ.get('REDIS_HOST','redis'),port=int(os.environ.get('REDIS_PORT','6379')),password=os.environ.get('REDIS_PASSWORD') or None); q=os.environ.get('WORKER_QUEUE','security-pipeline'); ns=os.environ.get('QUEUE_NAMESPACE','queue'); members=r.smembers(f'{ns}:{q}:workers'); now=time.time(); assert members, 'no registered workers'; assert any((lambda hb: hb and now-float(hb)<90)(r.hget(f'{ns}:{q}:worker:{(wid.decode() if isinstance(wid, bytes) else wid)}','last_heartbeat')) for wid in members)",
+    ]
   interval: 30s
   timeout: 10s
   retries: 3

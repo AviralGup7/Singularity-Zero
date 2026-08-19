@@ -15,12 +15,10 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    # SECURITY: tighten proxy timeouts from 3600s to 60s. The 1-hour
-    # timeout allowed slow-loris style exhaustion attacks. The 60s value
-    # is more than enough for the dashboard's API calls and WebSocket
-    # upgrades (which use a separate wss-connection-timeout).
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # HTTP/API: 60s is enough and stops slow-loris exhaustion.
+    # WebSockets live on a separate Ingress below with a long timeout.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
@@ -41,14 +39,6 @@ spec:
     - host: pipeline.example.com
       http:
         paths:
-          # WebSocket endpoint
-          - path: /ws
-            pathType: Prefix
-            backend:
-              service:
-                name: cyber-dashboard
-                port:
-                  number: 8000
           # API endpoints
           - path: /api
             pathType: Prefix
@@ -77,6 +67,44 @@ spec:
                   number: 8000
           # Default route
           - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+---
+# Long-lived WebSocket / SSE connections need a much higher idle timeout
+# than the API Ingress above. Keep this object dedicated to /ws so the
+# 60s API timeout cannot kill cockpit streams.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cyber-pipeline-ws-ingress
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: ingress-ws
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: ingress-nginx
+  tls:
+    - hosts:
+        - pipeline.example.com
+      secretName: cyber-pipeline-tls
+  rules:
+    - host: pipeline.example.com
+      http:
+        paths:
+          - path: /ws
             pathType: Prefix
             backend:
               service:

@@ -118,11 +118,12 @@ def handle_doctor() -> int:
         redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
         checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))
     except Exception as exc:
-        redis_detail = "Redis offline; transparent fallback to persistent SQLite (output/local_queue.db) active."
-        logger.debug("Redis connection failed: %s", exc)
-        checks.append(
-            ("Redis Connectivity", "[success]PASS (SQLITE FALLBACK)[/success]", redis_detail)
+        redis_detail = (
+            "Redis offline; queue will use the SQLite fallback "
+            "(output/local_queue.db). This is not a full-stack pass."
         )
+        logger.debug("Redis connection failed: %s", exc)
+        checks.append(("Redis Connectivity", "[warning]WARN[/warning]", redis_detail))
 
     env_path = root / ".env"
     env_detail = ""
@@ -199,8 +200,11 @@ def handle_doctor() -> int:
         table.add_row(label, status, detail)
     console.print(table)
 
-    if exit_code == 0:
+    has_warning = any("WARN" in status for _, status, _ in checks)
+    if exit_code == 0 and not has_warning:
         console.print("[success]PASS[/success] All doctor checks passed.")
+    elif exit_code == 0:
+        console.print("[warning]WARN[/warning] Doctor finished with warnings.")
     else:
         console.print(
             Panel(

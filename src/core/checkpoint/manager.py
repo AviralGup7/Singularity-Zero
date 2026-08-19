@@ -153,18 +153,23 @@ class LocalCheckpointStore:
         return self._run_dir(run_id) / "latest.json"
 
     async def save(self, data: CheckpointData) -> str:
+        import os
+
         run_dir = self._run_dir(data.run_id)
         run_dir.mkdir(parents=True, exist_ok=True)
 
         version = data.version
         path = self._version_file(data.run_id, version)
-        path.write_text(data.to_json())
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(data.to_json(), encoding="utf-8")
+        os.replace(tmp, path)
 
-        # Update latest symlink
+        # Atomic pointer file (not a symlink): unlink+symlink raced and
+        # broke on Windows / some container filesystems.
         latest = self._latest_link(data.run_id)
-        if latest.exists() or latest.is_symlink():
-            latest.unlink()
-        latest.symlink_to(path.name)
+        latest_tmp = latest.with_name(latest.name + ".tmp")
+        latest_tmp.write_text(json.dumps({"version": version}), encoding="utf-8")
+        os.replace(latest_tmp, latest)
 
         return f"v{version:06d}"
 
@@ -173,20 +178,26 @@ class LocalCheckpointStore:
             latest = self._latest_link(run_id)
             if not latest.exists() and not latest.is_symlink():
                 return None
-            # ``save`` writes a symlink to ``v000001.json``. Following it with
-            # ``read_text()`` returns checkpoint JSON, which ``int(...)``
-            # cannot parse. Resolve the version from the target filename.
-            target = latest.resolve() if latest.exists() or latest.is_symlink() else None
-            if target is None or not target.exists():
-                return None
-            stem = target.stem
-            if stem.startswith("v") and stem[1:].isdigit():
-                version = int(stem[1:])
-            else:
-                try:
-                    return CheckpointData.from_json(target.read_text())
-                except (ValueError, TypeError):
+            # Prefer the atomic pointer file written by ``save``. Fall
+            # back to a legacy symlink that pointed at ``vNNNNNN.json``.
+            try:
+                pointer = json.loads(latest.read_text(encoding="utf-8"))
+                if isinstance(pointer, dict) and "version" in pointer:
+                    version = int(pointer["version"])
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                version = None
+            if version is None:
+                target = latest.resolve() if latest.exists() or latest.is_symlink() else None
+                if target is None or not target.exists():
                     return None
+                stem = target.stem
+                if stem.startswith("v") and stem[1:].isdigit():
+                    version = int(stem[1:])
+                else:
+                    try:
+                        return CheckpointData.from_json(target.read_text(encoding="utf-8"))
+                    except (ValueError, TypeError):
+                        return None
 
         path = self._version_file(run_id, version)
         if not path.exists():
