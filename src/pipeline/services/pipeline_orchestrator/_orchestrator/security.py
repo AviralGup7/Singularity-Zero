@@ -182,7 +182,6 @@ async def run_secured(
             logger.debug("Recovery lock acquisition failed (non-fatal): %s", exc)
             recovery_lock = None
 
-    print("[INSTRUMENT] run_secured: before attempt_recovery", flush=True)
     # Bug fix: Use pre-recovered state if provided to avoid double recovery
     # call race where two calls to attempt_recovery() may select different
     # checkpoints, causing state divergence.
@@ -196,7 +195,6 @@ async def run_secured(
             force_fresh=force_fresh,
             storage_config=config.storage,
         )
-    print(f"[INSTRUMENT] run_secured: after attempt_recovery can_recover={can_recover}", flush=True)
 
     ctx = None
     checkpoint_mgr = None
@@ -206,14 +204,12 @@ async def run_secured(
 
     if can_recover and recovered_state:
         rec_run_id = recovered_state.pipeline_run_id
-        print("[INSTRUMENT] run_secured: before recovered_checkpoint_mgr", flush=True)
         recovered_checkpoint_mgr = create_checkpoint_manager(
             Path(config.output_dir),
             config.target_name,
             run_id=rec_run_id,
             storage_config=config.storage,
         )
-        print("[INSTRUMENT] run_secured: after recovered_checkpoint_mgr", flush=True)
         recovered_completed_stages = {
             str(stage).strip()
             for stage in (getattr(recovered_state, "completed_stages", []) or [])
@@ -301,12 +297,9 @@ async def run_secured(
             )
 
     if run_id is None:
-        print("[INSTRUMENT] run_secured: before generate_run_id", flush=True)
         run_id = generate_run_id()
         remaining_stages = list(STAGE_ORDER)
-        print(f"[INSTRUMENT] run_secured: after generate_run_id run_id={run_id}", flush=True)
 
-    print("[INSTRUMENT] run_secured: before PipelineOutputStore.create", flush=True)
     output_store = PipelineOutputStore.create(
         config.output_dir,
         config.target_name,
@@ -314,7 +307,6 @@ async def run_secured(
         storage_config=config.storage,
         run_id=run_id,
     )
-    print("[INSTRUMENT] run_secured: after PipelineOutputStore.create", flush=True)
 
     use_cache = cache_enabled(config.cache)
     if ctx is not None:
@@ -380,13 +372,11 @@ async def run_secured(
     from src.infrastructure.frontier.wal import FrontierWAL
 
     wal_aof_dir = Path(config.output_dir) / ".wal"
-    print("[INSTRUMENT] run_secured: before FrontierWAL", flush=True)
     orchestrator._wal = FrontierWAL(
         getattr(config, "redis_url", None),
         run_id,
         aof_dir=wal_aof_dir,
     )
-    print("[INSTRUMENT] run_secured: after FrontierWAL", flush=True)
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
     if can_recover and recovered_state and hasattr(orchestrator._wal, "recover_state"):
         try:
@@ -396,10 +386,6 @@ async def run_secured(
             logger.warning("Frontier WAL recover_state failed for run %s: %s", run_id, exc)
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
-    print(
-        f"[INSTRUMENT] run_secured: before Ghost-Actor check redis_url={getattr(config, 'redis_url', None)}",
-        flush=True,
-    )
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
         from src.infrastructure.frontier.ghost_actor import GhostMeshCoordinator
         from src.infrastructure.frontier.ghost_actor_registry import GhostMeshRegistry
@@ -419,7 +405,6 @@ async def run_secured(
         logger.info("Ghost-Actor Mesh deactivated: running in single-node/no-Redis mode")
 
     scope_entries = list(ctx.scope_entries)
-    print("[INSTRUMENT] run_secured: before pipeline_correlation_id", flush=True)
     orchestrator._pipeline_correlation_id = run_id
     orchestrator._pipeline_input = PipelineInput(
         target_name=str(getattr(config, "target_name", "unknown") or "unknown"),
@@ -433,8 +418,6 @@ async def run_secured(
             "flow_stage_count": len(flow_manifest),
         },
     )
-    print("[INSTRUMENT] run_secured: after pipeline_input", flush=True)
-    print("[INSTRUMENT] run_secured: before PIPELINE_STARTED event", flush=True)
     orchestrator._emit_event(
         EventType.PIPELINE_STARTED,
         source="pipeline_orchestrator",
@@ -442,8 +425,6 @@ async def run_secured(
             "contract": orchestrator._pipeline_input.to_dict(),
         },
     )
-    print("[INSTRUMENT] run_secured: after PIPELINE_STARTED event", flush=True)
-    print("[INSTRUMENT] run_secured: before scope_hosts", flush=True)
 
     scope_hosts = {entry.strip().lower() for entry in scope_entries if entry.strip()}
     scope_hosts.update(
@@ -453,35 +434,19 @@ async def run_secured(
             if normalize_scope_entry(entry).strip()
         }
     )
-    print(f"[INSTRUMENT] run_secured: after scope_hosts count={len(scope_hosts)}", flush=True)
     scope_validator = ScopeValidator(scope_hosts)
     scope_interceptor = OutboundRequestInterceptor(scope_validator)
-    print("[INSTRUMENT] run_secured: after scope_interceptor", flush=True)
 
     # Apply learning adaptations exactly ONCE
     adaptations = {}
-    print("[INSTRUMENT] run_secured: before learning integration", flush=True)
     try:
         from src.learning.integration import LearningIntegration
 
         ctx_dict = ctx.to_dict()
-        print("[INSTRUMENT] run_secured: before LearningIntegration.get_or_create", flush=True)
         learning = LearningIntegration.get_or_create(ctx_dict)
-        print("[INSTRUMENT] run_secured: after LearningIntegration.get_or_create", flush=True)
-        print("[INSTRUMENT] run_secured: before compute_adaptations", flush=True)
         adaptations = learning.compute_adaptations(ctx_dict)
-        print(
-            f"[INSTRUMENT] run_secured: after compute_adaptations adaptations={len(adaptations)}",
-            flush=True,
-        )
     except Exception as exc:
         logger.warning("Learning compute_adaptations failed: %s", exc)
-        print(f"[INSTRUMENT] run_secured: learning integration EXCEPTION={exc}", flush=True)
-    print(
-        f"[INSTRUMENT] run_secured: after learning integration adaptations={len(adaptations)}",
-        flush=True,
-    )
-
     if not adaptations:
         adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
         if adaptive_config:
@@ -489,7 +454,6 @@ async def run_secured(
 
     if adaptations:
         ctx_dict = ctx.to_dict()
-        print("[INSTRUMENT] run_secured: before apply_adaptations", flush=True)
         import inspect
 
         sig = inspect.signature(orchestrator._learning_integration.apply_adaptations)
@@ -501,7 +465,6 @@ async def run_secured(
             orchestrator._learning_integration.apply_adaptations(ctx_dict, adaptations)
         ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
         logger.info("Applied learning adaptations for target: %s", config.target_name)
-        print("[INSTRUMENT] run_secured: after apply_adaptations", flush=True)
 
     # Defect 1 fix: Release the recovery lock now that recovery and
     # checkpoint setup are complete. Subsequent writes are protected by
@@ -513,14 +476,8 @@ async def run_secured(
             logger.debug("Recovery lock release failed (non-fatal): %s", exc)
         recovery_lock = None
 
-    print("[INSTRUMENT] run_secured: before _build_stage_methods", flush=True)
     stage_methods = orchestrator._build_stage_methods()
-    print(
-        f"[INSTRUMENT] run_secured: after _build_stage_methods count={len(stage_methods)}",
-        flush=True,
-    )
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
-    print(f"[INSTRUMENT] run_secured: remaining_stages={len(remaining_stages)}", flush=True)
 
     if getattr(args, "dry_run", False):
         logger.info(
@@ -537,7 +494,6 @@ async def run_secured(
         nuclei_available = bool(nuclei_status)
 
     handled_by_parallel: set[str] = set()
-    print("[INSTRUMENT] run_secured: BEFORE _execute_remaining_stages", flush=True)
     stage_execution_exit = await orchestrator._execute_remaining_stages(
         remaining_stages=remaining_stages,
         stage_methods=stage_methods,
@@ -548,10 +504,6 @@ async def run_secured(
         nuclei_available=nuclei_available,
         checkpoint_mgr=checkpoint_mgr,
         handled_by_parallel=handled_by_parallel,
-    )
-    print(
-        f"[INSTRUMENT] run_secured: AFTER _execute_remaining_stages exit={stage_execution_exit}",
-        flush=True,
     )
     if stage_execution_exit is not None:
         return cast(

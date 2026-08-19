@@ -72,14 +72,18 @@ class ComplianceAlertsDispatcher:
                 message=full_msg,
             )
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
             except RuntimeError:
                 # No running loop: drive the coroutine to completion in a
                 # short-lived event loop so callers running from sync code
                 # (CLI hooks, Celery tasks) still see the side-effects.
                 asyncio.run(coro)
             else:
-                loop.create_task(coro)
+                from src.core.task_registry import get_task_registry
+
+                get_task_registry().create_task(
+                    coro, owner="compliance_alerts", name="dispatch_maturity"
+                )
             logger.info("GRC compliance maturity failure notifications successfully dispatched.")
         except Exception as exc:
             logger.error("Failed to broadcast compliance alerts: %s", exc)

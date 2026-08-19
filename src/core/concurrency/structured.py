@@ -165,8 +165,10 @@ class RateLimiter:
             raise ValueError("rate_per_second must be > 0")
         if tokens > self.burst:
             raise ValueError("requested tokens exceed burst capacity")
-        async with self._lock:
-            while True:
+        # Loop instead of recurse: a starved bucket used to grow the
+        # call stack without bound (M4).
+        while True:
+            async with self._lock:
                 now = time.monotonic()
                 elapsed = now - self._last_update
                 self._tokens = min(self.burst, self._tokens + elapsed * self.rate_per_second)
@@ -178,10 +180,7 @@ class RateLimiter:
 
                 wait = (tokens - self._tokens) / self.rate_per_second
                 wait = min(max(wait, 0.001), 60)
-                break
-
-        await asyncio.sleep(wait)
-        await self.acquire(tokens)
+            await asyncio.sleep(wait)
 
     def stats(self) -> dict:
         return {
@@ -230,7 +229,11 @@ class CircuitBreaker:
                 self._half_open_calls += 1
 
         try:
-            result = await func(*args, **kwargs)
+            import inspect
+
+            result = func(*args, **kwargs)
+            if inspect.isawaitable(result):
+                result = await result
             await self._on_success()
             return result
         except Exception:

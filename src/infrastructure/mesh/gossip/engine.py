@@ -257,7 +257,6 @@ class GossipEngine:
         """Handle an incoming port_update message from a peer."""
         node_id = str(payload.get("node_id", ""))
         new_port = int(payload.get("new_gossip_port", 0))
-        host = str(payload.get("host", ""))
 
         if not node_id or not new_port or node_id == self.local_node.id:
             return
@@ -267,8 +266,9 @@ class GossipEngine:
             if peer is not None:
                 old_port = getattr(peer, "gossip_port", 0)
                 peer.gossip_port = new_port
-                if host:
-                    peer.host = host
+                # Port-update may advertise a new UDP port after a rebind.
+                # Never rewrite ``peer.host`` from the payload: a spoofed
+                # host would redirect subsequent gossip to an attacker.
                 logger.info(
                     "Updated gossip port for peer '%s': %d -> %d",
                     node_id,

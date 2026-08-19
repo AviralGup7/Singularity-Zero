@@ -335,7 +335,7 @@ def graphql_ws_injection_probe(
                     if "graphql_ws_subscription_data_leaked" in issues
                     else "high"
                     if "graphql_ws_unauthenticated_subscription" in issues
-                    else "high"
+                    else "medium"
                 ),
                 "confidence": 0.85 if "graphql_ws_subscription_data_leaked" in issues else 0.7,
             }

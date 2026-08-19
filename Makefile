@@ -33,8 +33,8 @@ security-check: install
 	cd frontend && npm audit
 
 clean:
-	powershell -Command "Get-ChildItem -Path . -Directory -Recurse -Filter __pycache__ | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
-	powershell -Command "Get-ChildItem -Path . -File -Recurse -Filter *.pyc | Remove-Item -Force -ErrorAction SilentlyContinue"
+	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+	find . -type f -name '*.pyc' -delete
 	rm -rf .mypy_cache .pytest_cache .ruff_cache .hypothesis
 	rm -rf output/logs/* output/bandit-report.json output/lint_output.txt output/test_*.txt output/security_*.txt output/head_version.txt
 	cd frontend && rm -rf node_modules dist coverage

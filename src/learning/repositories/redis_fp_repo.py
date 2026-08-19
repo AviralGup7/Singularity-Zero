@@ -68,7 +68,11 @@ class RedisFPRepository:
         try:
             loop = asyncio.get_running_loop()
             if not loop.is_closed():
-                loop.create_task(self._prime_fallback())
+                from src.core.task_registry import get_task_registry
+
+                get_task_registry().create_task(
+                    self._prime_fallback(), owner="redis_fp_repo", name="prime_fallback"
+                )
             else:
                 logger.debug("RedisFPRepo initial warm-up skipped (closed event loop)")
         except RuntimeError:

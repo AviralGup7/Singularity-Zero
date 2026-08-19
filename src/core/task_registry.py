@@ -364,9 +364,12 @@ def get_task_registry() -> TaskRegistry:
             # Defect 8 fix: Start periodic reconcile in the background
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(
+                starter = loop.create_task(
                     _registry.start_periodic_reconcile(),
                     name="task_registry/periodic_reconcile_start",
+                )
+                _registry.adopt_task(
+                    starter, owner="task_registry", name="periodic_reconcile_start"
                 )
             except RuntimeError:
                 # No running loop — periodic reconcile will need to be
