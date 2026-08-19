@@ -127,12 +127,13 @@ class PipelineOutputStore:
             prefix=f"._{path.name}.",
             suffix=".tmp",
         )
+        fd_open = True
         try:
             os.write(fd, content.encode("utf-8"))
             if fsync:
                 os.fsync(fd)
             os.close(fd)
-            fd = None
+            fd_open = False
 
             if fsync:
                 _sync_parent_dir(path.parent)
@@ -141,7 +142,7 @@ class PipelineOutputStore:
         except BaseException:
             # Best-effort cleanup of the temp file on any failure
             try:
-                if fd is not None:
+                if fd_open:
                     os.close(fd)
             except OSError:
                 pass

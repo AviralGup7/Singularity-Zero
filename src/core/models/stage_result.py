@@ -102,6 +102,9 @@ class StageResult:
         default=None, init=False, compare=False, repr=False
     )
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
+    _journal_applied_ids: set[str] = field(
+        default_factory=set, init=False, compare=False, repr=False
+    )
 
     # ------------------------------------------------------------------
     # Configuration / bootstrap
