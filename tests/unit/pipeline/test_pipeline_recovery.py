@@ -74,12 +74,21 @@ def _state_dict(ctx: PipelineContext) -> dict[str, Any]:
     }
 
 
-def _replay_journal_fields(wal: FrontierWAL, ctx: PipelineContext) -> None:
-    """Restore non-CRDT fields without re-applying CRDT deltas."""
-    journal_cursor = ctx.result._neural_state.last_wal_id
-    journal_exclude = set(ctx.result._neural_state.applied_wal_ids)
-    ctx.result._journal_applied_ids.update(journal_exclude)
-    for entry in wal.recover_deltas(journal_cursor, exclude_ids=journal_exclude):
+def _replay_journal_fields(
+    wal: FrontierWAL,
+    ctx: PipelineContext,
+    *,
+    start_id: str | None,
+    exclude_ids: set[str],
+) -> None:
+    """Restore non-CRDT fields without re-applying CRDT deltas.
+
+    ``start_id`` / ``exclude_ids`` must be the *pre-merge* checkpoint cursor.
+    After ``recover_state()`` merge, last_wal_id is the latest CRDT entry
+    and a second pass keyed off that cursor drops journal fields.
+    """
+    ctx.result._journal_applied_ids.update(exclude_ids)
+    for entry in wal.recover_deltas(start_id, exclude_ids=exclude_ids):
         delta = entry.get("delta")
         if isinstance(delta, dict):
             delta.setdefault("_wal_id", entry.get("id"))
@@ -91,10 +100,12 @@ def _recover_and_verify(
 ) -> None:
     wal = _make_wal(tmp_path, run_id)
     ctx = _make_ctx()
+    journal_cursor = ctx.result._neural_state.last_wal_id
+    journal_exclude = set(ctx.result._neural_state.applied_wal_ids)
     ns = wal.recover_state()
     if ns is not None:
         ctx.result._neural_state.merge(ns)
-    _replay_journal_fields(wal, ctx)
+    _replay_journal_fields(wal, ctx, start_id=journal_cursor, exclude_ids=journal_exclude)
     _sync(ctx)
     state = _state_dict(ctx)
 
