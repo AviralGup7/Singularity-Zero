@@ -11,7 +11,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: aviralgup7/singularity-zero
+  PYTEST_ADDOPTS: "-q --tb=short --strict-markers --import-mode=importlib -p no:locust"
 
 jobs:
   test:
