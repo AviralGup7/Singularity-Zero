@@ -1,4 +1,3 @@
-
 """
 Test P0.1 — Prove WAL recovery correctness.
 
@@ -18,7 +17,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.core.frontier.state import NeuralState
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.infrastructure.frontier.wal import FrontierWAL
 
@@ -26,6 +24,7 @@ from src.infrastructure.frontier.wal import FrontierWAL
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_wal(tmp_path: Path, run_id: str) -> FrontierWAL:
     """Create an AOF-only FrontierWAL (no Redis) rooted at tmp_path."""
@@ -77,6 +76,7 @@ def _sync_from_neural(ctx: PipelineContext) -> None:
 # Test 1 — Post-checkpoint recovery
 # ===================================================================
 
+
 def test_post_checkpoint_recovery(tmp_path: Path):
     """
     checkpoint exists with initial state.
@@ -114,8 +114,9 @@ def test_post_checkpoint_recovery(tmp_path: Path):
 
     assert "api.root.example.com" in recovered_ns.subdomains.to_set()
     assert "https://api.root.example.com/users" in recovered_ns.urls.to_set()
-    assert len(recovered_ns.findings.values()) == 2, \
-        "expected 2 findings, got %d" % len(recovered_ns.findings.values())
+    assert len(recovered_ns.findings.values()) == 2, "expected 2 findings, got %d" % len(
+        recovered_ns.findings.values()
+    )
 
     # Verify the fix: merge into checkpoint context
     cp_ctx = _make_checkpoint_ctx(subdomains=["root.example.com"])
@@ -131,6 +132,7 @@ def test_post_checkpoint_recovery(tmp_path: Path):
 # ===================================================================
 # Test 2 — Duplicate WAL/checkpoint state
 # ===================================================================
+
 
 def test_duplicate_wal_checkpoint_state(tmp_path: Path):
     """Checkpoint already contains delta A. WAL also contains A. Recovery: A once."""
@@ -172,8 +174,9 @@ def test_duplicate_wal_checkpoint_state(tmp_path: Path):
     # 5. verify: dup once, new once, 2 findings
     assert "dup.example.com" in cp_ctx.subdomains
     assert "new.example.com" in cp_ctx.subdomains
-    assert len(cp_ctx.reportable_findings) == 2, \
-        "expected 2 findings, got %d" % len(cp_ctx.reportable_findings)
+    assert len(cp_ctx.reportable_findings) == 2, "expected 2 findings, got %d" % len(
+        cp_ctx.reportable_findings
+    )
     assert post > pre, "applied_wal_ids should grow"
 
     wal.cleanup()
@@ -182,6 +185,7 @@ def test_duplicate_wal_checkpoint_state(tmp_path: Path):
 # ===================================================================
 # Test 3 — Full state-field coverage
 # ===================================================================
+
 
 def test_full_state_field_coverage(tmp_path: Path):
     """Every state field emitted by merge_stage_output() survives WAL recovery."""
@@ -216,8 +220,9 @@ def test_full_state_field_coverage(tmp_path: Path):
 
     assert recovered_ns.subdomains.to_set() == {"a.example.com", "b.example.com"}
     assert recovered_ns.urls.to_set() == {"https://a.example.com", "https://b.example.com"}
-    assert len(recovered_ns.findings.values()) >= 2, \
-        "expected >=2 finding entries, got %d" % len(recovered_ns.findings.values())
+    assert len(recovered_ns.findings.values()) >= 2, "expected >=2 finding entries, got %d" % len(
+        recovered_ns.findings.values()
+    )
 
     ctx = _make_checkpoint_ctx()
     ctx.result._neural_state.merge(recovered_ns)
@@ -239,14 +244,17 @@ def test_full_state_field_coverage(tmp_path: Path):
 # Test 4 — Mid-active_scan crash (the "real killer")
 # ===================================================================
 
+
 def test_mid_active_scan_crash(tmp_path: Path):
     """Checkpoint at delta 5. Crash at delta 10. Reconstruct full state. Match uninterrupted."""
     run_id = "test4-mid-active-scan"
 
     def finding(i: int) -> dict[str, Any]:
-        return {"title": "Vuln-" + str(i),
-                "severity": "high" if i % 2 else "medium",
-                "target": "host-" + str(i % 5) + ".example.com"}
+        return {
+            "title": "Vuln-" + str(i),
+            "severity": "high" if i % 2 else "medium",
+            "target": "host-" + str(i % 5) + ".example.com",
+        }
 
     pre: list[dict[str, Any]] = []
     for i in range(0, 20, 2):
@@ -274,16 +282,18 @@ def test_mid_active_scan_crash(tmp_path: Path):
     restored.result._neural_state.merge(recovered_ns)
     _sync_from_neural(restored)
 
-    assert len(restored.reportable_findings) == 20, \
-        "expected 20 post-WAL findings, got %d" % len(restored.reportable_findings)
+    assert len(restored.reportable_findings) == 20, "expected 20 post-WAL findings, got %d" % len(
+        restored.reportable_findings
+    )
 
     # Phase 4: resume and finish
     for d in post:
         restored.result.apply_state_delta(d)
         wal2.log_delta("active_scan", d)
 
-    assert len(restored.reportable_findings) == 40, \
-        "expected 40 final findings, got %d" % len(restored.reportable_findings)
+    assert len(restored.reportable_findings) == 40, "expected 40 final findings, got %d" % len(
+        restored.reportable_findings
+    )
 
     # Phase 5: compare against uninterrupted run
     uninterrupted = _make_checkpoint_ctx()
@@ -302,6 +312,7 @@ def test_mid_active_scan_crash(tmp_path: Path):
 # Test 5 — Corrupt WAL entries
 # ===================================================================
 
+
 def test_corrupt_wal_entries(tmp_path: Path):
     """WAL: [valid] [corrupt] [valid]. CRC64 skips corrupt. No silent data loss."""
     run_id = "test5-corrupt"
@@ -319,24 +330,28 @@ def test_corrupt_wal_entries(tmp_path: Path):
 
     assert "pre.example.com" in recovered.subdomains.to_set(), "valid A lost"
     assert "post.example.com" in recovered.subdomains.to_set(), "valid C lost"
-    assert "skipped.example.com" not in recovered.subdomains.to_set(), \
-        "corrupt entry not skipped"
+    assert "skipped.example.com" not in recovered.subdomains.to_set(), "corrupt entry not skipped"
 
     # --- High-corruption threshold (>50%) ---
     wal_high = _make_wal(tmp_path, "test5-threshold")
-    _log_deltas(wal_high, "stage", [
-        {"subdomains": ["good.example.com"]},
-        {"subdomains": ["bad1.example.com"]},
-        {"subdomains": ["bad2.example.com"]},
-    ])
+    _log_deltas(
+        wal_high,
+        "stage",
+        [
+            {"subdomains": ["good.example.com"]},
+            {"subdomains": ["bad1.example.com"]},
+            {"subdomains": ["bad2.example.com"]},
+        ],
+    )
     _corrupt_aof_entry(wal_high, 1)
     _corrupt_aof_entry(wal_high, 2)
 
     wal_high2 = _make_wal(tmp_path, "test5-threshold")
     recovered_high = wal_high2.recover_state()
     assert recovered_high is not None
-    assert "good.example.com" in recovered_high.subdomains.to_set(), \
+    assert "good.example.com" in recovered_high.subdomains.to_set(), (
         "valid entry in high-corruption should survive"
+    )
     assert "bad1.example.com" not in recovered_high.subdomains.to_set()
     assert "bad2.example.com" not in recovered_high.subdomains.to_set()
 

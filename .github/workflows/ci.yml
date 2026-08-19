@@ -301,7 +301,7 @@ jobs:
         with:
           directory: .
           file: docker-compose.optimized.yml
-          framework: docker-compose
+          framework: docker_compose
           soft_fail: false
 
   ci-ok:
