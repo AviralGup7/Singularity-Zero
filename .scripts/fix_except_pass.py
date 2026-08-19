@@ -55,7 +55,7 @@ def fix_file(filepath: str) -> bool:
         return False
 
     # ---- Replace except Exception:\n            pass ----
-    # Match: optional # noqa, then newline, then whitespace+pass
+    # Match: optional noqa comment, then newline, then whitespace+pass
     pattern = re.compile(
         r"(^[ \t]*)(except\s+(?:\w+(?:\s+as\s+\w+)?|[A-Za-z_]\w*)\s*:\s*(?:#.*?)?\n)"
         r"([ \t]*)pass\s*(?:#.*?)?$",

@@ -72,7 +72,10 @@ class ForkServer:
             import asyncio
 
             proc = await asyncio.to_thread(
-                subprocess.run, cmd, capture_output=True, timeout=5  # noqa: S603
+                subprocess.run,
+                cmd,
+                capture_output=True,
+                timeout=5,  # noqa: S603
             )
             result = {
                 "exit_code": proc.returncode,

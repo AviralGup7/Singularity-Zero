@@ -88,8 +88,10 @@ async def list_notifications(
         limit=limit, offset=offset, unread_only=unread_only, tenant_id=tenant_id
     )
     unread_count = storage.count_unread(tenant_id=tenant_id)
-    total = storage.count_all(tenant_id=tenant_id) if hasattr(storage, "count_all") else len(
-        notifications
+    total = (
+        storage.count_all(tenant_id=tenant_id)
+        if hasattr(storage, "count_all")
+        else len(notifications)
     )
     return {
         "notifications": notifications,

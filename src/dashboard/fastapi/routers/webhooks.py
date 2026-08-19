@@ -89,7 +89,7 @@ def _validate_webhook_url(url: str) -> None:
 @router.post("/test")
 async def test_webhook(
     payload: WebhookTestRequest,
-    auth: Any = Depends(require_auth),
+    auth: Any = Depends(require_admin),
 ) -> dict[str, Any]:
     """Test a custom HTTP webhook integration."""
     _enforce_webhook_rate_limit((auth or {}).get("tenant_id", "default"))

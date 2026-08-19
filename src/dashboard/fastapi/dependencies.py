@@ -33,6 +33,7 @@ _config_lock = threading.Lock()
 _app_ref: Any = None
 logger = logging.getLogger(__name__)
 
+
 def _security_enabled() -> bool:
     """Evaluate API security at request time so env changes take effect."""
     return api_security_enabled()
@@ -230,7 +231,11 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         principal = cast(Principal | None, authenticate_jwt_token(auth_header[7:]))
-        if principal is not None and principal.api_key_id and store.is_revoked(principal.api_key_id):
+        if (
+            principal is not None
+            and principal.api_key_id
+            and store.is_revoked(principal.api_key_id)
+        ):
             return None
         return principal
 
