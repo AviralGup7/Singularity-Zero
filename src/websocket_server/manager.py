@@ -502,3 +502,65 @@ class ConnectionManager:
             info = self.connections.get(connection_id)
             if info:
                 info.touch()
+
+    def count(self) -> int:
+        """Return the current number of registered connections."""
+        return len(self.connections)
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        """Return a JSON-serializable snapshot of active connections."""
+        return [
+            {
+                "connection_id": info.connection_id,
+                "user_id": info.user_id,
+                "client_ip": info.client_ip,
+                "groups": sorted(info.groups),
+                "connected_at": info.connected_at,
+                "last_activity": info.last_activity,
+            }
+            for info in list(self.connections.values())
+        ]
+
+    def get(self, connection_id: str) -> WebSocket | None:
+        """Return the raw WebSocket for a connection, if it is still registered."""
+        info = self.connections.get(connection_id)
+        return None if info is None else info.websocket
+
+    def remove(self, connection_id: str) -> None:
+        """Synchronously drop a connection and prune group/user/IP indexes."""
+        info = self.connections.pop(connection_id, None)
+        if info is None:
+            return
+        info.closed = True
+        try:
+            WS_CONNECTIONS.dec()
+        except Exception:
+            pass
+        user_set = self.user_connections.get(info.user_id)
+        if user_set is not None:
+            user_set.discard(connection_id)
+            if not user_set:
+                self.user_connections.pop(info.user_id, None)
+        ip_set = self.ip_connections.get(info.client_ip)
+        if ip_set is not None:
+            ip_set.discard(connection_id)
+            if not ip_set:
+                self.ip_connections.pop(info.client_ip, None)
+        for group in list(info.groups):
+            group_set = self.group_connections.get(group)
+            if group_set is not None:
+                group_set.discard(connection_id)
+                if not group_set:
+                    self.group_connections.pop(group, None)
+
+    def set_max_per_user(self, value: int) -> None:
+        self.max_connections_per_user = max(1, int(value))
+
+    def set_max_per_ip(self, value: int) -> None:
+        self.max_connections_per_ip = max(1, int(value))
+
+    def set_stale_timeout(self, value: float) -> None:
+        self.stale_timeout = float(value)
+
+    def set_rate_limit(self, value: int) -> None:
+        self.max_connection_attempts_per_minute = max(1, int(value))

@@ -865,3 +865,27 @@ class Broadcaster:
             "redis_enabled": self._redis_enabled,
             "redis_channel": self._redis_channel,
         }
+
+    def channel_count(self) -> int:
+        """Return the number of live broadcast groups."""
+        groups = getattr(self.manager, "group_connections", None)
+        return len(groups) if groups is not None else 0
+
+    def stats(self) -> dict[str, Any]:
+        """Alias used by health/admin endpoints."""
+        data = self.get_stats()
+        data["channel_count"] = self.channel_count()
+        data["active_connections"] = len(getattr(self.manager, "connections", {}) or {})
+        return data
+
+    def publish(self, channel: str, message: str) -> None:
+        """Synchronously fan a free-form admin message out to ``channel``."""
+        from src.core.utils.async_bridge import run_async_in_sync_context
+        from src.websocket_server.protocol import StatusMessage
+
+        msg = StatusMessage(
+            job_id=channel,
+            status="admin_broadcast",
+            metadata={"message": message},
+        )
+        run_async_in_sync_context(self.broadcast_to_group(channel, msg))

@@ -141,8 +141,6 @@ def setup_websocket_routes(
     # Health / metrics HTTP endpoints
     @app.get("/health/ws")
     async def ws_health() -> dict[str, Any]:
-        from fastapi.responses import PlainTextResponse
-
         return {
             "status": "ok",
             "connections": manager.count(),

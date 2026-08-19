@@ -40,16 +40,21 @@ def _audit_admin(action: str, request: Request, details: dict[str, Any] | None =
 
 
 def _require_admin(request: Request, action: str, *, admin_api_key: str | None = None) -> None:
+    # A configured admin API key is sufficient on its own. Client-supplied
+    # role headers (``x-user-roles``) are never trusted; roles must come
+    # from a server-side resolver when no key is configured.
     if admin_api_key:
         provided = request.headers.get("x-api-key", "")
-        if provided != admin_api_key:
-            _audit_admin(action, request, {"result": "denied", "reason": "bad_api_key"})
-            raise HTTPException(status_code=403, detail="Invalid or missing API key")
+        if provided == admin_api_key:
+            _audit_admin(action, request, {"result": "granted", "via": "api_key"})
+            return
+        _audit_admin(action, request, {"result": "denied", "reason": "bad_api_key"})
+        raise HTTPException(status_code=403, detail="Invalid or missing API key")
     roles = _resolve_admin_roles(request, getattr(request.app.state, "effective_admin_roles", None))
     if "admin" not in roles and "superadmin" not in roles:
         _audit_admin(action, request, {"result": "denied", "reason": "insufficient_roles"})
         raise HTTPException(status_code=403, detail="Admin role required")
-    _audit_admin(action, request, {"result": "granted"})
+    _audit_admin(action, request, {"result": "granted", "via": "role"})
 
 
 def register_admin_routes(app: Any, services: Any, *, admin_api_key: str | None = None) -> None:
@@ -93,10 +98,14 @@ def register_admin_routes(app: Any, services: Any, *, admin_api_key: str | None 
     @app.get("/admin/websocket/stats")
     async def websocket_stats(request: Request) -> dict[str, Any]:
         _require_admin(request, "stats", admin_api_key=admin_api_key)
-        return {"stats": services.broadcaster.stats()}
+        stats = services.broadcaster.stats()
+        return {
+            "active_connections": services.manager.count(),
+            "stats": stats,
+        }
 
     @app.post("/admin/websocket/config")
-    async def update_config(payload: AdminConfigPayload, request: Request) -> dict[str, str]:
+    async def update_config(payload: AdminConfigPayload, request: Request) -> dict[str, Any]:
         _require_admin(request, "update_config", admin_api_key=admin_api_key)
         if payload.max_connections_per_user is not None:
             services.manager.set_max_per_user(payload.max_connections_per_user)
@@ -107,4 +116,14 @@ def register_admin_routes(app: Any, services: Any, *, admin_api_key: str | None 
         if payload.max_connection_attempts_per_minute is not None:
             services.manager.set_rate_limit(payload.max_connection_attempts_per_minute)
         _audit_admin("update_config", request, {"payload": payload.model_dump(exclude_none=True)})
-        return {"status": "updated"}
+        return {
+            "status": "updated",
+            "config": {
+                "max_connections_per_user": services.manager.max_connections_per_user,
+                "max_connections_per_ip": services.manager.max_connections_per_ip,
+                "stale_timeout": services.manager.stale_timeout,
+                "max_connection_attempts_per_minute": (
+                    services.manager.max_connection_attempts_per_minute
+                ),
+            },
+        }

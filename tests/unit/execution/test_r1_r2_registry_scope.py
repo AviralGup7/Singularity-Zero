@@ -59,10 +59,19 @@ class TestR1RegistryUnification(unittest.TestCase):
     def test_engine_registry_matches_facade(self) -> None:
         engine = set(build_validator_registry().keys())
         facade = set(registry_builder.VALIDATOR_REGISTRY.keys())
-        # Pipeline-stage validators are registered in the facade but excluded
-        # from the engine to avoid double-execution.
-        excluded = {"access_control", "validation"}
-        self.assertTrue((facade - excluded).issubset(engine))
+        # Pipeline-stage validators run via plugin_catalog, not the engine.
+        # saml/oauth/oauth_saml are facade-only wrappers around evaluate_*
+        # helpers and are not registered as engine strategies.
+        excluded = {
+            "access_control",
+            "validation",
+            "finding_revalidation",
+            "saml",
+            "oauth",
+            "oauth_saml",
+        }
+        missing = (facade - excluded) - engine
+        self.assertFalse(missing, f"facade keys missing from engine: {sorted(missing)}")
 
     def test_order_contains_new_validators(self) -> None:
         for name in (

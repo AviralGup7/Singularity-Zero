@@ -140,7 +140,7 @@ def build_validator_registry() -> dict[str, ValidationStrategySpec]:
         if not (
             reg.key.endswith("_candidates")
             or reg.key.startswith("promote_")
-            or reg.key in {"access_control", "validation"}
+            or reg.key in {"access_control", "validation", "finding_revalidation"}
         )
     ]
 

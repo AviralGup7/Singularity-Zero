@@ -174,7 +174,11 @@ async def test_websocket_broadcast_metrics() -> None:
     result = await services._broadcast_to_job_and_global("job_id", msg)
     assert result == 0
 
-    # 2. Test with connections registered
+    # 2. Test with connections registered. Tenant resolution is injected so
+    # the job also fans out to ``global:<tenant>`` without inventing a
+    # default tenant that would leak across tenants.
+    services._tenant_resolver = lambda _job_id: "tenant-a"
+
     mock_ws1 = MagicMock()
     mock_ws1.client_state = WebSocketState.CONNECTED
     conn1 = await services.manager.connect(mock_ws1, "user1", "conn1", "127.0.0.1")
@@ -185,19 +189,15 @@ async def test_websocket_broadcast_metrics() -> None:
     mock_ws2.client_state = WebSocketState.CONNECTED
     conn2 = await services.manager.connect(mock_ws2, "user2", "conn2", "127.0.0.1")
     assert conn2 is not None
-    # ``_broadcast_to_job_and_global`` is a legacy alias that now uses the
-    # tenant-scoped ``global:<tenant>`` channel. Subscribe to the matching
-    # default-tenant channel.
-    await services.manager.add_to_group("conn2", f"global:{services.default_tenant_id}")
+    await services.manager.add_to_group("conn2", "global:tenant-a")
 
-    # Since conn1 is in job:job_id and conn2 is in global:<tenant>, calling
-    # _broadcast_to_job_and_global should deliver to both (1 for job, 1 for
-    # global) and return 2.
+    # conn1 is in job:job_id and conn2 is in global:tenant-a, so a
+    # (job_id, message) broadcast should deliver to both.
     msg2 = StatusMessage(
         job_id="job_id",
         status="completed",
     )
-    result = await services._broadcast_to_job_and_global(msg2, "job_id")
+    result = await services._broadcast_to_job_and_global("job_id", msg2)
     assert result == 2
 
 
