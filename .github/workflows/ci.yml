@@ -44,8 +44,9 @@ jobs:
       - name: Run detect-secrets
         run: detect-secrets scan --baseline .secrets.baseline
       - name: Run bandit
-        run: bandit -r src/ -lll -f json -o bandit-report.json
-        continue-on-error: true
+        run: |
+          bandit -r src/ -lll -f json -o bandit-report.json
+          bandit -r src/ -lll
       - name: Upload bandit report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -146,6 +147,8 @@ jobs:
           python -m pytest ${{ matrix.shard.paths }} \
             --cov --cov-fail-under=0 --cov-report=term \
             --durations=15
+          # Per-shard fail-under stays 0: each shard only covers a slice.
+          # Combined coverage is the hard gate (coverage job).
       - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -183,7 +186,7 @@ jobs:
           printf '  %s\n' "${files[@]}"
           python -m coverage combine "${files[@]}"
           python -m coverage xml -o coverage.xml
-          python -m coverage report --fail-under=0 --show-missing
+          python -m coverage report --fail-under=45 --show-missing
       - name: Upload coverage
         uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
         with:
@@ -246,8 +249,7 @@ jobs:
       - name: Run Semgrep
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
         with:
-          config: auto
-          auditOn: push
+          config: p/ci
       - name: Run Trivy filesystem vulnerability scanner
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
@@ -301,7 +303,6 @@ jobs:
           file: docker-compose.optimized.yml
           framework: docker-compose
           soft_fail: false
-        continue-on-error: true
 
   ci-ok:
     name: CI passed
