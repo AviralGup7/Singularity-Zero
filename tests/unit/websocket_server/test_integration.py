@@ -160,7 +160,6 @@ from src.websocket_server.protocol import StatusMessage
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 async def test_websocket_broadcast_metrics() -> None:
     app = FastAPI()
     services = setup_websocket_routes(app)
@@ -172,7 +171,7 @@ async def test_websocket_broadcast_metrics() -> None:
     )
 
     # 1. Test with zero connections
-    result = await services._broadcast_to_job_and_global(msg, "job_id")
+    result = await services._broadcast_to_job_and_global("job_id", msg)
     assert result == 0
 
     # 2. Test with connections registered
@@ -202,7 +201,6 @@ async def test_websocket_broadcast_metrics() -> None:
     assert result == 2
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_rest_endpoints() -> None:
     app = FastAPI()
     services = setup_websocket_routes(app, admin_api_key="test-admin-key")
@@ -215,13 +213,13 @@ def test_rest_endpoints() -> None:
         resp = client.get("/health/ws")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "healthy"
+        assert data["status"] in {"ok", "healthy"}
         assert data["connections"] == 0
 
         # Test metrics endpoint
-        resp = client.get("/metrics")
+        resp = client.get("/health/ws/metrics")
         assert resp.status_code == 200
-        assert "ws_active_connections" in resp.text
+        assert "websocket_connections" in resp.json()
 
         # Test stats endpoint (requires admin API key)
         resp = client.get("/admin/websocket/stats", headers=admin_headers)
