@@ -4,8 +4,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
-
 from src.core.contracts.pipeline_runtime import StageOutcome
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.pipeline.services.pipeline_orchestrator.stages import recon as recon_stages
@@ -259,7 +257,6 @@ def test_url_stage_emits_collection_heartbeat_for_long_running_collect(tmp_path:
     assert any(event[0] == "urls" for event in progress_events)
 
 
-@pytest.mark.skip(reason="url stage now fails instead of completing on fallback")
 def test_url_stage_budget_limited_collection_uses_fallback_urls(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.use_cache = False
@@ -273,6 +270,7 @@ def test_url_stage_budget_limited_collection_uses_fallback_urls(tmp_path: Path) 
 
     with (
         patch.object(recon_stages, "collect_urls", side_effect=_budget_limited_collect),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         config = _config()
         config.filters = {
@@ -286,12 +284,12 @@ def test_url_stage_budget_limited_collection_uses_fallback_urls(tmp_path: Path) 
     assert "https://example.com" in output.state_delta["urls"]
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_url_stage_warns_when_only_fallback_seed_urls(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.live_hosts = {"https://example.com"}
     with (
         patch.object(recon_stages, "collect_urls", return_value={"https://example.com"}),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         output = asyncio.run(recon_stages.run_url_collection(_args(), _config(), ctx))
 
@@ -299,7 +297,6 @@ def test_url_stage_warns_when_only_fallback_seed_urls(tmp_path: Path) -> None:
     assert output.metrics["status"] == "ok"
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_url_stage_cache_hit_with_discovered_urls_does_not_false_fail(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.use_cache = True
@@ -310,6 +307,7 @@ def test_url_stage_cache_hit_with_discovered_urls_does_not_false_fail(tmp_path: 
     # It assumes the collector handles it or it was handled before.
     with (
         patch.object(recon_stages, "collect_urls", return_value=cached_urls),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         output = asyncio.run(recon_stages.run_url_collection(_args(), _config(), ctx))
 
@@ -317,7 +315,6 @@ def test_url_stage_cache_hit_with_discovered_urls_does_not_false_fail(tmp_path: 
     assert output.metrics["status"] == "ok"
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_url_stage_recollects_when_cached_urls_are_low_signal(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.use_cache = True
@@ -335,6 +332,7 @@ def test_url_stage_recollects_when_cached_urls_are_low_signal(tmp_path: Path) ->
 
     with (
         patch.object(recon_stages, "collect_urls", side_effect=_fresh_collect),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         output = asyncio.run(recon_stages.run_url_collection(_args(), _config(), ctx))
 
@@ -343,7 +341,6 @@ def test_url_stage_recollects_when_cached_urls_are_low_signal(tmp_path: Path) ->
     assert len(output.state_delta["urls"]) == len(fresh_urls)
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_url_stage_recollection_timeout_keeps_cached_urls(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.use_cache = True
@@ -353,6 +350,7 @@ def test_url_stage_recollection_timeout_keeps_cached_urls(tmp_path: Path) -> Non
         patch.object(
             recon_stages, "collect_urls", return_value={"https://h1.example.com/fresh?id=1"}
         ),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         config = _config()
         config.filters = {
@@ -365,7 +363,6 @@ def test_url_stage_recollection_timeout_keeps_cached_urls(tmp_path: Path) -> Non
     assert output.outcome == StageOutcome.COMPLETED
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_url_stage_recollection_hard_timeout_keeps_cached_urls(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.use_cache = True
@@ -380,6 +377,7 @@ def test_url_stage_recollection_hard_timeout_keeps_cached_urls(tmp_path: Path) -
 
     with (
         patch.object(recon_stages, "collect_urls", side_effect=_slow_collect),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         config = _config()
         config.filters = {
@@ -404,7 +402,6 @@ def test_url_stage_warns_includes_unavailable_source_tools(tmp_path: Path) -> No
     assert output.outcome == StageOutcome.COMPLETED
 
 
-@pytest.mark.skip(reason="pre-existing contract drift on remote CI")
 def test_url_stage_refresh_ignores_stale_cached_metadata(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.use_cache = True
@@ -422,6 +419,7 @@ def test_url_stage_refresh_ignores_stale_cached_metadata(tmp_path: Path) -> None
 
     with (
         patch.object(recon_stages, "collect_urls", side_effect=_fresh_collect),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         output = asyncio.run(recon_stages.run_url_collection(refresh_args, _config(), ctx))
 
