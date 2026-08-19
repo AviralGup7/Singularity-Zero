@@ -218,7 +218,7 @@ Notes
 
 CI recommendations
 
-- Create a matrix job for Python versions you support (this project targets Python 3.14+).
+- Create a matrix job for Python versions you support (this project targets Python 3.13+).
 - Install system dependencies as needed for external tools or stub them out in CI if not required for the test suite.
 - Run `pip install -e .[dev]`, then `ruff check .`, `mypy .` and `pytest -q` as part of the pipeline.
 - For coverage, use: `pytest --cov=src --cov-report=xml` and publish the XML to your coverage service.
