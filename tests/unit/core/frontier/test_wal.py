@@ -448,15 +448,18 @@ def test_wal_snapshot_compaction_failure(monkeypatch):
     wal = FrontierWAL("redis://localhost", "test_run_snap_comp_fail")
     state = NeuralState()
 
-    # persist_snapshot fails due to Exception
-    assert wal.persist_snapshot(state) is False
+    # Redis SET fails and degrades the WAL; AOF snapshot still persists.
+    assert wal.persist_snapshot(state) is True
+    assert wal._active is False
 
-    # compact_after_snapshot fails because persist_snapshot fails
-    assert wal.compact_after_snapshot(state) is False
+    # Compact still succeeds on the AOF path once Redis is degraded.
+    assert wal.compact_after_snapshot(state) is True
 
-    # test load_snapshot handles load exception
+    # Redis GET fails; AOF snapshot is still readable.
     mock_redis.get.side_effect = Exception("Get snapshot exception")
-    assert wal.load_snapshot() is None
+    loaded = wal.load_snapshot()
+    assert loaded is not None
+    assert loaded["run_id"] == "test_run_snap_comp_fail"
 
     # cleanup exception handling
     mock_redis.delete.side_effect = Exception("Delete keys exception")
@@ -486,10 +489,14 @@ def test_wal_snapshot_validation_failures(monkeypatch):
     mock_redis.get.return_value = msgpack.packb("not-a-dictionary", use_bin_type=True)
     assert wal.load_snapshot() is None
 
-    # 3. persist_snapshot when not active
+    # 3. persist_snapshot when Redis is inactive still writes an AOF snap
     wal_inactive = FrontierWAL(None, "run_inactive_snap")
-    assert wal_inactive.persist_snapshot(NeuralState()) is False
-    assert wal_inactive.load_snapshot() is None
+    inactive_state = NeuralState()
+    inactive_state.apply_delta({"_wal_id": "aof-1", "subdomains": ["snap.example.com"]})
+    assert wal_inactive.persist_snapshot(inactive_state) is True
+    loaded_inactive = wal_inactive.load_snapshot()
+    assert loaded_inactive is not None
+    assert loaded_inactive["snapshot"]["last_wal_id"] == "aof-1"
 
     wal.cleanup()
     wal_inactive.cleanup()
@@ -572,8 +579,9 @@ def test_wal_snapshot_persist_exception(monkeypatch):
     monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
 
     wal = FrontierWAL("redis://localhost", "run_snap_persist_exc")
-    # persist_snapshot should handle the Redis SET exception and return False
-    assert wal.persist_snapshot(NeuralState()) is False
+    # Redis SET fails; AOF snapshot persist still succeeds.
+    assert wal.persist_snapshot(NeuralState()) is True
+    assert wal.load_snapshot() is not None
     wal.cleanup()
 
 
@@ -631,6 +639,7 @@ def test_wal_snapshot_missing_set(monkeypatch):
     monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
 
     wal = FrontierWAL("redis://localhost", "run_no_set")
-    # should return False when client does not have 'set' method
-    assert wal.persist_snapshot(NeuralState()) is False
+    # Redis client has no SET; AOF snapshot persist still succeeds.
+    assert wal.persist_snapshot(NeuralState()) is True
+    assert wal.load_snapshot() is not None
     wal.cleanup()

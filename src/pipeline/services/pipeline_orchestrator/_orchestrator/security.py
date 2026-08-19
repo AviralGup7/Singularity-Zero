@@ -326,23 +326,29 @@ async def run_secured(
         and ctx.result is not None
         and hasattr(ctx.result, "_neural_state")
     ):
+        # Capture the pre-merge cursor. After merge, last_wal_id advances
+        # to the latest recovered CRDT entry and a second pass keyed off
+        # that cursor would drop post-checkpoint journal fields.
+        journal_cursor = ctx.result._neural_state.last_wal_id
+        journal_exclude = set(ctx.result._neural_state.applied_wal_ids)
+        if hasattr(ctx.result, "_journal_applied_ids"):
+            ctx.result._journal_applied_ids.update(journal_exclude)
         ctx.result._neural_state.merge(wal_state)
-        # Replay raw journal deltas so non-CRDT fields (live_hosts,
-        # parameters, module_metrics) come back with the snapshot.
+        # Replay non-CRDT fields only (live_hosts, parameters,
+        # module_metrics, merged_findings). Never call unfiltered
+        # recover_deltas() + apply_state_delta(): list.extend is not
+        # idempotent and would double-apply already-snapshotted rows.
         wal = getattr(orchestrator, "_wal", None)
-        if (
-            wal is not None
-            and hasattr(wal, "recover_deltas")
-            and hasattr(ctx.result, "apply_state_delta")
-        ):
+        apply_fields = getattr(ctx.result, "apply_journal_fields", None)
+        if wal is not None and hasattr(wal, "recover_deltas") and callable(apply_fields):
             try:
-                for entry in wal.recover_deltas():
+                for entry in wal.recover_deltas(journal_cursor, exclude_ids=journal_exclude):
                     delta = entry.get("delta") if isinstance(entry, dict) else None
                     if isinstance(delta, dict):
                         delta.setdefault("_wal_id", entry.get("id"))
-                        ctx.result.apply_state_delta(delta)
+                        apply_fields(delta)
             except Exception as exc:  # noqa: BLE001
-                logger.debug("WAL apply_state_delta replay failed: %s", exc)
+                logger.debug("WAL apply_journal_fields replay failed: %s", exc)
         ctx.subdomains = ctx.result._neural_state.subdomains.to_set()
         ctx.urls = ctx.result._neural_state.urls.to_set()
         ctx.reportable_findings = list(ctx.result._neural_state.findings.values())

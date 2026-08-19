@@ -66,6 +66,27 @@ class StageMetric(TypedDict, total=False):
 
 logger = logging.getLogger(__name__)
 
+# Keys owned by NeuralState / WAL metadata. Journal-field replay must
+# never touch these or list.extend will fight the CRDT and double-apply.
+_CRDT_OWNED_KEYS = frozenset(
+    {
+        "subdomains",
+        "urls",
+        "discovered_urls",
+        "findings",
+        "active_scan_findings",
+        "reportable_findings",
+        "vulnerabilities",
+        "_neural_state",
+        "_wal_id",
+        "wal_id",
+        "hlc",
+        "_ts",
+        "_node_id",
+        "node_id",
+    }
+)
+
 
 @dataclass
 class StageResult:
@@ -141,45 +162,66 @@ class StageResult:
         with self._lock:
             self._do_apply_state_delta(delta)
 
+    def apply_journal_fields(self, delta: dict[str, Any]) -> None:
+        """Merge non-CRDT journal fields without replaying CRDT deltas.
+
+        Snapshot + WAL recovery applies CRDT state via ``recover_state`` /
+        ``NeuralState.merge``. A second pass must restore list/dict/set
+        fields (``live_hosts``, ``merged_findings``, ``module_metrics``, ...)
+        exactly once. Calling ``apply_state_delta`` here would ``list.extend``
+        already-restored values and corrupt counters.
+        """
+        with self._lock:
+            if self._journal_already_applied(delta):
+                return
+            self._merge_journal_fields(delta)
+            self._mark_journal_applied(delta)
+
+    def _journal_wal_id(self, delta: dict[str, Any]) -> str | None:
+        wal_id = delta.get("_wal_id") or delta.get("wal_id")
+        return wal_id if isinstance(wal_id, str) and wal_id else None
+
+    def _journal_already_applied(self, delta: dict[str, Any]) -> bool:
+        wal_id = self._journal_wal_id(delta)
+        return wal_id is not None and wal_id in self._journal_applied_ids
+
+    def _mark_journal_applied(self, delta: dict[str, Any]) -> None:
+        wal_id = self._journal_wal_id(delta)
+        if wal_id is not None:
+            self._journal_applied_ids.add(wal_id)
+
+    def _merge_journal_fields(self, delta: dict[str, Any]) -> None:
+        for key, value in delta.items():
+            if key in _CRDT_OWNED_KEYS:
+                continue
+
+            if not hasattr(self, key):
+                continue
+
+            current = getattr(self, key)
+            if isinstance(current, dict) and isinstance(value, dict):
+                current.update(value)
+            elif isinstance(current, set) and isinstance(value, (list, tuple, set, frozenset)):
+                current.update(value)
+            elif isinstance(current, list) and isinstance(value, list):
+                # Merge lists instead of replacing so incremental stage
+                # deltas do not wipe earlier items. Idempotency is the
+                # caller's job (WAL cursor + ``_journal_applied_ids``).
+                current.extend(value)
+            elif isinstance(current, list) and isinstance(value, (tuple, set, frozenset)):
+                setattr(self, key, list(value))
+            else:
+                setattr(self, key, value)
+
     def _do_apply_state_delta(self, delta: dict[str, Any]) -> None:
         if "_neural_state" in delta:
             remote_state = NeuralState.from_crdt_snapshot(delta["_neural_state"])
             self._neural_state.merge(remote_state)
 
         self._neural_state.apply_delta(delta)
-
-        for key, value in delta.items():
-            if key == "findings":
-                key = "reportable_findings"
-
-            if key in (
-                "subdomains",
-                "urls",
-                "discovered_urls",
-                "findings",
-                "active_scan_findings",
-                "reportable_findings",
-                "vulnerabilities",
-                "_neural_state",
-                "_wal_id",
-            ):
-                continue
-
-            if hasattr(self, key):
-                current = getattr(self, key)
-                if isinstance(current, dict) and isinstance(value, dict):
-                    current.update(value)
-                elif isinstance(current, set) and isinstance(value, (list, tuple, set, frozenset)):
-                    current.update(value)
-                elif isinstance(current, list) and isinstance(value, list):
-                    # Bug fix: Merge lists instead of replacing. Previously,
-                    # partial list deltas would overwrite the entire list,
-                    # causing data loss when stages emit incremental list updates.
-                    current.extend(value)
-                elif isinstance(current, list) and isinstance(value, (tuple, set, frozenset)):
-                    setattr(self, key, list(value))
-                else:
-                    setattr(self, key, value)
+        if not self._journal_already_applied(delta):
+            self._merge_journal_fields(delta)
+            self._mark_journal_applied(delta)
 
         self.subdomains = self._neural_state.subdomains.to_set()
         self.urls = self._neural_state.urls.to_set()
@@ -261,7 +303,11 @@ class StageResult:
                 value = Path(value)
 
             kwargs[f.name] = value
-        return cls(**kwargs)
+        result = cls(**kwargs)
+        applied = getattr(result._neural_state, "applied_wal_ids", None)
+        if applied:
+            result._journal_applied_ids.update(applied)
+        return result
 
     @staticmethod
     def _serialize_value(value: Any) -> Any:

@@ -38,6 +38,16 @@ _AOF_LOCKS: dict[str, threading.Lock] = {}
 _AOF_LOCKS_GUARD = threading.Lock()
 _REDIS_STREAM_ID_RE = re.compile(r"^\d+-\d+$")
 _AOF_RETENTION_SECONDS = 7 * 24 * 60 * 60
+# Skip corrupt AOF rows individually. Abort the *entire* AOF only when the
+# file is large enough that a majority-corrupt journal is more likely a
+# destroyed file than a couple of torn writes. Do not use a 5% abort
+# threshold: existing recovery tests (and real 3-line journals) must still
+# return the valid rows when 2/3 of entries are corrupt.
+_AOF_CORRUPTION_ABORT_MIN_ENTRIES = 20
+_AOF_CORRUPTION_ABORT_PCT = 50.0
+# Redis stream IDs are milliseconds since epoch. Mock / tiny ids like
+# ``1-0`` must not be treated as wall-clock timestamps.
+_REDIS_STREAM_TS_MIN_MS = 1_000_000_000_000
 
 
 def _init_crc64_table() -> None:
@@ -114,6 +124,57 @@ def _stream_id_tuple(value: str) -> tuple[int, int] | None:
         return None
     ms, seq = value.split("-", 1)
     return int(ms), int(seq)
+
+
+def _parse_wal_id_ts(value: str | None) -> float | None:
+    """Extract a comparable timestamp from a Redis stream id or AOF fallback id.
+
+    AOF ids look like ``aof-<float_seconds>-<txid>``. Redis stream ids that
+    carry a real wall clock (ms since epoch) convert to seconds. Tiny mock
+    ids such as ``1-0`` return ``None`` so they never sort as 1970-era
+    timestamps and accidentally replay the entire journal.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if value.startswith("aof-"):
+        parts = value.split("-", 2)
+        if len(parts) >= 2:
+            try:
+                return float(parts[1])
+            except ValueError:
+                return None
+        return None
+    stream = _stream_id_tuple(value)
+    if stream is not None and stream[0] >= _REDIS_STREAM_TS_MIN_MS:
+        return stream[0] / 1000.0
+    return None
+
+
+def _envelope_last_wal_id(envelope: Mapping[str, Any] | None) -> str | None:
+    if not isinstance(envelope, Mapping):
+        return None
+    snapshot = envelope.get("snapshot")
+    if isinstance(snapshot, Mapping):
+        last = snapshot.get("last_wal_id")
+        if isinstance(last, str) and last:
+            return last
+    return None
+
+
+def _snapshot_applied_ids(envelope: Mapping[str, Any] | None) -> set[str]:
+    applied: set[str] = set()
+    if not isinstance(envelope, Mapping):
+        return applied
+    snapshot = envelope.get("snapshot")
+    if not isinstance(snapshot, Mapping):
+        return applied
+    for item in snapshot.get("applied_wal_ids") or []:
+        if item is not None:
+            applied.add(str(item))
+    last = snapshot.get("last_wal_id")
+    if isinstance(last, str) and last:
+        applied.add(last)
+    return applied
 
 
 def _decode_text(value: Any, default: str = "") -> str:
@@ -223,17 +284,23 @@ class FrontierWAL:
         """Return the reason for degraded mode, or empty string if healthy."""
         return self._degraded_reason
 
+    def _snapshot_path(self) -> Path:
+        return self._aof_path.with_suffix(".snap")
+
     def _prune_expired_aof_files(self, wal_dir: Path) -> None:
         """Remove stale local WAL files without deleting active/recent recovery anchors."""
         now = time.time()
-        for wal_file in wal_dir.glob("local_wal_*.aof"):
+        active_aof = self._aof_path.resolve(strict=False)
+        active_snap = self._snapshot_path().resolve(strict=False)
+        for wal_file in (*wal_dir.glob("local_wal_*.aof"), *wal_dir.glob("local_wal_*.snap")):
             try:
-                if wal_file.resolve(strict=False) == self._aof_path.resolve(strict=False):
+                resolved = wal_file.resolve(strict=False)
+                if resolved in {active_aof, active_snap}:
                     continue
                 if now - wal_file.stat().st_mtime > _AOF_RETENTION_SECONDS:
                     wal_file.unlink(missing_ok=True)
             except OSError as exc:
-                logger.debug("Failed to prune stale WAL AOF %s: %s", wal_file, exc)
+                logger.debug("Failed to prune stale WAL file %s: %s", wal_file, exc)
 
     def _append_aof_entry(
         self,
@@ -503,6 +570,12 @@ class FrontierWAL:
     def _filter_after_start(
         self, entries: list[dict[str, Any]], start_id: str | None
     ) -> list[dict[str, Any]]:
+        """Return entries strictly after ``start_id``.
+
+        Never fall back to the full journal when the cursor is missing.
+        That hole (R0-2) double-applied already-snapshotted deltas and
+        corrupted list fields / counters on resume.
+        """
         start_id_norm = start_id.strip() if isinstance(start_id, str) else None
         if not start_id_norm:
             return entries
@@ -516,16 +589,59 @@ class FrontierWAL:
                 return entries[index + 1 :]
 
         start_tuple = _stream_id_tuple(start_id_norm)
-        if start_tuple is None:
-            return entries
+        start_ts = _parse_wal_id_ts(start_id_norm)
+        if start_tuple is None and start_ts is None:
+            logger.warning(
+                "WAL cursor %r not found and not comparable; refusing full replay",
+                start_id_norm,
+            )
+            return []
 
-        filtered = []
+        filtered: list[dict[str, Any]] = []
         for entry in entries:
-            entry_stream_id = entry.get("stream_id") or entry.get("id")
-            entry_tuple = _stream_id_tuple(str(entry_stream_id))
-            if entry_tuple is not None and entry_tuple > start_tuple:
+            if self._entry_is_after_cursor(entry, start_tuple, start_ts):
                 filtered.append(entry)
         return filtered
+
+    @staticmethod
+    def _entry_is_after_cursor(
+        entry: Mapping[str, Any],
+        start_tuple: tuple[int, int] | None,
+        start_ts: float | None,
+    ) -> bool:
+        entry_stream_id = entry.get("stream_id") or entry.get("id")
+        entry_tuple = _stream_id_tuple(str(entry_stream_id or ""))
+        if start_tuple is not None and entry_tuple is not None:
+            return entry_tuple > start_tuple
+
+        entry_ts: float | None
+        raw_ts = entry.get("ts")
+        try:
+            entry_ts = float(raw_ts) if raw_ts is not None else None
+        except (TypeError, ValueError):
+            entry_ts = None
+        if entry_ts is None:
+            entry_ts = _parse_wal_id_ts(str(entry.get("id") or entry.get("stream_id") or ""))
+        if start_ts is not None and entry_ts is not None:
+            return entry_ts > start_ts
+        return False
+
+    @staticmethod
+    def _exclude_recovered_ids(
+        entries: list[dict[str, Any]],
+        exclude_ids: set[str] | frozenset[str] | None,
+    ) -> list[dict[str, Any]]:
+        if not exclude_ids:
+            return entries
+        excluded = {str(item) for item in exclude_ids}
+        kept: list[dict[str, Any]] = []
+        for entry in entries:
+            if str(entry.get("id") or "") in excluded:
+                continue
+            if str(entry.get("stream_id") or "") in excluded:
+                continue
+            kept.append(entry)
+        return kept
 
     def _merge_recovered_deltas(
         self, redis_deltas: list[dict[str, Any]], aof_deltas: list[dict[str, Any]]
@@ -548,7 +664,11 @@ class FrontierWAL:
             stream_tuple = _stream_id_tuple(str(stream_id))
             dedupe_key = str(entry.get("tx_id") or entry.get("stream_id") or entry.get("id"))
             if stream_tuple is None:
-                stream_tuple = (0, sequence.get(dedupe_key, 0))
+                aof_ts = _parse_wal_id_ts(str(entry.get("id") or ""))
+                if aof_ts is not None:
+                    stream_tuple = (int(aof_ts * 1000.0), sequence.get(dedupe_key, 0))
+                else:
+                    stream_tuple = (0, sequence.get(dedupe_key, 0))
             return (
                 float(entry.get("ts") or 0.0),
                 stream_tuple[0],
@@ -561,11 +681,19 @@ class FrontierWAL:
             entry.pop("_source", None)
         return recovered
 
-    def recover_deltas(self, start_id: str | None = None) -> list[dict[str, Any]]:
+    def recover_deltas(
+        self,
+        start_id: str | None = None,
+        *,
+        exclude_ids: set[str] | frozenset[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Replay the WAL to reconstruct state after a crash.
         Supports rolling integrity checks via CRC64. If Redis is down or entry is corrupted,
         falls back to local AOF replica, and vice versa.
+
+        ``start_id`` is an exclusive cursor. ``exclude_ids`` drops entries whose
+        id / stream_id is already known to be applied (snapshot ``applied_wal_ids``).
         """
         import msgpack
 
@@ -573,16 +701,18 @@ class FrontierWAL:
         aof_deltas = self._read_aof_deltas(msgpack)
 
         if redis_failed:
-            return self._filter_after_start(aof_deltas, start_id)
-
-        recovered = self._merge_recovered_deltas(redis_deltas, aof_deltas)
-        return self._filter_after_start(recovered, start_id)
+            recovered = self._filter_after_start(aof_deltas, start_id)
+        else:
+            recovered = self._merge_recovered_deltas(redis_deltas, aof_deltas)
+            recovered = self._filter_after_start(recovered, start_id)
+        return self._exclude_recovered_ids(recovered, exclude_ids)
 
     def persist_snapshot(self, state: NeuralState, *, reason: str = "checkpoint") -> bool:
-        """Persist the latest full CRDT snapshot used as the cold-start anchor."""
-        if not self._active:
-            return False
+        """Persist the latest full CRDT snapshot used as the cold-start anchor.
 
+        Dual-commits to Redis (when active) and an atomic AOF ``.snap`` file
+        so AOF-only / degraded runs still have a recovery anchor.
+        """
         try:
             import msgpack
 
@@ -593,50 +723,154 @@ class FrontierWAL:
             }
             envelope["digest"] = stable_digest(envelope["snapshot"])
             payload = cast(bytes, msgpack.packb(envelope, use_bin_type=True))
-            if hasattr(self._client, "set"):
-                self._redis_call(lambda: self._client.set(self._snapshot_key, payload))
-                if hasattr(self._client, "expire"):
-                    self._redis_call(lambda: self._client.expire(self._snapshot_key, 86400))
-                logger.info(
-                    "WAL persisted CRDT snapshot for run %s at cursor %s",
-                    self._run_id,
-                    state.last_wal_id,
-                )
-                return True
-        except (redis.exceptions.RedisError, ValueError, Exception) as exc:
-            logger.error("WAL snapshot persist failed for run %s: %s", self._run_id, exc)
+        except (TypeError, ValueError) as exc:
+            logger.error("WAL snapshot pack failed for run %s: %s", self._run_id, exc)
+            return False
+
+        redis_ok = self._persist_snapshot_redis(payload)
+        aof_ok = self._persist_snapshot_aof(payload)
+        if redis_ok or aof_ok:
+            logger.info(
+                "WAL persisted CRDT snapshot for run %s at cursor %s (redis=%s aof=%s)",
+                self._run_id,
+                state.last_wal_id,
+                redis_ok,
+                aof_ok,
+            )
+            return True
         return False
+
+    def _persist_snapshot_redis(self, payload: bytes) -> bool:
+        if not self._active or not hasattr(self, "_client") or not hasattr(self._client, "set"):
+            return False
+        try:
+            self._redis_call(lambda: self._client.set(self._snapshot_key, payload))
+            if hasattr(self._client, "expire"):
+                self._redis_call(lambda: self._client.expire(self._snapshot_key, 86400))
+            return True
+        except (redis.exceptions.RedisError, OSError, TypeError, ValueError) as exc:
+            logger.error("WAL Redis snapshot persist failed for run %s: %s", self._run_id, exc)
+        except Exception as exc:  # noqa: BLE001 - persist must never crash the pipeline
+            logger.exception(
+                "WAL Redis snapshot persist unexpected error for run %s: %s",
+                self._run_id,
+                exc,
+            )
+        return False
+
+    def _persist_snapshot_aof(self, payload: bytes) -> bool:
+        snap_path = self._snapshot_path()
+        tmp_path = snap_path.with_suffix(".snap.tmp")
+        try:
+            lock = _aof_lock(snap_path)
+            with lock:
+                snap_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(tmp_path, "wb") as handle:
+                    handle.write(payload)
+                    handle.flush()
+                    try:
+                        os.fsync(handle.fileno())
+                    except OSError as exc:
+                        logger.debug("WAL snapshot fsync failed: %s", exc)
+                os.replace(tmp_path, snap_path)
+            return True
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error("WAL AOF snapshot persist failed for run %s: %s", self._run_id, exc)
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return False
 
     def load_snapshot(self) -> dict[str, Any] | None:
         """Load the latest durable snapshot envelope, if one exists."""
-        if not self._active or not hasattr(self._client, "get"):
-            return None
+        redis_envelope = self._load_snapshot_redis()
+        aof_envelope = self._load_snapshot_aof()
+        return self._prefer_snapshot(redis_envelope, aof_envelope)
 
+    def snapshot_replay_cursor(self) -> tuple[str | None, frozenset[str]]:
+        """Return ``(last_wal_id, applied_wal_ids)`` from the durable snapshot.
+
+        This is the snapshot boundary, *not* the post-``recover_state`` cursor.
+        Journal-field replay must start here so already-snapshotted entries
+        are not applied a second time.
+        """
+        envelope = self.load_snapshot()
+        if not isinstance(envelope, dict):
+            return None, frozenset()
+        return _envelope_last_wal_id(envelope), frozenset(_snapshot_applied_ids(envelope))
+
+    def _unpack_snapshot_payload(self, payload: Any) -> dict[str, Any] | None:
+        import msgpack
+
+        if not payload:
+            return None
+        envelope = msgpack.unpackb(payload, raw=False)
+        if not isinstance(envelope, dict):
+            return None
+        snapshot = envelope.get("snapshot")
+        expected = envelope.get("digest")
+        if expected and stable_digest(snapshot) != expected:
+            logger.error("WAL snapshot digest mismatch for run %s", self._run_id)
+            return None
+        return cast(dict[str, Any], envelope)
+
+    def _load_snapshot_redis(self) -> dict[str, Any] | None:
+        if not self._active or not hasattr(self, "_client") or not hasattr(self._client, "get"):
+            return None
         try:
-            import msgpack
-
             payload = self._redis_call(lambda: self._client.get(self._snapshot_key))
-            if not payload:
-                return None
-            envelope = msgpack.unpackb(payload, raw=False)
-            if not isinstance(envelope, dict):
-                return None
-            snapshot = envelope.get("snapshot")
-            expected = envelope.get("digest")
-            if expected and stable_digest(snapshot) != expected:
-                logger.error("WAL snapshot digest mismatch for run %s", self._run_id)
-                return None
-            return cast(dict[str, Any], envelope)
-        except (redis.exceptions.RedisError, ValueError, Exception) as exc:
-            logger.error("WAL snapshot load failed for run %s: %s", self._run_id, exc)
+            return self._unpack_snapshot_payload(payload)
+        except (redis.exceptions.RedisError, OSError, TypeError, ValueError) as exc:
+            logger.error("WAL Redis snapshot load failed for run %s: %s", self._run_id, exc)
+        except Exception as exc:  # noqa: BLE001 - load must never crash recovery
+            logger.exception(
+                "WAL Redis snapshot load unexpected error for run %s: %s",
+                self._run_id,
+                exc,
+            )
+        return None
+
+    def _load_snapshot_aof(self) -> dict[str, Any] | None:
+        snap_path = self._snapshot_path()
+        if not snap_path.exists():
             return None
+        try:
+            payload = snap_path.read_bytes()
+            return self._unpack_snapshot_payload(payload)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error("WAL AOF snapshot load failed for run %s: %s", self._run_id, exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "WAL AOF snapshot load unexpected error for run %s: %s",
+                self._run_id,
+                exc,
+            )
+        return None
+
+    def _prefer_snapshot(
+        self,
+        left: dict[str, Any] | None,
+        right: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if left is None:
+            return right
+        if right is None:
+            return left
+        left_id = _envelope_last_wal_id(left)
+        right_id = _envelope_last_wal_id(right)
+        if left_id and right_id:
+            if NeuralState._wal_id_sort_key(right_id) > NeuralState._wal_id_sort_key(left_id):
+                return right
+            return left
+        return left or right
 
     def recover_state(self) -> NeuralState:
         """Rebuild NeuralState from the latest snapshot plus post-snapshot WAL entries."""
         envelope = self.load_snapshot()
         snapshot = envelope.get("snapshot") if isinstance(envelope, dict) else None
         state = NeuralState.from_crdt_snapshot(snapshot if isinstance(snapshot, dict) else None)
-        for entry in self.recover_deltas(state.last_wal_id):
+        for entry in self.recover_deltas(state.last_wal_id, exclude_ids=state.applied_wal_ids):
             delta = entry.get("delta")
             if isinstance(delta, dict):
                 delta.setdefault("_wal_id", entry.get("id"))
@@ -644,26 +878,105 @@ class FrontierWAL:
         return state
 
     def compact_after_snapshot(self, state: NeuralState, *, keep_entries: int = 1000) -> bool:
-        """Persist a snapshot and trim older stream entries within the compaction budget."""
+        """Persist a snapshot and trim older stream / AOF entries past the cursor."""
         if not self.persist_snapshot(state, reason="compaction"):
             return False
-        if not self._active or not hasattr(self._client, "xtrim"):
-            return True
-        try:
-            self._redis_call(
-                lambda: self._client.xtrim(
-                    self._stream_key,
-                    maxlen=max(keep_entries, 1),
-                    approximate=True,
+        redis_ok = True
+        if self._active and hasattr(self, "_client") and hasattr(self._client, "xtrim"):
+            try:
+                self._redis_call(
+                    lambda: self._client.xtrim(
+                        self._stream_key,
+                        maxlen=max(keep_entries, 1),
+                        approximate=True,
+                    )
                 )
-            )
+            except (redis.exceptions.RedisError, OSError, TypeError, ValueError) as exc:
+                logger.warning("WAL stream compaction failed for run %s: %s", self._run_id, exc)
+                redis_ok = False
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "WAL stream compaction unexpected error for run %s: %s",
+                    self._run_id,
+                    exc,
+                )
+                redis_ok = False
+        aof_ok = self._compact_aof(state.last_wal_id)
+        return redis_ok and aof_ok
+
+    def _compact_aof(self, last_wal_id: str | None) -> bool:
+        """Atomically rewrite the AOF to the exclusive tail after ``last_wal_id``."""
+        if not last_wal_id or not self._aof_path.exists():
             return True
-        except (redis.exceptions.RedisError, Exception) as exc:
-            logger.warning("WAL stream compaction failed for run %s: %s", self._run_id, exc)
-            return False
+        lock = _aof_lock(self._aof_path)
+        with lock:
+            try:
+                raw_lines = self._aof_path.read_text(encoding="utf-8").splitlines()
+            except OSError as exc:
+                logger.warning("WAL AOF compact read failed for run %s: %s", self._run_id, exc)
+                return False
+
+            parsed: list[dict[str, Any]] = []
+            originals: list[str] = []
+            for line in raw_lines:
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                stream_id = entry.get("stream_id")
+                wal_id = (
+                    entry.get("id")
+                    or stream_id
+                    or entry.get("tx_id")
+                    or f"aof-{entry.get('ts', 0)}"
+                )
+                try:
+                    entry_ts = float(entry.get("ts") or 0.0)
+                except (TypeError, ValueError):
+                    entry_ts = 0.0
+                parsed.append(
+                    {
+                        "id": str(wal_id),
+                        "stream_id": str(stream_id) if stream_id else None,
+                        "tx_id": str(entry.get("tx_id") or ""),
+                        "ts": entry_ts,
+                    }
+                )
+                originals.append(line)
+
+            kept_entries = self._filter_after_start(parsed, last_wal_id)
+            kept_identity = {id(item) for item in kept_entries}
+            kept_lines = [
+                original
+                for item, original in zip(parsed, originals, strict=True)
+                if id(item) in kept_identity
+            ]
+            tmp_path = self._aof_path.with_suffix(".aof.tmp")
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as handle:
+                    if kept_lines:
+                        handle.write("\n".join(kept_lines) + "\n")
+                    handle.flush()
+                    try:
+                        os.fsync(handle.fileno())
+                    except OSError as exc:
+                        logger.debug("WAL AOF compact fsync failed: %s", exc)
+                os.replace(tmp_path, self._aof_path)
+                return True
+            except (OSError, TypeError, ValueError) as exc:
+                logger.warning("WAL AOF compact write failed for run %s: %s", self._run_id, exc)
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                return False
 
     def cleanup(self) -> None:
-        """Purge the stream and AOF after successful scan completion."""
+        """Purge the stream, snapshot, and AOF after successful scan completion."""
         if self._active:
             try:
                 if hasattr(self._client, "delete"):
@@ -671,12 +984,17 @@ class FrontierWAL:
                     self._redis_call(lambda: self._client.delete(self._snapshot_key))
             except (redis.exceptions.RedisError, Exception) as exc:
                 logger.warning("WAL cleanup failed for run %s: %s", self._run_id, exc)
-        # Delete local AOF
-        try:
-            if self._aof_path.exists():
-                self._aof_path.unlink()
-        except (OSError, Exception) as exc:
-            logger.warning("WAL AOF cleanup failed: %s", exc)
+        for path in (
+            self._aof_path,
+            self._snapshot_path(),
+            self._snapshot_path().with_suffix(".snap.tmp"),
+            self._aof_path.with_suffix(".aof.tmp"),
+        ):
+            try:
+                if path.exists():
+                    path.unlink()
+            except (OSError, Exception) as exc:
+                logger.warning("WAL cleanup failed for %s: %s", path, exc)
 
     def close(self) -> None:
         """Close Redis resources held by the WAL."""

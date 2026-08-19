@@ -66,6 +66,8 @@ class ReconstructedState:
     wal_counts: dict[str, int] = field(default_factory=dict)
     verify_report: dict[str, Any] = field(default_factory=dict)
     execute_stages: bool = True
+    snapshot_last_wal_id: str | None = None
+    snapshot_applied_wal_ids: frozenset[str] = field(default_factory=frozenset)
 
 
 class RecoveryManager:
@@ -134,6 +136,7 @@ class RecoveryManager:
 
         wal = self._open_wal(run_id)
         wal_state = self._replay_journal(wal, mode)
+        snapshot_cursor, snapshot_applied = self._snapshot_cursor(wal)
         checkpoint_counts = self._counts_from_payload(payload)
         wal_counts = self._counts_from_wal(wal_state)
         source = "checkpoint+wal" if wal_state is not None else "checkpoint"
@@ -158,6 +161,8 @@ class RecoveryManager:
             wal_counts=wal_counts,
             verify_report=verify_report,
             execute_stages=mode is not WalReplayMode.DRY_RUN,
+            snapshot_last_wal_id=snapshot_cursor,
+            snapshot_applied_wal_ids=snapshot_applied,
         )
 
     def _fresh(self, mode: WalReplayMode) -> ReconstructedState:
@@ -268,6 +273,19 @@ class RecoveryManager:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Recovery Manager: WAL recover_state failed: %s", exc)
             return None
+
+    @staticmethod
+    def _snapshot_cursor(wal: Any) -> tuple[str | None, frozenset[str]]:
+        if wal is None or not hasattr(wal, "snapshot_replay_cursor"):
+            return None, frozenset()
+        try:
+            cursor, applied = wal.snapshot_replay_cursor()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Recovery Manager: snapshot_replay_cursor failed: %s", exc)
+            return None, frozenset()
+        applied_ids = frozenset(str(item) for item in (applied or ()) if item is not None)
+        cursor_id = cursor if isinstance(cursor, str) and cursor else None
+        return cursor_id, applied_ids
 
     @staticmethod
     def _coerce_mode(value: str | WalReplayMode) -> WalReplayMode:

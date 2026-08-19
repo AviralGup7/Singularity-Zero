@@ -226,7 +226,7 @@ def test_full_state_field_coverage(tmp_path: Path):
         delta = entry.get("delta")
         if isinstance(delta, dict):
             delta.setdefault("_wal_id", entry.get("id"))
-            ctx.result.apply_state_delta(delta)
+            ctx.result.apply_journal_fields(delta)
     _sync_from_neural(ctx)
 
     assert "https://a.example.com" in ctx.result.live_hosts
