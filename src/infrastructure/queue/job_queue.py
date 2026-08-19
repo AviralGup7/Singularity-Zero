@@ -64,6 +64,6 @@ class JobQueue(
         """Register a hook invoked when a job transitions state."""
         hooks = getattr(self, "_state_change_hooks", None)
         if hooks is None:
-            self._state_change_hooks = []
+            self._state_change_hooks: list[Callable[..., Any]] = []
             hooks = self._state_change_hooks
         hooks.append(callback)
