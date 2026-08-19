@@ -36,6 +36,11 @@ class CheckpointManager:
     # Base delay (seconds) for exponential backoff between retries.
     _REPLICATION_RETRY_BASE_DELAY: float = 0.5
 
+    #: Minimum seconds between periodic checkpoints during a running stage.
+    ADAPTIVE_TIME_THRESHOLD: float = 30.0
+    #: Minimum WAL deltas (calls to save_stage_delta) before a new checkpoint.
+    ADAPTIVE_DELTA_THRESHOLD: int = 10
+
     def __init__(
         self,
         checkpoint_dir: Path,
@@ -61,6 +66,9 @@ class CheckpointManager:
         # Bug #2 fix: Track replication threads for lifecycle management.
         self._replication_threads: set[threading.Thread] = set()
         self._replication_thread_lock = threading.Lock()
+        # Adaptive checkpoint tracking
+        self._last_adaptive_checkpoint_at: float = time.time()
+        self._deltas_since_last_checkpoint: int = 0
 
     @property
     def completed_stages(self) -> list[str]:
@@ -537,6 +545,9 @@ class CheckpointManager:
             current.current_stage = stage_name if not complete else current.current_stage
             current.checkpoint_version += 1
             self.save(current)
+            # Adaptive: checkpoint on delta threshold or time since last
+            self._deltas_since_last_checkpoint += 1
+            self.auto_checkpoint(stage_name=stage_name if not complete else None)
             return self._stage_delta_path(stage_name, sequence)
 
     def load_stage_deltas(self, stage_name: str) -> list[dict[str, Any]]:
@@ -782,6 +793,104 @@ class CheckpointManager:
                     entry["file"] = str(local_file)
                 history.append(entry)
             return history
+
+    # ------------------------------------------------------------------
+    # Adaptive mid-stage checkpointing
+    # ------------------------------------------------------------------
+
+    def auto_checkpoint(
+        self,
+        *,
+        force: bool = False,
+        stage_name: str | None = None,
+    ) -> Path | None:
+        """Save a checkpoint if any adaptive trigger fires.
+
+        Triggers (combined with OR):
+
+        * **Time threshold:** ``ADAPTIVE_TIME_THRESHOLD`` seconds elapsed
+          since the last checkpoint (30s default).
+        * **Delta threshold:** ``ADAPTIVE_DELTA_THRESHOLD`` stage-output
+          deltas accumulated since the last checkpoint (10 default).
+        * **Force flag:** external caller demands a checkpoint now.
+
+        Call this from `merge_stage_output`, periodic pipeline ticks, or
+        before any operation that would lose progress on crash (e.g. a
+        WAL compaction / scope merge).
+
+        Returns the checkpoint path when saved, ``None`` when no trigger
+        fired or there is no state to persist.
+
+        .. note::
+
+           This does NOT increment the checkpoint version or modify
+           stage lifecycle — it is purely a durability safeguard so
+           that a mid-stage crash loses at most 30s of work.
+        """
+        with self._lock:
+            if self._state is None:
+                current = self.load()
+                if current is None:
+                    return None
+                self._state = current
+            else:
+                current = self._state
+
+            now = time.time()
+            time_since = now - self._last_adaptive_checkpoint_at
+
+            if force:
+                reason = "forced"
+            elif time_since >= self.ADAPTIVE_TIME_THRESHOLD:
+                reason = f"time ({time_since:.0f}s)"
+            elif self._deltas_since_last_checkpoint >= self.ADAPTIVE_DELTA_THRESHOLD:
+                reason = f"delta-count ({self._deltas_since_last_checkpoint})"
+            else:
+                return None
+
+            # Stamp a lightweight progress marker without altering stage lifecycle.
+            current.last_checkpoint_at = now
+            current.checkpoint_version += 1
+            if stage_name:
+                current.current_stage = stage_name
+
+            data = current.to_dict()
+            data["checksum"] = ""
+
+            json_str_base = json.dumps(data, indent=2, sort_keys=True)
+            checksum = _compute_checksum(json_str_base)
+            json_str = json_str_base.replace('"checksum": ""', f'"checksum": "{checksum}"', 1)
+
+            try:
+                written = self._store.write(
+                    run_id=current.pipeline_run_id,
+                    version=current.checkpoint_version,
+                    payload=json.loads(json_str),
+                )
+                _ = written  # version_id returned by write, unused here
+            except Exception as exc:
+                logger.error("Adaptive checkpoint write failed: %s", exc)
+                return None
+
+            self._last_adaptive_checkpoint_at = now
+            self._deltas_since_last_checkpoint = 0
+            self._state = current
+
+            if self._distributed is not None:
+                self._dispatch_replication(current)
+
+            logger.debug(
+                "Adaptive checkpoint v%s saved (trigger: %s) for stage=%s",
+                current.checkpoint_version,
+                reason,
+                stage_name or "none",
+            )
+            local_path = (
+                self.checkpoint_dir
+                / current.pipeline_run_id
+                / f"checkpoint_v{current.checkpoint_version}.json"
+            )
+            return local_path
 
 
 class StageCheckpointGuard:
