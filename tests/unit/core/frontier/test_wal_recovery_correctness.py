@@ -20,7 +20,6 @@ from typing import Any
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.infrastructure.frontier.wal import FrontierWAL
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -46,7 +45,7 @@ def _log_deltas(wal: FrontierWAL, stage: str, deltas: list[dict[str, Any]]) -> l
     ids: list[str] = []
     for d in deltas:
         eid = wal.log_delta(stage, d)
-        assert eid is not None, "log_delta failed for %s" % d
+        assert eid is not None, f"log_delta failed for {d}"
         ids.append(eid)
     return ids
 
@@ -56,7 +55,7 @@ def _corrupt_aof_entry(wal: FrontierWAL, entry_idx: int) -> None:
     aof = wal._aof_path
     assert aof.exists()
     lines = aof.read_text(encoding="utf-8").splitlines()
-    assert 0 <= entry_idx < len(lines), "idx %d out of 0..%d" % (entry_idx, len(lines) - 1)
+    assert 0 <= entry_idx < len(lines), f"idx {entry_idx} out of 0..{len(lines) - 1}"
     entry = json.loads(lines[entry_idx])
     entry["crc64"] = "000000000000dead"
     lines[entry_idx] = json.dumps(entry, separators=(",", ":"))
@@ -114,9 +113,8 @@ def test_post_checkpoint_recovery(tmp_path: Path):
 
     assert "api.root.example.com" in recovered_ns.subdomains.to_set()
     assert "https://api.root.example.com/users" in recovered_ns.urls.to_set()
-    assert len(recovered_ns.findings.values()) == 2, "expected 2 findings, got %d" % len(
-        recovered_ns.findings.values()
-    )
+    _got = len(recovered_ns.findings.values())
+    assert _got == 2, f"got {_got}"
 
     # Verify the fix: merge into checkpoint context
     cp_ctx = _make_checkpoint_ctx(subdomains=["root.example.com"])
@@ -174,9 +172,8 @@ def test_duplicate_wal_checkpoint_state(tmp_path: Path):
     # 5. verify: dup once, new once, 2 findings
     assert "dup.example.com" in cp_ctx.subdomains
     assert "new.example.com" in cp_ctx.subdomains
-    assert len(cp_ctx.reportable_findings) == 2, "expected 2 findings, got %d" % len(
-        cp_ctx.reportable_findings
-    )
+    _got = len(cp_ctx.reportable_findings)
+    assert _got == 2, f"got {_got}"
     assert post > pre, "applied_wal_ids should grow"
 
     wal.cleanup()
@@ -220,9 +217,8 @@ def test_full_state_field_coverage(tmp_path: Path):
 
     assert recovered_ns.subdomains.to_set() == {"a.example.com", "b.example.com"}
     assert recovered_ns.urls.to_set() == {"https://a.example.com", "https://b.example.com"}
-    assert len(recovered_ns.findings.values()) >= 2, "expected >=2 finding entries, got %d" % len(
-        recovered_ns.findings.values()
-    )
+    _got = len(recovered_ns.findings.values())
+    assert _got >= 2, f"expected assert len(recovered_ns.findings.values()) >= 2 got {_got}"
 
     ctx = _make_checkpoint_ctx()
     ctx.result._neural_state.merge(recovered_ns)
@@ -282,18 +278,16 @@ def test_mid_active_scan_crash(tmp_path: Path):
     restored.result._neural_state.merge(recovered_ns)
     _sync_from_neural(restored)
 
-    assert len(restored.reportable_findings) == 20, "expected 20 post-WAL findings, got %d" % len(
-        restored.reportable_findings
-    )
+    _got = len(restored.reportable_findings)
+    assert _got == 20, f"got {_got}"
 
     # Phase 4: resume and finish
     for d in post:
         restored.result.apply_state_delta(d)
         wal2.log_delta("active_scan", d)
 
-    assert len(restored.reportable_findings) == 40, "expected 40 final findings, got %d" % len(
-        restored.reportable_findings
-    )
+    _got = len(restored.reportable_findings)
+    assert _got == 40, f"got {_got}"
 
     # Phase 5: compare against uninterrupted run
     uninterrupted = _make_checkpoint_ctx()
