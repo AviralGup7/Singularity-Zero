@@ -19,18 +19,16 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from src.core.storage.factory import create_artifact_store
 from src.pipeline.services.output_store import PipelineOutputStore
-from src.pipeline.storage import atomic_write_text, write_json, write_jsonl, write_lines
 from src.pipeline.services.pipeline_orchestrator.orchestrator import find_previous_run
-
+from src.pipeline.storage import atomic_write_text, write_json, write_jsonl, write_lines
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -229,7 +227,7 @@ def test_storage_write_json_atomic(tmp_path: Path):
 def test_storage_write_jsonl_atomic(tmp_path: Path):
     target = tmp_path / "data.jsonl"
     write_jsonl(target, [{"a": 1}, {"b": 2}])
-    lines = [json.loads(l) for l in target.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert lines == [{"a": 1}, {"b": 2}]
 
 
