@@ -36,9 +36,11 @@ def _make_ctx() -> PipelineContext:
 
 
 def _finding(i: int) -> dict[str, Any]:
-    return {"title": "Vuln-" + str(i),
-            "severity": "high" if i % 2 else "medium",
-            "target": "host-" + str(i % 5) + ".example.com"}
+    return {
+        "title": "Vuln-" + str(i),
+        "severity": "high" if i % 2 else "medium",
+        "target": "host-" + str(i % 5) + ".example.com",
+    }
 
 
 def _log(w: FrontierWAL, s: str, ds: list[dict[str, Any]]) -> None:
@@ -72,35 +74,50 @@ def _state_dict(ctx: PipelineContext) -> dict[str, Any]:
     }
 
 
-def _recover_and_verify(tmp_path: Path, run_id: str,
-                        expected: dict[str, Any], scenario: str) -> None:
+def _replay_journal_fields(wal: FrontierWAL, ctx: PipelineContext) -> None:
+    """Restore non-CRDT fields without re-applying CRDT deltas."""
+    journal_cursor = ctx.result._neural_state.last_wal_id
+    journal_exclude = set(ctx.result._neural_state.applied_wal_ids)
+    ctx.result._journal_applied_ids.update(journal_exclude)
+    for entry in wal.recover_deltas(journal_cursor, exclude_ids=journal_exclude):
+        delta = entry.get("delta")
+        if isinstance(delta, dict):
+            delta.setdefault("_wal_id", entry.get("id"))
+            ctx.result.apply_journal_fields(delta)
+
+
+def _recover_and_verify(
+    tmp_path: Path, run_id: str, expected: dict[str, Any], scenario: str
+) -> None:
     wal = _make_wal(tmp_path, run_id)
     ctx = _make_ctx()
     ns = wal.recover_state()
     if ns is not None:
         ctx.result._neural_state.merge(ns)
-    for entry in wal.recover_deltas():
-        d = entry.get("delta")
-        if isinstance(d, dict):
-            d.setdefault("_wal_id", entry.get("id"))
-            ctx.result.apply_state_delta(d)
+    _replay_journal_fields(wal, ctx)
     _sync(ctx)
     state = _state_dict(ctx)
 
-    for key in ("live_hosts", "parameters", "module_metrics",
-                "scope_entries", "stage_status"):
+    for key in (
+        "live_hosts",
+        "parameters",
+        "module_metrics",
+        "scope_entries",
+        "stage_status",
+    ):
         ev = expected.get(key)
         rv = state.get(key)
-        assert ev == rv, ("%s: %s mismatch: %r != %r" % (scenario, key, ev, rv))
+        assert ev == rv, f"{scenario}: {key} mismatch: {ev!r} != {rv!r}"
 
-    for d in expected["subdomains"]:
-        assert d in state["subdomains"], ("%s: lost subdomain %s" % (scenario, d))
-    for u in expected["urls"]:
-        assert u in state["urls"], ("%s: lost url %s" % (scenario, u))
-    for f in expected["findings"]:
-        assert f in state["findings"], ("%s: lost finding %s" % (scenario, f))
-    assert sorted(expected["findings"]) == sorted(state["findings"]), \
-        ("%s: finding sets differ" % scenario)
+    for domain in expected["subdomains"]:
+        assert domain in state["subdomains"], f"{scenario}: lost subdomain {domain}"
+    for url in expected["urls"]:
+        assert url in state["urls"], f"{scenario}: lost url {url}"
+    for finding in expected["findings"]:
+        assert finding in state["findings"], f"{scenario}: lost finding {finding}"
+    assert sorted(expected["findings"]) == sorted(state["findings"]), (
+        f"{scenario}: finding sets differ"
+    )
 
     wal.cleanup()
 
@@ -182,19 +199,17 @@ def test_crash_active_scan(tmp_path: Path):
 
     r_ctx = PipelineContext(result=StageResult.from_dict(cp_snap))
     r_wal = _make_wal(tmp_path, run_id)
+    journal_cursor = r_ctx.result._neural_state.last_wal_id
+    journal_exclude = set(r_ctx.result._neural_state.applied_wal_ids)
     ns = r_wal.recover_state()
     if ns is not None:
         r_ctx.result._neural_state.merge(ns)
-    for entry in r_wal.recover_deltas():
-        d = entry.get("delta")
-        if isinstance(d, dict):
-            d.setdefault("_wal_id", entry.get("id"))
-            r_ctx.result.apply_state_delta(d)
+    _replay_journal_fields(r_wal, r_ctx, start_id=journal_cursor, exclude_ids=journal_exclude)
     _sync(r_ctx)
 
     r_pre = _state_dict(r_ctx)
     for key in ("subdomains", "urls", "findings"):
-        assert r_pre[key] == expected[key], ("pre-resume %s mismatch" % key)
+        assert r_pre[key] == expected[key], f"pre-resume {key} mismatch"
 
     for d in post:
         _apply(r_ctx, d)
@@ -209,15 +224,18 @@ def test_crash_reporting(tmp_path: Path):
 
     deltas = []
     for i in range(3):
-        deltas.append({
-            "subdomains": ["h" + str(i) + ".x.com"],
-            "urls": ["https://h" + str(i) + ".x.com"],
-            "live_hosts": ["https://h" + str(i) + ".x.com"],
-            "findings": [{"title": "F" + str(i), "severity": "medium",
-                          "target": "h" + str(i) + ".x.com"}],
-            "module_metrics": {"stage" + str(i): {"items": 1}},
-            "stage_status": {"stage" + str(i): "COMPLETED"},
-        })
+        deltas.append(
+            {
+                "subdomains": ["h" + str(i) + ".x.com"],
+                "urls": ["https://h" + str(i) + ".x.com"],
+                "live_hosts": ["https://h" + str(i) + ".x.com"],
+                "findings": [
+                    {"title": "F" + str(i), "severity": "medium", "target": "h" + str(i) + ".x.com"}
+                ],
+                "module_metrics": {"stage" + str(i): {"items": 1}},
+                "stage_status": {"stage" + str(i): "COMPLETED"},
+            }
+        )
 
     for d in deltas:
         _log(w, "stage", [d])

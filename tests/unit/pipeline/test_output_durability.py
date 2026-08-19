@@ -34,6 +34,7 @@ from src.pipeline.storage import atomic_write_text, write_json, write_jsonl, wri
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_store(tmp_path: Path, run_id: str = "run-0001") -> PipelineOutputStore:
     """Create a PipelineOutputStore backed by the local artifact store."""
     output_root = tmp_path / "output"
@@ -56,6 +57,7 @@ def _write_valid_summary(run_dir: Path, run_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Test 1 — Interrupted write leaves previous artifact intact
 # ---------------------------------------------------------------------------
+
 
 def test_interrupted_write_preserves_previous_artifact(tmp_path: Path):
     store = _make_store(tmp_path, "run-0001")
@@ -84,8 +86,9 @@ def test_interrupted_write_preserves_previous_artifact(tmp_path: Path):
 
     # The canonical path must still hold the ORIGINAL content
     assert findings_path.exists()
-    assert findings_path.read_text(encoding="utf-8") == original, \
+    assert findings_path.read_text(encoding="utf-8") == original, (
         "canonical artifact was corrupted by interrupted write"
+    )
 
     # No leftover temp files in the run dir
     leftovers = [p for p in store.run_dir.iterdir() if p.name.endswith(".tmp") or ".tmp" in p.name]
@@ -112,13 +115,15 @@ def test_interrupted_plain_write_text_preserves_artifact(tmp_path: Path):
         with pytest.raises(OSError):
             store.write_text("scope.txt", "other.example.com\n")
 
-    assert scope_path.read_text(encoding="utf-8") == original, \
+    assert scope_path.read_text(encoding="utf-8") == original, (
         "scope.txt was corrupted by interrupted write"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Test 2 — Truncated / corrupt JSON is detected by previous-run selection
 # ---------------------------------------------------------------------------
+
 
 def test_previous_run_skips_corrupted_run(tmp_path: Path):
     output_root = tmp_path / "output"
@@ -131,7 +136,9 @@ def test_previous_run_skips_corrupted_run(tmp_path: Path):
     # A NEWER run whose run_summary.json is corrupted (crash during write)
     run_b = target_root / "run-bbb"
     run_b.mkdir(parents=True, exist_ok=True)
-    (run_b / "run_summary.json").write_text('{"run_id": "run-bbb", "target": "trunc', encoding="utf-8")
+    (run_b / "run_summary.json").write_text(
+        '{"run_id": "run-bbb", "target": "trunc', encoding="utf-8"
+    )
 
     previous = find_previous_run(target_root)
     assert previous is not None
@@ -163,8 +170,9 @@ def test_previous_run_none_when_all_corrupt(tmp_path: Path):
     run_x.mkdir(parents=True, exist_ok=True)
     (run_x / "run_summary.json").write_text("not-json-at-all", encoding="utf-8")
 
-    assert find_previous_run(target_root) is None, \
+    assert find_previous_run(target_root) is None, (
         "no valid previous run should be returned when all summaries are corrupt"
+    )
 
 
 def test_previous_run_picks_latest_valid(tmp_path: Path):
@@ -185,6 +193,7 @@ def test_previous_run_picks_latest_valid(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # Test 3 — atomic_write_text crash-safety (unit)
 # ---------------------------------------------------------------------------
+
 
 def test_atomic_write_text_crash_safety(tmp_path: Path):
     target = tmp_path / "artifacts.json"
@@ -214,6 +223,7 @@ def test_atomic_write_text_crash_safety(tmp_path: Path):
 # Test 4 — JSON / JSONL writers are atomic
 # ---------------------------------------------------------------------------
 
+
 def test_storage_write_json_atomic(tmp_path: Path):
     target = tmp_path / "data.json"
     write_json(target, {"key": "value", "nested": [1, 2, 3]})
@@ -227,8 +237,9 @@ def test_storage_write_json_atomic(tmp_path: Path):
 def test_storage_write_jsonl_atomic(tmp_path: Path):
     target = tmp_path / "data.jsonl"
     write_jsonl(target, [{"a": 1}, {"b": 2}])
-    lines = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert lines == [{"a": 1}, {"b": 2}]
+    raw_lines = target.read_text(encoding="utf-8").splitlines()
+    parsed = [json.loads(row) for row in raw_lines if row.strip()]
+    assert parsed == [{"a": 1}, {"b": 2}]
 
 
 def test_storage_write_lines_atomic(tmp_path: Path):
@@ -240,6 +251,7 @@ def test_storage_write_lines_atomic(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # Test 5 — Report writers produce atomic artifacts
 # ---------------------------------------------------------------------------
+
 
 def test_report_html_writes_are_atomic(tmp_path: Path):
     """report.html / index.html writes must not leave partial files on crash."""
@@ -267,8 +279,9 @@ def test_report_html_writes_are_atomic(tmp_path: Path):
         with pytest.raises(OSError):
             atomic_write_text(report_path, "<html>NEW CONTENT</html>")
 
-    assert report_path.read_text(encoding="utf-8") == original, \
+    assert report_path.read_text(encoding="utf-8") == original, (
         "report.html was corrupted by a failed atomic write"
+    )
 
 
 def test_report_manifest_sig_atomic(tmp_path: Path):
@@ -298,6 +311,7 @@ def test_report_manifest_sig_atomic(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # Test 6 — write_text round-trip through artifact store
 # ---------------------------------------------------------------------------
+
 
 def test_write_text_roundtrip_through_artifact_store(tmp_path: Path):
     store = _make_store(tmp_path, "run-0001")
