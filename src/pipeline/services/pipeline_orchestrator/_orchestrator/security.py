@@ -380,6 +380,7 @@ async def run_secured(
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
     if can_recover and recovered_state and hasattr(orchestrator._wal, "recover_state"):
         try:
+            # 1. Rebuild CRDT state from WAL snapshot + delta replay
             wal_state = orchestrator._wal.recover_state()
             if (
                 wal_state is not None
@@ -388,16 +389,32 @@ async def run_secured(
                 and hasattr(ctx.result, "_neural_state")
             ):
                 ctx.result._neural_state.merge(wal_state)
+
+                # 2. Replay raw deltas through apply_state_delta so non-CRDT fields
+                #    (live_hosts, parameters, module_metrics, etc.) are also recovered.
+                for entry in orchestrator._wal.recover_deltas():
+                    delta = entry.get("delta")
+                    if isinstance(delta, dict):
+                        delta.setdefault("_wal_id", entry.get("id"))
+                        ctx.result.apply_state_delta(delta)
+
+                # 3. Sync context fields from neural state
                 ctx.subdomains = ctx.result._neural_state.subdomains.to_set()
                 ctx.urls = ctx.result._neural_state.urls.to_set()
                 ctx.reportable_findings = list(ctx.result._neural_state.findings.values())
                 logger.info(
+
                     "WAL replay: merged %d subdomains, %d urls, %d findings into recovered context "
                     "for run %s",
                     len(ctx.subdomains),
                     len(ctx.urls),
                     len(ctx.reportable_findings),
                     run_id,
+
+                    "WAL replay: merged %d subdomains, %d urls, %d findings "
+                    "into recovered context for run %s",
+                    len(ctx.subdomains), len(ctx.urls), len(ctx.reportable_findings), run_id,
+
                 )
             else:
                 logger.debug(
