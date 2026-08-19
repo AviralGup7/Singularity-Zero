@@ -161,3 +161,28 @@ class WorkerExecutionLoopMixin:
                     )
         except Exception as exc:
             logger.error("Error handling stale checkpoints: %s", exc)
+
+    async def _reap_dead_workers(self) -> None:
+        """Coordinator pass: suspect silent peers, confirm death, reassign jobs."""
+        try:
+            from src.infrastructure.queue.coordinator import WorkerCoordinator
+
+            timeout = float(getattr(self.queue, "lease_seconds", 300.0) or 300.0)
+            suspect_after = max(30.0, timeout / 4)
+            dead_after = max(suspect_after, timeout / 2)
+            coordinator = WorkerCoordinator(
+                self.queue,
+                suspect_after=suspect_after,
+                dead_after=dead_after,
+            )
+            report = await coordinator.sweep()
+            if report.declared_dead or report.reassigned:
+                logger.warning(
+                    "Coordinator sweep: suspected=%s dead=%s reassigned=%d unfinished_runs=%s",
+                    report.suspected,
+                    report.declared_dead,
+                    len(report.reassigned),
+                    report.unfinished_run_ids,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Coordinator sweep skipped: %s", exc)

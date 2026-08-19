@@ -22,6 +22,7 @@ from src.core.contracts.health import (
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.checkpoint import DistributedCheckpointStore
 from src.infrastructure.queue.models import WorkerInfo
+from src.infrastructure.queue.worker_phase import WorkerPhase, legacy_status
 
 logger = get_pipeline_logger(__name__)
 
@@ -58,7 +59,8 @@ class WorkerLifecycleMixin:
             id=worker_id,
             hostname=socket.gethostname(),
             pid=os.getpid(),
-            status="idle",
+            status=legacy_status(WorkerPhase.REGISTERING),
+            phase=WorkerPhase.REGISTERING.value,
             concurrency=self.concurrency,
             capabilities=self.capabilities,
             metadata={"accepts_concurrent_claims": self.concurrency > 1},
@@ -96,7 +98,7 @@ class WorkerLifecycleMixin:
     async def _register(self) -> None:
         self._info.started_at = time.time()
         self._info.last_heartbeat = time.time()
-        self._info.status = "idle"
+        self._set_phase(WorkerPhase.READY)
 
         worker_key = f"queue:{self.queue.queue_name}:worker:{self.worker_id}"
         self.queue.redis.execute_command("HSET", worker_key, mapping=self._info.to_redis_hash())
@@ -128,6 +130,20 @@ class WorkerLifecycleMixin:
         while self._running and not self._shutdown_requested:
             try:
                 self._info.last_heartbeat = time.time()
+                if self._info.phase == WorkerPhase.SUSPECT.value:
+                    # A live heartbeat is the confirmation we are not dead.
+                    self._set_phase(
+                        WorkerPhase.RUNNING if self._info.active_jobs else WorkerPhase.READY
+                    )
+                elif (
+                    self._info.phase
+                    not in {
+                        WorkerPhase.DRAINING.value,
+                        WorkerPhase.DEAD.value,
+                    }
+                    and not self._info.active_jobs
+                ):
+                    self._set_phase(WorkerPhase.READY)
                 worker_key = f"queue:{self.queue.queue_name}:worker:{self.worker_id}"
                 self.queue.redis.execute_command(
                     "HSET", worker_key, mapping=self._info.to_redis_hash()
@@ -143,7 +159,7 @@ class WorkerLifecycleMixin:
                 await asyncio.sleep(self.heartbeat_interval)
 
     async def _cleanup(self) -> None:
-        self._info.status = "shutting_down"
+        self._set_phase(WorkerPhase.DRAINING)
 
         active_jobs = list(self._info.active_jobs)
         for job_id in active_jobs:
@@ -154,7 +170,7 @@ class WorkerLifecycleMixin:
                 logger.warning("Failed to release lease for job %s: %s", job_id, exc)
 
         self._info.active_jobs.clear()
-        self._info.status = "dead"
+        self._set_phase(WorkerPhase.DEAD)
 
         worker_key = f"queue:{self.queue.queue_name}:worker:{self.worker_id}"
         self.queue.redis.execute_command("HSET", worker_key, mapping=self._info.to_redis_hash())
@@ -186,11 +202,16 @@ class WorkerLifecycleMixin:
                 for task in tasks_snapshot:
                     task.cancel()
 
+    def _set_phase(self, phase: WorkerPhase) -> None:
+        self._info.phase = phase.value
+        self._info.status = legacy_status(phase)
+
     async def stop(self) -> None:
         if not self._running:
             return
         logger.info("Stopping worker %s...", self.worker_id)
         self._shutdown_requested = True
+        self._set_phase(WorkerPhase.DRAINING)
 
     async def restart_from_health_finding(
         self, finding: HealthFinding | None = None

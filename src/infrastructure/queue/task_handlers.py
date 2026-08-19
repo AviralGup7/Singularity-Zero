@@ -38,6 +38,7 @@ class WorkerTaskHandlersMixin:
 
         job.mark_running()
         self._info.status = "busy"
+        self._info.phase = "running"
         self._info.active_jobs.append(job.id)
 
         job_key = f"queue:{self.queue.queue_name}:job:{job.id}"
@@ -193,6 +194,7 @@ class WorkerTaskHandlersMixin:
 
             if len(self._info.active_jobs) == 0:
                 self._info.status = "idle"
+                self._info.phase = "ready"
 
             # Release the global governor slot acquired at job start.
             try:

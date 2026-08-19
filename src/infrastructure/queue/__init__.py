@@ -17,6 +17,7 @@ import os
 import threading
 
 from src.infrastructure.queue.base_worker import BaseWorker
+from src.infrastructure.queue.coordinator import SweepReport, WorkerCoordinator
 from src.infrastructure.queue.job_queue import JobQueue
 from src.infrastructure.queue.models import (
     Job,
@@ -34,6 +35,7 @@ from src.infrastructure.queue.plugin_handler_bridge import (
 from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.queue.worker import Worker
+from src.infrastructure.queue.worker_phase import WorkerPhase, normalize_phase
 
 _job_queue: JobQueue | None = None
 _job_queue_lock = threading.Lock()
@@ -70,9 +72,13 @@ __all__ = [
     "QueueConfigModel",
     "RedisClient",
     "RetryPolicy",
+    "SweepReport",
     "Worker",
+    "WorkerCoordinator",
     "WorkerInfo",
+    "WorkerPhase",
     "get_job_queue",
+    "normalize_phase",
     "register_all_plugin_handlers",
     "resolve_handler_for_job_type",
     "set_job_queue",

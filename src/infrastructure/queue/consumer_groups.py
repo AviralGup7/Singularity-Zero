@@ -134,3 +134,13 @@ class JobQueueConsumerGroupsMixin:
                 except Exception as exc:  # pylint: disable=broad-exception-caught
                     logger.debug("Skipping malformed worker health record %s: %s", worker_id, exc)
         return workers
+
+    def persist_worker(self, worker: WorkerInfo) -> None:
+        """Write worker health/phase so the coordinator's verdict is visible."""
+        worker_key = self._key(f"worker:{worker.id}")
+        self.redis.execute_command("HSET", worker_key, mapping=worker.to_redis_hash())
+        workers_key = self._key("workers")
+        if worker.phase == "dead" or worker.status == "dead":
+            self.redis.execute_command("SREM", workers_key, worker.id)
+        else:
+            self.redis.execute_command("SADD", workers_key, worker.id)

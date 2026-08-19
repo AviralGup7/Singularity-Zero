@@ -410,7 +410,8 @@ class WorkerInfo(BaseModel):
         id: Unique worker identifier.
         hostname: Hostname or machine name of the worker.
         pid: Process ID of the worker.
-        status: Current worker status (idle, busy, shutting_down, dead).
+        status: Legacy worker status (idle, busy, shutting_down, dead).
+        phase: Canonical lifecycle phase (registering/ready/running/draining/suspect/dead).
         concurrency: Maximum number of jobs this worker can process simultaneously.
         active_jobs: List of job IDs currently being processed.
         last_heartbeat: Unix timestamp of the last heartbeat signal.
@@ -426,6 +427,7 @@ class WorkerInfo(BaseModel):
     hostname: str = Field(default="unknown")
     pid: int = Field(default=0)
     status: str = Field(default="idle")
+    phase: str = Field(default="ready")
     concurrency: int = Field(default=1, ge=1)
     active_jobs: list[str] = Field(default_factory=list)
     last_heartbeat: float = Field(default_factory=time.time)
@@ -460,6 +462,7 @@ class WorkerInfo(BaseModel):
             "hostname": self.hostname,
             "pid": str(self.pid),
             "status": self.status,
+            "phase": self.phase,
             "concurrency": str(self.concurrency),
             "active_jobs": json.dumps(self.active_jobs),
             "last_heartbeat": str(self.last_heartbeat),
@@ -506,6 +509,7 @@ class WorkerInfo(BaseModel):
             hostname=decode(normalized.get("hostname", "unknown")),
             pid=int(decode(normalized.get("pid", "0"))),
             status=decode(normalized.get("status", "idle")),
+            phase=decode(normalized.get("phase", "")) or decode(normalized.get("status", "ready")),
             concurrency=int(decode(normalized.get("concurrency", "1"))),
             active_jobs=decode_json(normalized.get("active_jobs", "[]")),
             last_heartbeat=float(decode(normalized.get("last_heartbeat", "0"))),
