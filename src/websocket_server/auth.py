@@ -175,11 +175,17 @@ async def authenticate_websocket(
             )
 
     subprotocols = websocket.headers.get("sec-websocket-protocol", "")
-    for protocol in subprotocols.split(","):
-        protocol = protocol.strip()
+    protocols = [p.strip() for p in subprotocols.split(",") if p.strip()]
+    for idx, protocol in enumerate(protocols):
         if protocol.startswith("bearer.") and jwt_secret:
             jwt_token = protocol[len("bearer.") :]
             return _authenticate_jwt(jwt_token, jwt_secret, required_roles)
+        if protocol == "access_token" and jwt_secret and idx + 1 < len(protocols):
+            return _authenticate_jwt(protocols[idx + 1], jwt_secret, required_roles)
+
+    query_token = websocket.query_params.get("token")
+    if query_token and jwt_secret:
+        return _authenticate_jwt(query_token, jwt_secret, required_roles)
 
     api_key_header = websocket.headers.get("x-api-key")
     if api_key_header and api_keys:

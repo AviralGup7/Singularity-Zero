@@ -19,7 +19,7 @@ from src.core.exceptions import (
     ToolNotInstalledError,
 )
 from src.dashboard.fastapi.config import DashboardConfig
-from src.dashboard.fastapi.dependencies import require_admin, set_app_ref
+from src.dashboard.fastapi.dependencies import require_admin, require_auth, set_app_ref
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
@@ -52,7 +52,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     app = FastAPI(
         title="Cyber Security Test Pipeline Dashboard",
         description="Unified security orchestration and vulnerability analysis dashboard.",
-        version="2.0.0",
+        version="3.1.0",
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
@@ -240,8 +240,34 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             subsystems["cache"] = "down"
             degraded_reasons.append("Cache not initialized")
 
-        subsystems["database"] = "up"
-        subsystems["tools"] = "up"
+        try:
+            from src.dashboard.health import run_health_checks
+
+            health = await run_health_checks(
+                version="3.1.0",
+                redis_url=getattr(config, "redis_url", None),
+                db_path=getattr(config, "cache_db_path", None),
+                workspace_root=getattr(config, "workspace_root", None),
+                output_root=getattr(config, "output_root", None),
+                cache_manager=cache_manager,
+                storage_config=getattr(config, "storage_config", None),
+            )
+            db_health = health.service.dependencies.get("database")
+            svc_health = health.service.dependencies.get("services")
+            subsystems["database"] = (
+                getattr(db_health.status, "value", str(db_health.status))
+                if db_health is not None
+                else "unknown"
+            )
+            subsystems["tools"] = (
+                getattr(svc_health.status, "value", str(svc_health.status))
+                if svc_health is not None
+                else "unknown"
+            )
+        except Exception as exc:
+            subsystems["database"] = "degraded"
+            subsystems["tools"] = "degraded"
+            degraded_reasons.append(f"Dependency probe failed: {exc}")
 
         all_up = all(v == "up" for v in subsystems.values())
         any_down = any(v == "down" for v in subsystems.values())
@@ -267,7 +293,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         from src.dashboard.fastapi.lifespan import _START_TIME
 
         return {
-            "version": "2.0.0",
+            "version": "3.1.0",
             "build": os.getenv("BUILD_SHA", "dev"),
             "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "boot_time": _START_TIME,
@@ -323,7 +349,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         await handle_triage_websocket(websocket, run_id, service)
 
     @app.get("/api/dashboard", response_model=DashboardStatsResponse, tags=["Analytics"])
-    async def get_dashboard_stats() -> dict[str, Any]:
+    async def get_dashboard_stats(_auth: dict[str, str] = Depends(require_auth)) -> dict[str, Any]:
         now = time.time()
         cache_manager = getattr(app.state, "cache_manager", None)
         if cache_manager is not None:
@@ -438,7 +464,10 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     }
 
     @app.post("/api/telemetry", tags=["Analytics"])
-    async def report_frontend_telemetry(event: FrontendTelemetryEvent) -> dict[str, Any]:
+    async def report_frontend_telemetry(
+        event: FrontendTelemetryEvent,
+        _auth: dict[str, str] = Depends(require_auth),
+    ) -> dict[str, Any]:
         try:
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
 

@@ -60,5 +60,5 @@ export function appendStreamToken(url: string): string {
  */
 export function getStreamSubprotocols(): string[] {
   const token = getStreamToken();
-  return token ? ['access_token', token] : [];
+  return token ? [`bearer.${token}`] : [];
 }

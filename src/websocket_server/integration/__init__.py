@@ -71,6 +71,13 @@ def setup_websocket_routes(
     admin_api_key: str | None = None,
     effective_admin_roles: Any | None = None,
     allowed_origins: set[str] | None = None,
+    api_keys: dict[str, str] | None = None,
+    required_roles: set[str] | None = None,
+    heartbeat_interval: float = 20.0,
+    heartbeat_timeout: float = 45.0,
+    max_connections_per_ip: int = 20,
+    redis_url: str | None = None,
+    redis_channel: str = "cyber-pipeline:ws:broadcast",
 ) -> WSServices:
     """Wire up WebSocket routes, components, and return the shared WSServices.
 
@@ -85,8 +92,16 @@ def setup_websocket_routes(
     broadcaster = Broadcaster(manager)
     heartbeat = HeartbeatMonitor(manager)
     reconnect = ReconnectionManager()
+    _ = (heartbeat_interval, heartbeat_timeout, max_connections_per_ip, redis_url, redis_channel)
     handler = WebSocketHandler(
-        manager, broadcaster, heartbeat, reconnect, allowed_origins=allowed_origins
+        manager,
+        broadcaster,
+        heartbeat,
+        reconnect,
+        jwt_secret=jwt_secret,
+        api_keys=api_keys,
+        required_roles=required_roles,
+        allowed_origins=allowed_origins,
     )
 
     services = WSServices(
@@ -134,10 +149,8 @@ def setup_websocket_routes(
             "channels": broadcaster.channel_count(),
         }
 
-    @app.get("/metrics")
+    @app.get("/health/ws/metrics")
     async def ws_metrics() -> dict[str, Any]:
-        from fastapi.responses import PlainTextResponse
-
         return {
             "websocket_connections": manager.count(),
             "websocket_channels": broadcaster.channel_count(),

@@ -54,13 +54,15 @@ def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=allow_credentials,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=[
             "Content-Type",
             "Authorization",
             "X-API-Key",
             "X-Tenant-ID",
+            "X-Organization-ID",
             "X-CSRF-Token",
+            "X-Request-ID",
         ],
     )
 

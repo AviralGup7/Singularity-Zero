@@ -74,7 +74,7 @@ async def record_triage_action(
     service: TriageCollaborationService = Depends(get_triage_service),
 ) -> dict[str, Any]:
     action = str(payload.get("action") or "")
-    analyst_id = str(payload.get("analyst_id") or auth.get("user") or "analyst")
+    analyst_id = str(auth.get("user") or "analyst")
     analyst_name = str(payload.get("analyst_name") or analyst_id)
     event_payload = (
         cast(dict[str, Any], payload.get("payload"))
@@ -121,45 +121,10 @@ async def ai_triage_finding(
     finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
-
-    review = {"review": "AI triage module removed."}
-
-    event = service.record_action(
-        run_id=run_id,
-        finding_id=finding_id,
-        action="ai_false_positive_review",
-        analyst_id="ai_analyst",
-        analyst_name="AI Validation Analyst",
-        payload={
-            "decision": review["decision"],
-            "confidence": review["confidence"],
-            "reasoning": review["reasoning"],
-        },
+    raise HTTPException(
+        status_code=501,
+        detail="AI triage module has been removed. Use a human review action instead.",
     )
-
-    if review["decision"] == "FP":
-        await _register_false_positive_pattern(
-            finding_id,
-            {
-                "category": finding.get("category", "general"),
-                "status_code": finding.get("response_status") or finding.get("status_code"),
-                "body_indicator": review["reasoning"],
-            },
-        )
-
-    await service.broadcast(
-        run_id,
-        {
-            "type": "triage_event",
-            "event": event,
-            "state": service.build_finding_state(run_id, finding_id),
-        },
-    )
-    return {
-        "review": review,
-        "event": event,
-        "state": service.build_finding_state(run_id, finding_id),
-    }
 
 
 async def _register_false_positive_pattern(finding_id: str, payload: dict[str, Any]) -> None:
@@ -187,7 +152,20 @@ async def handle_triage_websocket(
     run_id: str,
     service: TriageCollaborationService,
 ) -> None:
-    analyst_id = websocket.query_params.get("analyst_id") or "anonymous"
+    from src.dashboard.fastapi.security import app_secret_key, api_security_enabled
+    from src.websocket_server.auth import AuthenticationError, authenticate_websocket, send_auth_error
+
+    try:
+        auth = await authenticate_websocket(
+            websocket,
+            jwt_secret=app_secret_key() if api_security_enabled() else None,
+            required_roles={"viewer", "operator", "admin"} if api_security_enabled() else None,
+        )
+    except AuthenticationError as exc:
+        await send_auth_error(websocket, exc)
+        return
+
+    analyst_id = auth.user_id
     analyst_name = websocket.query_params.get("analyst_name") or analyst_id
     await websocket.accept()
     connection = TriageConnection(

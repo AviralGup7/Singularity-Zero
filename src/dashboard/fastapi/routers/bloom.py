@@ -8,7 +8,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, Request
 
 from src.core.frontier.bloom import NeuralBloomFilter
-from src.dashboard.fastapi.dependencies import require_admin
+from src.dashboard.fastapi.dependencies import require_admin, require_auth
 
 router = APIRouter(prefix="/api/bloom", tags=["Bloom"])
 

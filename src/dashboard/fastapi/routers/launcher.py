@@ -2,8 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import FileResponse
+
+from src.dashboard.fastapi.dependencies import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +13,12 @@ router = APIRouter()
 
 
 @router.get("/launcher/{job_id}/{filename}", include_in_schema=False)
-async def serve_launcher_artifact(job_id: str, filename: str, request: Request) -> Response:
+async def serve_launcher_artifact(
+    job_id: str,
+    filename: str,
+    request: Request,
+    _auth: dict[str, str] = Depends(require_auth),
+) -> Response:
     """Serve specific log and metadata files for a background job run."""
     # Sanity check to prevent path traversal and null-byte injection
     if any(char in job_id for char in ("/", "\\", "..", "\x00")) or any(

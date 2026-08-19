@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from src.dashboard.fastapi.dependencies import get_tool_execution_service, require_auth
+from src.dashboard.fastapi.dependencies import get_tool_execution_service, require_admin, require_auth
 
 router = APIRouter(prefix="/api/health/self-healing", tags=["Self-Healing"])
 
@@ -136,7 +136,7 @@ async def force_open_tool_breaker(
     tool_name: str,
     payload: ForceOpenRequest,
     request: Request,
-    _auth: Any = Depends(require_auth),
+    _auth: Any = Depends(require_admin),
 ) -> dict[str, Any]:
     """Trip a tool's circuit breaker.
 
@@ -168,7 +168,7 @@ async def force_open_tool_breaker(
 async def reset_tool_breaker(
     tool_name: str,
     request: Request,
-    _auth: Any = Depends(require_auth),
+    _auth: Any = Depends(require_admin),
 ) -> dict[str, Any]:
     """Manually reset a tool's breaker back to CLOSED."""
     service = getattr(request.app.state, "tool_execution_service", None)

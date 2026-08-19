@@ -106,13 +106,13 @@ async def replay_request(
         except Exception:
             raise HTTPException(status_code=500, detail="Exploit replay protocol not available")
 
-    inbound_authorization = ""
-    inbound_cookie = ""
-    if request is not None:
-        inbound_authorization = request.headers.get("Authorization", "")
-        inbound_cookie = request.headers.get("Cookie", "")
-    extra_authorization = authorization or inbound_authorization
-    extra_cookie = cookie or inbound_cookie
+    # Never copy the dashboard's inbound Authorization/Cookie onto the
+    # target. Replay credentials must come from the stored request
+    # context (inherit) or an explicit body — query params are rejected
+    # above as a credential leak.
+    extra_authorization = ""
+    extra_cookie = ""
+    _ = (authorization, cookie)
     try:
         extra_headers = replay_headers_for_mode(
             auth_mode,
