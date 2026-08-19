@@ -114,7 +114,7 @@ def handle_doctor() -> int:
 
         redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
         r = redis.from_url(redis_url)
-        r.ping(timeout=3)
+        r.ping()
         redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
         checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))
     except Exception as exc:
@@ -264,8 +264,14 @@ def handle_plugin_new(args: Namespace) -> int:
     name = args.name or Prompt.ask("Enter plugin name (alphanumeric/underscore)")
     name = name.strip().lower()
 
-    if not name or (not name.isalnum() and "_" not in name):
-        console.print("[error]ERROR: Plugin name must be alphanumeric or underscore.[/error]")
+    import keyword
+    import re
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name or "") or keyword.iskeyword(name):
+        console.print(
+            "[error]ERROR: Plugin name must be a valid Python identifier "
+            "(start with a letter, then letters/digits/underscore).[/error]"
+        )
         return 1
 
     category = args.category
@@ -274,7 +280,8 @@ def handle_plugin_new(args: Namespace) -> int:
         f"[info]Scaffolding custom [accent]{category}[/accent] plugin: [accent]{name}[/accent]...[/info]"
     )
 
-    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    repo_root = Path(__file__).resolve().parents[3]
+    src_dir = repo_root / "src"
     if category == "recon":
         target_path = src_dir / "recon" / "sources" / f"{name}.py"
         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,9 +358,15 @@ class {name.capitalize()}Reporter:
         return ""
 '''
 
+    src_root = src_dir.resolve()
+    resolved_target = target_path.resolve()
+    if not resolved_target.is_relative_to(src_root):
+        console.print("[error]ERROR: Plugin path escaped the source tree.[/error]")
+        return 1
+    target_path = resolved_target
     target_path.write_text(code, encoding="utf-8")
 
-    registry_path = src_dir / "configs" / "plugins" / "registry.json"
+    registry_path = repo_root / "configs" / "plugins" / "registry.json"
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_data = []
     if registry_path.exists():

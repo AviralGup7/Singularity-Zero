@@ -33,8 +33,9 @@ _config_lock = threading.Lock()
 _app_ref: Any = None
 logger = logging.getLogger(__name__)
 
-# Cache api_security_enabled() at module load to avoid repeated env var reads
-_SECURITY_ENABLED = api_security_enabled()
+def _security_enabled() -> bool:
+    """Evaluate API security at request time so env changes take effect."""
+    return api_security_enabled()
 
 
 def set_app_ref(app: Any) -> None:
@@ -139,11 +140,11 @@ async def require_auth(
             "This must NEVER be enabled in production environments! "
             "ALL requests receive full ADMIN access. No key required."
         )
-        tenant_id = request.headers.get("X-Tenant-ID") or "default"
+        tenant_id = "default"
         TenantContext.set_current_tenant(tenant_id)
         return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
 
-    if _SECURITY_ENABLED:
+    if _security_enabled():
         principal = _security_principal_from_request(request, api_key)
         if principal is None:
             _record_auth_failure(request)
@@ -151,7 +152,7 @@ async def require_auth(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Valid X-API-Key or bearer token required",
             )
-        tenant_id = request.headers.get("X-Tenant-ID") or principal.tenant_id or "default"
+        tenant_id = principal.tenant_id or "default"
         TenantContext.set_current_tenant(tenant_id)
         return {
             "user": principal.user,
@@ -174,7 +175,7 @@ async def require_auth(
                 "This must NEVER be enabled in production environments! "
                 "ALL requests receive full ADMIN access."
             )
-            tenant_id = request.headers.get("X-Tenant-ID") or "default"
+            tenant_id = "default"
             TenantContext.set_current_tenant(tenant_id)
             return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
         raise HTTPException(
@@ -193,23 +194,29 @@ async def require_auth(
         api_key = auth_header[7:]
 
     if not hmac.compare_digest(api_key or "", configured_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
-        )
+        # Accept a dashboard JWT even when the API-security store is off,
+        # so the SPA Bearer token from /api/auth/token still works.
+        jwt_principal = authenticate_jwt_token(api_key or "")
+        if jwt_principal is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            )
+        tenant_id = jwt_principal.tenant_id or "default"
+        TenantContext.set_current_tenant(tenant_id)
+        return {
+            "user": jwt_principal.user,
+            "role": jwt_principal.role,
+            "api_key_id": jwt_principal.api_key_id or "",
+            "auth_method": jwt_principal.auth_method,
+            "tenant_id": tenant_id,
+        }
 
     admin_keys = config.admin_keys or [
         k.strip() for k in os.environ.get("DASHBOARD_ADMIN_KEYS", "").split(",") if k.strip()
     ]
-    # Bug #27 fix: previously the non-admin role was the literal string
-    # ``"read"``, which is not a member of ``ROLE_ORDER`` (the valid
-    # values are ``viewer``, ``operator``, ``admin``). When
-    # ``api_security_enabled()`` was True, ``raise_for_roles`` would
-    # treat the unknown role as rank 0 and refuse every request to
-    # endpoints that should accept ``viewer``. Use the canonical
-    # ``"viewer"`` string instead.
     role = "admin" if api_key in admin_keys else "viewer"
-    tenant_id = request.headers.get("X-Tenant-ID") or "default"
+    tenant_id = "default"
     TenantContext.set_current_tenant(tenant_id)
 
     return {"user": "api_user", "role": role, "tenant_id": tenant_id}
@@ -295,7 +302,7 @@ async def require_admin(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required",
         )
-    if _SECURITY_ENABLED:
+    if _security_enabled():
         principal = Principal(
             user=auth.get("user", ""),
             role=auth.get("role", "viewer"),

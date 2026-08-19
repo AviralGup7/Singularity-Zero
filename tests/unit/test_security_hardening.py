@@ -62,8 +62,8 @@ class TestDefusedXmlReplacement:
 class TestProductionStartupEnforcement:
     """Verify that dangerous defaults are blocked in production."""
 
-    def test_enforce_production_security_skips_checks_when_auth_disabled(self) -> None:
-        """enforce_production_security skips all checks when DASHBOARD_AUTH_DISABLED=true (NO SECURITY MODE)."""
+    def test_enforce_production_security_blocks_auth_disabled(self) -> None:
+        """DASHBOARD_AUTH_DISABLED=true must refuse to boot in production."""
         from src.core.security.secret_validator import enforce_production_security
 
         env = {
@@ -72,7 +72,8 @@ class TestProductionStartupEnforcement:
             "APP_SECRET_KEY": "a" * 32,
             "SEC_JWT_SECRET": "b" * 32,
         }
-        enforce_production_security(env)
+        with pytest.raises(RuntimeError, match="DASHBOARD_AUTH_DISABLED"):
+            enforce_production_security(env)
 
     def test_enforce_production_security_blocks_default_secret_key(self) -> None:
         """enforce_production_security should block default APP_SECRET_KEY in production."""

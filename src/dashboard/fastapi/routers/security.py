@@ -122,12 +122,13 @@ async def create_dashboard_token(
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
     store.record_event(
-        "guest_auth",
+        "token_issued",
         status_code=200,
         method=request.method,
         path=request.url.path,
         client_ip=request.client.host if request.client else "unknown",
-        detail={"auth_method": "guest", "token_role": "guest"},
+        api_key_id=principal.api_key_id,
+        detail={"auth_method": principal.auth_method, "token_role": principal.role},
     )
     return TokenResponse(**create_jwt(principal))
 

@@ -75,12 +75,16 @@ async def get_project(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Return full project preset including config and scope."""
-    cfg_path = CONFIGS_DIR / f"{project_id}.json"
-    scope_path = CONFIGS_DIR / f"{project_id}_scope.txt"
+    from fastapi import HTTPException
 
-    if not cfg_path.is_file():
-        from fastapi import HTTPException
+    import re
 
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", project_id or ""):
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+    configs_root = CONFIGS_DIR.resolve()
+    cfg_path = (CONFIGS_DIR / f"{project_id}.json").resolve()
+    scope_path = (CONFIGS_DIR / f"{project_id}_scope.txt").resolve()
+    if not cfg_path.is_relative_to(configs_root) or not cfg_path.is_file():
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
 
     data = json.loads(cfg_path.read_text(encoding="utf-8"))

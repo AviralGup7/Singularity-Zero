@@ -59,7 +59,8 @@ except Exception:  # pragma: no cover - argon2-cffi is a project dep but be defe
     VerifyMismatchError = Exception  # type: ignore[assignment,misc]
     _ARGON2_AVAILABLE = False
 
-ROLE_ORDER = {"viewer": 1, "operator": 2, "admin": 3, "guest": 3}
+# Guest is the least privileged role. Rank 0 never satisfies viewer/operator/admin.
+ROLE_ORDER = {"guest": 0, "viewer": 1, "operator": 2, "admin": 3}
 VALID_ROLES = frozenset(ROLE_ORDER)
 
 # Minimum acceptable entropy (Shannon) of a configured secret in production.
@@ -180,6 +181,16 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _sha256_api_key_digest(api_key: str) -> str:
+    """Peppered SHA-256 digest used for the ``sha256$`` storage scheme."""
+    pepper = os.getenv("API_KEY_PEPPER", "")
+    digest = hashlib.sha256()
+    digest.update(pepper.encode("utf-8"))
+    digest.update(b":")
+    digest.update(api_key.encode("utf-8"))
+    return f"sha256${digest.hexdigest()}"
+
+
 def hash_api_key(api_key: str) -> str:
     """Return a stable, slow hash of ``api_key`` for storage in SQLite.
 
@@ -191,26 +202,23 @@ def hash_api_key(api_key: str) -> str:
     """
     if _ARGON2_AVAILABLE and _argon2_hasher is not None:
         return _argon2_hasher.hash(api_key)
-    pepper = os.getenv("API_KEY_PEPPER", "")
-    digest = hashlib.sha256()
-    digest.update(pepper.encode("utf-8"))
-    digest.update(b":")
-    digest.update(api_key.encode("utf-8"))
-    return f"sha256${digest.hexdigest()}"
+    return _sha256_api_key_digest(api_key)
 
 
 def verify_api_key(api_key: str, stored_hash: str) -> bool:
     """Verify ``api_key`` against the stored ``stored_hash`` produced by :func:`hash_api_key`."""
     if not stored_hash:
         return False
-    if _ARGON2_AVAILABLE and _argon2_hasher is not None and not stored_hash.startswith("sha256$"):
+    if stored_hash.startswith("sha256$"):
+        # Always compare against the SHA-256 scheme even when Argon2 is
+        # installed, otherwise legacy hashes become permanently unverifiable.
+        return hmac.compare_digest(stored_hash, _sha256_api_key_digest(api_key))
+    if _ARGON2_AVAILABLE and _argon2_hasher is not None:
         try:
             _argon2_hasher.verify(stored_hash, api_key)
             return True
         except (VerifyMismatchError, VerificationError, InvalidHashError):
             return False
-    if stored_hash.startswith("sha256$"):
-        return hmac.compare_digest(stored_hash, hash_api_key(api_key))
     return False
 
 
@@ -642,6 +650,7 @@ def create_jwt(principal: Principal) -> dict[str, Any]:
         "sub": principal.user,
         "roles": [principal.role],
         "role": principal.role,
+        "type": "access",
         "tenant_id": principal.tenant_id or "default",
         "api_key_id": principal.api_key_id,
         "exp": expires_at,
@@ -664,6 +673,9 @@ def authenticate_jwt_token(token: str) -> Principal | None:
             algorithms=["HS256"],
             options={"require": ["exp", "iat"], "verify_exp": True},
         )
+        token_type = str(payload.get("type") or "access")
+        if token_type != "access":
+            return None
     except jwt.PyJWTError:
         return None
     role = str(payload.get("role") or (payload.get("roles") or ["viewer"])[0])
@@ -708,7 +720,9 @@ def raise_for_roles(principal: Principal, allowed_roles: set[str]) -> None:
 
 
 def compare_key(candidate: str, expected: str) -> bool:
-    return hmac.compare_digest(candidate or "", expected or "")
+    if not candidate or not expected:
+        return False
+    return hmac.compare_digest(candidate, expected)
 
 
 _PLACEHOLDER_PATTERNS = {

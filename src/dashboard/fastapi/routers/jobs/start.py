@@ -75,6 +75,19 @@ _PROJECT_CONFIG_ALLOWLIST = {
 }
 
 
+def _safe_project_path(project_id: str, suffix: str) -> Path:
+    """Resolve a project preset path and refuse traversal outside CONFIGS_DIR."""
+    import re
+
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", project_id or ""):
+        raise ValueError(f"Invalid project id '{project_id}'")
+    configs_root = CONFIGS_DIR.resolve()
+    candidate = (CONFIGS_DIR / f"{project_id}{suffix}").resolve()
+    if not candidate.is_relative_to(configs_root):
+        raise ValueError(f"Invalid project id '{project_id}'")
+    return candidate
+
+
 def _load_project_config(project_id: str) -> tuple[dict[str, Any], str]:
     """Load a project preset config and scope.
 
@@ -82,8 +95,8 @@ def _load_project_config(project_id: str) -> tuple[dict[str, Any], str]:
     Unknown keys are stripped and logged to prevent project presets from
     injecting unexpected behavior into the pipeline.
     """
-    cfg_path = CONFIGS_DIR / f"{project_id}.json"
-    scope_path = CONFIGS_DIR / f"{project_id}_scope.txt"
+    cfg_path = _safe_project_path(project_id, ".json")
+    scope_path = _safe_project_path(project_id, "_scope.txt")
 
     if not cfg_path.is_file():
         raise ValueError(f"Project '{project_id}' not found")

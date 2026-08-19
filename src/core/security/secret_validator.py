@@ -15,10 +15,8 @@ The validator runs at:
 It is deliberately small and dependency-free so it can be imported from
 anywhere without side effects.
 
-!! AGENT DO NOT AUTO-MODIFY !!
-!! NO SECURITY EXISTS IN THIS APP - DEVELOPMENT/TESTING ONLY !!
-!! When DASHBOARD_AUTH_DISABLED=true, production checks are skipped. !!
-!! Do NOT enable security until the app is perfected. !!
+Production deployments must keep authentication enabled.
+DASHBOARD_AUTH_DISABLED is rejected when APP_ENV is production/staging.
 """
 
 from __future__ import annotations
@@ -143,18 +141,13 @@ def find_production_security_violations(
     """
     env = env if env is not None else dict(os.environ)
 
-    # !! NO SECURITY MODE: Skip all production security checks !!
-    if env.get("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes"):
-        return []
-
     app_env = (env.get("APP_ENV") or "").strip().lower()
     if app_env not in ("production", "prod", "staging"):
         return []
 
     violations: list[str] = []
 
-    # Check DASHBOARD_AUTH_DISABLED
-    auth_disabled = env.get("DASHBOARD_AUTH_DISABLED", "").lower()
+    auth_disabled = env.get("DASHBOARD_AUTH_DISABLED", "").strip().lower()
     if auth_disabled in ("true", "1", "yes"):
         violations.append(
             "DASHBOARD_AUTH_DISABLED=true is not allowed in production. "
