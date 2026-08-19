@@ -83,11 +83,17 @@ async def list_notifications(
 ) -> dict[str, Any]:
     """Return paginated notifications, newest first."""
     storage = _get_storage(request)
-    notifications = storage.list_notifications(limit=limit, offset=offset, unread_only=unread_only)
-    unread_count = storage.count_unread()
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    notifications = storage.list_notifications(
+        limit=limit, offset=offset, unread_only=unread_only, tenant_id=tenant_id
+    )
+    unread_count = storage.count_unread(tenant_id=tenant_id)
+    total = storage.count_all(tenant_id=tenant_id) if hasattr(storage, "count_all") else len(
+        notifications
+    )
     return {
         "notifications": notifications,
-        "total": len(notifications),
+        "total": total,
         "unread_count": unread_count,
         "limit": limit,
         "offset": offset,
@@ -101,7 +107,8 @@ async def unread_count(
 ) -> dict[str, int]:
     """Return the count of unread notifications."""
     storage = _get_storage(request)
-    return {"unread_count": storage.count_unread()}
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    return {"unread_count": storage.count_unread(tenant_id=tenant_id)}
 
 
 @router.patch("/{notification_id}/read", response_model=MarkReadResponse)
@@ -124,8 +131,9 @@ async def mark_all_read(
 ) -> dict[str, Any]:
     """Mark all notifications as read."""
     storage = _get_storage(request)
-    storage.mark_all_read()
-    unread_count = storage.count_unread()
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    storage.mark_all_read(tenant_id=tenant_id)
+    unread_count = storage.count_unread(tenant_id=tenant_id)
     return {"success": True, "unread_count": unread_count}
 
 

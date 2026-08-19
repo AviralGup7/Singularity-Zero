@@ -471,6 +471,19 @@ class SecurityStore:
         )
         return [self._row_to_key(row) for row in rows]
 
+    def is_revoked(self, key_id: str) -> bool:
+        if not key_id:
+            return False
+
+        def _op(conn: sqlite3.Connection) -> bool:
+            row = conn.execute(
+                "SELECT revoked_at FROM api_keys WHERE id = ?",
+                (key_id,),
+            ).fetchone()
+            return bool(row and row[0])
+
+        return bool(self._with_conn(_op))
+
     def revoke_key(self, key_id: str) -> bool:
         def _op(conn: sqlite3.Connection) -> int:
             cur = conn.execute(
@@ -651,6 +664,7 @@ def create_jwt(principal: Principal) -> dict[str, Any]:
         "roles": [principal.role],
         "role": principal.role,
         "type": "access",
+        "jti": secrets.token_hex(16),
         "tenant_id": principal.tenant_id or "default",
         "api_key_id": principal.api_key_id,
         "exp": expires_at,

@@ -35,15 +35,20 @@ class ForkServer:
         self._findings: list[dict[str, Any]] = []
 
     async def start(self) -> None:
-        os.makedirs(self.corpus_dir, exist_ok=True)
-        for i in range(4):
-            seed = secrets.token_bytes(64)
-            with open(os.path.join(self.corpus_dir, f"seed_{i}.bin"), "wb") as f:
-                f.write(seed)
-        self._process = subprocess.Popen(  # noqa: S603
-            self.target_cmd,
-            cwd=self.corpus_dir,
-        )
+        import asyncio
+
+        def _start() -> subprocess.Popen:
+            os.makedirs(self.corpus_dir, exist_ok=True)
+            for i in range(4):
+                seed = secrets.token_bytes(64)
+                with open(os.path.join(self.corpus_dir, f"seed_{i}.bin"), "wb") as f:
+                    f.write(seed)
+            return subprocess.Popen(  # noqa: S603
+                self.target_cmd,
+                cwd=self.corpus_dir,
+            )
+
+        self._process = await asyncio.to_thread(_start)
         self.alive = True
         logger.info("ForkServer started: %s in %s", self.target_cmd, self.corpus_dir)
 
@@ -64,7 +69,11 @@ class ForkServer:
             f.write(payload)
         try:
             cmd = self.target_cmd + [tmp_path]
-            proc = subprocess.run(cmd, capture_output=True, timeout=5)  # noqa: S603
+            import asyncio
+
+            proc = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, timeout=5  # noqa: S603
+            )
             result = {
                 "exit_code": proc.returncode,
                 "output": proc.stdout.decode("utf-8", errors="replace"),

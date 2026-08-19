@@ -405,7 +405,14 @@ def _parse_expires_at(response: requests.Response) -> datetime | None:
     try:
         payload = response.json()
         if isinstance(payload, dict) and "expires_in" in payload:
-            return datetime.now(UTC) + timedelta(seconds=int(payload["expires_in"]))
+            raw = payload["expires_in"]
+            try:
+                expires_in = int(raw)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if expires_in <= 0 or expires_in > 86400 * 365:
+                return None
+            return datetime.now(UTC) + timedelta(seconds=expires_in)
     except (ValueError, KeyError, TypeError):
         logger.debug("Failed to parse expires_at from response")
     return None

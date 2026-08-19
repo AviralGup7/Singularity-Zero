@@ -36,7 +36,7 @@ metadata:
     # CKV_K8S_43: Digest pinned externally via CI/CD pipeline image promotion process.
     checkov.io/skip2: CKV_K8S_43=Image digest managed by CI/CD pipeline
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -236,7 +236,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: cyber-dashboard
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
   metrics:
     - type: Resource

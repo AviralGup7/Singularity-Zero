@@ -109,12 +109,20 @@ class JWTValidator(BaseValidator):
                     scoring=scoring,
                     candidate_secrets=candidate_secrets,
                     jwt_evaluate=(
-                        (lambda ctoken: context.http_client.jwt_probe(ctoken, target_url))
+                        (
+                            lambda ctoken, url=target_url: context.http_client.jwt_probe(
+                                ctoken, url
+                            )
+                        )
                         if target_url and hasattr(context.http_client, "jwt_probe")
                         else None
                     ),
                     kid_evaluate=(
-                        (lambda ctoken, kid: context.http_client.jwt_probe(ctoken, target_url))
+                        (
+                            lambda ctoken, kid, url=target_url: context.http_client.jwt_probe(
+                                ctoken, url
+                            )
+                        )
                         if target_url and hasattr(context.http_client, "jwt_probe")
                         else None
                     ),

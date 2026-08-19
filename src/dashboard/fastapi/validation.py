@@ -100,9 +100,11 @@ def validate_json_payload(data: bytes) -> dict[str, Any] | None:
         result = json.loads(data)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None
-    if not isinstance(result, dict):
-        return None
-    return cast(dict[str, Any], result)
+    if isinstance(result, dict):
+        return cast(dict[str, Any], result)
+    if isinstance(result, list):
+        return {"results": result}
+    return None
 
 
 def sanitize_path_segment(segment: str) -> str:

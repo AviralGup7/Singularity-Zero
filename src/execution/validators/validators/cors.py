@@ -70,7 +70,6 @@ CORS_PROBE_ORIGINS: list[str | None] = [
     "https://evil.example.com%2eattacker.com",
     "https://evil.example.com:443",
     "https://evil.example.com\t",  # tab character
-    "null",  # test null origin specifically for sandbox iframes
 ]
 
 
@@ -166,13 +165,8 @@ def evaluate_cors(
         method in allow_methods.upper() for method in ("PUT", "DELETE", "PATCH")
     )
 
-    # Detect sensitive headers exposed via Access-Control-Expose-Headers
     expose_headers_val = headers_lower.get(ACA_EXPOSE_HEADERS.lower(), "")
-    sensitive_exposed = [
-        h.strip()
-        for h in expose_headers_val.split(",")
-        if any(sh.lower() == h.strip().lower() for sh in SENSITIVE_EXPOSED_HEADERS)
-    ]
+    sensitive_exposed = _has_sensitive_headers_exposed(response_headers)
 
     # Detect XSS via CORS reflected origin with credentials
     reflected_with_credentials = reflected and allow_credentials in {"true", "yes", "1"}

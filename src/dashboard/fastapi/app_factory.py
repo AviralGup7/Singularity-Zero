@@ -49,13 +49,14 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
     enforce_production_security()
 
+    expose_docs = os.getenv("APP_ENV", "").strip().lower() not in {"production", "prod"}
     app = FastAPI(
         title="Cyber Security Test Pipeline Dashboard",
         description="Unified security orchestration and vulnerability analysis dashboard.",
         version="3.1.0",
-        docs_url="/api/docs",
-        redoc_url="/api/redoc",
-        openapi_url="/api/openapi.json",
+        docs_url="/api/docs" if expose_docs else None,
+        redoc_url="/api/redoc" if expose_docs else None,
+        openapi_url="/api/openapi.json" if expose_docs else None,
         lifespan=lifespan,
     )
 
@@ -477,7 +478,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                 for key, value in event.payload.items():
                     if key not in _TELEMETRY_PAYLOAD_ALLOWLIST:
                         continue
-                    if isinstance(value, (int, float)):
+                    if isinstance(value, (int, float)) and value > 0:
                         _reg.counter("frontend_payload_" + key).inc(value)
         except Exception:
             logger.debug("Failed to record frontend telemetry event", exc_info=True)

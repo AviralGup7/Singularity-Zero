@@ -6,10 +6,14 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
+
+from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import (
+    is_scanner_crash,
+    run_scanner,
+)
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger

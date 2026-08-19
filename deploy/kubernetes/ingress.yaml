@@ -19,8 +19,10 @@ metadata:
     # timeout allowed slow-loris style exhaustion attacks. The 60s value
     # is more than enough for the dashboard's API calls and WebSocket
     # upgrades (which use a separate wss-connection-timeout).
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     # WebSocket support and TLS configuration (snippets disabled for CVE-2021-25742 compliance)
     # TLS configuration

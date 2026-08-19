@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
+
+from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import (
+    is_scanner_crash,
+    run_scanner,
+)
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -96,19 +100,34 @@ async def run_sca_scan_stage(
             )
 
         output_file = ctx.output_store.run_dir / "sca_findings.json"
-        cmd = [tool, "sbom", "--output", str(output_file), "--format", "cyclonedx-json"]
-        for mf in manifest_files:
-            cmd.extend(["-f", mf])
+        scan_roots = sorted({str(Path(mf).parent) for mf in manifest_files})
+        if tool == "grype":
+            cmd = ["grype", f"dir:{scan_roots[0]}", "-o", "json", "--file", str(output_file)]
+        else:
+            cmd = [
+                "trivy",
+                "fs",
+                "--format",
+                "cyclonedx",
+                "--output",
+                str(output_file),
+                scan_roots[0],
+            ]
 
-        result = subprocess.run(  # noqa: S603
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=600,
-            check=False,
-        )
+        result = await run_scanner(cmd, timeout=600)
+        if is_scanner_crash(result.returncode):
+            ctx.mark_stage_failed("sca_scan", result.stderr or f"{tool} exit {result.returncode}")
+            duration = round(time.monotonic() - stage_started, 2)
+            return StageOutput(
+                stage_name="sca_scan",
+                outcome=StageOutcome.FAILED,
+                duration_seconds=duration,
+                error=result.stderr or f"{tool} exit {result.returncode}",
+                metrics={"status": "error", "tool": tool, "returncode": result.returncode},
+                state_delta={},
+            )
         if result.returncode != 0:
-            logger.warning("SCA tool exited with code %d: %s", result.returncode, result.stderr)
+            logger.info("SCA tool reported findings (exit %d)", result.returncode)
 
         if output_file.exists():
             try:

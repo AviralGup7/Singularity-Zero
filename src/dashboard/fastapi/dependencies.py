@@ -229,7 +229,10 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
 
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        return cast(Principal | None, authenticate_jwt_token(auth_header[7:]))
+        principal = cast(Principal | None, authenticate_jwt_token(auth_header[7:]))
+        if principal is not None and principal.api_key_id and store.is_revoked(principal.api_key_id):
+            return None
+        return principal
 
     # Stream endpoints (SSE / EventSource) cannot set custom headers, so they
     # must pass the bearer token as a query parameter. Allow the ``token``

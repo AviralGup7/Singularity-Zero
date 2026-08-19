@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     entity_type TEXT,
     href TEXT,
     read INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    tenant_id TEXT NOT NULL DEFAULT 'default'
 );
 """
 
@@ -65,6 +66,12 @@ class NotificationStorage:
                 conn.executescript(_CREATE_TABLE)
                 conn.execute(_CREATE_INDEX)
                 conn.execute(_CREATE_READ_INDEX)
+                try:
+                    conn.execute(
+                        "ALTER TABLE notifications ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'"
+                    )
+                except sqlite3.OperationalError:
+                    pass
                 conn.commit()
             except Exception:
                 logger.exception("Failed to initialize notification storage")
@@ -123,25 +130,46 @@ class NotificationStorage:
 
         return notif_id
 
+    def count_all(self, *, tenant_id: str = "default") -> int:
+        with self._lock:
+            conn: sqlite3.Connection | None = None
+            try:
+                conn = sqlite3.connect(self._db_path, timeout=5.0)
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM notifications WHERE tenant_id = ?",
+                    (tenant_id or "default",),
+                )
+                row = cursor.fetchone()
+                return row[0] if row else 0
+            except Exception:
+                logger.exception("Failed to count notifications")
+                return 0
+            finally:
+                safe_close(conn)
+
     def list_notifications(
         self,
         *,
         limit: int = 100,
         offset: int = 0,
         unread_only: bool = False,
+        tenant_id: str = "default",
     ) -> list[dict[str, Any]]:
         """Return notifications ordered by newest first."""
-        query = "SELECT * FROM notifications"
+        tenant = tenant_id or "default"
+        query = "SELECT * FROM notifications WHERE tenant_id = ?"
+        params: list[Any] = [tenant]
         if unread_only:
-            query += " WHERE read = 0"
+            query += " AND read = 0"
         query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
 
         with self._lock:
             conn: sqlite3.Connection | None = None
             try:
                 conn = sqlite3.connect(self._db_path, timeout=5.0)
                 conn.row_factory = sqlite3.Row
-                cursor = conn.execute(query, (limit, offset))
+                cursor = conn.execute(query, params)
                 rows = cursor.fetchall()
                 return [dict(row) for row in rows]
             except Exception:
@@ -150,13 +178,16 @@ class NotificationStorage:
             finally:
                 safe_close(conn)
 
-    def count_unread(self) -> int:
+    def count_unread(self, *, tenant_id: str = "default") -> int:
         """Return the count of unread notifications."""
         with self._lock:
             conn: sqlite3.Connection | None = None
             try:
                 conn = sqlite3.connect(self._db_path, timeout=5.0)
-                cursor = conn.execute("SELECT COUNT(*) FROM notifications WHERE read = 0")
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM notifications WHERE read = 0 AND tenant_id = ?",
+                    (tenant_id or "default",),
+                )
                 row = cursor.fetchone()
                 return row[0] if row else 0
             except Exception:
@@ -183,13 +214,16 @@ class NotificationStorage:
             finally:
                 safe_close(conn)
 
-    def mark_all_read(self) -> int:
+    def mark_all_read(self, *, tenant_id: str = "default") -> int:
         """Mark all notifications as read. Returns count of updated rows."""
         with self._lock:
             conn: sqlite3.Connection | None = None
             try:
                 conn = sqlite3.connect(self._db_path, timeout=5.0)
-                cursor = conn.execute("UPDATE notifications SET read = 1 WHERE read = 0")
+                cursor = conn.execute(
+                    "UPDATE notifications SET read = 1 WHERE read = 0 AND tenant_id = ?",
+                    (tenant_id or "default",),
+                )
                 conn.commit()
                 return cursor.rowcount
             except Exception:
@@ -213,13 +247,16 @@ class NotificationStorage:
             finally:
                 safe_close(conn)
 
-    def delete_all(self) -> int:
+    def delete_all(self, *, tenant_id: str = "default") -> int:
         """Delete all notifications. Returns count of deleted rows."""
         with self._lock:
             conn: sqlite3.Connection | None = None
             try:
                 conn = sqlite3.connect(self._db_path, timeout=5.0)
-                cursor = conn.execute("DELETE FROM notifications")
+                cursor = conn.execute(
+                    "DELETE FROM notifications WHERE tenant_id = ?",
+                    (tenant_id or "default",),
+                )
                 conn.commit()
                 return cursor.rowcount
             except Exception:

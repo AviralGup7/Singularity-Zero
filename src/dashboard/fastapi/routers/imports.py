@@ -70,17 +70,26 @@ async def import_semgrep(
             detail="No file uploaded; provide semgrep JSON as multipart file 'file'",
         )
 
+    MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+    chunks: list[bytes] = []
+    total = 0
     try:
-        content = await file.read()
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Upload too large; maximum is {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+                )
+            chunks.append(chunk)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {exc}")
-
-    MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Upload too large; maximum is {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
-        )
+    content = b"".join(chunks)
 
     if file.content_type and file.content_type not in (
         "application/json",
