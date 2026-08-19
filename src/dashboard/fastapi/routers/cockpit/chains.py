@@ -1,5 +1,6 @@
 """Cockpit API endpoints for lateral movement attack chains."""
 
+import hashlib
 import logging
 from typing import Any
 
@@ -54,7 +55,7 @@ async def get_attack_chains(
             continue
 
         entry: dict[str, Any] = {
-            "id": f"chain-{hash(str(chain))}",
+            "id": f"chain-{hashlib.sha256(str(chain).encode()).hexdigest()[:16]}",
             "steps": [
                 {
                     "asset_id": str(asset1_id),
@@ -71,7 +72,5 @@ async def get_attack_chains(
             "description": f"Potential lateral movement from {asset1_id} to {asset2_id} via {finding1_id}",
         }
         formatted.append(entry)
-
-    pass
 
     return formatted  # type: ignore

@@ -34,7 +34,7 @@ spec:
       name: redis
   selector:
     app.kubernetes.io/name: redis
-    redis-role: master
+    statefulset.kubernetes.io/pod-name: redis-0
 ---
 apiVersion: v1
 kind: Service
@@ -75,6 +75,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: redis
+        redis-role: replica
     spec:
       automountServiceAccountToken: false
       securityContext:

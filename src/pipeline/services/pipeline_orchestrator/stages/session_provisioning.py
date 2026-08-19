@@ -8,6 +8,7 @@ Supports three authentication methods:
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
@@ -173,7 +174,8 @@ async def _provision_auth_flow(
         async def _http_client(method: str, url: str, **kwargs: Any) -> Any:
             import httpx
 
-            async with httpx.AsyncClient(verify=False) as client:
+            verify_tls = os.environ.get("ALLOW_INSECURE_TLS", "0") != "1"
+            async with httpx.AsyncClient(verify=verify_tls) as client:
                 response = await client.request(method, url, **kwargs)
                 return {
                     "status_code": response.status_code,

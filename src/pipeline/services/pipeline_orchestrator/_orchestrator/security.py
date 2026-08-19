@@ -172,12 +172,12 @@ async def run_secured(
             )
             lock_key = f"recovery:{config.target_name}"
             if not recovery_lock.acquire(lock_key, ttl_seconds=7200):
-                logger.warning(
+                logger.error(
                     "Could not acquire recovery lock for target '%s'; "
-                    "another process may be recovering. Proceeding cautiously.",
+                    "another process is recovering. Aborting to avoid split-brain.",
                     config.target_name,
                 )
-                recovery_lock = None
+                return 1
         except Exception as exc:  # noqa: BLE001
             logger.debug("Recovery lock acquisition failed (non-fatal): %s", exc)
             recovery_lock = None
@@ -388,6 +388,12 @@ async def run_secured(
     )
     print("[INSTRUMENT] run_secured: after FrontierWAL", flush=True)
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
+    if can_recover and recovered_state and hasattr(orchestrator._wal, "recover_state"):
+        try:
+            orchestrator._wal.recover_state()
+            logger.info("Frontier WAL recovered for run %s", run_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Frontier WAL recover_state failed for run %s: %s", run_id, exc)
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
     print(

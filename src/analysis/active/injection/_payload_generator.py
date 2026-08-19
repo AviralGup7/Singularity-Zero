@@ -209,7 +209,7 @@ class PayloadGenerator:
         quote = ctx.quote_style or ""
         attr_value = ctx.attribute_value_before_marker or ""
 
-        quote_efficiency = 90 if quote in ("'", '"') else 100 if quote == "" else 100
+        quote_efficiency = 90 if quote in ("'", '"') else 100 if quote == "" else 85
 
         # Check if attribute is srcdoc (special case: accepts HTML entities)
         if attr_name == "srcdoc":

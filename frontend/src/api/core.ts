@@ -46,17 +46,11 @@ function validateUrl(url: string, baseURL?: string): boolean {
     const resolved = new URL(url, base);
     // Always validate protocol, even in dev mode
     if (!ALLOWED_PROTOCOLS.includes(resolved.protocol)) return false;
-    if (typeof window !== 'undefined' && (
-      resolved.host === window.location.host ||
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1'
-    )) {
+    if (typeof window !== 'undefined' && resolved.host === window.location.host) {
       return true;
     }
     if (import.meta.env.DEV) {
-      // In dev mode, allow localhost but still validate protocol
-      if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return true;
-      return true;
+      return resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1';
     }
     if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return false;
     return true;

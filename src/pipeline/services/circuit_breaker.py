@@ -226,6 +226,13 @@ class CircuitBreaker:
                 self._cached_state = CircuitState.OPEN
                 self._cached_state_time = now
                 return False
+            if self._state == CircuitState.HALF_OPEN:
+                # Admit a single probe; remaining callers wait for the result.
+                if not self._probe_pending and self._failure_count > 0:
+                    self._cached_state = CircuitState.HALF_OPEN
+                    self._cached_state_time = now
+                    return False
+                self._probe_pending = False
             return True
 
     def reset(self) -> None:

@@ -10,9 +10,11 @@ services:
     # Startup will fail if REDIS_PASSWORD is empty.
     container_name: cyber-pipeline-dev-redis
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
     command: sh -c 'exec redis-server --requirepass "$$REDIS_PASSWORD"'
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     networks:

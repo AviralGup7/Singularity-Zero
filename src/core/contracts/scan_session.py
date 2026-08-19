@@ -13,6 +13,19 @@ from typing import Any
 
 from cryptography.fernet import Fernet
 
+_PROCESS_ENCRYPTION_KEY: str | None = None
+
+
+def _process_encryption_key() -> str:
+    """Stable per-process key so sessions can decrypt after reload."""
+    global _PROCESS_ENCRYPTION_KEY
+    env_key = os.environ.get("SEC_ENCRYPTION_KEY", "").strip()
+    if env_key:
+        return env_key
+    if _PROCESS_ENCRYPTION_KEY is None:
+        _PROCESS_ENCRYPTION_KEY = Fernet.generate_key().decode("utf-8")
+    return _PROCESS_ENCRYPTION_KEY
+
 
 @dataclass(frozen=True, slots=True)
 class SessionCredential:
@@ -33,11 +46,7 @@ class ScanSession:
     base_url: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_used: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _encryption_key: str = field(
-        default_factory=lambda: (
-            os.environ.get("SEC_ENCRYPTION_KEY", "") or Fernet.generate_key().decode("utf-8")
-        )
-    )
+    _encryption_key: str = field(default_factory=_process_encryption_key)
 
     def __post_init__(self) -> None:
         if not self._encryption_key:

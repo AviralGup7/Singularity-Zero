@@ -55,7 +55,7 @@ export async function withRetry<T>(fn: () => Promise<T>, attempt: number = 1): P
       throw error;
     }
     const retryAfterMs = getRetryAfterMs(error);
-    const delay = retryAfterMs ?? calculateBackoff(attempt);
+    const delay = Math.min(retryAfterMs ?? calculateBackoff(attempt), MAX_DELAY_MS);
     await sleep(delay);
     return withRetry(fn, attempt + 1);
   }

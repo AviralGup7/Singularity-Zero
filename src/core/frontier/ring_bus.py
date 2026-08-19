@@ -208,11 +208,11 @@ class FrontierRingBus:
                             self._pending_tasks.add(task)
                             task.add_done_callback(self._pending_tasks.discard)
 
-                            def _on_done(t: asyncio.Task) -> None:
+                            def _on_done(t: asyncio.Task, gov=_gov) -> None:
                                 self._pending_tasks.discard(t)
-                                if _gov is not None:
+                                if gov is not None:
                                     try:
-                                        _gov.release("ring_bus")
+                                        gov.release("ring_bus")
                                     except (ImportError, Exception):
                                         pass
 

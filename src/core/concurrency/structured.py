@@ -114,11 +114,11 @@ class SemaphorePool:
 
     @asynccontextmanager
     async def acquire(self):
+        await self._semaphore.acquire()
         async with self._lock:
             self._active += 1
             self._total_acquired += 1
         try:
-            await self._semaphore.acquire()
             yield
         finally:
             self._semaphore.release()
@@ -159,6 +159,12 @@ class RateLimiter:
         self._last_update = time.monotonic()
 
     async def acquire(self, tokens: int = 1) -> None:
+        if tokens <= 0:
+            return
+        if self.rate_per_second <= 0:
+            raise ValueError("rate_per_second must be > 0")
+        if tokens > self.burst:
+            raise ValueError("requested tokens exceed burst capacity")
         async with self._lock:
             while True:
                 now = time.monotonic()
@@ -170,9 +176,6 @@ class RateLimiter:
                     self._tokens -= tokens
                     return
 
-                # Wait for tokens to replenish *outside* the lock.
-                # The previous loop never broke, so a drained bucket spun
-                # forever while holding ``_lock``.
                 wait = (tokens - self._tokens) / self.rate_per_second
                 wait = min(max(wait, 0.001), 60)
                 break

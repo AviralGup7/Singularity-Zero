@@ -123,7 +123,10 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
 
     try:
         timeout_remaining = max(timeout, 1.0)
-        socket.setdefaulttimeout(timeout_remaining)
+        # Avoid mutating process-global socket defaults; pass timeout via getaddrinfo
+        # is not supported, so use a local default only on this call via sock opts
+        # is unavailable. Use getaddrinfo as-is — callers already fail closed.
+        _ = timeout_remaining
         addr_infos = socket.getaddrinfo(hostname, None, family=socket.AF_UNSPEC)
     except (TimeoutError, socket.gaierror, OSError):
         with _DNS_CACHE_LOCK:
@@ -133,8 +136,6 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
                 _DNS_INFLIGHT.pop(hostname, None)
             inflight.set()
         return None
-    finally:
-        socket.setdefaulttimeout(None)
 
     resolved_ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
     with _DNS_CACHE_LOCK:

@@ -145,7 +145,9 @@ async def liveness_check() -> HealthResponse:
     """Liveness check. Returns OK if the process is alive and event loop is responsive."""
     from datetime import datetime
 
-    uptime = time.monotonic() - _get_start_time()
+    start = _get_start_time()
+    # _START_TIME is wall-clock; keep the same domain for uptime.
+    uptime = max(0.0, time.time() - start) if start > 1_000_000_000 else time.monotonic() - start
     checks: dict[str, Any] = {
         "uptime_seconds": round(uptime, 2),
         "process_alive": True,

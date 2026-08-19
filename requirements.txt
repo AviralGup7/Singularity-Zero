@@ -42,3 +42,5 @@ msgpack==1.2.1
 cloudpickle==3.0.0
 watchfiles==1.0.4
 defusedxml==0.7.1
+scipy==1.14.1
+pykka==4.0.0

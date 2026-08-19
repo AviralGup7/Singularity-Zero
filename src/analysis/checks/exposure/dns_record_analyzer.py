@@ -212,8 +212,8 @@ def _is_third_party_domain(domain: str, target_domain: str) -> bool:
     """Check if a domain is third-party relative to the target."""
     if not target_domain:
         return True
-    domain_lower = domain.lower().lstrip("www.")
-    target_lower = target_domain.lower().lstrip("www.")
+    domain_lower = domain.lower().removeprefix("www.")
+    target_lower = target_domain.lower().removeprefix("www.")
     if domain_lower == target_lower:
         return False
     domain_parts = domain_lower.split(".")
@@ -293,7 +293,7 @@ def dns_record_analyzer(
 
             host = urlparse(url).netloc.lower()
             if host:
-                target_domains.add(host.lstrip("www."))
+                target_domains.add(host.removeprefix("www."))
         except Exception:
             logger.warning("Failed to parse URL for target domain extraction", exc_info=True)
             continue

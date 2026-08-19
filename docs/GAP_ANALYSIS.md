@@ -2,7 +2,7 @@
 
 | Gap | Severity | Status | Owner/Track |
 |:---|:---|:---|:---|
-| Manifest entries with no backing engine implementation: xpath, xxe, nosql, ldap, cors, trace, options, hpp, http_smuggling, json, response_diff | High | Open | Architecture/Exploit Engines |
+| Some advertised engines remain unwired (cors/trace/options/hpp/http_smuggling as first-class stages). xpath/xxe/nosql/ldap now have injection modules. | High | Partial | Architecture/Exploit Engines |
 | No multi-node actor migration (Ghost-Actor Mesh is single-node pykka only) | Critical | Open | Architecture/Actor Mesh |
 | WASM sandbox (AEVE) not connected to wasmtime runtime in exploit engines | High | Open | Execution/AEVE |
 | No real DRL evasion (PPO) — only HMM-based evasion; no torch/stable-baselines3 dep | High | Open | Learning/Evasion |

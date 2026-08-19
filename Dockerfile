@@ -40,8 +40,8 @@ RUN pip install --no-cache-dir .
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
-RUN chown -R appuser:appuser /app
+RUN groupadd -r -g 10001 appuser && useradd -r -u 10001 -g appuser -d /app -s /sbin/nologin appuser
+RUN mkdir -p /app/output /app/data /tmp && chown -R appuser:appuser /app
 USER appuser
 
 # Expose dashboard port

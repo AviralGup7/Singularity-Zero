@@ -453,14 +453,16 @@ class ConnectionManager:
             for info in conns:
                 if not info.closed and info._message_queue is not None:
 
-                    async def wait_for_drain(q: asyncio.Queue) -> None:
+                    async def wait_for_drain(
+                        q: asyncio.Queue, conn_id: str = info.connection_id
+                    ) -> None:
                         try:
                             while not q.empty():
                                 await asyncio.sleep(0.05)
                         except Exception:
                             logger.warning(
                                 "Failed to drain message queue for connection %s",
-                                info.connection_id,
+                                conn_id,
                                 exc_info=True,
                             )
 

@@ -14,7 +14,10 @@ router = APIRouter(prefix="/api/bloom", tags=["Bloom"])
 
 
 @router.get("/health")
-async def bloom_health(request: Request) -> dict[str, Any]:
+async def bloom_health(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Return Bloom filter mesh health for dashboard tiles."""
     bloom_mesh = getattr(request.app.state, "bloom_mesh", None)
     if bloom_mesh is not None:

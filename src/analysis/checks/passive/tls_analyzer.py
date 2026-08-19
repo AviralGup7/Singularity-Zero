@@ -85,7 +85,9 @@ class TLSAnalyzer:
                     not_after = cert.get("notAfter", "")
                     days_left = 999
                     if not_after and isinstance(not_after, str):
-                        expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+                        expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(
+                            tzinfo=UTC
+                        )
                         days_left = (expiry - datetime.now(UTC)).days
 
                         if days_left < 0:
