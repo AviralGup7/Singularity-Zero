@@ -14,6 +14,29 @@ from .shared import (
     request,
 )
 
+_MULTI_PART_TLDS = frozenset(
+    {
+        "co.uk",
+        "org.uk",
+        "ac.uk",
+        "gov.uk",
+        "com.au",
+        "net.au",
+        "org.au",
+        "co.nz",
+        "co.jp",
+        "co.kr",
+        "com.br",
+        "com.mx",
+        "co.in",
+        "ac.in",
+        "gov.in",
+        "com.cn",
+        "com.hk",
+        "co.za",
+    }
+)
+
 
 def extract_registrable_domain(base_url: str) -> str:
     """Return the registrable host from *base_url*, ignoring userinfo.
@@ -30,6 +53,8 @@ def extract_registrable_domain(base_url: str) -> str:
     if not host:
         return ""
     labels = [part for part in host.split(".") if part]
+    if len(labels) >= 3 and ".".join(labels[-2:]) in _MULTI_PART_TLDS:
+        return ".".join(labels[-3:])
     if len(labels) >= 2:
         return ".".join(labels[-2:])
     return host
