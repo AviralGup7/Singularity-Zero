@@ -31,7 +31,7 @@ def setup_spa_routes(app: FastAPI) -> None:
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                     "Pragma": "no-cache",
                     "Expires": "0",
-                    "X-Frontend-Version": "2.0.0-modern",
+                    "X-Frontend-Version": "3.1.0",
                 },
             )
 

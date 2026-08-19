@@ -35,11 +35,11 @@ class ProcessLifespanLock:
             existing_pid = None
         try:
             self._pid = os.getpid()
-            self.fd = open(self.lock_path, "w", encoding="utf-8")
+            # Open without truncating so a concurrent reader still sees the
+            # previous PID until we hold the flock.
+            self.fd = open(self.lock_path, "a+", encoding="utf-8")
             if self.fd is None:
                 raise RuntimeError("Failed to open lock file descriptor")
-            self.fd.write(str(self._pid))
-            self.fd.flush()
             if sys.platform == "win32":
                 import msvcrt
 
@@ -48,6 +48,10 @@ class ProcessLifespanLock:
                 import fcntl
 
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.fd.seek(0)
+            self.fd.truncate()
+            self.fd.write(str(self._pid))
+            self.fd.flush()
             return True
         except (ImportError, OSError):
             if self.fd:
