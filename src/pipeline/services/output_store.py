@@ -3,12 +3,15 @@
 Provides PipelineOutputStore class for writing pipeline outputs (subdomains,
 live hosts, URLs, findings, reports) to structured run directories with
 optional artifact manifest generation and alias deduplication.
+
+All file writes use temporary-file + os.replace for crash-safe atomicity.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +47,7 @@ class PipelineOutputStore:
         dedupe_aliases: bool = True,
         write_artifact_manifest: bool = True,
         ghost_vfs: GhostVFS | None = None,
+        fsync: bool = False,
     ):
         self._store = artifact_store
         self.local_run_dir = local_run_dir
@@ -53,6 +57,7 @@ class PipelineOutputStore:
         self.dedupe_aliases = dedupe_aliases
         self.write_artifact_manifest = write_artifact_manifest
         self._ghost_vfs = ghost_vfs
+        self._fsync = fsync
 
         if self._ghost_vfs:
             logger.info("OutputStore: [GHOST-MODE] Volatile RAM-only storage active.")
@@ -89,6 +94,7 @@ class PipelineOutputStore:
             dedupe_aliases=bool(settings.get("dedupe_aliases", True)),
             write_artifact_manifest=bool(settings.get("write_artifact_manifest", True)),
             ghost_vfs=ghost_vfs,
+            fsync=bool(settings.get("fsync", False)),
         )
 
     @property
@@ -101,6 +107,72 @@ class PipelineOutputStore:
 
     def _get_key(self, filename: str) -> str:
         return f"{self.run_prefix}/{filename}"
+
+    # ------------------------------------------------------------------
+    # Atomic write helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _atomic_write_text(path: Path, content: str, fsync: bool = False) -> None:
+        """Write ``content`` to ``path`` atomically via temp-file + os.replace.
+
+        Writes to a temporary file in the same directory, optionally fsyncs
+        the file and its parent directory, then atomically renames it over
+        the target path. If the process crashes mid-write, the target file
+        is untouched (previous valid artifact remains usable).
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=f"._{path.name}.",
+            suffix=".tmp",
+        )
+        try:
+            os.write(fd, content.encode("utf-8"))
+            if fsync:
+                os.fsync(fd)
+            os.close(fd)
+            fd = None
+
+            if fsync:
+                _sync_parent_dir(path.parent)
+
+            os.replace(tmp_path, str(path))
+        except BaseException:
+            # Best-effort cleanup of the temp file on any failure
+            try:
+                if fd is not None:
+                    os.close(fd)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+    def write_text(self, filename: str, content: str) -> str:
+        """Atomic write to either Disk or Ghost-VFS."""
+        if self._ghost_vfs:
+            logger.warning(
+                "Ghost-VFS: artifact '%s' written to RAM only (anti-forensic mode). "
+                "Artifact will be lost when process exits unless flushed to disk.",
+                filename,
+            )
+            path = f"{self.run_prefix}/{filename}"
+            self._ghost_vfs.write_file(path, content)
+            return f"ghost://{path}"
+
+        # Standard physical path — atomic write
+        local_path = self.local_run_dir / filename
+        self._atomic_write_text(local_path, content, fsync=self._fsync)
+
+        key = self._get_key(filename)
+        return self._store.put(key, content.encode("utf-8"))
+
+    # ------------------------------------------------------------------
+    # Public artifact writers
+    # ------------------------------------------------------------------
 
     def write_scope(self, scope_entries: list[str]) -> None:
         self.write_text("scope.txt", format_lines(scope_entries))
@@ -122,7 +194,6 @@ class PipelineOutputStore:
         self.write_text("priority_endpoints.txt", format_ranked_lines(priority_urls))
 
     def write_priority_scores(self, ranked_items: list[dict[str, Any]]) -> None:
-        """Persist canonical_key -> score mapping for regression tracking."""
         scores = {
             item["canonical_key"]: item["score"] for item in ranked_items if "canonical_key" in item
         }
@@ -134,26 +205,6 @@ class PipelineOutputStore:
         filename = "nuclei.txt" if not label else f"nuclei_{label}.txt"
         self.write_text(filename, output)
 
-    def write_text(self, filename: str, content: str) -> str:
-        """Atomic write to either Disk or Ghost-VFS."""
-        if self._ghost_vfs:
-            logger.warning(
-                "Ghost-VFS: artifact '%s' written to RAM only (anti-forensic mode). "
-                "Artifact will be lost when process exits unless flushed to disk.",
-                filename,
-            )
-            path = f"{self.run_prefix}/{filename}"
-            self._ghost_vfs.write_file(path, content)
-            return f"ghost://{path}"
-
-        # Standard physical path
-        local_path = self.local_run_dir / filename
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        local_path.write_text(content, encoding="utf-8")
-
-        key = self._get_key(filename)
-        return self._store.put(key, content.encode("utf-8"))
-
     def write_json_artifact(self, filename: str, payload: dict[str, Any] | list[Any]) -> str:
         content = format_json(payload)
         key = self.write_text(filename, content)
@@ -162,35 +213,22 @@ class PipelineOutputStore:
         return key
 
     def write_adaptive_config(self, adaptations: dict[str, Any]) -> str:
-        """Write the adaptive config to the target subdirectory for the next run (Phase 5.2).
+        """Write the adaptive config to the target subdirectory for the next run.
 
-        Writes both to disk at ``<target_root>/config.adaptive.json`` and into
-        the artifact store so the file is available in every retrieval path.
+        Uses atomic write to avoid corrupting the config file on crash.
         """
         filename = "config.adaptive.json"
         content = format_json(adaptations)
 
-        # Write to the target root subdirectory so that
-        # load_adaptive_config(output_dir, target_name) can find it.
         local_path = self.target_root / filename
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        local_path.write_text(content, encoding="utf-8")
+        self._atomic_write_text(local_path, content, fsync=self._fsync)
 
-        # Also put it in the artifact store
         key = f"{self.target_name}/{filename}"
         return self._store.put(key, content.encode("utf-8"))
 
     @classmethod
     def read_adaptive_config(cls, output_root: Path) -> dict[str, Any] | None:
-        """Read the adaptive config from the output root (Phase 5.2).
-
-        Returns the parsed adaptations dict, or None if the file does not exist
-        or cannot be parsed.
-
-        Args:
-            output_root: The base output directory that contains the
-                ``config.adaptive.json`` file written by ``write_adaptive_config``.
-        """
+        """Read the adaptive config from the output root."""
         path = Path(output_root) / "config.adaptive.json"
         if not path.exists():
             return None
@@ -212,6 +250,10 @@ class PipelineOutputStore:
         key = self._get_key(fname)
         return self._store.put(key, local_path.read_bytes())
 
+    # ------------------------------------------------------------------
+    # Bulk output persistence
+    # ------------------------------------------------------------------
+
     def persist_outputs(
         self,
         summary: dict[str, Any],
@@ -231,12 +273,10 @@ class PipelineOutputStore:
         self.write_json_artifact("validation_results.json", summary.get("validation_results", {}))
         self.write_json_artifact("run_summary.json", summary)
 
-        # 🔐 Phase 6: Compliance Artifacts
+        # Compliance Artifacts
         compliance = summary.get("compliance")
         if compliance:
             self.write_json_artifact("compliance_coverage.json", compliance)
-
-            # Also write a flattened version for GRC intake with overall scoring metrics
             overall_grc = compliance.get("overall_grc", {})
             maturity_summary = {
                 "overall_grc": overall_grc,
@@ -280,14 +320,31 @@ class PipelineOutputStore:
     def _write_alias(self, source: Path, alias: Path, payload: dict[str, Any] | list[Any]) -> None:
         try:
             alias.unlink()
-        except FileNotFoundError as exc:
-            logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)  # noqa: BLE001
+        except FileNotFoundError:
+            pass
         except PermissionError as exc:
-            logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)  # noqa: BLE001
+            logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)
         if self.dedupe_aliases:
             try:
                 os.link(source, alias)
                 return
             except OSError as exc:
-                logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)  # noqa: BLE001
-        alias.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)
+        self._atomic_write_text(alias, json.dumps(payload, indent=2), fsync=self._fsync)
+
+
+# ------------------------------------------------------------------
+# Module-level helper: fsync a parent directory (best-effort)
+# ------------------------------------------------------------------
+
+
+def _sync_parent_dir(path: Path) -> None:
+    """Sync the parent directory of *path* so the rename is durable on ext/XFS."""
+    try:
+        parent_fd = os.open(str(path.parent), os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+    except OSError:
+        pass  # Best-effort — some platforms (e.g. WSL) don't support directory fsync

@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
 )
 
-from src.pipeline.storage import write_json
+from src.pipeline.storage import atomic_write_text, write_json
 from src.reporting.compliance_attestation import generate_compliance_attestation_html
 
 REPORT_SCHEMA_VERSION = "2026-05.compliance-report.v1"
@@ -382,7 +382,7 @@ def write_report_package(
         run_id=run_id,
         compliance_report=summary.get("compliance", {}),
     )
-    (run_dir / "attestation.html").write_text(attestation_html, encoding="utf-8")
+    atomic_write_text(run_dir / "attestation.html", attestation_html)
     pdf_path = None
     try:
         from src.reporting.compliance_pdf import generate_compliance_pdf
@@ -431,7 +431,7 @@ def write_report_package(
         },
     }
     write_json(run_dir / "report_manifest.json", manifest)
-    (run_dir / "report_manifest.sig").write_text(signature + "\n", encoding="ascii")
+    atomic_write_text(run_dir / "report_manifest.sig", signature + "\n")
     return manifest
 
 

@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import concurrent.futures
+import json
 import os
 from pathlib import Path
 from typing import Any, TypedDict, cast
@@ -112,12 +113,33 @@ def cache_enabled(config: Any) -> bool:
 
 
 def find_previous_run(target_dir: Any) -> Path | None:
-    """Find the previous run directory for a target."""
+    """Find the previous run directory for a target.
+
+    Scans run directories and returns the most recent one that has a
+    valid (parseable JSON) ``run_summary.json``.  Directories with
+    missing or corrupted summaries are skipped so that a crash during
+    artifact writing does not poison the previous-run diff.
+    """
     path = Path(str(target_dir)) if not isinstance(target_dir, Path) else target_dir
     if not path.exists() or not path.is_dir():
         return None
-    dirs = sorted([d for d in path.iterdir() if d.is_dir() and not d.name.startswith("_")])
-    return dirs[-2] if len(dirs) >= 2 else None
+    candidates = sorted(
+        [d for d in path.iterdir() if d.is_dir() and not d.name.startswith("_")],
+        key=lambda p: (p.stat().st_mtime, str(p)),
+    )
+    # Walk newest-first until we find one with a valid summary
+    for candidate in reversed(candidates):
+        summary_path = candidate / "run_summary.json"
+        if not summary_path.exists():
+            continue
+        try:
+            data = json.loads(summary_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("run_id"):
+                return candidate
+        except (json.JSONDecodeError, OSError, ValueError):
+            logger.warning("Skipping corrupted run_summary.json in %s", candidate)
+            continue
+    return None
 
 
 from src.pipeline.services.output_store import PipelineOutputStore

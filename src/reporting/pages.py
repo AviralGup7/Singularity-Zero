@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.utils import IST_LABEL, format_iso_to_ist
+from src.pipeline.storage import atomic_write_text
 
 logger = logging.getLogger(__name__)
 from src.reporting.assets import INDEX_STYLES, REPORT_SCRIPT, RUN_REPORT_STYLES
@@ -327,7 +328,7 @@ def generate_run_report(
         f"{export_header}"
         f"{''.join(sections)}</main><script>{REPORT_SCRIPT}</script></body></html>"
     )
-    (run_dir / "report.html").write_text(page, encoding="utf-8")
+    atomic_write_text(run_dir / "report.html", page)
     findings = summary.get("top_actionable_findings", [])
     if not isinstance(findings, list):
         findings = []
@@ -420,4 +421,4 @@ def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
         f"{''.join(rows) if rows else empty}"
         f"{report_library_index_html(target_root, library_reports)}</main></body></html>"
     )
-    (target_root / "index.html").write_text(page, encoding="utf-8")
+    atomic_write_text(target_root / "index.html", page)

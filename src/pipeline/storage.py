@@ -2,10 +2,14 @@
 
 Provides functions for loading configs, reading scope files, managing
 directories, and writing various output formats (lines, JSON, JSONL).
+
+All file writes use temporary-file + os.replace for crash-safe atomicity.
 """
 
 import json
+import os
 import shutil
+import tempfile
 from collections.abc import Iterable, Mapping
 from enum import Enum
 from pathlib import Path
@@ -20,6 +24,52 @@ from src.core.logging.trace_logging import get_pipeline_logger
 logger = get_pipeline_logger(__name__)
 
 DISK_SPACE_WARN_BYTES = 1 * 1024 * 1024 * 1024  # 1 GB
+
+
+def atomic_write_text(path: Path, content: str, *, fsync: bool = False) -> None:
+    """Write ``content`` to ``path`` atomically via temp-file + os.replace.
+
+    A crash mid-write leaves the previous file intact — the temp file is
+    orphaned but the canonical path is never truncated.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=f"._{path.name}.",
+        suffix=".tmp",
+    )
+    try:
+        os.write(fd, content.encode("utf-8"))
+        if fsync:
+            os.fsync(fd)
+        os.close(fd)
+        fd = None
+        if fsync:
+            _fsync_parent(path.parent)
+        os.replace(tmp_path, str(path))
+    except BaseException:
+        try:
+            if fd is not None:
+                os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _fsync_parent(directory: Path) -> None:
+    """Best-effort fsync of a directory so renames are durable."""
+    try:
+        parent_fd = os.open(str(directory), os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+    except OSError:
+        pass
 
 
 def load_config(path: Path) -> PipelineConfig:
@@ -81,24 +131,19 @@ def format_jsonl(records: Iterable[dict[str, Any]]) -> str:
 
 
 def write_lines(path: Path, items: Iterable[str]) -> None:
-    path.write_text(format_lines(items), encoding="utf-8")
+    atomic_write_text(path, format_lines(items))
 
 
 def write_ranked_lines(path: Path, items: Iterable[str]) -> None:
-    path.write_text(format_ranked_lines(items), encoding="utf-8")
+    atomic_write_text(path, format_ranked_lines(items))
 
 
 def write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path.write_text(format_json(payload), encoding="utf-8")
-    import os
-
-    os.replace(str(tmp_path), str(path))
+    atomic_write_text(path, format_json(payload))
 
 
 def write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
-    path.write_text(format_jsonl(records), encoding="utf-8")
+    atomic_write_text(path, format_jsonl(records))
 
 
 def _to_json_safe(value: Any) -> Any:

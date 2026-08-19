@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from src.pipeline.storage import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -331,11 +333,11 @@ class RemediationPatchGenerator:
             clean_cat = "".join(c if c.isalnum() else "_" for c in category.lower())
 
             patch_file = artifacts_dir / f"{clean_cat}_fix.patch"
-            patch_file.write_text(patch_data["remediation_code"], encoding="utf-8")
+            atomic_write_text(patch_file, patch_data["remediation_code"])
 
             if patch_data.get("waf_rule"):
                 waf_file = artifacts_dir / f"{clean_cat}_waf.conf"
-                waf_file.write_text(patch_data["waf_rule"], encoding="utf-8")
+                atomic_write_text(waf_file, patch_data["waf_rule"])
 
         # Write patch spec output file
         patches_path = self.output_dir / "remediation_patches.json"
