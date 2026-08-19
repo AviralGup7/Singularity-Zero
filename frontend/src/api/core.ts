@@ -36,8 +36,15 @@ const ALLOWED_PROTOCOLS = ['http:', 'https:'];
 // Request deduplication: prevent duplicate concurrent GET requests for the same URL
 const pendingRequests = new Map<string, Promise<unknown>>();
 
-function _deduplicateKey(url: string, params?: Record<string, unknown>): string {
-  return params ? `${url}?${JSON.stringify(params)}` : url;
+function _deduplicateKey(url: string, options?: CachedRequestOptions): string {
+  return JSON.stringify({
+    url,
+    params: options?.params ?? null,
+    timeout: options?.timeout ?? null,
+    ttl: options?.ttl ?? null,
+    bypassCache: options?.bypassCache ?? false,
+    schema: options?.schema ? String(options.schema.description ?? options.schema.constructor.name) : null,
+  });
 }
 
 function validateUrl(url: string, baseURL?: string): boolean {
@@ -67,9 +74,15 @@ async function fetchCsrfToken(): Promise<string | null> {
   if (csrfPending) return csrfPending;
   csrfPending = (async () => {
     try {
+      const headers: Record<string, string> = {};
+      const authToken = getStreamToken();
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
       const response = await axios.get<{ csrf_token: string }>(`${API_BASE}/api/csrf-token`, {
         withCredentials: true,
         timeout: 5000,
+        headers,
       });
       csrfToken = response.data.csrf_token;
       return csrfToken;
@@ -281,6 +294,7 @@ interface CachedRequestOptions {
 
 export async function cachedGet<T>(url: string, options?: CachedRequestOptions): Promise<T> {
   const key = apiCache.generateKey(url, options?.params);
+  const pendingKey = _deduplicateKey(url, options);
 
   const shouldBypass = options?.bypassCache || apiCache.shouldBypassForMutation(url);
 
@@ -309,7 +323,7 @@ export async function cachedGet<T>(url: string, options?: CachedRequestOptions):
     }
   }
 
-  const existingPending = pendingRequests.get(key) as Promise<T> | undefined;
+  const existingPending = pendingRequests.get(pendingKey) as Promise<T> | undefined;
   if (existingPending) {
     return existingPending;
   }
@@ -323,10 +337,10 @@ export async function cachedGet<T>(url: string, options?: CachedRequestOptions):
       ...(options?.ttl ? { metadata: { ttl: options.ttl } } : {})
     } as AxiosRequestConfig).then((res) => res.data)
   ).finally(() => {
-    pendingRequests.delete(key);
+    pendingRequests.delete(pendingKey);
   });
 
-  pendingRequests.set(key, requestPromise);
+  pendingRequests.set(pendingKey, requestPromise);
   return requestPromise;
 }
 

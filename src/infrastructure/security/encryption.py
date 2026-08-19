@@ -139,13 +139,13 @@ def redis_tls_kwargs_from_env() -> dict[str, Any]:
         or "required"
     ).lower()
 
+    kwargs["ssl_cert_reqs"] = {
+        "none": ssl.CERT_NONE,
+        "optional": ssl.CERT_OPTIONAL,
+        "required": ssl.CERT_REQUIRED,
+    }.get(cert_reqs, ssl.CERT_REQUIRED)
     if ca_certs:
         kwargs["ssl_ca_certs"] = ca_certs
-        kwargs["ssl_cert_reqs"] = {
-            "none": ssl.CERT_NONE,
-            "optional": ssl.CERT_OPTIONAL,
-            "required": ssl.CERT_REQUIRED,
-        }.get(cert_reqs, ssl.CERT_REQUIRED)
     if certfile:
         kwargs["ssl_certfile"] = certfile
     if keyfile:

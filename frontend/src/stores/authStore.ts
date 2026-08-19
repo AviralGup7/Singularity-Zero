@@ -177,9 +177,18 @@ export const useAuthStore = create<AuthStore>((set, get) => {
           permissions: ROLE_PERMISSIONS[role],
         });
       } catch (err) {
-        // !! NO SECURITY MODE: Even if token exchange fails, create admin session !!
-        // This ensures the app always works when auth is disabled.
-        console.warn('[NO-SECURITY-MODE] Token exchange failed, creating admin session anyway:', err);
+        const allowDevBypass =
+          import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
+        if (!allowDevBypass) {
+          safeSession.remove('auth_token');
+          safeSession.remove(AUTH_STORAGE_KEY);
+          set({
+            user: null,
+            permissions: ROLE_PERMISSIONS.viewer,
+          });
+          throw err;
+        }
+        console.warn('[DEV] Token exchange failed with VITE_DISABLE_AUTH=true; local admin session only.', err);
         const newUser = {
           id: `api-${crypto.randomUUID()}`,
           name: 'Dev Admin (no-security)',

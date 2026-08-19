@@ -90,7 +90,8 @@ class CoverageTracker:
         key = (endpoint, path)
         if key in self._branch_map:
             return self._branch_map[key]
-        branch_id = f"branch:{endpoint}:{hash(path)}"
+        digest = hashlib.sha256(path.encode("utf-8", errors="replace")).hexdigest()[:16]
+        branch_id = f"branch:{endpoint}:{digest}"
         self._branch_map[key] = branch_id
         return branch_id
 

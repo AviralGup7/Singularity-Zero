@@ -49,8 +49,8 @@ async def test_method_tampering(
     if not urls:
         return []
 
-    findings: list[dict[str, Any]] = _deduplicate_urls(urls)
-    findings.clear()
+    unique_urls = _deduplicate_urls(urls)
+    findings: list[dict[str, Any]] = []
 
     async with httpx.AsyncClient(
         timeout=timeout,
@@ -59,7 +59,7 @@ async def test_method_tampering(
         headers={"User-Agent": "cyber-pipeline/1.0"},
     ) as client:
         tested = 0
-        for url in urls[:max_urls]:
+        for url in unique_urls[:max_urls]:
             findings.extend(await _test_single_url(client, url))
             tested += 1
 
@@ -140,6 +140,14 @@ async def _test_single_url(
     return findings
 
 
-def _deduplicate_urls(urls: list[str]) -> list[dict]:
-    """Validate and return a working findings list reference."""
-    return []
+def _deduplicate_urls(urls: list[str]) -> list[str]:
+    """Return unique, non-empty URLs while preserving first-seen order."""
+    seen: set[str] = set()
+    unique: list[str] = []
+    for raw in urls:
+        url = (raw or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        unique.append(url)
+    return unique

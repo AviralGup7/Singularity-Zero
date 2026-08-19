@@ -13,6 +13,9 @@ Usage:
     job_id = await queue.enqueue(TaskEnvelope(type="pipeline_scan", payload={"target": "example.com"}), priority=5)
 """
 
+import os
+import threading
+
 from src.infrastructure.queue.base_worker import BaseWorker
 from src.infrastructure.queue.job_queue import JobQueue
 from src.infrastructure.queue.models import (
@@ -32,6 +35,32 @@ from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.queue.worker import Worker
 
+_job_queue: JobQueue | None = None
+_job_queue_lock = threading.Lock()
+
+
+def get_job_queue() -> JobQueue:
+    """Return the process-wide JobQueue singleton (in-memory if Redis is unset)."""
+    global _job_queue
+    if _job_queue is not None:
+        return _job_queue
+    with _job_queue_lock:
+        if _job_queue is None:
+            redis_url = os.environ.get("REDIS_URL")
+            client = RedisClient(url=redis_url)
+            queue_name = os.environ.get("WORKER_QUEUE", "security-pipeline")
+            namespace = os.environ.get("QUEUE_NAMESPACE", "queue")
+            _job_queue = JobQueue(client, queue_name=queue_name, namespace=namespace)
+        return _job_queue
+
+
+def set_job_queue(queue: JobQueue | None) -> None:
+    """Replace the process-wide JobQueue (used by tests and app startup)."""
+    global _job_queue
+    with _job_queue_lock:
+        _job_queue = queue
+
+
 __all__ = [
     "BaseWorker",
     "Job",
@@ -43,6 +72,8 @@ __all__ = [
     "RetryPolicy",
     "Worker",
     "WorkerInfo",
+    "get_job_queue",
     "register_all_plugin_handlers",
     "resolve_handler_for_job_type",
+    "set_job_queue",
 ]

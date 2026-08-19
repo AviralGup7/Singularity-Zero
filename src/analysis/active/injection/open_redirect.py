@@ -146,10 +146,15 @@ def open_redirect_active_probe(
                     for domain in external_domains
                 ):
                     issues_for_hit.append("open_redirect_location_header")
-                elif 300 <= status < 400 and location:
+                if 300 <= status < 400 and location:
                     if loc_host and loc_host.lower() != original_host.lower():
                         issues_for_hit.append("open_redirect_status_3xx")
-                elif body and any(domain in body for domain in external_domains):
+                if (
+                    body
+                    and payload_value
+                    and payload_value in body
+                    and any(domain in payload_value for domain in external_domains)
+                ):
                     issues_for_hit.append("open_redirect_body_reflection")
 
                 if issues_for_hit:

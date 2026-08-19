@@ -22,6 +22,9 @@ Importing this module is therefore equivalent to importing
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from src.infrastructure.queue.consumer_groups import (
     JobQueueConsumerGroupsMixin as _JobQueueConsumerGroups,
 )
@@ -56,3 +59,11 @@ class JobQueue(
         _handlers: Dict mapping job types to handler functions.
         _scripts: Registered Lua script SHAs.
     """
+
+    def on_state_change(self, callback: Callable[..., Any]) -> None:
+        """Register a hook invoked when a job transitions state."""
+        hooks = getattr(self, "_state_change_hooks", None)
+        if hooks is None:
+            self._state_change_hooks = []
+            hooks = self._state_change_hooks
+        hooks.append(callback)

@@ -47,8 +47,16 @@ def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
                 )
 
     # Validate: don't allow wildcard patterns when credentials are enabled
-    has_wildcard = any("*" in o or o == "*" for o in origins)
+    has_wildcard = any(o.strip() == "*" for o in origins)
     allow_credentials = not has_wildcard
+
+    allowed_hosts = os.getenv("ALLOWED_HOSTS", "").strip()
+    if allowed_hosts:
+        from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+        hosts = [host.strip() for host in allowed_hosts.split(",") if host.strip()]
+        if hosts:
+            app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     app.add_middleware(
         CORSMiddleware,

@@ -90,34 +90,11 @@ async def get_ai_executive_summary(
             status_code=403, detail="Access denied to requested target infrastructure"
         )
 
-    # 2. Get latest run directory
+    # 2. Get latest run directory so a missing target still 404s.
     run_dir = _get_latest_run_dir_safe(output_root, target)
     if not run_dir:
         raise HTTPException(status_code=404, detail="No completed scan runs found for target")
 
-    # 3. Load findings
-    _findings = []
-    findings_path = run_dir / "findings.json"
-    if findings_path.exists():
-        try:
-            _findings = json.loads(findings_path.read_text(encoding="utf-8"))
-        except Exception:
-            logger.warning(
-                "Failed to parse findings.json for AI summary at %s", findings_path, exc_info=True
-            )
-
-    # 4. Load compliance report if available
-    _compliance_report = None
-    compliance_path = run_dir / "compliance_coverage.json"
-    if compliance_path.exists():
-        try:
-            _compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
-        except Exception:
-            logger.warning(
-                "Failed to parse compliance_coverage.json at %s", compliance_path, exc_info=True
-            )
-
-    # 5. AI summary removed
     raise HTTPException(status_code=501, detail="AI executive summary module removed.")
 
 

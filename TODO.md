@@ -51,7 +51,9 @@
 4. Dry-run mode:
    - recover WAL state and compute expected stage set but do not execute tools
 
-**Status:** Not started
+**Status:** Partial — `run_secured()` calls `FrontierWAL.recover_state()` when
+`can_recover` is set. `--resume-from` is parsed; verify/dry-run modes are
+still missing.
 
 ### P0.2 Global max-duration deadline budgeting
 **Target file:**
@@ -66,7 +68,9 @@
 3. Ensure exit code mapping:
    - prefer exit `4` (partial) unless policy says otherwise
 
-**Status:** Not started
+**Status:** Partial — CLI `--max-duration` and `check_max_duration()` already
+exist in `runner_support.py` / `runtime.py`. ActorScheduler still does not
+stop dispatch on the global deadline.
 
 ### P0.3 Retry-After aware backoff override
 **Target files (likely):**

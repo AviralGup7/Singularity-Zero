@@ -260,12 +260,18 @@ class EventBus:
             for sub in self._subscriptions.get(et, []):
                 if sub.filter_fn is None or sub.filter_fn(event):
                     tasks.append(asyncio.create_task(self._safe_handle(sub, event)))
-        if tasks:
-            try:
-                await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
-            except TimeoutError:
-                self._metrics["failed"] += 1
-                return False
+        if not tasks:
+            return True
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True), timeout=timeout
+            )
+        except TimeoutError:
+            self._metrics["failed"] += 1
+            return False
+        if any(isinstance(item, BaseException) for item in results):
+            self._metrics["failed"] += 1
+            return False
         self._metrics["delivered"] += 1
         return True
 

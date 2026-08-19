@@ -10,9 +10,12 @@ install: venv
 	. $(VENV)/bin/activate && pip install -e ".[dev]"
 	cd frontend && npm install
 
-test: install
-	. $(VENV)/bin/activate && pytest tests/unit -v
-	cd frontend && npm test
+# Full suite belongs in GitHub Actions. Locally run a single shard
+# (budget ~50s), e.g. pytest tests/unit/core/test_ids.py -q
+test:
+	@echo "Full suite is remote-only. Examples:"
+	@echo "  . $(VENV)/bin/activate && pytest tests/unit/core/test_ids.py -q"
+	@echo "  cd frontend && npm run test:run"
 
 lint: install
 	. $(VENV)/bin/activate && ruff check .

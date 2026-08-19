@@ -219,6 +219,10 @@ def is_safe_url(url: str) -> bool:
         # Block cloud metadata IPs
         if hostname == "169.254.169.254":
             return False
+        if hostname.lower() in {"fd00:ec2::254", "fd00:ec2::255"}:
+            return False
+        if is_rebinding_service(hostname):
+            return False
         # SECURITY: Resolve DNS to prevent SSRF via domain rebinding/loopback.
         # Fail-closed if resolution fails or any resolved IP is private.
         return not _host_resolves_to_private(hostname)
@@ -246,6 +250,10 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104  # nosec B104  (this is a banned-hostname check, not a bind)
         return False
     if hostname == "169.254.169.254":
+        return False
+    if hostname.lower() in {"fd00:ec2::254", "fd00:ec2::255"}:
+        return False
+    if is_rebinding_service(hostname):
         return False
     # Bug #N fix: ``not _resolve_hostname_safely(...)`` always returned False
     # because a non-empty tuple is truthy and ``not tuple`` is False. That

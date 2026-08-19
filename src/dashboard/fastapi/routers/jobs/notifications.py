@@ -42,9 +42,9 @@ async def wait_for_job_update(job_id: str, timeout: float = MAX_WAIT_SECONDS) ->
         if job_id not in _job_events:
             _job_events[job_id] = asyncio.Event()
         event = _job_events[job_id]
-
-    # Clear before waiting so we catch the next notification
-    event.clear()
+        # Clear under the same lock that notify_job_updated takes so a
+        # concurrent set() cannot be wiped before wait() starts.
+        event.clear()
     try:
         await asyncio.wait_for(event.wait(), timeout=timeout)
         return True

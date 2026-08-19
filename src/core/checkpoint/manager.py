@@ -4,10 +4,16 @@ import abc
 import asyncio
 import hashlib
 import json
+import logging
+import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, TypeVar
+
+logger = logging.getLogger(__name__)
+
+_SAFE_RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 T = TypeVar("T")
 
@@ -34,7 +40,8 @@ class CheckpointData:
             raise ValueError("corrupt checkpoint json") from exc
         if not isinstance(parsed, dict):
             raise ValueError("corrupt checkpoint json")
-        return cls(**parsed)
+        allowed = {item.name for item in fields(cls)}
+        return cls(**{key: value for key, value in parsed.items() if key in allowed})
 
     def checksum(self) -> str:
         return hashlib.sha256(self.to_json().encode()).hexdigest()
@@ -123,8 +130,14 @@ class CheckpointManager:
         async def _auto_save():
             while True:
                 await asyncio.sleep(interval)
-                if self._dirty:
+                if not self._dirty:
+                    continue
+                try:
                     await self.save()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("Periodic checkpoint save failed for run %s", self.run_id)
 
         self._auto_save_task = asyncio.create_task(_auto_save())
 
@@ -143,8 +156,16 @@ class LocalCheckpointStore:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
 
+    def _sanitize_run_id(self, run_id: str) -> str:
+        if not run_id or not _SAFE_RUN_ID.fullmatch(run_id) or ".." in run_id:
+            raise ValueError(f"invalid checkpoint run_id: {run_id!r}")
+        resolved = (self.root / run_id).resolve()
+        if not resolved.is_relative_to(self.root.resolve()):
+            raise ValueError(f"checkpoint run_id escapes store root: {run_id!r}")
+        return run_id
+
     def _run_dir(self, run_id: str) -> Path:
-        return self.root / run_id / "checkpoints"
+        return self.root / self._sanitize_run_id(run_id) / "checkpoints"
 
     def _version_file(self, run_id: str, version: int) -> Path:
         return self._run_dir(run_id) / f"v{version:06d}.json"

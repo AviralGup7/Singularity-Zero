@@ -3,7 +3,7 @@
 
 services:
   # ──────────────────────────────────────────────────────────────────────
-  # Redis - Job Queue & Cache (no password for dev)
+  # Redis - Job Queue & Cache (REDIS_PASSWORD is required)
   # ──────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7.6-alpine
@@ -61,7 +61,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
       CACHE_BACKEND: redis
       CACHE_TTL: 60
       LOG_LEVEL: DEBUG
@@ -112,7 +112,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
       LOG_LEVEL: DEBUG
       WORKER_QUEUE: security-pipeline
       WORKER_CONCURRENCY: 2

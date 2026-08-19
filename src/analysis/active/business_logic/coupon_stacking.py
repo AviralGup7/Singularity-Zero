@@ -84,9 +84,26 @@ def coupon_stacking_probe(
         base_payload: dict[str, Any] = {"coupon_code": "STACKTEST"}
 
         successes = 0
+        poster = getattr(client, "post", None) if client is not None else None
+        if poster is None:
+            # Cached baseline cannot prove stacking; skip rather than false-positive.
+            logger.debug("coupon stacking skipped for %s: no HTTP client", url)
+            continue
         for seq in _build_redundant_coupon_payload(base_payload, _MAX_REDEMPTIONS_TO_TEST):
-            if _accepted(body_text):
-                successes += 1
+            try:
+                response = poster(url, json=seq, timeout=timeout_seconds)
+                if hasattr(response, "__await__"):
+                    logger.debug("coupon stacking skipped for %s: async client", url)
+                    successes = 0
+                    break
+                body = getattr(response, "text", None)
+                if body is None:
+                    body = str(getattr(response, "body", "") or body_text)
+                if _accepted(str(body)):
+                    successes += 1
+            except Exception:
+                logger.debug("coupon stacking probe failed for %s", url, exc_info=True)
+                break
 
         if successes > 1:
             findings.append(

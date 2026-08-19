@@ -21,7 +21,6 @@ class TransactionManager:
 
     _connections: dict[str, Any] = field(default_factory=dict)
     _active_transactions: dict[str, Any] = field(default_factory=dict)
-    _lock = asyncio.Lock()
 
     @asynccontextmanager
     async def transaction(self, connection_name: str = "default") -> AsyncIterator[Any]:

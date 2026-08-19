@@ -17,6 +17,15 @@ const DEFAULT_CONFIG: CacheConfig = {
   staleWhileRevalidate: true,
 };
 
+function _matchesPathPrefix(candidate: string, prefix: string): boolean {
+  const candidatePath = candidate.split('?')[0];
+  const prefixPath = prefix.split('?')[0];
+  if (candidatePath === prefixPath) return true;
+  if (!prefixPath) return false;
+  const next = candidatePath.charAt(prefixPath.length);
+  return candidatePath.startsWith(prefixPath) && (next === '/' || next === '' || next === '#');
+}
+
 class ApiCache {
   private cache = new Map<string, CacheEntry<unknown>>();
   private config: CacheConfig;
@@ -91,7 +100,7 @@ class ApiCache {
 
   invalidatePrefix(prefix: string): void {
     for (const key of Array.from(this.cache.keys())) {
-      if (key.startsWith(prefix)) {
+      if (_matchesPathPrefix(key, prefix)) {
         this.cache.delete(key);
       }
     }
@@ -122,7 +131,7 @@ class ApiCache {
     const baseUrl = url.split('?')[0];
     // Check if the exact URL or any parent path has a pending mutation
     for (const pending of this.pendingMutations) {
-      if (baseUrl.startsWith(pending)) return true;
+      if (_matchesPathPrefix(baseUrl, pending)) return true;
     }
     return false;
   }

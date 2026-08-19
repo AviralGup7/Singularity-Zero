@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
 from .api_key_candidates import discover_api_key_candidates
+from .api_key_workflows.scope import extract_registrable_domain
 from .client import build_base_headers, normalize_base_url, safe_request, summarize_response
 
 
@@ -89,11 +90,9 @@ def _record(
 
 def _different_host_urls(base_url: str) -> list[str]:
     parsed = urlparse(base_url)
-    host = parsed.netloc
-    labels = host.split(".")
-    if len(labels) < 2:
+    base_domain = extract_registrable_domain(base_url)
+    if not base_domain or "." not in base_domain:
         return []
-    base_domain = ".".join(labels[-2:])
     return [
         f"{parsed.scheme}://{sub}.{base_domain}/"
         for sub in ("api", "app", "admin", "staging", "dev", "console")

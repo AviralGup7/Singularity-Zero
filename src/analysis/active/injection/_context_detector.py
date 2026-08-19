@@ -178,7 +178,7 @@ def _find_js_closer(pre: str) -> str:
         if char == "{":
             breaker += "}"
         elif char == "(":
-            breaker += ";)"
+            breaker += ")"
         elif char == "[":
             breaker += "]"
         elif char == "}":
