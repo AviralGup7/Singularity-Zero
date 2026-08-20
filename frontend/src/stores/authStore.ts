@@ -115,6 +115,10 @@ export const useAuthStore = create<AuthStore>((set, get) => {
         tenantId: 'tenant-default',
         organizationId: 'org-default',
       };
+      // Demo / name / SSO sessions are local-only. Drop any leftover JWT so
+      // hydrateAuth does not treat a stale token as the source of truth and
+      // bounce the user back to /login.
+      safeSession.remove('auth_token');
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(sanitizeUser(newUser)));
       set({
         user: newUser,
@@ -247,6 +251,12 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       if (!token) {
         // Demo / name / SSO login stores a user without a JWT.
         // Do not wipe that session — that bounced Demo Sign In back to /login.
+        return;
+      }
+      // Token-backed sessions only. A leftover JWT next to a demo user
+      // (id prefix user-) must not log them out.
+      if (state.user.id.startsWith('user-')) {
+        safeSession.remove('auth_token');
         return;
       }
       try {

@@ -34,7 +34,8 @@ export function LoginPage() {
   const [shakeError, setShakeError] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+  const rawFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const from = rawFrom && rawFrom !== '/login' ? rawFrom : '/';
 
   if (user) {
     return <Navigate to={from} replace />;
@@ -45,11 +46,14 @@ export function LoginPage() {
     setTimeout(() => setShakeError(false), 500);
   };
 
+  const enterConsole = (displayName: string, nextRole: UserRole) => {
+    login(displayName, nextRole);
+    navigate(from, { replace: true });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    login(name.trim(), role);
-    navigate(from, { replace: true });
+    enterConsole(name.trim() || 'Demo Analyst', role);
   };
 
   const handleApiKeySubmit = async (e: React.FormEvent) => {
@@ -106,8 +110,7 @@ export function LoginPage() {
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="Enter your name"
-                required
+                placeholder="Optional — defaults to Demo Analyst"
                 autoFocus
               />
             </div>
@@ -125,8 +128,8 @@ export function LoginPage() {
               </select>
               <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />
             </div>
-            <button type="submit" className="auth-submit" disabled={!name.trim()}>
-              <span>Sign in</span>
+            <button type="submit" className="auth-submit">
+              <span>Demo Sign In</span>
               <LogIn size={18} strokeWidth={2} aria-hidden="true" />
             </button>
           </form>
@@ -186,7 +189,12 @@ export function LoginPage() {
               </button>
             )}
 
-            <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')} aria-describedby="sso-demo-note">
+            <button
+              type="button"
+              className="auth-sso"
+              onClick={() => enterConsole('SSO User', 'viewer')}
+              aria-describedby="sso-demo-note"
+            >
               <Shield size={22} strokeWidth={1.8} aria-hidden="true" />
               <span>Sign in with SSO (Demo)</span>
             </button>
