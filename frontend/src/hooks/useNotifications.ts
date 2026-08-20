@@ -31,7 +31,13 @@ interface UseNotificationsReturn {
   refresh: () => Promise<void>;
 }
 
-export function useNotifications(): UseNotificationsReturn {
+function isBenignBackendMiss(status?: number, err?: unknown): boolean {
+  if (status && (status === 401 || status === 403 || status === 404 || status >= 500)) return true;
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return /failed to fetch|networkerror|502|503|504|econnrefused/i.test(msg);
+}
+
+export function useNotifications(enabled = true): UseNotificationsReturn {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -60,7 +66,9 @@ export function useNotifications(): UseNotificationsReturn {
 
       const res = await fetch(url, { headers });
       if (!res.ok) {
-        showErrorToast(new Error(`Notifications request failed (${res.status})`), 'Failed to load notifications');
+        if (!isBenignBackendMiss(res.status)) {
+          showErrorToast(new Error(`Notifications request failed (${res.status})`), 'Failed to load notifications');
+        }
         return;
       }
 
@@ -77,7 +85,9 @@ export function useNotifications(): UseNotificationsReturn {
         seenIdsRef.current.add(n.id);
       }
     } catch (err) {
-      showErrorToast(err, 'Failed to fetch notifications');
+      if (!isBenignBackendMiss(undefined, err)) {
+        showErrorToast(err, 'Failed to fetch notifications');
+      }
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -226,6 +236,12 @@ export function useNotifications(): UseNotificationsReturn {
   // Initial fetch + SSE connection (defer fetch to avoid competing with paint)
   useEffect(() => {
     mountedRef.current = true;
+    if (!enabled) {
+      setLoading(false);
+      return () => {
+        mountedRef.current = false;
+      };
+    }
     const defer = typeof window.requestIdleCallback === 'function'
       ? (fn: () => void) => requestIdleCallback(() => fn(), { timeout: 2000 })
       : (fn: () => void) => setTimeout(fn, 0);
@@ -240,7 +256,7 @@ export function useNotifications(): UseNotificationsReturn {
       }
       stopPolling();
     };
-  }, [fetchNotifications, connectSSE, stopPolling, mountedRef]);
+  }, [enabled, fetchNotifications, connectSSE, stopPolling, mountedRef]);
 
   return {
     notifications,

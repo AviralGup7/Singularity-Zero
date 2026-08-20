@@ -155,9 +155,20 @@ window.addEventListener('error', (e) => {
                  target instanceof HTMLScriptElement ? (target as HTMLScriptElement).src :
                  'unknown');
     console.warn(`Failed to load resource: ${tag} - ${src}`);
-    
-    // Only show overlay for critical resources that would cause a blank screen
-    if (tag === 'SCRIPT' || tag === 'LINK') {
+
+    // Hosted previews inject analytics (Cloudflare Insights, etc.) that 404
+    // in sandboxed iframes. Never block the app for third-party beacons.
+    const thirdParty = /cloudflareinsights|cloudflare\.com|google-analytics|googletagmanager|gtag\/js|doubleclick|facebook\.net|hotjar|sentry\.io|newrelic/i;
+    if (thirdParty.test(src)) return;
+
+    let sameOrigin = false;
+    try {
+      sameOrigin = new URL(src, window.location.href).origin === window.location.origin;
+    } catch {
+      sameOrigin = false;
+    }
+
+    if ((tag === 'SCRIPT' || tag === 'LINK') && sameOrigin) {
       showErrorOverlay(
         'Resource Load Error',
         `Failed to load ${tag}: ${src}`,

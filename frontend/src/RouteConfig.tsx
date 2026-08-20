@@ -251,9 +251,9 @@ export function RouteConfig() {
       <Route path="/security" element={<RouteGuard><RouteElement><SecurityPage /></RouteElement></RouteGuard>} />
       <Route path="/detection-quality" element={<RouteGuard><RouteElement><DetectionQualityPage /></RouteElement></RouteGuard>} />
       <Route path="/tracing" element={<RouteGuard><RouteElement><TracingPage /></RouteElement></RouteGuard>} />
-      <Route path="/audit-logs" element={<RouteGuard requiredPermission="viewAuditLogs"><RouteElement><AuditLogViewer /></RouteElement></RouteGuard>} />
-      <Route path="/reports" element={<RouteGuard requiredPermission="viewAuditLogs"><RouteElement><ReportLibraryPage /></RouteElement></RouteGuard>} />
-      <Route path="/reports/builder" element={<RouteGuard requiredPermission="viewAuditLogs"><RouteElement><ReportBuilderPage /></RouteElement></RouteGuard>} />
+      <Route path="/audit-logs" element={<RouteGuard><RouteElement><AuditLogViewer /></RouteElement></RouteGuard>} />
+      <Route path="/reports" element={<RouteGuard><RouteElement><ReportLibraryPage /></RouteElement></RouteGuard>} />
+      <Route path="/reports/builder" element={<RouteGuard><RouteElement><ReportBuilderPage /></RouteElement></RouteGuard>} />
       <Route path="/evidence-custody/:evidenceId" element={<RouteGuard><RouteElement><EvidenceCustodyViewerWrapper /></RouteElement></RouteGuard>} />
       <Route path="/evasion" element={<RouteGuard><RouteElement><EvasionMetricsPage /></RouteElement></RouteGuard>} />
       <Route path="/governance" element={<RouteGuard><RouteElement><GovernanceHubPage /></RouteElement></RouteGuard>} />

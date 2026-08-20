@@ -94,10 +94,48 @@ export function LoginPage() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, ease: EASE_OUT }}
         >
-          <h1>Cyber Pipeline</h1>
+          <h1>Security Console</h1>
           <p className="auth-subtitle">Sign in to continue</p>
 
-          <form onSubmit={handleApiKeySubmit} className={`auth-form ${shakeError ? 'animate-shake' : ''}`}>
+          <form onSubmit={handleSubmit} className="auth-form">
+            <label htmlFor="login-name">Name</label>
+            <div className={`auth-field ${inputFocusClass}`}>
+              <User size={24} strokeWidth={1.7} aria-hidden="true" />
+              <input
+                id="login-name"
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Enter your name"
+                required
+                autoFocus
+              />
+            </div>
+            <label htmlFor="login-role">Role</label>
+            <div className={`auth-field auth-select-wrap ${inputFocusClass}`}>
+              <Shield size={24} strokeWidth={1.7} aria-hidden="true" />
+              <select
+                id="login-role"
+                value={role}
+                onChange={e => setRole(e.target.value as UserRole)}
+              >
+                {ROLE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />
+            </div>
+            <button type="submit" className="auth-submit" disabled={!name.trim()}>
+              <span>Sign in</span>
+              <LogIn size={18} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </form>
+
+          <div className="auth-divider"><span>OR</span></div>
+
+          <details className="auth-form">
+            <summary className="text-sm text-muted cursor-pointer">Use an API key</summary>
+          <form onSubmit={handleApiKeySubmit} className={`auth-form ${shakeError ? 'animate-shake' : ''}`} style={{ marginTop: 12 }}>
             <label htmlFor="login-api-key">API Key</label>
             <div className={`auth-field ${inputFocusClass}`}>
               <LockKeyhole size={24} strokeWidth={1.7} aria-hidden="true" />
@@ -108,7 +146,6 @@ export function LoginPage() {
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="Enter API key"
-                autoFocus
               />
               {/* eslint-enable jsx-a11y/no-autofocus */}
             </div>
@@ -132,63 +169,28 @@ export function LoginPage() {
               <LogIn size={18} strokeWidth={2} aria-hidden="true" />
             </button>
           </form>
+          </details>
 
-          <div className="auth-divider"><span>OR</span></div>
-
-          <form onSubmit={handleSubmit} className="auth-form">
-            <label htmlFor="login-name">Demo Name</label>
-            <div className={`auth-field ${inputFocusClass}`}>
-              <User size={24} strokeWidth={1.7} aria-hidden="true" />
-              <input
-                id="login-name"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Enter your name"
-                required
-              />
-            </div>
-
-            <label htmlFor="login-role">Role</label>
-            <div className={`auth-field auth-select-wrap ${inputFocusClass}`}>
-              <Shield size={24} strokeWidth={1.7} aria-hidden="true" />
-              <select
-                id="login-role"
-                value={role}
-                onChange={e => setRole(e.target.value as UserRole)}
+          <div className="auth-alt-actions">
+            {enableGuestLogin && (
+              <button
+                type="button"
+                className="auth-sso"
+                onClick={handleGuestLogin}
+                disabled={guestLoading}
               >
-                {ROLE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />
-            </div>
+                {guestLoading && (
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                )}
+                <span>{guestLoading ? 'Continuing as Guest...' : 'Continue as Guest'}</span>
+              </button>
+            )}
 
-            <button type="submit" className="auth-submit" disabled={!name.trim()}>
-              <span>Demo Sign In</span>
-              <LogIn size={18} strokeWidth={2} aria-hidden="true" />
+            <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')} aria-describedby="sso-demo-note">
+              <Shield size={22} strokeWidth={1.8} aria-hidden="true" />
+              <span>Sign in with SSO (Demo)</span>
             </button>
-          </form>
-
-          {enableGuestLogin && (
-            <button
-              type="button"
-              className="auth-submit"
-              onClick={handleGuestLogin}
-              disabled={guestLoading}
-              style={{ marginTop: 12 }}
-            >
-              {guestLoading && (
-                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
-              )}
-              <span>{guestLoading ? 'Continuing as Guest...' : 'Continue as Guest'}</span>
-            </button>
-          )}
-
-          <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')} style={{ backdropFilter: 'blur(12px)' }} aria-describedby="sso-demo-note">
-            <Shield size={22} strokeWidth={1.8} aria-hidden="true" />
-            <span>Sign in with SSO (Demo)</span>
-          </button>
+          </div>
 
           <p id="sso-demo-note" className="auth-demo">
             <LockKeyhole size={15} strokeWidth={1.8} aria-hidden="true" />

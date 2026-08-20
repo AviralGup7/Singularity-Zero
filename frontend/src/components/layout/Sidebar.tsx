@@ -209,7 +209,7 @@ export function Sidebar({
             />
             {!sidebarCollapsed && (
               <span className="text-sm font-medium">
-                {theme.mode === 'dark' ? 'Dark' : 'Light'}
+                {theme.mode === 'dark' ? 'Switch to light' : 'Switch to dark'}
               </span>
             )}
           </button>

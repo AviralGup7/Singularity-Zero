@@ -1,5 +1,5 @@
-import {   THEME_PRESETS } from '@/context/ThemeContext';
-import type {ThemeMode, ThemePreset} from '@/context/ThemeContext';
+import { THEME_PRESETS } from '@/context/ThemeContext';
+import type { ThemeMode, ThemePreset } from '@/context/ThemeContext';
 import { SettingsSectionCard } from '../SettingsComponents';
 
 const accentColors = [
@@ -14,8 +14,8 @@ const accentColors = [
 ];
 
 const themeModes: { mode: ThemeMode; label: string; icon: string; description: string }[] = [
-  { mode: 'dark', label: 'Night Mode', icon: '\ud83c\udf19', description: 'Dark cyberpunk theme with neon accents' },
-  { mode: 'light', label: 'Day Mode', icon: '\u2600\ufe0f', description: 'Soft warm tones for comfortable daytime viewing' },
+  { mode: 'dark', label: 'Night Mode', icon: 'Dark', description: 'Dark cyberpunk theme with neon accents' },
+  { mode: 'light', label: 'Day Mode', icon: 'Light', description: 'Soft warm tones for comfortable daytime viewing' },
 ];
 
 interface ThemeSectionProps {
@@ -29,7 +29,7 @@ interface ThemeSectionProps {
 
 export function ThemeSection({ themeMode, themePreset, accentColor, onThemeModeChange, onThemePresetChange, onAccentColorChange }: ThemeSectionProps) {
   return (
-    <SettingsSectionCard title="Theme" icon="\ud83c\udfa8">
+    <SettingsSectionCard title="Theme" icon="">
       <div className="theme-options">
         {themeModes.map(opt => (
           <button
@@ -59,7 +59,6 @@ export function ThemeSection({ themeMode, themePreset, accentColor, onThemeModeC
               title={preset.description}
               aria-label={`Select ${preset.label} theme`}
             >
-              <span className="text-lg">{preset.icon}</span>
               <span className="text-xs font-semibold text-text-primary">{preset.label}</span>
               <div className="flex gap-1 mt-1">
                 {preset.preview.map((color, i) => (

@@ -63,7 +63,7 @@ function useNavSections(): NavSection[] {
     const sections = [
       { label: 'Main', items: main, collapsible: false },
       { label: 'Security', items: security, collapsible: false },
-      { label: 'Analytics', items: analytics, collapsible: true, defaultCollapsed: workflowMode !== 'pentest' },
+      { label: 'Analytics', items: analytics, collapsible: true, defaultCollapsed: false },
     ];
 
     return sections;
@@ -217,7 +217,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     markAllRead,
     dismiss: dismissNotification,
     clearAll: clearAllNotifications,
-  } = useNotifications();
+  } = useNotifications(Boolean(user));
    
   const defaultNavItems = useMemo(() => buildDefaultNavItems(navSections), [navSections]);
   const defaultActionItems = useMemo(
@@ -373,7 +373,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (location.pathname.startsWith(ROUTES.JOBS + '/')) {
       return { title: 'Job Detail', subtitle: 'Pipeline run telemetry and artifacts' };
     }
-    return PAGE_META[location.pathname] ?? PAGE_META[ROUTES.DASHBOARD];
+    return PAGE_META[location.pathname] ?? { title: 'Security Console', subtitle: '' };
   }, [location.pathname]);
 
   if (isLogin) {

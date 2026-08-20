@@ -22,7 +22,7 @@ export default function FindingsOverview() {
         setSummary(data);
         setError(null);
       } catch (_err) {
-        if (!controller.signal.aborted) setError('Telemetry sync failed');
+        if (!controller.signal.aborted) setSummary(null);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -66,9 +66,8 @@ export default function FindingsOverview() {
     }
   };
 
-  if (loading) return <div className="h-48 flex items-center justify-center text-xs uppercase tracking-widest text-muted animate-pulse">Initializing Data Stream...</div>;
-  if (error) return <div className="p-4 bg-bad/10 border border-bad/20 rounded-lg text-bad text-xs font-mono">{error}</div>;
-  if (!summary || !metrics) return null;
+  if (loading) return <div className="h-24 flex items-center justify-center text-xs text-muted">Loading findings overview…</div>;
+  if (error || !summary || !metrics) return null;
 
   return (
     <div className="space-y-6">

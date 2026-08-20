@@ -206,6 +206,8 @@ export function BugBountyDashboardPage() {
         <EmptyState
           title="No findings loaded"
           description="No bounty findings are available yet. Run a scan to discover potential bounty-eligible vulnerabilities."
+          ctaLabel="Go to Targets"
+          ctaHref="/targets"
         />
       ) : (
       <>

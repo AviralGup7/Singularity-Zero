@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getReadiness } from '@/api/health';
 import type { ReadinessResponse } from '@/types/extended';
-import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const HEALTH_POLL_INTERVAL = 30_000;
 
@@ -55,7 +54,7 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
         error: true,
         lastChecked: new Date(),
       }));
-      showErrorToast(_err, 'Health check failed — service may be offline');
+      // Banner in AppLayout already covers offline; don't toast on login.
     }
   }, []);
 

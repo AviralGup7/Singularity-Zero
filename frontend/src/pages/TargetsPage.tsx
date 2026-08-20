@@ -188,7 +188,12 @@ export function TargetsPage() {
         </GlassCard>
       </div>
 
-      <UrlCollectionSystem />
+      <details className="card p-4">
+        <summary className="cursor-pointer text-sm font-semibold">URL collection (optional)</summary>
+        <div className="mt-4">
+          <UrlCollectionSystem />
+        </div>
+      </details>
 
       <TargetsBulkActionBar
         selectedTargets={selectedTargets}

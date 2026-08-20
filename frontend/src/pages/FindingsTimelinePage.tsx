@@ -209,7 +209,7 @@ export function FindingsTimelinePage() {
         <section className="card timeline-panel lg:col-span-2 p-4" data-testid="findings-timeline">
           {timeline.loading && events.length === 0 && <SkeletonTable rows={5} />}
           {!timeline.loading && events.length === 0 && (
-            <EmptyState title="No findings matched" description="Try selecting a different timeline range, severity, or target." />
+            <EmptyState title="No findings yet" description="Nothing in this range. Run a scan, then come back — an empty timeline is not a failed detector." ctaLabel="Go to Targets" ctaHref="/targets" />
           )}
 
           <div className="timeline-stack space-y-8">

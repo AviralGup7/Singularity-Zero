@@ -31,6 +31,8 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/access-logs': { title: 'Access Logs', subtitle: 'Compliance audit trail' },
   '/governance': { title: 'Governance', subtitle: 'Compliance, audit trails, and evidence' },
   '/evasion': { title: 'Evasion Metrics', subtitle: 'WAF/IDS bypass success rates' },
+  '/analytics': { title: 'Analytics', subtitle: 'Timeline, comparisons, and telemetry' },
+  '/reports/builder': { title: 'Report Builder', subtitle: 'Compose a signed report' },
 };
 
 export const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {

@@ -13,6 +13,7 @@ import { useTargets } from '@/hooks';
 import { getComplianceReport, getAttestationUrl  } from '@/api/compliance';
 import type {ComplianceReport} from '@/api/compliance';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 import { GlowProgress } from '@/components/ui/GlowProgress';
@@ -173,7 +174,14 @@ export function ComplianceDashboard() {
         </div>
       )}
 
-      {error && <div className="card p-4 border-bad/30 bg-bad/5 text-bad">{error}</div>}
+      {error && (
+        <EmptyState
+          title="No compliance data yet"
+          description="Run a scan against this target first. This does not mean the program is non-compliant — there is nothing to map yet."
+          ctaLabel="Go to Targets"
+          ctaHref="/targets"
+        />
+      )}
 
       {report && !loading && (
         <>

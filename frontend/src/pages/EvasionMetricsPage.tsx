@@ -339,6 +339,7 @@ export function EvasionMetricsPage() {
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Sync Telemetry
           </button>
+          {metricsArray.length > 0 && (
           <button
             className="btn btn-secondary flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-bad border border-bad/30 bg-bad/5 rounded-lg hover:bg-bad/10 hover:border-bad/50 transition-all duration-200"
             onClick={handleReset}
@@ -347,6 +348,7 @@ export function EvasionMetricsPage() {
             <Trash2 size={14} />
             Reset Database
           </button>
+          )}
         </div>
       </header>
 

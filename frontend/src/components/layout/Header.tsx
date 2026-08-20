@@ -43,9 +43,6 @@ export function Header({
 }: HeaderProps) {
   return (
     <>
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
-        Skip to content
-      </a>
       <motion.header
         className="app-command-header border-b border-line bg-panel/90 backdrop-blur-md sticky top-0 z-30"
         role="banner"

@@ -88,6 +88,13 @@ function _isDeepEqual(obj1: unknown, obj2: unknown): boolean {
 }
 /* eslint-enable security/detect-object-injection */
 
+function isExpectedBackendMiss(error: UseApiError): boolean {
+  const status = error.status;
+  if (status && (status === 401 || status === 403 || status === 404 || status >= 500)) return true;
+  const msg = (error.message || '').toLowerCase();
+  return /failed to fetch|networkerror|econnrefused|err_network|mesh offline|internal system error|retrying|canceled|abort/.test(msg);
+}
+
 export function useApi<T>(
   url: string | null,
   options?: UseApiOptions<T>
@@ -196,7 +203,7 @@ export function useApi<T>(
         setError(lastError);
         setLoading(false);
         onErrorRef.current?.(lastError);
-        if (autoToast) {
+        if (autoToast && !isExpectedBackendMiss(lastError)) {
           showErrorToast(err, errorContext);
         }
       }

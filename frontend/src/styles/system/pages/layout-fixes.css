@@ -1,0 +1,152 @@
+/* Layout fixes: stacked KPI labels, heatmap grid, collection stats */
+
+.pipeline-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+
+.pipeline-stat-card .stat-label,
+.pipeline-stat-card .stat-value {
+  display: block;
+}
+
+.pipeline-stat-card .stat-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.pipeline-stat-card .stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.risk-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.risk-kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.15rem;
+}
+
+.risk-kpi-card span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.risk-kpi-card strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+
+.risk-kpi-card small {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.risk-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.risk-filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.risk-target-picker select {
+  min-width: 180px;
+  min-height: 2.5rem;
+  max-height: 7rem;
+}
+
+.risk-heatmap-grid {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.risk-heatmap-row {
+  display: contents;
+}
+
+.risk-heatmap-day,
+.risk-heatmap-label,
+.risk-heatmap-target {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.risk-heat-cell {
+  width: 34px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.throughput-strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.throughput-strip-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.throughput-strip-metric-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.throughput-strip-metric-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.url-collection-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+}
+
+.url-stat {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-section-title {
+  text-transform: none;
+}
+
+.header-title-block h1 {
+  font-size: 0.95rem;
+}

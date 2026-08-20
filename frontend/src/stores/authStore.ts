@@ -35,8 +35,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
   },
   analyst: {
     viewFindings: true, createFindings: true, editFindings: true, deleteFindings: false,
-    exportData: false, assignFindings: false, manageUsers: false, viewSensitiveData: false,
-    manageSettings: false, viewAuditLogs: false,
+    exportData: true, assignFindings: false, manageUsers: false, viewSensitiveData: false,
+    manageSettings: false, viewAuditLogs: true,
   },
   viewer: {
     viewFindings: true, createFindings: false, editFindings: false, deleteFindings: false,
@@ -242,12 +242,11 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
     hydrateAuth: async () => {
       const state = get();
-      // Only verify if we have a persisted user but no live token
       if (!state.user) return;
       const token = safeSession.get('auth_token');
       if (!token) {
-        // Token was cleared (e.g., in another tab) — clear the user too
-        set({ user: null, permissions: ROLE_PERMISSIONS.viewer });
+        // Demo / name / SSO login stores a user without a JWT.
+        // Do not wipe that session — that bounced Demo Sign In back to /login.
         return;
       }
       try {

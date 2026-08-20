@@ -36,6 +36,7 @@ function CockpitSetupViewBase({
   setScanConcurrency,
 }: CockpitSetupViewProps) {
   const [projectsList, setProjectsList] = useState<Project[]>([]);
+  const visiblePrograms = projectsList.filter((p) => !/square/i.test(`${p.name} ${p.scope}`));
 
   useEffect(() => {
     getProjects().then(setProjectsList).catch(() => {});
@@ -54,8 +55,8 @@ function CockpitSetupViewBase({
           <div className="inline-flex items-center gap-2 rounded-full border border-info/20 bg-info/10 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-info">
             <span className="pulse-dot bg-info" /> SYSTEM STANDBY: READY FOR TELEMETRY
           </div>
-          <h1 className="mt-4 text-4xl font-extrabold tracking-tighter text-text-primary uppercase sm:text-5xl">
-            CYBER STEERING COCKPIT
+          <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-text-primary sm:text-5xl">
+            Cockpit
           </h1>
           <p className="mt-2 text-sm text-text-secondary font-mono max-w-xl mx-auto leading-relaxed">
             Launch multi-stage distributed security scan engines. Graph and simulate target attack-chains and live forensic telemetry.
@@ -82,13 +83,13 @@ function CockpitSetupViewBase({
                 </p>
               </div>
 
-              {projectsList.length > 0 && (
+              {visiblePrograms.length > 0 && (
                 <div>
                   <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-text-primary mb-2">
                     Active Bounty Programs
                   </h3>
                   <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto scrollbar-cyber rounded border border-line-muted bg-surface-2 p-2">
-                    {projectsList.map((project) => (
+                    {visiblePrograms.map((project) => (
                       <button
                         key={project.id}
                         type="button"
@@ -199,9 +200,9 @@ function CockpitSetupViewBase({
               type="button"
               onClick={onStartScan}
               disabled={launchingScan || !inputTarget.trim()}
-              className="w-full sm:w-auto rounded-lg bg-accent px-8 py-3 text-center text-xs font-black uppercase tracking-[0.2em] text-black shadow-glow-accent-md transition-all hover:bg-surface-raised disabled:opacity-40 disabled:shadow-none font-mono focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="btn btn-primary w-full sm:w-auto rounded-lg px-8 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white disabled:opacity-50"
             >
-              {launchingScan ? 'INITIALIZING OPERATIONS...' : 'ENGAGE PIPELINE ENGINE'}
+              {launchingScan ? 'Starting scan…' : inputTarget.trim() ? 'Start scan' : 'Enter a target to launch'}
             </button>
           </div>
         </div>

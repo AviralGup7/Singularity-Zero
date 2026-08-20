@@ -36,7 +36,7 @@ export function useJobs(options?: { refetchInterval?: number; params?: Record<st
 export function useTargets(options?: { enabled?: boolean }) {
   return useApi<{ targets: Target[] }>('/api/targets', {
     ...options,
-    autoToast: true,
+    autoToast: false,
     errorContext: 'Failed to load targets',
   });
 }

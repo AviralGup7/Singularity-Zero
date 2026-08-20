@@ -26,10 +26,8 @@ export default defineConfig({
     // the dev server. The VITE_BIND_HOST env var is still honored for
     // sandboxed environments (Replit, Codespaces) where the platform
     // needs to forward a port.
-    host: process.env.VITE_BIND_HOST || '127.0.0.1',
-    allowedHosts: process.env.VITE_ALLOWED_HOSTS
-      ? process.env.VITE_ALLOWED_HOSTS.split(',')
-      : ['localhost', '127.0.0.1'],
+    host: process.env.VITE_BIND_HOST || '0.0.0.0',
+    allowedHosts: true,
     watch: {
       ignored: [],
     },

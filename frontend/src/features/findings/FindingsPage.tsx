@@ -490,12 +490,15 @@ export function FindingsPage() {
           </div>
         )}
         
-        {!isProcessing && findings.length === 0 && (searchQuery || severityFilter.length > 0) ? (
+        {!isProcessing && findings.length === 0 ? (
           <div className="flex items-center justify-center h-full p-8">
             <EmptyState
-              title="No findings match your filters"
-              description="Try adjusting your search query or severity filters to find what you're looking for."
-              icon="shield"
+              title={searchQuery || severityFilter.length > 0 ? 'No findings match your filters' : 'No findings yet'}
+              description={searchQuery || severityFilter.length > 0
+                ? 'Try adjusting your search query or severity filters.'
+                : 'Run a scan from Targets. An empty grid does not mean the scanners failed.'}
+              ctaLabel={searchQuery || severityFilter.length > 0 ? undefined : 'Go to Targets'}
+              ctaHref={searchQuery || severityFilter.length > 0 ? undefined : '/targets'}
             />
           </div>
         ) : (

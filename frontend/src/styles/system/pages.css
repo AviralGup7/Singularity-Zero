@@ -7,6 +7,7 @@
 @import './pages/targets.css';
 @import './pages/settings.css';
 @import './pages/tracing.css';
+@import './pages/layout-fixes.css';
 
 .dashboard-page,
 .jobs-page,
