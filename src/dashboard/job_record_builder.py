@@ -54,7 +54,7 @@ def create_job_record(
         "enabled_modules": enabled_modules,
         "mode": mode_name,
         "target_name": target_name,
-        "status": "running",
+        "status": "starting",
         "started_at": started_at,
         "updated_at": started_at,
         "finished_at": None,

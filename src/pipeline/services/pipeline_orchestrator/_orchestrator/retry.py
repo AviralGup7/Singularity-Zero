@@ -143,7 +143,7 @@ async def run_stage_with_retry(
             "status": "skipped",
             "reason": "cancel_requested",
         }
-        ctx.result.stage_status[stage_name] = StageStatus.SKIPPED.value
+        ctx.result.stage_status[stage_name] = StageStatus.SKIPPED_DISABLED.value
         progress_emitter(
             stage_name,
             f"Skipped stage {stage_name}: cancel requested",
@@ -213,7 +213,7 @@ async def run_stage_with_retry(
                 "circuit_state": CircuitState.OPEN.value,
             },
         )
-        ctx.result.stage_status[stage_name] = StageStatus.SKIPPED.value
+        ctx.result.stage_status[stage_name] = StageStatus.SKIPPED_FAILED.value
         ctx.result.module_metrics[stage_name] = {
             "status": "skipped",
             "reason": "circuit_breaker_open",

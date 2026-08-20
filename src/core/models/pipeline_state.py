@@ -2,16 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
 
-
-class StageStatus(StrEnum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    DEGRADED = "DEGRADED"
-    FAILED = "FAILED"
-    SKIPPED = "SKIPPED"
+from src.core.models.stage_status import StageStatus, transition_stage_status
 
 
 @dataclass(frozen=True)
@@ -74,12 +66,22 @@ class StageExecution:
     input_snapshot: dict = field(default_factory=dict)
     checkpoints: dict = field(default_factory=dict)
 
+    def _set_status(self, target: StageStatus) -> bool:
+        from src.core.models.stage_status import normalize_stage_status
+
+        dest = normalize_stage_status(target)
+        applied = transition_stage_status(self.status, dest)
+        self.status = StageStatus(applied)
+        return self.status == dest
+
     def mark_running(self) -> None:
-        self.status = StageStatus.RUNNING
+        if not self._set_status(StageStatus.RUNNING):
+            return
         self.metrics = StageMetrics(started_at=datetime.now())
 
     def mark_completed(self, artifacts: StageArtifacts | None = None) -> None:
-        self.status = StageStatus.COMPLETED
+        if not self._set_status(StageStatus.COMPLETED):
+            return
         duration = 0.0
         if self.metrics.started_at:
             duration = (datetime.now() - self.metrics.started_at).total_seconds()
@@ -91,7 +93,8 @@ class StageExecution:
             self.artifacts = artifacts
 
     def mark_failed(self, error: str, reason: str = "") -> None:
-        self.status = StageStatus.FAILED
+        if not self._set_status(StageStatus.FAILED):
+            return
         duration = 0.0
         if self.metrics.started_at:
             duration = (datetime.now() - self.metrics.started_at).total_seconds()
@@ -103,7 +106,8 @@ class StageExecution:
         )
 
     def mark_degraded(self, error: str, reason: str = "") -> None:
-        self.status = StageStatus.DEGRADED
+        if not self._set_status(StageStatus.DEGRADED):
+            return
         self.metrics = StageMetrics(
             duration_seconds=(datetime.now() - self.metrics.started_at).total_seconds()
             if self.metrics.started_at

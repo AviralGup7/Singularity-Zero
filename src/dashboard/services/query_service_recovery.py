@@ -11,6 +11,7 @@ from src.core.utils.stderr_classification import (
     extract_degraded_providers,
 )
 from src.dashboard.job_state import _coerce_epoch
+from src.dashboard.job_status import JobStatus, _transition, is_active_job_status
 from src.dashboard.services.query_service_log_parsing import (
     last_entered_stage_from_file,
     last_progress_payload_from_file,
@@ -495,7 +496,7 @@ def reconcile_stale_terminal_job(
                 or str(job.get("stage", "")).strip()
                 or "startup"
             )
-            job["status"] = "failed"
+            _transition(job, JobStatus.FAILED)
             job["stage"] = failed_stage
             job["stage_label"] = stage_labels.get(failed_stage, "Recovered")
             job["failed_stage"] = failed_stage
@@ -598,7 +599,7 @@ def reconcile_stale_terminal_job(
             )
 
     job["process"] = None
-    job["status"] = "completed"
+    _transition(job, JobStatus.COMPLETED)
     job["stage"] = "completed"
     job["stage_label"] = stage_labels.get("completed", "Completed")
     job["status_message"] = "Run complete"

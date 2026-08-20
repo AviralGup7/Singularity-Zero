@@ -57,9 +57,9 @@ def test_transition_state_from_none_uses_target() -> None:
 
 
 @pytest.mark.unit
-def test_illegal_transition_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid lifecycle"):
-        transition_state("reportable", "detected")
+def test_illegal_transition_keeps_existing_state() -> None:
+    assert transition_state("reportable", "detected") == "reportable"
+    assert transition_state("false_positive", "reportable") == "false_positive"
 
 
 @pytest.mark.unit

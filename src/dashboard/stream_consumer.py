@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from src.dashboard.job_state import append_log, apply_progress
+from src.dashboard.job_status import JobStatus, _transition
 from src.dashboard.registry import PROGRESS_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -178,7 +179,7 @@ def consume_stream(
         logger.error("Stream consumer fatal error (%s): %s — killing pipeline", source, exc)
         with lock:
             append_log(job, f"Stream consumer fatal error ({source}): {exc}")
-            job["status"] = "failed"
+            _transition(job, JobStatus.FAILED)
             job["error"] = f"Stream consumer failed: {exc}"
             job["failed_stage"] = job.get("stage") or "running"
             job["failure_reason_code"] = "stream_consumer_crash"

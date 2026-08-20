@@ -229,7 +229,7 @@ class StageOutput:
         normalized = str(state or "").upper()
         if normalized == "FAILED":
             outcome = StageOutcome.FAILED
-        elif normalized == "SKIPPED":
+        elif normalized in {"SKIPPED", "SKIPPED_DISABLED", "SKIPPED_FAILED"}:
             outcome = StageOutcome.SKIPPED
         else:
             outcome = StageOutcome.COMPLETED

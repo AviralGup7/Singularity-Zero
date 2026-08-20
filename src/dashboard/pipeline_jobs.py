@@ -25,6 +25,7 @@ from src.dashboard.error_classification import (
 # Re-expose and leverage deconstructed modular components
 from src.dashboard.job_record_builder import create_job_record as create_job_record
 from src.dashboard.job_state import append_log
+from src.dashboard.job_status import JobStatus, _transition
 from src.dashboard.registry import PROGRESS_PREFIX, STAGE_LABELS
 from src.dashboard.scope_utils import truncate_lines as _truncate_lines
 from src.dashboard.stream_consumer import (
@@ -152,6 +153,7 @@ def run_pipeline_job(
         )
         with lock:
             job["process"] = process
+            _transition(job, JobStatus.RUNNING)
             _persist(force=True)
     except Exception as exc:
         logger.warning("Failed to launch pipeline subprocess: %s", exc, exc_info=True)
@@ -163,7 +165,7 @@ def run_pipeline_job(
                 logger.warning("Failed to kill process after launch failure", exc_info=True)
         safe_msg = safe_error_message(exc)
         with lock:
-            job["status"] = "failed"
+            _transition(job, JobStatus.FAILED)
             job["finished_at"] = time.time()
             job["error"] = safe_msg
             job["failed_stage"] = "startup"

@@ -114,7 +114,13 @@ def _normalize_finding_payload(
         status = "active"
 
     lifecycle_state = str(finding.get("lifecycle_state", "detected")).strip().lower()
-    if lifecycle_state not in {"detected", "validated", "exploitable", "reportable"}:
+    if lifecycle_state not in {
+        "detected",
+        "validated",
+        "exploitable",
+        "reportable",
+        "false_positive",
+    }:
         lifecycle_state = "detected"
 
     finding_type = (

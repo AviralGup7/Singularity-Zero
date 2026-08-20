@@ -19,6 +19,11 @@ from src.core.frontier.state import (
 from src.core.frontier.state import (
     compact_state as run_compaction,
 )
+from src.core.models.stage_status import (
+    StageStatus,
+    StageStatusMap,
+    resolve_skip_status,
+)
 
 
 class StageName(StrEnum):
@@ -40,15 +45,9 @@ class StageName(StrEnum):
     NUCLEI_SCAN = "nuclei_scan"
 
 
-class StageStatus(StrEnum):
-    """Lifecycle status of a pipeline stage."""
-
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    DEGRADED = "DEGRADED"
-    FAILED = "FAILED"
-    SKIPPED = "SKIPPED"
+# StageStatus lives in stage_status.py so CAS rules are shared. Re-exported
+# here so existing ``from src.core.models.stage_result import StageStatus``
+# imports keep working.
 
 
 class StageMetric(TypedDict, total=False):
@@ -159,6 +158,11 @@ class StageResult:
 
     #: Structured recon candidates (subdomains, URLs, parameters with scores)
     recon_candidates: list[dict[str, Any]] = field(default_factory=list)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "stage_status" and not isinstance(value, StageStatusMap):
+            value = StageStatusMap(value or {})
+        super().__setattr__(name, value)
 
     def apply_state_delta(self, delta: dict[str, Any]) -> None:
         """Atomically merge an incremental delta using Neural-Mesh logic."""
@@ -412,6 +416,10 @@ class PipelineContext:
     # Stage lifecycle helpers
     # ------------------------------------------------------------------
 
+    def mark_stage_running(self, name: str) -> None:
+        """Mark a stage as ``RUNNING`` if the CAS allows it."""
+        self.result.stage_status[name] = StageStatus.RUNNING.value
+
     def mark_stage_complete(self, name: str, metrics: StageMetric | None = None) -> None:
         """Mark a stage as ``COMPLETED`` and record optional metrics."""
         self.result.stage_status[name] = StageStatus.COMPLETED.value
@@ -437,11 +445,12 @@ class PipelineContext:
         self.result.module_metrics[name] = meta
 
     def mark_stage_skipped(self, name: str, reason: str = "") -> None:
-        """Mark a stage as ``SKIPPED`` with an optional reason."""
-        self.result.stage_status[name] = StageStatus.SKIPPED.value
+        """Skip a stage. Failed/circuit skips become SKIPPED_FAILED."""
+        self.result.stage_status[name] = resolve_skip_status(reason).value
         meta: dict[str, Any] = self.result.module_metrics.get(name, {})
         meta["reason"] = reason
         meta["finished_at"] = time.time()
+        meta["status"] = "skipped"
         self.result.module_metrics[name] = meta
 
     # ------------------------------------------------------------------

@@ -238,7 +238,7 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         "configured_timeout_seconds": job.get("configured_timeout_seconds"),
         "effective_timeout_seconds": job.get("effective_timeout_seconds"),
         "execution_options": dict(job.get("execution_options", {})),
-        "can_stop": status == "running",
+        "can_stop": status in {"running", "starting", "pending"},
         "latest_logs": list(job.get("latest_logs", [])),
         "config_href": str(job.get("config_href", "")),
         "scope_href": str(job.get("scope_href", "")),

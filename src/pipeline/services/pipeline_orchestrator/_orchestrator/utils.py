@@ -566,7 +566,10 @@ def merge_stage_output(
     if stage_output.outcome.value == "failed":
         ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
     elif stage_output.outcome.value == "skipped":
-        ctx.result.stage_status[stage_name] = StageStatus.SKIPPED.value
+        from src.core.models.stage_status import resolve_skip_status
+
+        skip_status = resolve_skip_status(stage_output.error or stage_output.reason)
+        ctx.result.stage_status[stage_name] = skip_status.value
     else:
         ctx.result.stage_status[stage_name] = StageStatus.COMPLETED.value
 
@@ -608,10 +611,15 @@ def safe_checkpoint_stage_outcome(
     if not hasattr(checkpoint_mgr, "mark_stage_outcome"):
         return
 
+    from src.core.models.stage_status import is_skipped_status
+
     normalized_state = str(stage_state or "").strip().upper()
-    if normalized_state == StageStatus.FAILED.value:
-        outcome = "failed"
-    elif normalized_state == StageStatus.SKIPPED.value:
+    if (
+        normalized_state == StageStatus.FAILED.value
+        or normalized_state == StageStatus.SKIPPED_FAILED.value
+    ):
+        outcome = "failed" if normalized_state == StageStatus.FAILED.value else "skipped"
+    elif is_skipped_status(normalized_state):
         outcome = "skipped"
     else:
         outcome = "completed"

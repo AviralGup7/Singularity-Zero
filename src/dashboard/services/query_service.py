@@ -14,6 +14,12 @@ from src.dashboard.configuration import (
     preset_module_names,
 )
 from src.dashboard.job_state import STALLED_AFTER_SECONDS, snapshot_job
+from src.dashboard.job_status import (
+    JobStatus,
+    _transition,
+    is_active_job_status,
+    is_terminal_job_status,
+)
 from src.dashboard.registry import MODE_PRESETS, PROGRESS_PREFIX, STAGE_LABELS
 
 from .query_service_recovery import (
@@ -158,7 +164,7 @@ class DashboardQueryService:
                     job["elapsed_label"] = f"{int(elapsed)}s"
 
                 job["has_eta"] = (
-                    job.get("status") == "running"
+                    is_active_job_status(job.get("status"))
                     and job.get("progress_percent", 0) > 5
                     and job.get("started_at")
                 )
@@ -211,8 +217,17 @@ class DashboardQueryService:
             if not job:
                 raise KeyError(job_id)
 
-            if job.get("status") == "running":
+            if is_terminal_job_status(job.get("status")):
+                return snapshot_job(job)
+
+            if is_active_job_status(job.get("status")):
+                _transition(job, JobStatus.STOPPING)
+                job["status_message"] = "Stopping run"
+                job["stop_requested"] = True
+                job["updated_at"] = time.time()
+
                 process = job.get("process")
+                reaped = process is None
                 if process:
                     try:
                         terminate = getattr(process, "terminate", None)
@@ -220,26 +235,32 @@ class DashboardQueryService:
                             terminate()
                             try:
                                 process.wait(timeout=10.0)
+                                reaped = True
                             except Exception:
                                 kill = getattr(process, "kill", None)
                                 if callable(kill):
                                     kill()
                                     try:
                                         process.wait(timeout=3.0)
+                                        reaped = True
                                     except Exception as kill_exc:
                                         logger.warning(
                                             "Failed to kill process for job %s: %s",
                                             job_id,
                                             kill_exc,
                                         )
+                                        reaped = False
                     except Exception as exc:
                         logger.debug("Failed to terminate process for job %s: %s", job_id, exc)
+                        poll = getattr(process, "poll", None)
+                        reaped = callable(poll) and poll() is not None
 
-                job["status"] = "stopped"
-                job["status_message"] = "Stopping run"
-                job["stop_requested"] = True
-                job["finished_at"] = time.time()
-                job["updated_at"] = time.time()
+                if reaped:
+                    job["process"] = None
+                    _transition(job, JobStatus.STOPPED)
+                    job["finished_at"] = time.time()
+                    job["status_message"] = "Run stopped"
+                # else remain STOPPING until the process is reaped
 
                 # Write stop marker artifact for historical recovery
                 launcher_dir = self.output_root / "_launcher" / job_id

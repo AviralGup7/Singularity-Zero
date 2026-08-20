@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from src.dashboard.job_status import JobStatus, _transition
 from src.infrastructure.db.sqlite_utils import (
     SQLITE_BUSY_TIMEOUT_MS as _BUSY_TIMEOUT_MS,
 )
@@ -340,8 +341,8 @@ class JobStore:
         try:
             rows = self._with_retry(
                 lambda conn: conn.execute(
-                    "SELECT data FROM jobs WHERE status = ? ORDER BY created_at DESC",
-                    ("running",),
+                    "SELECT data FROM jobs WHERE status IN (?, ?, ?) ORDER BY created_at DESC",
+                    ("running", "starting", "stopping"),
                 ).fetchall()
             )
             result: dict[str, dict[str, Any]] = {}
@@ -367,13 +368,13 @@ class JobStore:
 
             def _op(conn: sqlite3.Connection) -> None:
                 rows = conn.execute(
-                    "SELECT data FROM jobs WHERE status = ?",
-                    ("running",),
+                    "SELECT data FROM jobs WHERE status IN (?, ?, ?)",
+                    ("running", "starting", "stopping"),
                 ).fetchall()
                 for row in rows:
                     try:
                         job = json.loads(row["data"])
-                        job["status"] = "failed"
+                        _transition(job, JobStatus.FAILED)
                         job["error"] = "Dashboard restarted while job was running"
                         job["status_message"] = "Job was interrupted by dashboard restart"
                         if "process_pid" in job:

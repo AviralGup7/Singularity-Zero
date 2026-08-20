@@ -7,19 +7,30 @@ class FindingLifecycleState(StrEnum):
     VALIDATED = "validated"
     EXPLOITABLE = "exploitable"
     REPORTABLE = "reportable"
+    FALSE_POSITIVE = "false_positive"
 
+
+_STICKY_STATES: frozenset[FindingLifecycleState] = frozenset(
+    {FindingLifecycleState.REPORTABLE, FindingLifecycleState.FALSE_POSITIVE}
+)
 
 _ALLOWED_TRANSITIONS: dict[FindingLifecycleState, set[FindingLifecycleState]] = {
     FindingLifecycleState.DETECTED: {
         FindingLifecycleState.VALIDATED,
         FindingLifecycleState.EXPLOITABLE,
+        FindingLifecycleState.FALSE_POSITIVE,
     },
     FindingLifecycleState.VALIDATED: {
         FindingLifecycleState.EXPLOITABLE,
         FindingLifecycleState.REPORTABLE,
+        FindingLifecycleState.FALSE_POSITIVE,
     },
-    FindingLifecycleState.EXPLOITABLE: {FindingLifecycleState.REPORTABLE},
-    FindingLifecycleState.REPORTABLE: set(),
+    FindingLifecycleState.EXPLOITABLE: {
+        FindingLifecycleState.REPORTABLE,
+        FindingLifecycleState.FALSE_POSITIVE,
+    },
+    FindingLifecycleState.REPORTABLE: {FindingLifecycleState.FALSE_POSITIVE},
+    FindingLifecycleState.FALSE_POSITIVE: set(),
 }
 
 
@@ -43,12 +54,27 @@ def can_transition(current: FindingLifecycleState, target: FindingLifecycleState
 
 
 def transition_state(current: str | None, target: str | None) -> str:
+    """Apply a lifecycle transition.
+
+    Illegal transitions keep the existing state instead of raising so a
+    single finding cannot take down report generation.
+    REPORTABLE and FALSE_POSITIVE are sticky against inferred downgrades.
+    """
     destination = normalize_lifecycle_state(target)
     if current is None:
         return destination.value
     source = normalize_lifecycle_state(current)
+    if source == destination:
+        return source.value
+    if source is FindingLifecycleState.FALSE_POSITIVE:
+        return source.value
+    if (
+        source is FindingLifecycleState.REPORTABLE
+        and destination is not FindingLifecycleState.FALSE_POSITIVE
+    ):
+        return source.value
     if not can_transition(source, destination):
-        raise ValueError(f"Invalid lifecycle transition from {source} to {destination}")
+        return source.value
     return destination.value
 
 
@@ -88,7 +114,13 @@ def apply_lifecycle(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for finding in findings:
         item = dict(finding)
+        current = item.get("lifecycle_state")
+        source = normalize_lifecycle_state(current) if current is not None else None
+        if source in _STICKY_STATES:
+            item["lifecycle_state"] = source.value
+            normalized.append(item)
+            continue
         inferred = infer_lifecycle_state(item)
-        item["lifecycle_state"] = transition_state(item.get("lifecycle_state"), inferred)
+        item["lifecycle_state"] = transition_state(current, inferred)
         normalized.append(item)
     return normalized

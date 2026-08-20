@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from src.core.events import EventType
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
+from src.core.models.stage_status import is_skipped_status
 from src.pipeline.runner_support import emit_progress
 
 from ._constants import PIPELINE_STAGES, STAGE_GRAPH, STAGE_ORDER, STAGE_ORDER_INDEX
@@ -120,7 +121,7 @@ async def run_parallel_group(
                 "status": "skipped",
                 "reason": "nuclei_not_on_path",
             }
-            ctx.result.stage_status["nuclei"] = StageStatus.SKIPPED.value
+            ctx.result.stage_status["nuclei"] = StageStatus.SKIPPED_DISABLED.value
             orchestrator._safe_checkpoint_stage_outcome(
                 checkpoint_mgr,
                 "nuclei",
@@ -228,7 +229,7 @@ async def run_parallel_group(
             status = "completed"
             if raw_state.upper() == StageStatus.FAILED.value:
                 status = "error"
-            elif raw_state.upper() == StageStatus.SKIPPED.value:
+            elif is_skipped_status(raw_state):
                 status = "skipped"
             details: dict[str, Any] = {"duration_seconds": round(elapsed, 2)}
             if isinstance(stage_metrics, dict):
@@ -297,7 +298,7 @@ async def run_parallel_group(
                     source=f"stage.{name}",
                     data={"contract": stage_output_contract},
                 )
-            elif raw_state.upper() == StageStatus.SKIPPED.value:
+            elif is_skipped_status(raw_state):
                 orchestrator._emit_event(
                     EventType.STAGE_SKIPPED,
                     source=f"stage.{name}",

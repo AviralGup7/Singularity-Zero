@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from src.dashboard.job_status import _transition
 from src.dashboard.registry import STAGE_LABELS
 from src.dashboard.scope_utils import estimate_remaining
 
@@ -48,9 +49,9 @@ def _coerce_float(value: object) -> float | None:
 
 def _normalize_stage_status(value: object) -> str:
     status = str(value or "").strip().lower()
-    if status in {"error", "failed", "timeout"}:
+    if status in {"error", "failed", "timeout", "skipped_failed"}:
         return "error"
-    if status in {"skipped", "skip"}:
+    if status in {"skipped", "skip", "skipped_disabled"}:
         return "skipped"
     if status in {"completed", "done", "success"}:
         return "completed"
@@ -222,7 +223,7 @@ def _apply_terminal_state(
 ) -> None:
     now = time.time()
     _increment_state_version(job)
-    job["status"] = status
+    _transition(job, status)
     job["finished_at"] = now
     if error:
         job["error"] = error
