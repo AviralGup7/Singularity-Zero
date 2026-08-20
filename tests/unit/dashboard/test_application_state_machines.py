@@ -11,13 +11,19 @@ from src.core.contracts.finding_lifecycle import (
     apply_lifecycle,
     transition_state,
 )
+from src.core.models.pipeline_state import StageExecution
 from src.core.models.stage_result import PipelineContext, StageStatus
 from src.core.models.stage_status import (
     skipped_satisfies_gate,
     transition_stage_status,
 )
 from src.core.security.circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
-from src.dashboard.job_status import JobStatus, _transition, can_transition_job
+from src.dashboard.job_status import (
+    JobStatus,
+    _transition,
+    apply_pipeline_exit_status,
+    can_transition_job,
+)
 
 
 @pytest.mark.unit
@@ -307,3 +313,64 @@ def test_can_transition_job_matrix() -> None:
     assert can_transition_job("stopping", "stopped") is True
     assert can_transition_job("completed", "failed") is False
     assert can_transition_job("failed", "running") is False
+
+
+@pytest.mark.unit
+def test_apply_pipeline_exit_status_stop_requested_reaps_stopped() -> None:
+    job = {"id": "j-stop", "status": JobStatus.STOPPING.value}
+    assert apply_pipeline_exit_status(job, stop_requested=True, returncode=0) is True
+    assert job["status"] == "stopped"
+    assert apply_pipeline_exit_status(job, stop_requested=True, returncode=1) is True
+    assert job["status"] == "stopped"
+
+
+@pytest.mark.unit
+def test_apply_pipeline_exit_status_stopping_cannot_complete() -> None:
+    job = {"id": "j-stop-complete", "status": JobStatus.STOPPING.value}
+    assert apply_pipeline_exit_status(job, stop_requested=False, returncode=0) is True
+    assert job["status"] == "stopped"
+
+
+@pytest.mark.unit
+def test_apply_pipeline_exit_status_no_output_or_running_stages_fails() -> None:
+    empty = {"id": "j-empty", "status": JobStatus.RUNNING.value}
+    assert (
+        apply_pipeline_exit_status(
+            empty, stop_requested=False, returncode=0, no_pipeline_output=True
+        )
+        is True
+    )
+    assert empty["status"] == "failed"
+
+    running = {"id": "j-running-stages", "status": JobStatus.RUNNING.value}
+    assert (
+        apply_pipeline_exit_status(
+            running, stop_requested=False, returncode=0, has_running_stages=True
+        )
+        is True
+    )
+    assert running["status"] == "failed"
+
+    ok = {"id": "j-ok", "status": JobStatus.RUNNING.value}
+    assert apply_pipeline_exit_status(ok, stop_requested=False, returncode=0) is True
+    assert ok["status"] == "completed"
+
+
+@pytest.mark.unit
+def test_stage_execution_mark_skipped_uses_cas() -> None:
+    stage = StageExecution(name="recon")
+    stage.mark_running()
+    stage.mark_completed()
+    stage.mark_skipped("disabled")
+    assert stage.status == StageStatus.COMPLETED
+
+
+@pytest.mark.unit
+def test_stage_execution_mark_skipped_splits_reasons() -> None:
+    disabled = StageExecution(name="iac")
+    disabled.mark_skipped("no_iac_paths")
+    assert disabled.status == StageStatus.SKIPPED_DISABLED
+
+    failed = StageExecution(name="nuclei")
+    failed.mark_skipped("circuit_breaker_open")
+    assert failed.status == StageStatus.SKIPPED_FAILED

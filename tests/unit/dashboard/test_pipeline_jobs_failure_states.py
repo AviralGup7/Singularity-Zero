@@ -408,6 +408,38 @@ def test_run_pipeline_job_uses_launcher_config_scope_runtime_entrypoint(tmp_path
     assert "--force-fresh-run" in command
 
 
+def test_run_pipeline_job_stop_requested_reaps_stopped(tmp_path: Path) -> None:
+    workspace_root, config_path, scope_path, stdout_path, stderr_path = _prepare_paths(tmp_path)
+    job = create_job_record(
+        "job-stopped",
+        "https://example.com",
+        "example.com",
+        ["example.com"],
+        ["subfinder"],
+        "example.com",
+        "safe",
+    )
+    job["stop_requested"] = True
+    job["status"] = "stopping"
+
+    with patch(
+        "src.dashboard.pipeline_jobs.subprocess.Popen",
+        return_value=_DummyProcess(stdout_text="Run complete\n", stderr_text="", returncode=0),
+    ):
+        run_pipeline_job(
+            workspace_root,
+            job,
+            threading.Lock(),
+            config_path,
+            scope_path,
+            stdout_path,
+            stderr_path,
+        )
+
+    assert job["status"] == "stopped"
+    assert job["status_message"] == "Run stopped from dashboard control"
+
+
 def test_run_pipeline_job_persists_terminal_state(tmp_path: Path) -> None:
     workspace_root, config_path, scope_path, stdout_path, stderr_path = _prepare_paths(tmp_path)
     job = create_job_record(

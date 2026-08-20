@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from src.core.models.stage_status import StageStatus, transition_stage_status
+from src.core.models.stage_status import (
+    StageStatus,
+    resolve_skip_status,
+    transition_stage_status,
+)
 
 
 @dataclass(frozen=True)
@@ -118,7 +122,8 @@ class StageExecution:
         )
 
     def mark_skipped(self, reason: str = "") -> None:
-        self.status = StageStatus.SKIPPED
+        if not self._set_status(resolve_skip_status(reason)):
+            return
         self.metrics = StageMetrics(reason=reason)
 
 

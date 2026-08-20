@@ -25,7 +25,7 @@ from src.dashboard.error_classification import (
 # Re-expose and leverage deconstructed modular components
 from src.dashboard.job_record_builder import create_job_record as create_job_record
 from src.dashboard.job_state import append_log
-from src.dashboard.job_status import JobStatus, _transition
+from src.dashboard.job_status import JobStatus, _transition, apply_pipeline_exit_status
 from src.dashboard.registry import PROGRESS_PREFIX, STAGE_LABELS
 from src.dashboard.scope_utils import truncate_lines as _truncate_lines
 from src.dashboard.stream_consumer import (
@@ -339,13 +339,15 @@ def run_pipeline_job(
             isinstance(sp, dict) and sp.get("status") == "running" for sp in stage_progress.values()
         )
 
-        if stop_requested:
-            job["status"] = "stopped"
-        elif returncode == 0 and no_pipeline_output:
-            job["status"] = "failed"
-        elif returncode == 0 and has_running_stages:
+        apply_pipeline_exit_status(
+            job,
+            stop_requested=stop_requested,
+            returncode=returncode,
+            no_pipeline_output=no_pipeline_output,
+            has_running_stages=has_running_stages,
+        )
+        if not stop_requested and returncode == 0 and has_running_stages and not no_pipeline_output:
             # Process exited cleanly but stages still running = incomplete
-            job["status"] = "failed"
             job["failed_stage"] = next(
                 (
                     name
@@ -356,8 +358,6 @@ def run_pipeline_job(
             )
             job["failure_reason"] = "Pipeline exited before all stages completed"
             job["failure_reason_code"] = "premature_exit"
-        else:
-            job["status"] = "completed" if returncode == 0 else "failed"
         job["progress_percent"] = (
             100 if job["status"] == "completed" else job.get("progress_percent", 0)
         )

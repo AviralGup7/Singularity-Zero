@@ -135,3 +135,31 @@ def _transition(job: dict[str, Any], new_status: str | JobStatus) -> bool:
         return False
     job["status"] = dest.value
     return True
+
+
+def apply_pipeline_exit_status(
+    job: dict[str, Any],
+    *,
+    stop_requested: bool,
+    returncode: int,
+    no_pipeline_output: bool = False,
+    has_running_stages: bool = False,
+) -> bool:
+    """Map a reaped pipeline process onto a legal terminal job status.
+
+    Direct ``job["status"] =`` writes are forbidden. STOPPING cannot
+    become COMPLETED — a clean stop reaps as STOPPED instead.
+    """
+    if stop_requested:
+        dest = JobStatus.STOPPED
+    elif returncode == 0 and (no_pipeline_output or has_running_stages):
+        dest = JobStatus.FAILED
+    elif returncode == 0:
+        dest = JobStatus.COMPLETED
+    else:
+        dest = JobStatus.FAILED
+    if _transition(job, dest):
+        return True
+    if dest is JobStatus.COMPLETED:
+        return _transition(job, JobStatus.STOPPED)
+    return False
