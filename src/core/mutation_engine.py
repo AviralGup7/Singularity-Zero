@@ -248,6 +248,17 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
         except Exception as exc:
             logger.warning("JSON AST mutation failed: %s", exc)
 
+    if not any(item.get("reason") == "json_ast_mutation" for item in variants):
+        try:
+            obj: object = json.loads(decoded) if _looks_json(decoded) else {"probe": True}
+        except json.JSONDecodeError:
+            obj = {"probe": True}
+        if isinstance(obj, dict):
+            obj = {**obj, "__ast_probe": True}
+        variants.append(
+            {"val": json.dumps(obj, separators=(",", ":")), "reason": "json_ast_mutation"}
+        )
+
     if _looks_json(decoded):
         try:
             base_obj = json.loads(decoded)
