@@ -68,6 +68,14 @@ def test_infer_lifecycle_reportable_for_kept_critical() -> None:
 
 
 @pytest.mark.unit
+def test_infer_lifecycle_false_positive_from_decision() -> None:
+    assert infer_lifecycle_state({"decision": "FALSE_POSITIVE", "severity": "high"}) == (
+        "false_positive"
+    )
+    assert infer_lifecycle_state({"status": "false_positive"}) == "false_positive"
+
+
+@pytest.mark.unit
 def test_infer_lifecycle_exploitable_when_verified() -> None:
     assert infer_lifecycle_state({"verified": True}) == "exploitable"
     assert infer_lifecycle_state({"evidence": {"validation_state": "confirmed"}}) == "exploitable"

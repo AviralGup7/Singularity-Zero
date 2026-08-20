@@ -95,7 +95,13 @@ def infer_lifecycle_state(finding: dict[str, Any]) -> str:
         or evidence.get("validation_confirmed")
     )
     decision = str(finding.get("decision", "")).strip().upper()
+    status = str(finding.get("status", "")).strip().lower()
 
+    if decision in {"FALSE_POSITIVE", "FP", "FALSE-POSITIVE"} or status in {
+        "false_positive",
+        "fp",
+    }:
+        return FindingLifecycleState.FALSE_POSITIVE.value
     if decision in {"KEEP"} and severity in {"high", "critical"}:
         return FindingLifecycleState.REPORTABLE.value
     if verified or validation_state in {"active_ready", "confirmed"}:

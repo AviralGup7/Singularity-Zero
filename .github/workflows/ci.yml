@@ -96,7 +96,8 @@ jobs:
   test:
     name: test / ${{ matrix.shard.name }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # unit-app is the kitchen-sink shard and was cancelled at 12m17s.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
