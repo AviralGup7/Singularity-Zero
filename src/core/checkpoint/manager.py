@@ -5,17 +5,41 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
+import secrets
 import time
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, TypeVar
+
+from src.core.checkpoint.health import (
+    DEFAULT_STALE_AFTER_SECONDS,
+    CheckpointFencedError,
+    CheckpointHealth,
+    FenceState,
+    assert_writable_fence,
+    inspect_remote_fence,
+    is_checkpoint_stale,
+)
 
 logger = logging.getLogger(__name__)
 
 _SAFE_RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 T = TypeVar("T")
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write ``content`` to ``path`` and fsync. Caller then ``os.replace``s."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(content)
+        handle.flush()
+        try:
+            os.fsync(handle.fileno())
+        except OSError:
+            pass
 
 
 @dataclass
@@ -86,6 +110,41 @@ class CheckpointManager:
     _version: int = 0
     _dirty: bool = False
     _auto_save_task: Any = None
+    retry_attempts: int = 3
+    retry_base_delay: float = 0.05
+    stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS
+    fence_token: str = field(default_factory=lambda: secrets.token_hex(8))
+    _fence: FenceState = field(
+        default_factory=lambda: FenceState(token=""),
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _health: CheckpointHealth = field(
+        default_factory=CheckpointHealth, init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        self._fence = FenceState(token=self.fence_token)
+        self._health.fence_token = self.fence_token
+
+    @property
+    def health(self) -> CheckpointHealth:
+        self._health.stale = self.is_stale()
+        self._health.fenced = self._fence.fenced
+        self._health.fence_token = self._fence.token
+        return self._health
+
+    def is_stale(self, *, now: float | None = None) -> bool:
+        last = self._health.last_success_at
+        if last is None and self._current is not None:
+            last = self._current.timestamp
+        return is_checkpoint_stale(
+            last,
+            now=now,
+            max_age_seconds=self.stale_after_seconds,
+            dirty=self._dirty,
+        )
 
     async def load(self) -> CheckpointData | None:
         """Load latest checkpoint."""
@@ -93,6 +152,9 @@ class CheckpointManager:
         if data:
             self._current = data
             self._version = data.version
+            _token, generation = inspect_remote_fence(data.metadata)
+            if generation:
+                self._fence.generation = max(self._fence.generation, generation)
         return data
 
     def get_stage(self, name: str) -> dict | None:
@@ -111,43 +173,136 @@ class CheckpointManager:
         self._dirty = True
 
     async def save(self, force: bool = False) -> str | None:
-        """Save checkpoint if dirty or forced."""
+        """Save checkpoint if dirty or forced.
+
+        I/O failures are retried with exponential backoff. Version is
+        incremented once per dirty cycle so a failed attempt does not
+        skip a generation on retry. Health is updated on every outcome.
+        The loop in ``auto_save`` keeps running even when this raises.
+        """
         if not self._dirty and not force:
             return None
         if not self._current:
             return None
+        if self._fence.fenced:
+            self._health.record_failure("fenced", fenced=True)
+            raise CheckpointFencedError(f"run {self.run_id} is fenced")
 
-        self._version += 1
-        self._current.version = self._version
-        self._current.timestamp = time.time()
-        version_id = await self.store.save(self._current)
-        self._dirty = False
-        return version_id
+        await self._check_fence()
 
-    async def auto_save(self, interval: float = 30.0):
-        """Start auto-save background task."""
+        attempts = max(1, int(self.retry_attempts))
+        delay = max(0.0, float(self.retry_base_delay))
+        last_error: Exception | None = None
+        started = time.perf_counter()
+        versioned = False
 
-        async def _auto_save():
+        for attempt in range(1, attempts + 1):
+            try:
+                if not versioned:
+                    self._version += 1
+                    self._current.version = self._version
+                    self._current.timestamp = time.time()
+                    self._stamp_fence()
+                    versioned = True
+                version_id = await self.store.save(self._current)
+                self._dirty = False
+                duration_ms = (time.perf_counter() - started) * 1000.0
+                self._health.record_success(duration_ms)
+                return version_id
+            except CheckpointFencedError:
+                self._health.record_failure("fenced", fenced=True)
+                raise
+            except Exception as exc:
+                last_error = exc
+                self._health.record_failure(str(exc))
+                logger.warning(
+                    "Checkpoint save failed for run %s (attempt %d/%d): %s",
+                    self.run_id,
+                    attempt,
+                    attempts,
+                    exc,
+                )
+                if attempt < attempts and delay > 0:
+                    await asyncio.sleep(delay)
+                    delay *= 2
+
+        assert last_error is not None
+        logger.error(
+            "Checkpoint save exhausted retries for run %s: %s",
+            self.run_id,
+            last_error,
+        )
+        raise last_error
+
+    async def _check_fence(self) -> None:
+        load = getattr(self.store, "load", None)
+        if not callable(load):
+            return
+        try:
+            latest = await load(self.run_id)
+        except Exception as exc:  # noqa: BLE001 - fence check must not crash save
+            logger.debug("Checkpoint fence probe failed for run %s: %s", self.run_id, exc)
+            return
+        if latest is None:
+            return
+        metadata = getattr(latest, "metadata", None)
+        token, generation = inspect_remote_fence(metadata if isinstance(metadata, dict) else None)
+        assert_writable_fence(self._fence, token, generation)
+
+    def _stamp_fence(self) -> None:
+        if self._current is None:
+            return
+        generation = self._fence.next_generation()
+        self._current.metadata["fence_token"] = self._fence.token
+        self._current.metadata["fence_generation"] = generation
+
+    async def auto_save(self, interval: float = 30.0) -> None:
+        """Start (or restart) the auto-save background task.
+
+        R1-2: a single I/O failure must not kill the loop. Failures are
+        logged, health is updated, and the next interval retries.
+        """
+
+        async def _auto_save() -> None:
             while True:
-                await asyncio.sleep(interval)
-                if not self._dirty:
-                    continue
                 try:
+                    await asyncio.sleep(max(0.0, float(interval)))
+                    if not self._dirty:
+                        self._health.stale = self.is_stale()
+                        continue
                     await self.save()
                 except asyncio.CancelledError:
                     raise
+                except CheckpointFencedError:
+                    logger.error(
+                        "Checkpoint autosave fenced out for run %s; loop continues idle",
+                        self.run_id,
+                    )
                 except Exception:
-                    logger.exception("Periodic checkpoint save failed for run %s", self.run_id)
+                    logger.exception(
+                        "Periodic checkpoint save failed for run %s; autosave continues",
+                        self.run_id,
+                    )
 
-        self._auto_save_task = asyncio.create_task(_auto_save())
+        existing = self._auto_save_task
+        if existing is not None and not existing.done():
+            return
+        self._auto_save_task = asyncio.create_task(
+            _auto_save(), name=f"checkpoint-autosave-{self.run_id}"
+        )
 
-    async def stop_auto_save(self):
-        if self._auto_save_task:
-            self._auto_save_task.cancel()
-            try:
-                await self._auto_save_task
-            except asyncio.CancelledError:
-                pass
+    async def stop_auto_save(self) -> None:
+        task = self._auto_save_task
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._auto_save_task is task:
+                self._auto_save_task = None
 
 
 # Local file implementation
@@ -174,25 +329,29 @@ class LocalCheckpointStore:
         return self._run_dir(run_id) / "latest.json"
 
     async def save(self, data: CheckpointData) -> str:
-        import os
-
         run_dir = self._run_dir(data.run_id)
         run_dir.mkdir(parents=True, exist_ok=True)
 
         version = data.version
         path = self._version_file(data.run_id, version)
         tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(data.to_json(), encoding="utf-8")
-        os.replace(tmp, path)
-
-        # Atomic pointer file (not a symlink): unlink+symlink raced and
-        # broke on Windows / some container filesystems.
         latest = self._latest_link(data.run_id)
         latest_tmp = latest.with_name(latest.name + ".tmp")
-        latest_tmp.write_text(json.dumps({"version": version}), encoding="utf-8")
-        os.replace(latest_tmp, latest)
-
-        return f"v{version:06d}"
+        try:
+            _atomic_write_text(tmp, data.to_json())
+            os.replace(tmp, path)
+            # Atomic pointer file (not a symlink): unlink+symlink raced and
+            # broke on Windows / some container filesystems.
+            _atomic_write_text(latest_tmp, json.dumps({"version": version}))
+            os.replace(latest_tmp, latest)
+            return f"v{version:06d}"
+        except Exception:
+            for leftover in (tmp, latest_tmp):
+                try:
+                    leftover.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
 
     async def load(self, run_id: str, version: int | None = None) -> CheckpointData | None:
         if version is None:

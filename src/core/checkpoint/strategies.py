@@ -17,6 +17,7 @@ from src.core.checkpoint.base import (
     _compute_checksum,
     _serialize_sets,
 )
+from src.core.checkpoint.health import CheckpointHealth
 from src.core.checkpoint_recovery import (
     load_context_snapshot_for_stage_impl,
     load_latest_context_snapshot_impl,
@@ -69,6 +70,11 @@ class CheckpointManager:
         # Adaptive checkpoint tracking
         self._last_adaptive_checkpoint_at: float = time.time()
         self._deltas_since_last_checkpoint: int = 0
+        self._health = CheckpointHealth()
+
+    @property
+    def health(self) -> CheckpointHealth:
+        return self._health
 
     @property
     def completed_stages(self) -> list[str]:
@@ -338,6 +344,7 @@ class CheckpointManager:
                     version=state.checkpoint_version,
                     payload=json.loads(json_bytes),
                 )
+                self._health.record_success()
                 logger.info(
                     "Checkpoint saved: run=%s version=%d id=%s",
                     state.pipeline_run_id,
@@ -345,6 +352,7 @@ class CheckpointManager:
                     version_id,
                 )
             except Exception as exc:
+                self._health.record_failure(str(exc))
                 logger.error("Failed to write checkpoint: %s", exc)
                 raise
 

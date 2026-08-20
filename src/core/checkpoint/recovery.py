@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from src.core.checkpoint.base import CheckpointState
+from src.core.checkpoint.health import RecoveryCandidate, select_recovery_candidate
 from src.core.checkpoint_recovery import (
     generate_run_id_impl,
     validate_checkpoint_state_impl,
 )
 from src.core.logging.trace_logging import get_pipeline_logger
+
+_RECOVERY_STALE_AFTER_SECONDS = 3600.0
 
 logger = get_pipeline_logger(__name__)
 
@@ -87,10 +90,9 @@ def attempt_recovery(
     checkpoint_dir = Path(output_dir) / target_name / "checkpoints"
     store = create_checkpoint_store(storage_config, checkpoint_dir)
 
-    # Tuple: (failed_count_neg, completed_count, timestamp, source_node, state)
-    #   failed_count_neg is negated so sorting DESC works correctly:
-    #   fewer failures → higher value.
-    candidates: list[tuple[int, int, float, str, CheckpointState]] = []
+    # Scored candidates: fewest failures, then most completed stages,
+    # then newest timestamp. Local-vs-remote fencing is applied below.
+    candidates: list[RecoveryCandidate] = []
     for run_id in store.list_run_ids():
         payload = store.read_latest(run_id)
         if not payload:
@@ -107,47 +109,49 @@ def attempt_recovery(
         failed_count = _count_failed_stages(state)
         source = getattr(state, "source_node", "") or ""
         candidates.append(
-            (
-                -failed_count,
-                completed_count,
-                float(getattr(state, "last_checkpoint_at", 0.0) or 0.0),
-                source,
-                state,
+            RecoveryCandidate(
+                failed_neg=-failed_count,
+                completed=completed_count,
+                timestamp=float(getattr(state, "last_checkpoint_at", 0.0) or 0.0),
+                source_node=source,
+                state=state,
             )
         )
 
     if not candidates:
         return False, None
 
-    candidates.sort(key=lambda c: (c[0], c[1], c[2]), reverse=True)
-    best = candidates[0]
-    best_state = best[4]
-    best_source = best[3]
+    chosen = select_recovery_candidate(
+        candidates,
+        local_node_id=local_node_id,
+        stale_after_seconds=_RECOVERY_STALE_AFTER_SECONDS,
+    )
+    if chosen is None:
+        return False, None
 
-    if best[0] < 0:
+    best_state = chosen.state
+    if chosen.failed_neg < 0:
         logger.warning(
             "Recovery selected checkpoint with %d failed stage(s) – no clean candidate available",
-            -best[0],
+            -chosen.failed_neg,
         )
 
-    # Bug #31 fencing: if the best checkpoint is from a remote node and
-    # we have a local checkpoint, prefer the local one to avoid split-brain.
-    if local_node_id and best_source and best_source != local_node_id:
-        local_candidates = [c for c in candidates if c[3] == local_node_id]
-        if local_candidates:
-            local_best = local_candidates[0]
-            # Accept local if it's within 5 stages of the remote best
-            # (conservative: only fence if the remote is not significantly ahead)
-            if local_best[1] >= best[1] - 5:
-                logger.warning(
-                    "Bug #31 fencing: preferring local checkpoint (stages=%d) "
-                    "over remote checkpoint from node %s (stages=%d) "
-                    "to avoid split-brain recovery",
-                    local_best[1],
-                    best_source,
-                    best[1],
-                )
-                best_state = local_best[4]
+    if (
+        local_node_id
+        and chosen.source_node
+        and chosen.source_node != local_node_id
+        and chosen.stale
+    ):
+        logger.warning(
+            "Recovery: remote checkpoint from %s is stale; local candidate preferred when present",
+            chosen.source_node,
+        )
+    elif local_node_id and chosen.source_node == local_node_id:
+        logger.info(
+            "Recovery fencing: using local checkpoint (stages=%d source=%s)",
+            chosen.completed,
+            chosen.source_node,
+        )
 
     has_incomplete = best_state.current_stage is not None or len(best_state.completed_stages) > 0
     return has_incomplete, best_state
