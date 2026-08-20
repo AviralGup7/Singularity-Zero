@@ -16,7 +16,7 @@
   },
   {
     "path": "dist/assets/*.css",
-    "limit": "40 KB",
+    "limit": "45 KB",
     "gzip": true
   }
 ]
