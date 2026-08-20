@@ -10,10 +10,6 @@ import json
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.queue.lease_ownership import (
-    reject_if_lease_mismatch,
-    reject_if_not_owner,
-)
 
 logger = get_pipeline_logger(__name__)
 
@@ -476,6 +472,7 @@ class FallbackEmulator:
                 return [0, b"invalid_state", state.encode("utf-8")]
 
             lease_expires = now_f + lease_seconds
+            lease_version = str(int(now_f * 1000000))
             self.client.execute_command(
                 "HSET",
                 job_key,
@@ -485,27 +482,48 @@ class FallbackEmulator:
                 worker_id,
                 "lease_expires_at",
                 str(lease_expires),
+                "lease_version",
+                lease_version,
             )
             self.client.execute_command("ZREM", queue_key, job_key)
             self.client.execute_command("SADD", worker_key, job_key)
-            return [1, b"claimed"]
+            return [1, b"claimed", lease_version.encode("utf-8")]
 
         if name == "complete_job" and len(keys) >= 3 and len(args) >= 3:
             job_key = _as_str(keys[0])
             worker_key = _as_str(keys[1])
             metrics_key = _as_str(keys[2])
-            caller_worker_id = _as_str(args[0])
-            result_json = _as_str(args[1])
-            now_s = _as_str(args[2])
+            expected_worker = _as_str(args[0])
+            # New shape: [worker, lease_version, result, now]
+            # Legacy shape: [worker, result, now]  (empty lease version)
+            if len(args) >= 4:
+                expected_lease_version = _as_str(args[1])
+                result_json = _as_str(args[2])
+                now_s = _as_str(args[3])
+            else:
+                expected_lease_version = ""
+                result_json = _as_str(args[1])
+                now_s = _as_str(args[2])
 
             if self.client.execute_command("EXISTS", job_key) == 0:
                 return [0, b"not_found"]
 
+            state_raw = self.client.execute_command("HGET", job_key, "state")
+            state = _as_str(state_raw) if state_raw is not None else ""
+            if state not in ("claimed", "running"):
+                return [0, b"wrong_state", state.encode("utf-8")]
+
             current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
             current_worker = _as_str(current_worker_raw) if current_worker_raw is not None else ""
-            rejected = reject_if_not_owner(current_worker, caller_worker_id)
-            if rejected is not None:
-                return [0, rejected.encode("utf-8"), current_worker.encode("utf-8")]
+            if current_worker != expected_worker:
+                return [0, b"worker_mismatch", current_worker.encode("utf-8")]
+
+            current_version_raw = self.client.execute_command("HGET", job_key, "lease_version")
+            current_version = (
+                _as_str(current_version_raw) if current_version_raw is not None else ""
+            )
+            if expected_lease_version != "" and current_version != expected_lease_version:
+                return [0, b"lease_version_mismatch", current_version.encode("utf-8")]
 
             self.client.execute_command(
                 "HSET",
@@ -520,6 +538,8 @@ class FallbackEmulator:
                 "",
                 "worker_id",
                 "",
+                "lease_version",
+                "",
             )
             self.client.execute_command("SREM", worker_key, job_key)
             self.client.execute_command("HINCRBY", metrics_key, "completed", 1)
@@ -532,22 +552,45 @@ class FallbackEmulator:
             dlq_key = _as_str(keys[3])
             metrics_key = _as_str(keys[4])
 
-            caller_worker_id = _as_str(args[0])
-            error_msg = _as_str(args[1])
-            max_retries = int(float(args[2]))
-            now_ff = float(args[3])
-            initial = float(args[4])
-            multiplier = float(args[5])
-            max_delay = float(args[6])
+            expected_worker = _as_str(args[0])
+            # New shape: [worker, lease_version, error, max_retries, now, init, mult, maxdelay]
+            # Legacy shape: [worker, error, max_retries, now, init, mult, maxdelay]
+            if len(args) >= 8:
+                expected_lease_version = _as_str(args[1])
+                error_msg = _as_str(args[2])
+                max_retries = int(float(args[3]))
+                now_ff = float(args[4])
+                initial = float(args[5])
+                multiplier = float(args[6])
+                max_delay = float(args[7])
+            else:
+                expected_lease_version = ""
+                error_msg = _as_str(args[1])
+                max_retries = int(float(args[2]))
+                now_ff = float(args[3])
+                initial = float(args[4])
+                multiplier = float(args[5])
+                max_delay = float(args[6])
 
             if self.client.execute_command("EXISTS", job_key) == 0:
                 return [0, b"not_found"]
 
+            state_raw = self.client.execute_command("HGET", job_key, "state")
+            state = _as_str(state_raw) if state_raw is not None else ""
+            if state not in ("claimed", "running"):
+                return [0, b"wrong_state", state.encode("utf-8")]
+
             current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
             current_worker = _as_str(current_worker_raw) if current_worker_raw is not None else ""
-            rejected = reject_if_not_owner(current_worker, caller_worker_id)
-            if rejected is not None:
-                return [0, rejected.encode("utf-8"), current_worker.encode("utf-8")]
+            if current_worker != expected_worker:
+                return [0, b"worker_mismatch", current_worker.encode("utf-8")]
+
+            current_version_raw = self.client.execute_command("HGET", job_key, "lease_version")
+            current_version = (
+                _as_str(current_version_raw) if current_version_raw is not None else ""
+            )
+            if expected_lease_version != "" and current_version != expected_lease_version:
+                return [0, b"lease_version_mismatch", current_version.encode("utf-8")]
 
             self.client.execute_command("SREM", worker_key, job_key)
             self.client.execute_command("HSET", job_key, "error", error_msg)
@@ -575,6 +618,8 @@ class FallbackEmulator:
                     "",
                     "lease_expires_at",
                     "",
+                    "lease_version",
+                    "",
                 )
                 self.client.execute_command("ZADD", queue_key, queue_score, job_key)
                 self.client.execute_command("HINCRBY", metrics_key, "retried", 1)
@@ -591,6 +636,8 @@ class FallbackEmulator:
                 "",
                 "lease_expires_at",
                 "",
+                "lease_version",
+                "",
             )
             self.client.execute_command("ZADD", dlq_key, now_ff, job_key)
             self.client.execute_command("HINCRBY", metrics_key, "dead_lettered", 1)
@@ -600,7 +647,7 @@ class FallbackEmulator:
             job_key = _as_str(keys[0])
             worker_key = _as_str(keys[1])
             queue_key = _as_str(keys[2])
-            expected_worker_id = _as_str(args[0]) if args else ""
+            expected_worker = _as_str(args[0]) if len(args) > 0 else ""
             expected_lease_version = _as_str(args[1]) if len(args) > 1 else ""
 
             if self.client.execute_command("EXISTS", job_key) == 0:
@@ -613,17 +660,18 @@ class FallbackEmulator:
 
             current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
             current_worker = _as_str(current_worker_raw) if current_worker_raw is not None else ""
-            rejected = reject_if_not_owner(current_worker, expected_worker_id)
-            if rejected is not None:
-                return [0, rejected.encode("utf-8"), current_worker.encode("utf-8")]
+            # Empty caller is never a wildcard — reject it outright (S-2).
+            if expected_worker == "":
+                return [0, b"worker_mismatch", b""]
+            if current_worker != expected_worker:
+                return [0, b"worker_mismatch", current_worker.encode("utf-8")]
 
             current_version_raw = self.client.execute_command("HGET", job_key, "lease_version")
             current_version = (
                 _as_str(current_version_raw) if current_version_raw is not None else ""
             )
-            version_rejected = reject_if_lease_mismatch(current_version, expected_lease_version)
-            if version_rejected is not None:
-                return [0, version_rejected.encode("utf-8"), current_version.encode("utf-8")]
+            if expected_lease_version != "" and current_version != expected_lease_version:
+                return [0, b"lease_version_mismatch", current_version.encode("utf-8")]
 
             self.client.execute_command(
                 "HSET",
@@ -646,5 +694,93 @@ class FallbackEmulator:
                 queue_score = 0.0
             self.client.execute_command("ZADD", queue_key, queue_score, job_key)
             return [1, b"released"]
+
+        if name == "cancel_job" and len(keys) >= 3:
+            job_key = _as_str(keys[0])
+            worker_key = _as_str(keys[1])
+            queue_key = _as_str(keys[2])
+            expected_worker = _as_str(args[0]) if len(args) > 0 else ""
+            expected_lease_version = _as_str(args[1]) if len(args) > 1 else ""
+
+            if self.client.execute_command("EXISTS", job_key) == 0:
+                return [0, b"not_found"]
+
+            state_raw = self.client.execute_command("HGET", job_key, "state")
+            state = _as_str(state_raw) if state_raw is not None else ""
+            if state in ("completed", "cancelled", "dead_letter"):
+                return [0, b"wrong_state", state.encode("utf-8")]
+
+            if state in ("claimed", "running"):
+                current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
+                current_worker = (
+                    _as_str(current_worker_raw) if current_worker_raw is not None else ""
+                )
+                if expected_worker != "" and current_worker != expected_worker:
+                    return [0, b"worker_mismatch", current_worker.encode("utf-8")]
+                current_version_raw = self.client.execute_command("HGET", job_key, "lease_version")
+                current_version = (
+                    _as_str(current_version_raw) if current_version_raw is not None else ""
+                )
+                if expected_lease_version != "" and current_version != expected_lease_version:
+                    return [0, b"lease_version_mismatch", current_version.encode("utf-8")]
+
+            self.client.execute_command(
+                "HSET",
+                job_key,
+                "state",
+                "cancelled",
+                "worker_id",
+                "",
+                "lease_expires_at",
+                "",
+                "lease_version",
+                "",
+            )
+            self.client.execute_command("SREM", worker_key, job_key)
+            self.client.execute_command("ZREM", queue_key, job_key)
+            return [1, b"cancelled"]
+
+        if name == "expire_lease" and len(keys) >= 3:
+            job_key = _as_str(keys[0])
+            queue_key = _as_str(keys[1])
+            worker_key = _as_str(keys[2])
+            now_f = float(args[0]) if args else 0.0
+
+            if self.client.execute_command("EXISTS", job_key) == 0:
+                return [0, b"not_found"]
+
+            state_raw = self.client.execute_command("HGET", job_key, "state")
+            state = _as_str(state_raw) if state_raw is not None else ""
+            if state not in ("claimed", "running"):
+                return [0, b"wrong_state", state.encode("utf-8")]
+
+            lease_raw = self.client.execute_command("HGET", job_key, "lease_expires_at")
+            try:
+                lease_expires = float(_as_str(lease_raw)) if lease_raw is not None else 0.0
+            except (TypeError, ValueError):
+                lease_expires = 0.0
+            if lease_expires > now_f:
+                return [0, b"lease_valid", str(lease_expires).encode("utf-8")]
+
+            self.client.execute_command(
+                "HSET",
+                job_key,
+                "state",
+                "pending",
+                "worker_id",
+                "",
+                "lease_expires_at",
+                "",
+                "lease_version",
+                "",
+            )
+            self.client.execute_command("SREM", worker_key, job_key)
+            bid_raw = self.client.execute_command("HGET", job_key, "bid_score")
+            try:
+                queue_score = float(_as_str(bid_raw)) if bid_raw is not None else 0.0
+            except (TypeError, ValueError):
+                queue_score = 0.0
+            self.client.execute_command("ZADD", queue_key, queue_score, job_key)
+            return [1, b"requeued"]
 
         return [0]

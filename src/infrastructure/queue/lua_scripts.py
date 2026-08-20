@@ -1,11 +1,16 @@
 """Redis Lua scripts for atomic queue operations.
 
 Defines Lua scripts loaded into Redis for claim, complete, fail, lease release,
-and enqueue operations.
+lease expiry, cancellation, and enqueue operations.
 
-S-2 — every ownership transition (RELEASE / COMPLETE / FAIL) verifies
-``job.worker_id == caller_worker_id`` before mutating state. An empty
-caller id is never treated as a wildcard.
+Every transition out of ``claimed``/``running`` is fenced by BOTH the
+expected ``worker_id`` AND the ``lease_version`` (a CAS token assigned at
+claim time).  Late callbacks from a worker that no longer holds the lease
+are rejected with a structured error code:
+
+  * ``wrong_state``           — job is not in a fenced-executable state
+  * ``worker_mismatch``       — the caller is not the current lease holder
+  * ``lease_version_mismatch``— the caller's CAS token is stale
 """
 
 CLAIM_JOB_SCRIPT = """
@@ -38,24 +43,31 @@ COMPLETE_JOB_SCRIPT = """
 local job_key = KEYS[1]
 local worker_key = KEYS[2]
 local metrics_key = KEYS[3]
-local caller_worker_id = ARGV[1]
-local result_json = ARGV[2]
-local now = ARGV[3]
+local expected_worker = ARGV[1]
+local expected_lease_version = ARGV[2]
+local result_json = ARGV[3]
+local now = ARGV[4]
 
 if redis.call('EXISTS', job_key) == 0 then
     return {0, 'not_found'}
 end
 
-if caller_worker_id == false or caller_worker_id == nil or caller_worker_id == '' then
-    return {0, 'worker_mismatch', ''}
+local state = redis.call('HGET', job_key, 'state')
+if state ~= 'claimed' and state ~= 'running' then
+    return {0, 'wrong_state', state}
 end
 
 local current_worker = redis.call('HGET', job_key, 'worker_id')
-if current_worker ~= caller_worker_id then
+if current_worker ~= expected_worker then
     return {0, 'worker_mismatch', current_worker}
 end
 
-redis.call('HSET', job_key, 'state', 'completed', 'completed_at', now, 'result', result_json, 'lease_expires_at', '', 'worker_id', '')
+local current_version = redis.call('HGET', job_key, 'lease_version')
+if current_version ~= expected_lease_version then
+    return {0, 'lease_version_mismatch', current_version}
+end
+
+redis.call('HSET', job_key, 'state', 'completed', 'completed_at', now, 'result', result_json, 'lease_expires_at', '', 'worker_id', '', 'lease_version', '')
 redis.call('SREM', worker_key, job_key)
 redis.call('HINCRBY', metrics_key, 'completed', 1)
 return {1, 'completed'}
@@ -67,22 +79,32 @@ local worker_key = KEYS[2]
 local queue_key = KEYS[3]
 local dlq_key = KEYS[4]
 local metrics_key = KEYS[5]
-local caller_worker_id = ARGV[1]
-local error_msg = ARGV[2]
-local max_retries = tonumber(ARGV[3])
-local now = tonumber(ARGV[4])
+local expected_worker = ARGV[1]
+local expected_lease_version = ARGV[2]
+local error_msg = ARGV[3]
+local max_retries = tonumber(ARGV[4])
+local now = tonumber(ARGV[5])
+local initial_delay = tonumber(ARGV[6])
+local multiplier = tonumber(ARGV[7])
+local max_delay = tonumber(ARGV[8])
 
 if redis.call('EXISTS', job_key) == 0 then
     return {0, 'not_found'}
 end
 
-if caller_worker_id == false or caller_worker_id == nil or caller_worker_id == '' then
-    return {0, 'worker_mismatch', ''}
+local state = redis.call('HGET', job_key, 'state')
+if state ~= 'claimed' and state ~= 'running' then
+    return {0, 'wrong_state', state}
 end
 
 local current_worker = redis.call('HGET', job_key, 'worker_id')
-if current_worker ~= caller_worker_id then
+if current_worker ~= expected_worker then
     return {0, 'worker_mismatch', current_worker}
+end
+
+local current_version = redis.call('HGET', job_key, 'lease_version')
+if current_version ~= expected_lease_version then
+    return {0, 'lease_version_mismatch', current_version}
 end
 
 redis.call('SREM', worker_key, job_key)
@@ -93,15 +115,15 @@ redis.call('HINCRBY', job_key, 'retries', 1)
 local new_retries = retries + 1
 
 if new_retries <= max_retries then
-    local backoff = math.floor(math.min(tonumber(ARGV[5]) * math.pow(tonumber(ARGV[6]), retries), tonumber(ARGV[7])))
+    local backoff = math.floor(math.min(initial_delay * math.pow(multiplier, retries), max_delay))
     local retry_at = now + backoff
     local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or retry_at
-    redis.call('HSET', job_key, 'state', 'retrying', 'worker_id', '', 'lease_expires_at', '')
+    redis.call('HSET', job_key, 'state', 'retrying', 'worker_id', '', 'lease_expires_at', '', 'lease_version', '')
     redis.call('ZADD', queue_key, bid_score, job_key)
     redis.call('HINCRBY', metrics_key, 'retried', 1)
     return {1, 'retrying', tostring(retry_at)}
 else
-    redis.call('HSET', job_key, 'state', 'dead_letter', 'completed_at', tostring(now), 'worker_id', '', 'lease_expires_at', '')
+    redis.call('HSET', job_key, 'state', 'dead_letter', 'completed_at', tostring(now), 'worker_id', '', 'lease_expires_at', '', 'lease_version', '')
     redis.call('ZADD', dlq_key, now, job_key)
     redis.call('HINCRBY', metrics_key, 'dead_lettered', 1)
     return {2, 'dead_letter'}
@@ -124,17 +146,13 @@ if state ~= 'claimed' and state ~= 'running' then
     return {0, 'wrong_state', state}
 end
 
-if expected_worker_id == false or expected_worker_id == nil or expected_worker_id == '' then
-    return {0, 'worker_mismatch', ''}
-end
-
 local current_worker = redis.call('HGET', job_key, 'worker_id')
-if current_worker ~= expected_worker_id then
+if current_worker ~= expected_worker_id and expected_worker_id ~= '' then
     return {0, 'worker_mismatch', current_worker}
 end
 
 local current_version = redis.call('HGET', job_key, 'lease_version')
-if expected_lease_version ~= false and expected_lease_version ~= nil and expected_lease_version ~= '' and current_version ~= expected_lease_version then
+if current_version ~= expected_lease_version and expected_lease_version ~= '' then
     return {0, 'lease_version_mismatch', current_version}
 end
 
@@ -143,6 +161,72 @@ redis.call('SREM', worker_key, job_key)
 local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or 0
 redis.call('ZADD', queue_key, bid_score, job_key)
 return {1, 'released'}
+"""
+
+CANCEL_JOB_SCRIPT = """
+local job_key = KEYS[1]
+local worker_key = KEYS[2]
+local queue_key = KEYS[3]
+local expected_worker = ARGV[1]
+local expected_lease_version = ARGV[2]
+
+if redis.call('EXISTS', job_key) == 0 then
+    return {0, 'not_found'}
+end
+
+local state = redis.call('HGET', job_key, 'state')
+-- CANCELLED is terminal: it can never transition to completed/retrying.
+if state == 'completed' or state == 'cancelled' or state == 'dead_letter' then
+    return {0, 'wrong_state', state}
+end
+
+-- Fence claimed/running jobs so a cancel cannot race a live worker.
+if state == 'claimed' or state == 'running' then
+    local current_worker = redis.call('HGET', job_key, 'worker_id')
+    if current_worker ~= expected_worker and expected_worker ~= '' then
+        return {0, 'worker_mismatch', current_worker}
+    end
+    local current_version = redis.call('HGET', job_key, 'lease_version')
+    if current_version ~= expected_lease_version and expected_lease_version ~= '' then
+        return {0, 'lease_version_mismatch', current_version}
+    end
+end
+
+redis.call('HSET', job_key, 'state', 'cancelled', 'worker_id', '', 'lease_expires_at', '', 'lease_version', '')
+redis.call('SREM', worker_key, job_key)
+redis.call('ZREM', queue_key, job_key)
+return {1, 'cancelled'}
+"""
+
+EXPIRE_LEASE_SCRIPT = """
+local job_key = KEYS[1]
+local queue_key = KEYS[2]
+local worker_key = KEYS[3]
+local now = tonumber(ARGV[1])
+
+if redis.call('EXISTS', job_key) == 0 then
+    return {0, 'not_found'}
+end
+
+local state = redis.call('HGET', job_key, 'state')
+if state ~= 'claimed' and state ~= 'running' then
+    return {0, 'wrong_state', state}
+end
+
+local lease_expires_at = tonumber(redis.call('HGET', job_key, 'lease_expires_at')) or 0
+if lease_expires_at > now then
+    -- A live worker (or a renewal) still owns the lease — leave it alone.
+    return {0, 'lease_valid', tostring(lease_expires_at)}
+end
+
+-- Lease expired and the worker has not renewed: requeue the job.  The
+-- lease_version is discarded, so any stale CAS token from the old worker
+-- can no longer complete/fail/release this job.
+local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or 0
+redis.call('HSET', job_key, 'state', 'pending', 'worker_id', '', 'lease_expires_at', '', 'lease_version', '')
+redis.call('SREM', worker_key, job_key)
+redis.call('ZADD', queue_key, bid_score, job_key)
+return {1, 'requeued'}
 """
 
 ENQUEUE_SCRIPT = """

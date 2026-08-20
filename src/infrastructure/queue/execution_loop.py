@@ -86,7 +86,8 @@ class WorkerExecutionLoopMixin:
                 if hasattr(self.queue, "get_next_job_for_worker"):
                     job = await self.queue.get_next_job_for_worker(self.worker_id)
                 else:
-                    job = await self.queue.claim_job(self.worker_id)
+                    claimed = await self.queue.claim_job(self.worker_id)
+                    job = claimed[0] if isinstance(claimed, tuple) else claimed
 
                 if job is None:
                     await asyncio.sleep(self.poll_interval)

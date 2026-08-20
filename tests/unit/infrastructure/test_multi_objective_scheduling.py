@@ -131,7 +131,8 @@ async def test_job_queue_claims_highest_bid_with_fallback_redis() -> None:
             priority=5,
         )
 
-        claimed = await queue.claim_job("worker-1")
+        claimed_result = await queue.claim_job("worker-1")
+        claimed = claimed_result[0] if isinstance(claimed_result, tuple) else claimed_result
 
         assert claimed is not None
         assert claimed.id == high_id

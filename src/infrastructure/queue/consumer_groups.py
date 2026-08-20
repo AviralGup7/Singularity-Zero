@@ -41,7 +41,12 @@ class JobQueueConsumerGroupsMixin:
                 )
                 if job_data:
                     job = Job.from_redis_hash(job_data)
-                    lease_version = str(result[2]) if len(result) >= 3 else None
+                    lease_version = None
+                    if len(result) >= 3 and result[2] is not None:
+                        raw = result[2]
+                        if isinstance(raw, bytes):
+                            raw = raw.decode("utf-8", errors="replace")
+                        lease_version = str(raw)
                     logger.info(
                         "Worker %s claimed job %s (lease=%s)", worker_id, job_id, lease_version
                     )
@@ -49,8 +54,18 @@ class JobQueueConsumerGroupsMixin:
         return (None, None)
 
     async def complete_job(
-        self, job_id: str, worker_id: str, result: dict[str, Any] | None = None
+        self,
+        job_id: str,
+        worker_id: str,
+        result: dict[str, Any] | None = None,
+        *,
+        lease_version: str | None = None,
     ) -> bool:
+        """Complete a job — fenced by state, worker_id, and lease_version.
+
+        A job in ``cancelled``/``completed``/``dead_letter``/``retrying``
+        state, or one whose lease was taken over, is rejected.
+        """
         self._register_scripts()
         result_json = json.dumps(result) if result is not None else ""
         ret = await asyncio.to_thread(
@@ -61,16 +76,34 @@ class JobQueueConsumerGroupsMixin:
                 self._key(f"worker:{worker_id}:jobs"),
                 self._key("metrics"),
             ],
-            args=[worker_id, result_json, str(time.time())],
+            args=[worker_id, lease_version or "", result_json, str(time.time())],
         )
         if ret and int(ret[0]) == 1:
             logger.info("Job %s completed by worker %s", job_id, worker_id)
             return True
-        reason = str(ret[1]) if ret and len(ret) > 1 else "unknown"
-        logger.warning("Failed to complete job %s worker=%s: %s", job_id, worker_id, reason)
+        if ret and len(ret) > 1:
+            raw_reason = ret[1] if len(ret) >= 2 else "unknown"
+            if isinstance(raw_reason, bytes):
+                raw_reason = raw_reason.decode("utf-8", errors="replace")
+            logger.warning("Cannot complete job=%s worker=%s: %s", job_id, worker_id, raw_reason)
+        else:
+            logger.warning("Failed to complete job %s", job_id)
         return False
 
-    async def fail_job(self, job_id: str, worker_id: str, error: str) -> tuple[bool, str]:
+    async def fail_job(
+        self,
+        job_id: str,
+        worker_id: str,
+        error: str,
+        *,
+        lease_version: str | None = None,
+    ) -> tuple[bool, str]:
+        """Fail a job — fenced by state, worker_id, and lease_version.
+
+        Only ``claimed``/``running`` jobs held by *worker_id* with the
+        matching CAS token can transition to ``retrying``/``dead_letter``.
+        A completed or cancelled job can never be failed by a late callback.
+        """
         self._register_scripts()
         job_data = await asyncio.to_thread(
             self.redis.execute_command, "HGETALL", self._job_key(job_id)
@@ -92,6 +125,7 @@ class JobQueueConsumerGroupsMixin:
             ],
             args=[
                 worker_id,
+                lease_version or "",
                 error,
                 str(max_retries),
                 str(time.time()),
@@ -104,9 +138,46 @@ class JobQueueConsumerGroupsMixin:
             outcome = "retrying" if int(ret[0]) == 1 else "dead_letter"
             logger.info("Job %s failed, outcome=%s (max_retries=%d)", job_id, outcome, max_retries)
             return True, outcome
-        reason = str(ret[1]) if ret and len(ret) > 1 else "error"
-        logger.warning("Failed to process job failure for %s worker=%s: %s", job_id, worker_id, reason)
-        return False, reason
+        if ret and len(ret) > 1:
+            raw_reason = ret[1] if len(ret) >= 2 else "unknown"
+            if isinstance(raw_reason, bytes):
+                raw_reason = raw_reason.decode("utf-8", errors="replace")
+            logger.warning("Cannot fail job=%s worker=%s: %s", job_id, worker_id, raw_reason)
+        else:
+            logger.warning("Failed to process job failure for %s", job_id)
+        return False, "error"
+
+    async def cancel_job(
+        self,
+        job_id: str,
+        worker_id: str | None = None,
+        *,
+        lease_version: str | None = None,
+    ) -> bool:
+        """Atomically cancel a job.  ``cancelled`` is terminal — a late
+        complete/fail callback can never transition it onwards."""
+        self._register_scripts()
+        ret = await asyncio.to_thread(
+            self.redis.execute_script,
+            "cancel_job",
+            keys=[
+                self._job_key(job_id),
+                self._key(f"worker:{worker_id}:jobs") if worker_id else self._key("queue"),
+                self._key("queue"),
+            ],
+            args=[worker_id or "", lease_version or ""],
+        )
+        if ret and int(ret[0]) == 1:
+            logger.info("Job %s cancelled", job_id)
+            return True
+        if ret and len(ret) > 1:
+            raw_reason = ret[1] if len(ret) >= 2 else "unknown"
+            if isinstance(raw_reason, bytes):
+                raw_reason = raw_reason.decode("utf-8", errors="replace")
+            logger.warning("Cannot cancel job=%s: %s", job_id, raw_reason)
+        else:
+            logger.warning("Failed to cancel job %s", job_id)
+        return False
 
     async def release_lease(
         self, job_id: str, worker_id: str, lease_version: str | None = None
@@ -128,16 +199,46 @@ class JobQueueConsumerGroupsMixin:
             logger.info("Released lease for job %s (worker=%s)", job_id, worker_id)
             return True
         if ret and len(ret) > 1:
-            reason = str(ret[1]) if len(ret) >= 2 else "unknown"
+            raw_reason = ret[1] if len(ret) >= 2 else "unknown"
+            if isinstance(raw_reason, bytes):
+                raw_reason = raw_reason.decode("utf-8", errors="replace")
             logger.warning(
                 "Cannot release lease job=%s worker=%s: %s",
                 job_id,
                 worker_id,
-                reason,
+                raw_reason,
             )
         else:
             logger.warning("Failed to release lease for job %s", job_id)
         return False
+
+    async def expire_stale_lease(
+        self, job_id: str, worker_id: str | None = None
+    ) -> tuple[bool, str]:
+        """Atomically requeue a job whose lease has expired (automatic
+        recovery).  A job whose lease was renewed by a live worker is
+        left untouched — the lease_expires_at check acts as the guard."""
+        self._register_scripts()
+        worker_key = self._key(f"worker:{worker_id}:jobs") if worker_id else self._key("workers")
+        ret = await asyncio.to_thread(
+            self.redis.execute_script,
+            "expire_lease",
+            keys=[
+                self._job_key(job_id),
+                self._key("queue"),
+                worker_key,
+            ],
+            args=[str(time.time())],
+        )
+        if ret and int(ret[0]) == 1:
+            logger.warning("Expired lease: job %s requeued", job_id)
+            return True, "requeued"
+        if ret and len(ret) > 1:
+            raw_reason = ret[1] if len(ret) >= 2 else "unknown"
+            if isinstance(raw_reason, bytes):
+                raw_reason = raw_reason.decode("utf-8", errors="replace")
+            return False, str(raw_reason)
+        return False, "error"
 
     async def _list_workers(self) -> list[WorkerInfo]:
         workers_key = self._key("workers")

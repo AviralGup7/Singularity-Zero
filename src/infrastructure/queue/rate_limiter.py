@@ -6,6 +6,7 @@ from typing import cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.queue.models import Job, JobState, WorkerInfo
+from src.infrastructure.queue.worker_phase import WorkerPhase, normalize_phase
 
 logger = get_pipeline_logger(__name__)
 
@@ -13,8 +14,31 @@ logger = get_pipeline_logger(__name__)
 class JobQueueRateLimiterMixin:
     async def get_next_job_for_worker(self, worker_id: str) -> Job | None:
         if not self.scheduler:
-            result: Job | None = await self.claim_job(worker_id)
+            result = await self.claim_job(worker_id)
+            if isinstance(result, tuple):
+                return result[0]  # (job, lease_version)
             return cast("Job | None", result)
+
+        # Fail-closed claim gating: a worker that is DRAINING, SUSPECT, or
+        # DEAD must not be handed new jobs.  Its unfinished work is being
+        # reassigned by the coordinator; letting it claim would duplicate
+        # execution.
+        try:
+            w_data = await asyncio.to_thread(
+                self.redis.execute_command, "HGETALL", self._key(f"worker:{worker_id}")
+            )
+            if w_data:
+                w_info = WorkerInfo.from_redis_hash(w_data)
+                phase = normalize_phase(getattr(w_info, "phase", None) or w_info.status)
+                if phase in (WorkerPhase.DRAINING, WorkerPhase.SUSPECT, WorkerPhase.DEAD):
+                    logger.warning(
+                        "Worker %s phase=%s — refusing new job claims",
+                        worker_id,
+                        phase.value,
+                    )
+                    return None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Worker phase check failed for %s: %s", worker_id, exc)
 
         try:
             workers_key = self._key("workers")
@@ -130,6 +154,12 @@ class JobQueueRateLimiterMixin:
 
         for w_key in worker_keys:
             w_key_str = w_key.decode("utf-8") if isinstance(w_key, bytes) else str(w_key)
+            # Key shape: {ns}:{queue}:worker:{worker_id}:jobs
+            marker = ":worker:"
+            if marker in w_key_str and w_key_str.endswith(":jobs"):
+                worker_id = w_key_str.split(marker, 1)[1][: -len(":jobs")]
+            else:
+                worker_id = None
             job_ids = await asyncio.to_thread(self.redis.execute_command, "SMEMBERS", w_key_str)
             for member in job_ids or []:
                 job_key_str = member.decode("utf-8") if isinstance(member, bytes) else member
@@ -141,8 +171,19 @@ class JobQueueRateLimiterMixin:
                     continue
                 if job.is_lease_expired():
                     logger.warning(
-                        "Releasing stale lease for job %s (worker=%s)", job_id, job.worker_id
+                        "Expiring stale lease for job %s (worker=%s)", job_id, job.worker_id
                     )
-                    await self.release_lease(job_id, job.worker_id or "unknown")
-                    released += 1
+                    # Atomic lease-expiry recovery: requeues only when the
+                    # lease is genuinely expired (a live renewal keeps the
+                    # job untouched).
+                    ok, reason = await self.expire_stale_lease(job_id, worker_id)
+                    if ok:
+                        released += 1
+                    elif reason not in ("lease_valid", "wrong_state"):
+                        logger.warning(
+                            "Lease expiry recovery failed job=%s worker=%s: %s",
+                            job_id,
+                            worker_id,
+                            reason,
+                        )
         return released

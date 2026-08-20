@@ -278,6 +278,8 @@ class TestJobQueue(QueueTestBase):
     async def test_cancel_job_not_found(self) -> None:
         queue = JobQueue(redis_client=self.mock_redis_client)
         self.mock_redis_client.execute_command.return_value = None
+        # Atomic cancel script reports not_found for missing jobs.
+        self.mock_redis_client.execute_script.return_value = [0, b"not_found"]
         result = await queue.cancel_job("nonexistent")
         assert result is False
 
@@ -286,6 +288,8 @@ class TestJobQueue(QueueTestBase):
         queue = JobQueue(redis_client=self.mock_redis_client)
         job = Job(id="j1", type="scan", state=JobState.COMPLETED)
         self.mock_redis_client.execute_command.return_value = job.to_redis_hash()
+        # Atomic cancel script rejects terminal states.
+        self.mock_redis_client.execute_script.return_value = [0, b"wrong_state", b"completed"]
         result = await queue.cancel_job("j1")
         assert result is False
 

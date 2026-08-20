@@ -112,31 +112,30 @@ class JobQueuePersistenceMixin(JobQueueCore):
         logger.info("Re-enqueued dead-letter job %s", job_id)
         return True
 
-    async def cancel_job(self, job_id: str) -> bool:
-        job = await self.get_job(job_id)
-        if job is None:
-            return False
+    async def cancel_job(
+        self,
+        job_id: str,
+        worker_id: str | None = None,
+        *,
+        lease_version: str | None = None,
+    ) -> bool:
+        """Atomically cancel a job via the fenced Lua script.
 
-        if job.state in (JobState.COMPLETED, JobState.CANCELLED, JobState.DEAD_LETTER):
-            return False
+        ``cancelled`` is a terminal state: a late complete/fail callback
+        can never transition it onwards, and it can never be re-claimed.
+        The legacy ``cancelled:<job_id>`` tombstone is still written so
+        ``is_job_cancelled`` keeps working.
+        """
+        from src.infrastructure.queue.consumer_groups import JobQueueConsumerGroupsMixin
 
-        job.mark_cancelled()
+        ok = await JobQueueConsumerGroupsMixin.cancel_job(
+            self, job_id, worker_id, lease_version=lease_version
+        )
+        if not ok:
+            return False
 
         cancel_key = self._key(f"cancelled:{job_id}")
         await asyncio.to_thread(self.redis.execute_command, "SETEX", cancel_key, 3600, "1")
-
-        job_data = job.to_redis_hash()
-
-        flattened_hash = []
-        for k, v in job_data.items():
-            flattened_hash.append(k)
-            flattened_hash.append(v)
-
-        commands = [
-            ("ZREM", [self._key("queue"), self._job_key(job_id)]),
-            ("HSET", [self._job_key(job_id)] + flattened_hash),
-        ]
-        await asyncio.to_thread(self.redis.execute_batch, commands)
         return True
 
     async def is_job_cancelled(self, job_id: str) -> bool:

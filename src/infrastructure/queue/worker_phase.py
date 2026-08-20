@@ -46,9 +46,9 @@ _ALIASES: dict[str, WorkerPhase] = {
 def normalize_phase(value: str | WorkerPhase | None) -> WorkerPhase:
     """Accept new phases and the older idle/busy/shutting_down labels.
 
-    Unknown or empty values become SUSPECT, never READY. Treating a
-    zombie/unreadable phase as healthy would hide a dead worker and
-    block lease reassignment (S-6).
+    Fail-closed: an unknown or missing phase maps to SUSPECT (not READY)
+    so a worker whose health record is ambiguous is never handed new work
+    and is promptly confirmed DEAD + reassigned by the coordinator.
     """
     if isinstance(value, WorkerPhase):
         return value

@@ -16,9 +16,11 @@ from src.core.contracts.task_envelope import TaskEnvelope
 from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.queue.lua_scripts import (
+    CANCEL_JOB_SCRIPT,
     CLAIM_JOB_SCRIPT,
     COMPLETE_JOB_SCRIPT,
     ENQUEUE_SCRIPT,
+    EXPIRE_LEASE_SCRIPT,
     FAIL_JOB_SCRIPT,
     RELEASE_LEASE_SCRIPT,
 )
@@ -65,6 +67,8 @@ class JobQueueCore:
         self.redis.register_script("complete_job", COMPLETE_JOB_SCRIPT)
         self.redis.register_script("fail_job", FAIL_JOB_SCRIPT)
         self.redis.register_script("release_lease", RELEASE_LEASE_SCRIPT)
+        self.redis.register_script("cancel_job", CANCEL_JOB_SCRIPT)
+        self.redis.register_script("expire_lease", EXPIRE_LEASE_SCRIPT)
         self.redis.register_script("enqueue", ENQUEUE_SCRIPT)
         self._scripts_registered = True
 

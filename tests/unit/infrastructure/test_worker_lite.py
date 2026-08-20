@@ -139,6 +139,7 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
             "test-lite-worker",
             unittest.mock.ANY,
             unittest.mock.ANY,
+            unittest.mock.ANY,
         )
 
     @pytest.mark.asyncio

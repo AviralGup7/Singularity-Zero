@@ -34,6 +34,7 @@ from src.infrastructure.queue.lua_scripts import (
     FAIL_JOB_SCRIPT,
     RELEASE_LEASE_SCRIPT,
 )
+from src.infrastructure.queue.worker_phase import WorkerPhase
 
 
 def _redact_redis_url(url: str) -> str:
@@ -252,11 +253,19 @@ class LiteWorker:
         self._shutdown_requested = False
         self._active_tasks: set[asyncio.Task[Any]] = set()
         self._job_task_map: dict[str, asyncio.Task[Any]] = {}
+        # job_id -> lease_version (CAS token from claim_job).  Used to fence
+        # complete/fail/release so a late callback cannot mutate a job that
+        # was reassigned to another worker.
+        self._job_lease_versions: dict[str, str] = {}
         self._started_at = time.time()
         self._total_processed = 0
         self._total_failed = 0
         self._hostname = socket.gethostname()
         self._pid = os.getpid()
+        # Worker lifecycle phase.  Claims are rejected while draining,
+        # suspect, or dead so the worker cannot pick up work it will
+        # abandon (or that the coordinator is reassigning).
+        self._phase = WorkerPhase.REGISTERING
 
         # Lua script SHAs
         self._shas: dict[str, str] = {}
@@ -294,6 +303,7 @@ class LiteWorker:
             "hostname": self._hostname,
             "pid": str(self._pid),
             "status": "idle",
+            "phase": self._phase.value,
             "concurrency": str(self.concurrency),
             "active_jobs": json.dumps([]),
             "last_heartbeat": str(time.time()),
@@ -488,6 +498,7 @@ class LiteWorker:
 
             # Job succeeded! Format output and complete the job.
             result_payload = {"status": "ok", "results": results, "count": len(results)}
+            lease_version = self._job_lease_versions.get(job_id, "")
             await self._redis.evalsha(
                 self._shas["complete_job"],
                 3,
@@ -495,6 +506,7 @@ class LiteWorker:
                 worker_jobs_key,
                 metrics_key,
                 self.worker_id,
+                lease_version,
                 json.dumps(result_payload),
                 str(time.time()),
             )
@@ -511,6 +523,7 @@ class LiteWorker:
 
             for attempt in range(3):
                 try:
+                    lease_version = self._job_lease_versions.get(job_id, "")
                     await self._redis.evalsha(
                         self._shas["fail_job"],
                         5,
@@ -520,6 +533,7 @@ class LiteWorker:
                         dlq_key,
                         metrics_key,
                         self.worker_id,
+                        lease_version,
                         error_msg,
                         max_retries_str,
                         str(time.time()),
@@ -552,6 +566,7 @@ class LiteWorker:
                                     "error": error_msg,
                                     "worker_id": "",
                                     "lease_expires_at": "",
+                                    "lease_version": "",
                                 },
                             )
                         except Exception:
@@ -567,6 +582,13 @@ class LiteWorker:
 
         while self._running and not self._shutdown_requested:
             try:
+                # Phase gate: a draining/suspect/dead worker must not claim
+                # new work (the coordinator is reassigning its jobs).
+                if self._phase in (WorkerPhase.DRAINING, WorkerPhase.SUSPECT, WorkerPhase.DEAD):
+                    logger.warning("Worker phase=%s — refusing new job claims", self._phase.value)
+                    await asyncio.sleep(self.poll_interval)
+                    continue
+
                 # Concurrency check
                 if len(self._active_tasks) >= self.concurrency:
                     await asyncio.sleep(self.poll_interval)
@@ -601,6 +623,13 @@ class LiteWorker:
                         # Success! Read job details
                         job_data = await self._redis.hgetall(job_key_str)
                         if job_data:
+                            lease_version = ""
+                            if len(ret) >= 3 and ret[2] is not None:
+                                raw = ret[2]
+                                if isinstance(raw, bytes):
+                                    raw = raw.decode("utf-8", errors="replace")
+                                lease_version = str(raw)
+                            self._job_lease_versions[job_id] = lease_version
 
                             def _decode_redis_value(v: bytes | str) -> str:
                                 return (
@@ -636,6 +665,9 @@ class LiteWorker:
                             task.add_done_callback(
                                 lambda _, jid=job_id: self._job_task_map.pop(jid, None)
                             )
+                            task.add_done_callback(
+                                lambda _, jid=job_id: self._job_lease_versions.pop(jid, None)
+                            )
                             claimed = True
                             break
 
@@ -656,6 +688,8 @@ class LiteWorker:
         registry-tracked tasks to prevent ghost tasks.
         """
         logger.info("Cleaning up worker metadata and active leases...")
+        # DRAINING: this worker will not accept new claims.
+        self._phase = WorkerPhase.DRAINING
         worker_key = self._key(f"worker:{self.worker_id}")
         workers_set = self._key("workers")
         worker_jobs_key = self._key(f"worker:{self.worker_id}:jobs")
@@ -679,6 +713,7 @@ class LiteWorker:
                         )
                         continue
 
+                lease_version = self._job_lease_versions.get(job_id, "")
                 await self._redis.evalsha(
                     self._shas["release_lease"],
                     3,
@@ -686,7 +721,7 @@ class LiteWorker:
                     worker_jobs_key,
                     self._key("queue"),
                     self.worker_id,
-                    "",
+                    lease_version,
                 )
                 logger.info("Released lease for job %s cleanly", job_id)
             except Exception:
@@ -735,6 +770,8 @@ class LiteWorker:
 
         self._setup_signal_handlers()
         await self._register()
+        # Registered and healthy — READY to accept work.
+        self._phase = WorkerPhase.READY
 
         # Start loops
         from src.core.task_registry import get_task_registry
