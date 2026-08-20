@@ -126,10 +126,13 @@ class JobQueuePersistenceMixin(JobQueueCore):
         The legacy ``cancelled:<job_id>`` tombstone is still written so
         ``is_job_cancelled`` keeps working.
         """
+        from typing import cast
+
         from src.infrastructure.queue.consumer_groups import JobQueueConsumerGroupsMixin
 
+        _self: Any = cast(Any, self)
         ok = await JobQueueConsumerGroupsMixin.cancel_job(
-            self, job_id, worker_id, lease_version=lease_version
+            _self, job_id, worker_id, lease_version=lease_version
         )
         if not ok:
             return False

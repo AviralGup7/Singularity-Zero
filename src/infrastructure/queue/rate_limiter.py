@@ -16,7 +16,8 @@ class JobQueueRateLimiterMixin:
         if not self.scheduler:
             result = await self.claim_job(worker_id)
             if isinstance(result, tuple):
-                return result[0]  # (job, lease_version)
+                job, _lease_version = result
+                return cast("Job | None", job)
             return cast("Job | None", result)
 
         # Fail-closed claim gating: a worker that is DRAINING, SUSPECT, or
