@@ -93,6 +93,50 @@ def setup_websocket_routes(
     heartbeat = HeartbeatMonitor(manager)
     reconnect = ReconnectionManager()
     _ = (heartbeat_interval, heartbeat_timeout, max_connections_per_ip, redis_url, redis_channel)
+
+    def _default_job_ownership_checker(user_id: str, job_id: str) -> bool:
+        """Fail-closed job → tenant ownership check for WS subscriptions.
+
+        A WS client may only subscribe to ``job:<id>`` / ``logs:<job_id>``
+        channels when the job's target is owned by the caller's tenant.
+
+        The caller's tenant is carried in the authenticated user_id as
+        ``<tenant_id>/<sub>`` when the dashboard JWT issued it; otherwise
+        the job is only accessible when it is not tenant-prefixed
+        (single-tenant deployments keep working).
+        """
+        try:
+            services = getattr(app, "state", None)
+            services = getattr(services, "services", None) if services is not None else None
+            if services is None or not hasattr(services, "get_job"):
+                # Cannot verify ownership — deny rather than risk leakage.
+                logger.warning("WS ownership check: services unavailable, denying job %s", job_id)
+                return False
+            job = services.get_job(job_id)
+            if not isinstance(job, dict):
+                return False
+            from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+            from src.dashboard.fastapi.routers.utils import job_target_name
+
+            target = job_target_name(job)
+            if not target:
+                return False
+            # Tenant-qualified jobs: caller's user_id must carry the tenant.
+            parts = str(user_id or "").split("/", 1)
+            caller_tenant = parts[0] if len(parts) == 2 else "default"
+            return is_target_owned_by_tenant(target, caller_tenant)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("WS ownership check failed for job %s: %s", job_id, exc)
+            return False
+
+    job_ownership_checker = None
+    if hasattr(app, "state"):
+        effective_checker = getattr(app.state, "ws_job_ownership_checker", None)
+        if callable(effective_checker):
+            job_ownership_checker = effective_checker
+        elif getattr(app.state, "ws_enforce_job_ownership", True):
+            job_ownership_checker = _default_job_ownership_checker
+
     handler = WebSocketHandler(
         manager,
         broadcaster,
@@ -102,6 +146,7 @@ def setup_websocket_routes(
         api_keys=api_keys,
         required_roles=required_roles,
         allowed_origins=allowed_origins,
+        job_ownership_checker=job_ownership_checker,
     )
 
     services = WSServices(

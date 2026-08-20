@@ -153,6 +153,16 @@ def find_production_security_violations(
             "DASHBOARD_AUTH_DISABLED=true is not allowed in production. "
             "Authentication must be enabled."
         )
+        # An unauthenticated dashboard bound to all interfaces is remotely
+        # reachable with full admin privileges — refuse it outright.
+        bind_host = (env.get("DASHBOARD_HOST") or env.get("HOST") or "").strip().lower()
+        if bind_host in ("0.0.0.0", "::", ""):
+            violations.append(
+                "DASHBOARD_AUTH_DISABLED=true combined with a wildcard bind "
+                f"host ({bind_host or '0.0.0.0 (default)'}) exposes an "
+                "unauthenticated admin dashboard to the network. Bind to a "
+                "loopback address or enable authentication."
+            )
 
     # Check APP_SECRET_KEY
     _default_secret_keys = {

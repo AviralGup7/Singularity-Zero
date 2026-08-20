@@ -296,6 +296,14 @@ def _authenticate_jwt(
             status_code=4001,
         )
 
+    # Tenant-qualify the WS principal so per-job ownership checks can
+    # attribute the connection to a tenant. The dashboard JWT carries a
+    # ``tenant_id`` claim; the checker in the integration layer parses
+    # ``<tenant_id>/<sub>`` back out.  Connections without a tenant claim
+    # are treated as the default tenant.
+    tenant_id = str(payload.get("tenant_id") or "default")
+    ws_user_id = f"{tenant_id}/{user_id}"
+
     roles = set(payload.get("roles", []))
     if isinstance(payload.get("roles"), str):
         roles = {payload["roles"]}
@@ -308,7 +316,7 @@ def _authenticate_jwt(
         )
 
     return AuthCredentials(
-        user_id=str(user_id),
+        user_id=ws_user_id,
         roles=roles,
         token_payload=payload,
         auth_method="jwt",
