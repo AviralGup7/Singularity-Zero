@@ -20,8 +20,9 @@ class _FakeQueue:
     async def _list_workers(self) -> list[WorkerInfo]:
         return list(self.workers.values())
 
-    async def release_lease(self, job_id: str, worker_id: str,
-                            lease_version: str | None = None) -> bool:
+    async def release_lease(
+        self, job_id: str, worker_id: str, lease_version: str | None = None
+    ) -> bool:
         self.released.append((job_id, worker_id))
         return True
 

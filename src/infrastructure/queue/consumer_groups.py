@@ -42,7 +42,9 @@ class JobQueueConsumerGroupsMixin:
                 if job_data:
                     job = Job.from_redis_hash(job_data)
                     lease_version = str(result[2]) if len(result) >= 3 else None
-                    logger.info("Worker %s claimed job %s (lease=%s)", worker_id, job_id, lease_version)
+                    logger.info(
+                        "Worker %s claimed job %s (lease=%s)", worker_id, job_id, lease_version
+                    )
                     return (job, lease_version)
         return (None, None)
 
@@ -103,8 +105,9 @@ class JobQueueConsumerGroupsMixin:
         logger.warning("Failed to process job failure for %s", job_id)
         return False, "error"
 
-    async def release_lease(self, job_id: str, worker_id: str,
-                            lease_version: str | None = None) -> bool:
+    async def release_lease(
+        self, job_id: str, worker_id: str, lease_version: str | None = None
+    ) -> bool:
         """Release a job lease.  CAS via lease_version prevents
         releasing a lease that another worker has since claimed."""
         self._register_scripts()
@@ -125,7 +128,9 @@ class JobQueueConsumerGroupsMixin:
             reason = str(ret[1]) if len(ret) >= 2 else "unknown"
             logger.warning(
                 "Cannot release lease job=%s worker=%s: %s",
-                job_id, worker_id, reason,
+                job_id,
+                worker_id,
+                reason,
             )
         else:
             logger.warning("Failed to release lease for job %s", job_id)

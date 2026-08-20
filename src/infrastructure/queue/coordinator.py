@@ -40,8 +40,9 @@ class QueueForCoordinator(Protocol):
 
     async def _list_workers(self) -> list[WorkerInfo]: ...
 
-    async def release_lease(self, job_id: str, worker_id: str,
-                            lease_version: str | None = None) -> bool: ...
+    async def release_lease(
+        self, job_id: str, worker_id: str, lease_version: str | None = None
+    ) -> bool: ...
 
     def persist_worker(self, worker: WorkerInfo) -> None: ...
 
@@ -155,7 +156,9 @@ class WorkerCoordinator:
             released = False
             try:
                 released = await self.queue.release_lease(
-                    job_id, worker.id, lease_version=lease_version,
+                    job_id,
+                    worker.id,
+                    lease_version=lease_version,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
