@@ -17,7 +17,7 @@ permissions:
 env:
   PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
   HYPOTHESIS_PROFILE: ci
-  PYTEST_ADDOPTS: "-q --tb=short --strict-markers --import-mode=importlib -p no:locust"
+  PYTEST_ADDOPTS: "-q --tb=short --strict-markers --import-mode=importlib -p no:locust --timeout=20 --timeout-method=signal"
 
 jobs:
   lint:
@@ -96,8 +96,8 @@ jobs:
   test:
     name: test / ${{ matrix.shard.name }}
     runs-on: ubuntu-24.04
-    # unit-app is the kitchen-sink shard and was cancelled at 12m17s.
-    timeout-minutes: 20
+    # Per-test --timeout=20 is the hang guard. Job timeout is only a backstop.
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -112,16 +112,15 @@ jobs:
             paths: tests/unit/recon
           - name: unit-analysis
             paths: tests/unit/analysis tests/unit/learning
+          - name: unit-dashboard
+            paths: tests/unit/dashboard
+          - name: unit-exploit
+            paths: tests/unit/exploitation tests/unit/execution tests/unit/fuzzing tests/unit/detection
           - name: unit-app
             paths: >-
-              tests/unit/dashboard
-              tests/unit/detection
-              tests/unit/execution
               tests/unit/intelligence
-              tests/unit/exploitation
               tests/unit/reporting
               tests/unit/api_tests
-              tests/unit/fuzzing
               tests/unit/decision
               tests/unit/frontier
               tests/unit/websocket_server
@@ -146,8 +145,10 @@ jobs:
       - name: Run shard
         run: |
           python -m pytest ${{ matrix.shard.paths }} \
+            --timeout=20 --timeout-method=signal \
             --cov --cov-fail-under=0 --cov-report=term \
             --durations=15
+          # Per-test 20s cap kills a looping test without cancelling the shard.
           # Per-shard fail-under stays 0: each shard only covers a slice.
           # Combined coverage is the hard gate (coverage job).
       - name: Upload coverage data

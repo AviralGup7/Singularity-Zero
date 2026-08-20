@@ -67,6 +67,7 @@ test = [
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-snapshot>=0.7.0",
+    "pytest-timeout>=2.4.0",
     "defusedxml==0.7.1",
 ]
 dev = [
@@ -80,6 +81,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-snapshot>=0.7.0",
+    "pytest-timeout>=2.4.0",
     "ruff==0.15.*",
     "jsonschema>=4.0.0",
     "safety>=3.7.0",
@@ -107,6 +109,8 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
 addopts = "-q --tb=short --strict-markers --import-mode=importlib -p no:locust"
+timeout = 20
+timeout_method = "thread"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
@@ -117,7 +121,9 @@ markers = [
     "chaos: marks chaos tests requiring infrastructure (docker, redis, etc.)",
     "mock_heavy: marks tests that use heavy mocking or extensive fixtures",
     "asyncio: marks tests as asynchronous",
+    "timeout: per-test timeout override (pytest-timeout)",
 ]
+
 filterwarnings = []
 
 [tool.coverage.run]
