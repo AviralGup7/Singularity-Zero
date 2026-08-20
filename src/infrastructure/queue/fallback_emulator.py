@@ -10,6 +10,10 @@ import json
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.queue.lease_ownership import (
+    reject_if_lease_mismatch,
+    reject_if_not_owner,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -486,15 +490,22 @@ class FallbackEmulator:
             self.client.execute_command("SADD", worker_key, job_key)
             return [1, b"claimed"]
 
-        if name == "complete_job" and len(keys) >= 3 and len(args) >= 2:
+        if name == "complete_job" and len(keys) >= 3 and len(args) >= 3:
             job_key = _as_str(keys[0])
             worker_key = _as_str(keys[1])
             metrics_key = _as_str(keys[2])
-            result_json = _as_str(args[0])
-            now_s = _as_str(args[1])
+            caller_worker_id = _as_str(args[0])
+            result_json = _as_str(args[1])
+            now_s = _as_str(args[2])
 
             if self.client.execute_command("EXISTS", job_key) == 0:
-                return [0]
+                return [0, b"not_found"]
+
+            current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
+            current_worker = _as_str(current_worker_raw) if current_worker_raw is not None else ""
+            rejected = reject_if_not_owner(current_worker, caller_worker_id)
+            if rejected is not None:
+                return [0, rejected.encode("utf-8"), current_worker.encode("utf-8")]
 
             self.client.execute_command(
                 "HSET",
@@ -512,24 +523,31 @@ class FallbackEmulator:
             )
             self.client.execute_command("SREM", worker_key, job_key)
             self.client.execute_command("HINCRBY", metrics_key, "completed", 1)
-            return [1]
+            return [1, b"completed"]
 
-        if name == "fail_job" and len(keys) >= 5 and len(args) >= 6:
+        if name == "fail_job" and len(keys) >= 5 and len(args) >= 7:
             job_key = _as_str(keys[0])
             worker_key = _as_str(keys[1])
             queue_key = _as_str(keys[2])
             dlq_key = _as_str(keys[3])
             metrics_key = _as_str(keys[4])
 
-            error_msg = _as_str(args[0])
-            max_retries = int(float(args[1]))
-            now_ff = float(args[2])
-            initial = float(args[3])
-            multiplier = float(args[4])
-            max_delay = float(args[5])
+            caller_worker_id = _as_str(args[0])
+            error_msg = _as_str(args[1])
+            max_retries = int(float(args[2]))
+            now_ff = float(args[3])
+            initial = float(args[4])
+            multiplier = float(args[5])
+            max_delay = float(args[6])
 
             if self.client.execute_command("EXISTS", job_key) == 0:
                 return [0, b"not_found"]
+
+            current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
+            current_worker = _as_str(current_worker_raw) if current_worker_raw is not None else ""
+            rejected = reject_if_not_owner(current_worker, caller_worker_id)
+            if rejected is not None:
+                return [0, rejected.encode("utf-8"), current_worker.encode("utf-8")]
 
             self.client.execute_command("SREM", worker_key, job_key)
             self.client.execute_command("HSET", job_key, "error", error_msg)
@@ -582,14 +600,30 @@ class FallbackEmulator:
             job_key = _as_str(keys[0])
             worker_key = _as_str(keys[1])
             queue_key = _as_str(keys[2])
+            expected_worker_id = _as_str(args[0]) if args else ""
+            expected_lease_version = _as_str(args[1]) if len(args) > 1 else ""
 
             if self.client.execute_command("EXISTS", job_key) == 0:
-                return [0]
+                return [0, b"not_found"]
 
             state_raw = self.client.execute_command("HGET", job_key, "state")
             state = _as_str(state_raw) if state_raw is not None else ""
             if state not in ("claimed", "running"):
-                return [0]
+                return [0, b"wrong_state", state.encode("utf-8")]
+
+            current_worker_raw = self.client.execute_command("HGET", job_key, "worker_id")
+            current_worker = _as_str(current_worker_raw) if current_worker_raw is not None else ""
+            rejected = reject_if_not_owner(current_worker, expected_worker_id)
+            if rejected is not None:
+                return [0, rejected.encode("utf-8"), current_worker.encode("utf-8")]
+
+            current_version_raw = self.client.execute_command("HGET", job_key, "lease_version")
+            current_version = (
+                _as_str(current_version_raw) if current_version_raw is not None else ""
+            )
+            version_rejected = reject_if_lease_mismatch(current_version, expected_lease_version)
+            if version_rejected is not None:
+                return [0, version_rejected.encode("utf-8"), current_version.encode("utf-8")]
 
             self.client.execute_command(
                 "HSET",
@@ -600,6 +634,8 @@ class FallbackEmulator:
                 "",
                 "lease_expires_at",
                 "",
+                "lease_version",
+                "",
             )
             self.client.execute_command("SREM", worker_key, job_key)
             bid_raw = self.client.execute_command("HGET", job_key, "bid_score")
@@ -609,6 +645,6 @@ class FallbackEmulator:
                 logger.debug("release_lease: non-numeric bid_score, using 0.0: %s", exc)
                 queue_score = 0.0
             self.client.execute_command("ZADD", queue_key, queue_score, job_key)
-            return [1]
+            return [1, b"released"]
 
         return [0]

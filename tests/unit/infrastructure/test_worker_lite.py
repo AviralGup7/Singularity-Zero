@@ -136,6 +136,7 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
             "queue:security-pipeline:job:job_123",
             "queue:security-pipeline:worker:test-lite-worker:jobs",
             "queue:security-pipeline:metrics",
+            "test-lite-worker",
             unittest.mock.ANY,
             unittest.mock.ANY,
         )
@@ -243,6 +244,8 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
             "queue:security-pipeline:job:job_999",
             "queue:security-pipeline:worker:test-lite-worker:jobs",
             "queue:security-pipeline:queue",
+            "test-lite-worker",
+            "",
         )
 
         self.mock_redis.delete.assert_called_with("queue:security-pipeline:worker:test-lite-worker")

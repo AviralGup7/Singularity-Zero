@@ -61,12 +61,13 @@ class JobQueueConsumerGroupsMixin:
                 self._key(f"worker:{worker_id}:jobs"),
                 self._key("metrics"),
             ],
-            args=[result_json, str(time.time())],
+            args=[worker_id, result_json, str(time.time())],
         )
-        if ret and ret[0] == 1:
+        if ret and int(ret[0]) == 1:
             logger.info("Job %s completed by worker %s", job_id, worker_id)
             return True
-        logger.warning("Failed to complete job %s", job_id)
+        reason = str(ret[1]) if ret and len(ret) > 1 else "unknown"
+        logger.warning("Failed to complete job %s worker=%s: %s", job_id, worker_id, reason)
         return False
 
     async def fail_job(self, job_id: str, worker_id: str, error: str) -> tuple[bool, str]:
@@ -90,6 +91,7 @@ class JobQueueConsumerGroupsMixin:
                 self._key("metrics"),
             ],
             args=[
+                worker_id,
                 error,
                 str(max_retries),
                 str(time.time()),
@@ -98,12 +100,13 @@ class JobQueueConsumerGroupsMixin:
                 str(self.retry_policy.max_delay),
             ],
         )
-        if ret and ret[0] in (1, 2):
-            outcome = "retrying" if ret[0] == 1 else "dead_letter"
+        if ret and int(ret[0]) in (1, 2):
+            outcome = "retrying" if int(ret[0]) == 1 else "dead_letter"
             logger.info("Job %s failed, outcome=%s (max_retries=%d)", job_id, outcome, max_retries)
             return True, outcome
-        logger.warning("Failed to process job failure for %s", job_id)
-        return False, "error"
+        reason = str(ret[1]) if ret and len(ret) > 1 else "error"
+        logger.warning("Failed to process job failure for %s worker=%s: %s", job_id, worker_id, reason)
+        return False, reason
 
     async def release_lease(
         self, job_id: str, worker_id: str, lease_version: str | None = None

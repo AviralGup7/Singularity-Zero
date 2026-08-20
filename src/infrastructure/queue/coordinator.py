@@ -97,6 +97,7 @@ class WorkerCoordinator:
         self._persist = persist or getattr(queue, "persist_worker", None)
         self._recover_run = recover_run
         self._sweep_lock = asyncio.Lock()
+        self._released_jobs: set[str] = set()
         self.membership = membership or ClusterMembership(clock=clock)
 
     async def sweep(self) -> SweepReport:
@@ -124,6 +125,13 @@ class WorkerCoordinator:
             if phase is WorkerPhase.DEAD:
                 await self._reassign(worker, report)
                 return
+            raw_phase = str(getattr(worker, "phase", "") or "").strip().lower()
+            if phase is WorkerPhase.SUSPECT and raw_phase != WorkerPhase.SUSPECT.value:
+                # S-6: persist the safe phase so a zombie/unknown record
+                # cannot keep looking healthy to other readers.
+                self._mark(worker, WorkerPhase.SUSPECT)
+                if worker.id not in report.suspected:
+                    report.suspected.append(worker.id)
             if phase is WorkerPhase.DRAINING:
                 # Graceful drain is allowed to finish; only promote if the
                 # heartbeat also timed out (worker crashed mid-drain).
@@ -154,6 +162,11 @@ class WorkerCoordinator:
 
     async def _reassign(self, worker: WorkerInfo, report: SweepReport) -> None:
         for job_id in list(worker.active_jobs or []):
+            if job_id in self._released_jobs:
+                # This coordinator already handed the job off. A second
+                # sweep of the same dead worker must not double-release
+                # or double-invoke Recovery Manager (R1-5).
+                continue
             run_id = _run_id_from_job(job_id, worker)
             # Look up the most recent known lease_version for this job.
             # If the worker was declared dead the version comes from
@@ -183,6 +196,9 @@ class WorkerCoordinator:
                     run_id=run_id,
                 )
             )
+            if not released:
+                continue
+            self._released_jobs.add(job_id)
             if run_id:
                 report.unfinished_run_ids.append(run_id)
                 if self._recover_run is not None:

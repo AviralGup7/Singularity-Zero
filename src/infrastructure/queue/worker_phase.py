@@ -44,19 +44,24 @@ _ALIASES: dict[str, WorkerPhase] = {
 
 
 def normalize_phase(value: str | WorkerPhase | None) -> WorkerPhase:
-    """Accept new phases and the older idle/busy/shutting_down labels."""
+    """Accept new phases and the older idle/busy/shutting_down labels.
+
+    Unknown or empty values become SUSPECT, never READY. Treating a
+    zombie/unreadable phase as healthy would hide a dead worker and
+    block lease reassignment (S-6).
+    """
     if isinstance(value, WorkerPhase):
         return value
     raw = str(value or "").strip().lower()
     if not raw:
-        return WorkerPhase.READY
+        return WorkerPhase.SUSPECT
     aliased = _ALIASES.get(raw)
     if aliased is not None:
         return aliased
     try:
         return WorkerPhase(raw)
     except ValueError:
-        return WorkerPhase.READY
+        return WorkerPhase.SUSPECT
 
 
 def legacy_status(phase: WorkerPhase) -> str:

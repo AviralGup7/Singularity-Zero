@@ -278,17 +278,19 @@ class ClusterMembership:
 
     def observe_worker(self, worker: Any, *, now: float | None = None) -> MemberRecord:
         """Project a WorkerInfo-like object into membership."""
+        from src.infrastructure.queue.worker_phase import WorkerPhase, normalize_phase
+
         node_id = str(getattr(worker, "id", "") or "")
         jobs = list(getattr(worker, "active_jobs", None) or [])
-        phase = str(getattr(worker, "phase", "") or getattr(worker, "status", "") or "").lower()
+        phase = normalize_phase(getattr(worker, "phase", None) or getattr(worker, "status", None))
         stamp = float(
             now if now is not None else getattr(worker, "last_heartbeat", None) or self._clock()
         )
-        if phase in {"dead"}:
+        if phase is WorkerPhase.DEAD:
             crashed = self.crash(node_id, now=stamp)
             return crashed or self.join(node_id, now=stamp)
         record = self.join(node_id, owned_work=jobs, now=stamp)
-        if phase in {"suspect"}:
+        if phase is WorkerPhase.SUSPECT:
             suspected = self.suspect(node_id, now=stamp)
             return suspected or record
         return record

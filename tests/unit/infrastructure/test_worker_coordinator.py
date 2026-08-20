@@ -38,6 +38,10 @@ def test_normalize_legacy_status() -> None:
     assert normalize_phase("shutting_down") is WorkerPhase.DRAINING
     assert normalize_phase("dead") is WorkerPhase.DEAD
     assert normalize_phase("suspect") is WorkerPhase.SUSPECT
+    assert normalize_phase("unknown") is WorkerPhase.SUSPECT
+    assert normalize_phase("") is WorkerPhase.SUSPECT
+    assert normalize_phase(None) is WorkerPhase.SUSPECT
+    assert normalize_phase("zombie") is WorkerPhase.SUSPECT
 
 
 @pytest.mark.unit

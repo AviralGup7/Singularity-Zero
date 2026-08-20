@@ -494,6 +494,7 @@ class LiteWorker:
                 job_key,
                 worker_jobs_key,
                 metrics_key,
+                self.worker_id,
                 json.dumps(result_payload),
                 str(time.time()),
             )
@@ -518,6 +519,7 @@ class LiteWorker:
                         self._key("queue"),
                         dlq_key,
                         metrics_key,
+                        self.worker_id,
                         error_msg,
                         max_retries_str,
                         str(time.time()),
@@ -683,6 +685,8 @@ class LiteWorker:
                     job_key,
                     worker_jobs_key,
                     self._key("queue"),
+                    self.worker_id,
+                    "",
                 )
                 logger.info("Released lease for job %s cleanly", job_id)
             except Exception:
