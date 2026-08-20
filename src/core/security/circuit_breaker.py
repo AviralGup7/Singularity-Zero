@@ -52,7 +52,9 @@ class CircuitBreaker:
         self.failure_count = 0
         self.last_state_change = time.monotonic()
         self._lock = threading.RLock()
+        self._async_lock: asyncio.Lock | None = None
         self._state_version = 0
+        self._trial_generation = 0
         self._half_open_probe_in_flight = False
 
     def _get_async_lock(self) -> asyncio.Lock:
