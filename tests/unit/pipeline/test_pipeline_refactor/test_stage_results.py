@@ -147,7 +147,7 @@ class TestStageResult:
         """mark_stage_skipped sets status and records reason."""
         ctx = PipelineContext()
         ctx.mark_stage_skipped("screenshots", "No live hosts")
-        assert ctx.result.stage_status["screenshots"] == StageStatus.SKIPPED.value
+        assert ctx.result.stage_status["screenshots"] == StageStatus.SKIPPED_DISABLED.value
         assert ctx.result.module_metrics["screenshots"]["reason"] == "No live hosts"
 
     def test_pipeline_context_property_accessors_delegate(self) -> None:

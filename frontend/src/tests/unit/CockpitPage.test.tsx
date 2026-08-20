@@ -66,9 +66,9 @@ describe('CockpitPage', () => {
 
     render(<CockpitPage />);
 
-    expect(screen.getByText('CYBER STEERING COCKPIT')).toBeInTheDocument();
+    expect(screen.getByText('Cockpit')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. https://example.com')).toBeInTheDocument();
-    expect(screen.getByText('ENGAGE PIPELINE ENGINE')).toBeInTheDocument();
+    expect(screen.getByText('Enter a target to launch')).toBeInTheDocument();
   });
 
   it('renders active dashboard when target is provided', () => {

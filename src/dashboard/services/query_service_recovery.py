@@ -11,7 +11,7 @@ from src.core.utils.stderr_classification import (
     extract_degraded_providers,
 )
 from src.dashboard.job_state import _coerce_epoch
-from src.dashboard.job_status import JobStatus, _transition, is_active_job_status
+from src.dashboard.job_status import JobStatus, _transition
 from src.dashboard.services.query_service_log_parsing import (
     last_entered_stage_from_file,
     last_progress_payload_from_file,

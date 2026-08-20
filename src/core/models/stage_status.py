@@ -166,11 +166,10 @@ class StageStatusMap(dict[str, str]):
     def __init__(self, data: Mapping[str, Any] | Iterable[tuple[str, Any]] | None = None) -> None:
         super().__init__()
         if data:
-            if isinstance(data, Mapping):
-                items = data.items()
-            else:
-                items = data
-            for key, value in items:
+            pairs: Iterable[tuple[Any, Any]] = (
+                data.items() if isinstance(data, Mapping) else data
+            )
+            for key, value in pairs:
                 super().__setitem__(str(key), transition_stage_status(StageStatus.PENDING, value))
 
     def __setitem__(self, key: str, value: object) -> None:
