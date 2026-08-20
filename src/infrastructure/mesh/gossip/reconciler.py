@@ -29,7 +29,7 @@ from types import MappingProxyType
 from typing import Any
 
 from src.core.frontier.state import VectorClock
-from src.infrastructure.mesh.gossip.models import MeshNode
+from src.infrastructure.mesh.gossip.models import MeshNode, mesh_node_from_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ def _merge_node(
     if node_data.get("status") == "dead":
         if existing:
             del peers[node_id]
-        dead_nodes[node_id] = MeshNode(**{**node_data, "last_seen": time.time()})
+        dead_nodes[node_id] = mesh_node_from_mapping({**node_data, "last_seen": time.time()})
         if existing and current_leader == node_id and elect_leader_callback:
             elect_leader_callback()
         return False
@@ -141,7 +141,7 @@ def _merge_node(
         )
         partition_merge = True
 
-    node = MeshNode(**node_data)
+    node = mesh_node_from_mapping(node_data)
     node.last_seen = time.time()
     peers[node_id] = node
     if resurrected:

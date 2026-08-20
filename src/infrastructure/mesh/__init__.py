@@ -82,4 +82,5 @@ __all__ = [
     "manifest",
     "balancer",
     "bidder",
+    "membership",
 ]

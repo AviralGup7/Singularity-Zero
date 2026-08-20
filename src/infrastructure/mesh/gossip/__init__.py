@@ -23,6 +23,7 @@ __all__ = [
     "GossipEngine",
     "GossipProtocol",
     "MeshNode",
+    "mesh_node_from_mapping",
     "PeerTracker",
     "PeerHealthStats",
     "RateLimiter",

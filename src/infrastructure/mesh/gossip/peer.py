@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats
+from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats, mesh_node_from_mapping
 
 
 class PeerTracker:
@@ -35,7 +35,9 @@ class PeerTracker:
         node_data = dict(node_data)
         if node_data.get("status") == "dead":
             existing = self.peers.pop(node_id, None)
-            self._dead_nodes[node_id] = MeshNode(**{**node_data, "last_seen": time.time()})
+            self._dead_nodes[node_id] = mesh_node_from_mapping(
+                {**node_data, "last_seen": time.time()}
+            )
             if existing and self.leader_id == node_id:
                 self.elect_leader()
             return
@@ -45,7 +47,7 @@ class PeerTracker:
         )
         existing = self.peers.get(node_id)
         if existing is None or float(node_data.get("last_seen", 0.0)) >= existing.last_seen:
-            node = MeshNode(**node_data)
+            node = mesh_node_from_mapping(node_data)
             node.last_seen = time.time()
             self.peers[node_id] = node
             self._dead_nodes.pop(node_id, None)

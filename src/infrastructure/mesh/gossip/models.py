@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
 
@@ -37,6 +37,23 @@ class MeshNode:
     bandwidth_mbps: float = 0.0
     capacity_weight: float = 1.0
     version_vector: dict[str, int] = field(default_factory=dict)
+    owned_work: list[str] = field(default_factory=list)
+    incarnation: int = 0
+
+
+def mesh_node_from_mapping(data: dict[str, Any]) -> MeshNode:
+    """Build a MeshNode, ignoring unknown keys from older/newer peers."""
+    allowed = {item.name for item in fields(MeshNode)}
+    payload = {key: value for key, value in data.items() if key in allowed}
+    owned = payload.get("owned_work")
+    if owned is not None and not isinstance(owned, list):
+        payload["owned_work"] = [str(item) for item in owned]
+    try:
+        incarnation = int(payload.get("incarnation") or 0)
+    except (TypeError, ValueError):
+        incarnation = 0
+    payload["incarnation"] = incarnation
+    return MeshNode(**payload)
 
 
 @dataclass

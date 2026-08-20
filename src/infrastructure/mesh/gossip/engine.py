@@ -18,8 +18,9 @@ from src.infrastructure.mesh.gossip.fragmentation import (
     Fragmenter,
     MessageDeduper,
 )
-from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats
+from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats, mesh_node_from_mapping
 from src.infrastructure.mesh.gossip.protocol import GossipProtocol
+from src.infrastructure.mesh.membership import ClusterMembership
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ class GossipEngine:
         self._total_failed = 0
         self._gossip_sync_failures_total = 0
         self._mesh_lock = threading.RLock()
+        self.membership = ClusterMembership()
 
         self.retry_base_ms = _env_int("MESH_RETRY_BASE_MS", 100)
         self.retry_max_ms = _env_int("MESH_RETRY_MAX_MS", 2000)
@@ -563,6 +565,7 @@ class GossipEngine:
         node.status = "dead"
         node.last_seen = time.time()
         self._dead_nodes[peer_id] = node
+        self.membership.crash(peer_id)
         logger.error("Node '%s' removed from mesh (%s)", peer_id, reason)
         self.elect_leader()
 
@@ -635,11 +638,14 @@ class GossipEngine:
         if node_data.get("status") == "dead":
             with self._mesh_lock:
                 existing = self.peers.pop(node_id, None)
-                self._dead_nodes[node_id] = MeshNode(**{**node_data, "last_seen": time.time()})
+                self._dead_nodes[node_id] = mesh_node_from_mapping(
+                    {**node_data, "last_seen": time.time()}
+                )
             if existing and self.leader_id == node_id:
                 should_elect = True
             if should_elect:
                 self.elect_leader()
+            self.membership.crash(node_id)
             logger.info("Peer '%s' tombstoned as dead", node_id)
             return
 
@@ -647,10 +653,17 @@ class GossipEngine:
             "alive" if node_data.get("status") == "dead" else node_data.get("status", "alive")
         )
         should_update = False
+        resurrected = False
         with self._mesh_lock:
             existing = self.peers.get(node_id)
-            if existing is None or float(node_data.get("last_seen", 0.0)) >= existing.last_seen:
-                node = MeshNode(**node_data)
+            incoming_incarnation = int(node_data.get("incarnation") or 0)
+            existing_incarnation = int(getattr(existing, "incarnation", 0) or 0) if existing else 0
+            newer = existing is None or incoming_incarnation > existing_incarnation
+            if not newer and existing is not None:
+                newer = float(node_data.get("last_seen", 0.0)) >= existing.last_seen
+            if newer:
+                resurrected = node_id in self._dead_nodes
+                node = mesh_node_from_mapping(node_data)
                 node.last_seen = time.time()
                 self.peers[node_id] = node
                 self._dead_nodes.pop(node_id, None)
@@ -660,7 +673,22 @@ class GossipEngine:
                 should_update = True
         if should_update:
             self.elect_leader()
-            logger.info("Peer '%s' resurrected and re-added to mesh", node_id)
+            node = self.peers.get(node_id)
+            if node is not None:
+                if resurrected:
+                    self.membership.join(node.id, owned_work=list(node.owned_work or []))
+                else:
+                    self.membership.apply_remote(
+                        {
+                            "node_id": node.id,
+                            "incarnation": node.incarnation,
+                            "status": node.status,
+                            "owned_work": list(node.owned_work or []),
+                            "last_seen": node.last_seen,
+                        }
+                    )
+            if resurrected:
+                logger.info("Peer '%s' resurrected and re-added to mesh", node_id)
 
     def elect_leader(self) -> str:
         """Elect a deterministic leader from live local membership."""
@@ -722,6 +750,7 @@ class GossipEngine:
         with self._mesh_lock:
             self.peers[node_id] = node
             self._dead_nodes.pop(node_id, None)
+        self.membership.join(node_id, owned_work=list(node.owned_work or []))
         self.elect_leader()
         return node
 

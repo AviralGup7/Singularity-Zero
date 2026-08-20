@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.mesh.membership import ClusterMembership
 from src.infrastructure.queue.models import WorkerInfo
 from src.infrastructure.queue.worker_phase import (
     WorkerPhase,
@@ -85,6 +86,7 @@ class WorkerCoordinator:
         clock: Callable[[], float] = time.time,
         persist: Callable[[WorkerInfo], None] | None = None,
         recover_run: Callable[[str], Awaitable[Any]] | None = None,
+        membership: ClusterMembership | None = None,
     ) -> None:
         if dead_after < suspect_after:
             raise ValueError("dead_after must be >= suspect_after")
@@ -95,6 +97,7 @@ class WorkerCoordinator:
         self._persist = persist or getattr(queue, "persist_worker", None)
         self._recover_run = recover_run
         self._sweep_lock = asyncio.Lock()
+        self.membership = membership or ClusterMembership(clock=clock)
 
     async def sweep(self) -> SweepReport:
         """Inspect every registered worker and act on missing heartbeats.
@@ -117,26 +120,31 @@ class WorkerCoordinator:
     async def _evaluate_worker(self, worker: WorkerInfo, now: float, report: SweepReport) -> None:
         phase = normalize_phase(getattr(worker, "phase", None) or worker.status)
         age = now - float(worker.last_heartbeat or 0.0)
-        if phase is WorkerPhase.DEAD:
-            await self._reassign(worker, report)
-            return
-        if phase is WorkerPhase.DRAINING:
-            # Graceful drain is allowed to finish; only promote if the
-            # heartbeat also timed out (worker crashed mid-drain).
-            if age >= self.dead_after:
+        try:
+            if phase is WorkerPhase.DEAD:
+                await self._reassign(worker, report)
+                return
+            if phase is WorkerPhase.DRAINING:
+                # Graceful drain is allowed to finish; only promote if the
+                # heartbeat also timed out (worker crashed mid-drain).
+                if age >= self.dead_after:
+                    await self._declare_dead(worker, report)
+                return
+            if age >= self.dead_after or (
+                phase is WorkerPhase.SUSPECT and age >= self.suspect_after
+            ):
                 await self._declare_dead(worker, report)
-            return
-        if age >= self.dead_after or (phase is WorkerPhase.SUSPECT and age >= self.suspect_after):
-            await self._declare_dead(worker, report)
-            return
-        if age >= self.suspect_after and phase is not WorkerPhase.SUSPECT:
-            self._mark(worker, WorkerPhase.SUSPECT)
-            report.suspected.append(worker.id)
-            logger.warning(
-                "Coordinator: worker %s SUSPECT (heartbeat age=%.1fs)",
-                worker.id,
-                age,
-            )
+                return
+            if age >= self.suspect_after and phase is not WorkerPhase.SUSPECT:
+                self._mark(worker, WorkerPhase.SUSPECT)
+                report.suspected.append(worker.id)
+                logger.warning(
+                    "Coordinator: worker %s SUSPECT (heartbeat age=%.1fs)",
+                    worker.id,
+                    age,
+                )
+        finally:
+            self.membership.observe_worker(worker, now=now)
 
     async def _declare_dead(self, worker: WorkerInfo, report: SweepReport) -> None:
         self._mark(worker, WorkerPhase.DEAD)
