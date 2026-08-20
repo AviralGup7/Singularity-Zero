@@ -9,6 +9,8 @@ from fastapi.testclient import TestClient
 
 def _app(tmp_path, monkeypatch, guest_access_enabled: bool, enable_api_security: str = "true"):
     monkeypatch.setenv("ENABLE_API_SECURITY", enable_api_security)
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "false")
+    monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("APP_SECRET_KEY", "test-secret")
     monkeypatch.setenv(
         "API_KEYS_JSON",

@@ -245,9 +245,16 @@ def _warn_if_missing(name: str) -> None:
 
 
 def get_ast_mutator() -> ASTMutatorProtocol | None:
-    """Get the registered AST mutator."""
+    """Get the registered AST mutator, lazily binding the default JSON mutator."""
+    global _ast_mutator
     if _ast_mutator is None:
-        _warn_if_missing("ast_mutator")
+        try:
+            from src.fuzzing.ast_mutator import JSONASTMutator
+
+            _ast_mutator = JSONASTMutator()
+        except Exception:
+            _warn_if_missing("ast_mutator")
+            return None
     return _ast_mutator
 
 

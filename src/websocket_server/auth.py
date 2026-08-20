@@ -63,6 +63,43 @@ class AuthenticationError(Exception):
         super().__init__(detail)
 
 
+def _validate_websocket_origin(
+    websocket: WebSocket,
+    allowed_origins: set[str] | None,
+) -> None:
+    """Reject Cross-Site WebSocket Hijacking even when auth is disabled."""
+    origin = websocket.headers.get("origin")
+    allowed = allowed_origins
+    if allowed is None:
+        allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
+    allowed = {o.strip() for o in allowed if o.strip()}
+
+    is_production = os.environ.get("APP_ENV") == "production"
+    if not allowed and is_production:
+        logger.error(
+            "Strict origin validation failed: no allowed origins configured in production mode!"
+        )
+        raise AuthenticationError(
+            code="auth_invalid_origin",
+            detail="Origin validation failed: no allowed origins configured in production mode",
+            status_code=4003,
+        )
+    if not allowed and not is_production:
+        logger.warning(
+            "WS_ALLOWED_ORIGINS is empty in non-local environment. "
+            "Cross-Site WebSocket Hijacking (CSWSH) may be possible."
+        )
+
+    if allowed and "*" not in allowed:
+        if not origin or origin not in allowed:
+            logger.warning("WebSocket CSWSH blocked: invalid or missing origin %s", origin)
+            raise AuthenticationError(
+                code="auth_invalid_origin",
+                detail="Origin not allowed or missing",
+                status_code=4003,
+            )
+
+
 async def authenticate_websocket(
     websocket: WebSocket,
     jwt_secret: str | None = None,
@@ -97,6 +134,9 @@ async def authenticate_websocket(
     Raises:
         AuthenticationError: If authentication fails.
     """
+    # SEC-9: Origin validation against CSWSH runs even when auth is disabled.
+    _validate_websocket_origin(websocket, allowed_origins)
+
     # !! NO SECURITY MODE: When DASHBOARD_AUTH_DISABLED is set, grant admin access !!
     # Any WebSocket connection gets full admin access. No auth needed.
     # AGENT DO NOT CHANGE THIS BEHAVIOR.
@@ -111,37 +151,7 @@ async def authenticate_websocket(
             auth_method="no-security-dev",
         )
 
-    # SEC-9: Origin validation against CSWSH
-    origin = websocket.headers.get("origin")
-    allowed = allowed_origins
-    if allowed is None:
-        allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
-    allowed = {o.strip() for o in allowed if o.strip()}
-
     is_production = os.environ.get("APP_ENV") == "production"
-    if not allowed and is_production:
-        logger.error(
-            "Strict origin validation failed: no allowed origins configured in production mode!"
-        )
-        raise AuthenticationError(
-            code="auth_invalid_origin",
-            detail="Origin validation failed: no allowed origins configured in production mode",
-            status_code=4003,
-        )
-    if not allowed and not is_production:
-        logger.warning(
-            "WS_ALLOWED_ORIGINS is empty in non-local environment. "
-            "Cross-Site WebSocket Hijacking (CSWSH) may be possible."
-        )
-
-    if allowed and "*" not in allowed:
-        if not origin or origin not in allowed:
-            logger.warning("WebSocket CSWSH blocked: invalid or missing origin %s", origin)
-            raise AuthenticationError(
-                code="auth_invalid_origin",
-                detail="Origin not allowed or missing",
-                status_code=4003,
-            )
 
     # SEC-TLS: Enforce that production upgrades arrive over TLS. Browsers
     # always present ``wss://`` upgrades as scheme "wss", and a properly

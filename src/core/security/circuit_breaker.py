@@ -97,27 +97,31 @@ class CircuitBreaker:
         return result
 
     async def call_async(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        """Execute a protected sync or async callable and await async results safely."""
+        """Execute a protected sync or async callable and await async results safely.
+
+        The async lock is held for the whole HALF_OPEN probe so a second
+        waiter cannot start another trial until this one settles.
+        """
         async with self._get_async_lock():
             admitted, admission_state, state_version, trial_gen = self._try_admit_call()
-        if not admitted:
-            return await self._fallback_or_raise_async(*args, **kwargs)
+            if not admitted:
+                return await self._fallback_or_raise_async(*args, **kwargs)
 
-        try:
-            result = fn(*args, **kwargs)
-            if inspect.isawaitable(result):
-                result = await result
-        except BaseException as exc:
-            if isinstance(exc, Exception):
-                self._record_failure(admission_state, state_version, trial_gen, exc)
-                if self.fallback_fn:
-                    return await self._call_fallback_async(*args, **kwargs)
-            else:
-                self._release_aborted_probe(admission_state, state_version, trial_gen)
-            raise
+            try:
+                result = fn(*args, **kwargs)
+                if inspect.isawaitable(result):
+                    result = await result
+            except BaseException as exc:
+                if isinstance(exc, Exception):
+                    self._record_failure(admission_state, state_version, trial_gen, exc)
+                    if self.fallback_fn:
+                        return await self._call_fallback_async(*args, **kwargs)
+                else:
+                    self._release_aborted_probe(admission_state, state_version, trial_gen)
+                raise
 
-        self._record_success(admission_state, state_version, trial_gen)
-        return result
+            self._record_success(admission_state, state_version, trial_gen)
+            return result
 
     def _try_admit_call(self) -> tuple[bool, str, int, int]:
         with self._lock:

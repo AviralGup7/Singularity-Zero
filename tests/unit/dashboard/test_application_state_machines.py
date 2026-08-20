@@ -293,15 +293,24 @@ def test_circuit_breaker_async_lock_serializes_half_open(
             return "blocked"
 
         first = asyncio.create_task(breaker.call_async(probe))
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0)
         second = asyncio.create_task(breaker.call_async(blocked))
-        await asyncio.sleep(0.01)
-        assert entered == 1
-        gate.set()
-        results = await asyncio.gather(first, second, return_exceptions=True)
+        await asyncio.sleep(0)
+        try:
+            assert entered == 1
+            gate.set()
+            results = await asyncio.wait_for(
+                asyncio.gather(first, second, return_exceptions=True),
+                timeout=2,
+            )
+        finally:
+            gate.set()
+            first.cancel()
+            second.cancel()
         assert "ok" in results
         assert any(
-            isinstance(item, CircuitBreakerOpenException) or item == "ok" for item in results
+            isinstance(item, CircuitBreakerOpenException) or item in {"ok", "blocked"}
+            for item in results
         )
 
     asyncio.run(_run())
