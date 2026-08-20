@@ -460,6 +460,82 @@
   --table-border:    var(--line);
 }
 
+/* ── Night City (Cyberpunk 2077) ──────────────────────────── */
+[data-theme-preset="night-city"] {
+  --bg:            #07040a;
+  --bg-2:          #10060e;
+  --bg-3:          #1a0a14;
+  --sidebar:       #050208;
+  --sidebar-inset: #10060e;
+  --surface:       #120814;
+  --surface-2:     #1c0c18;
+  --surface-raised:#26101e;
+  --surface-3:     #2e1424;
+  --surface-muted: #0a050c;
+  --surface-hover: #2a121f;
+
+  --line:          rgba(252, 238, 10, 0.10);
+  --line-muted:    rgba(252, 238, 10, 0.05);
+  --line-strong:   rgba(252, 238, 10, 0.18);
+  --border:        rgba(255, 42, 109, 0.16);
+  --border-strong: rgba(252, 238, 10, 0.28);
+  --border-soft:   rgba(0, 240, 255, 0.08);
+
+  --text-primary:   #f6f1c4;
+  --text-secondary: #c4b56a;
+  --text-tertiary:  #7a6a48;
+
+  --accent:        #fcee0a;
+  --accent-2:      #ff2a6d;
+  --accent-soft:   rgba(252, 238, 10, 0.14);
+  --accent-muted:  rgba(252, 238, 10, 0.07);
+  --accent-hover:  #ffe94a;
+  --accent-active: #d4c608;
+
+  --neon-blue:    #00f0ff;
+  --neon-purple:  #c44cff;
+  --neon-cyan:    #00f0ff;
+  --neon-pink:    #ff2a6d;
+  --neon-emerald: #05ffa1;
+  --neon-amber:   #fcee0a;
+
+  --ok:   #05ffa1;
+  --warn: #fe7317;
+  --bad:  #ff003c;
+  --info: #00f0ff;
+
+  --severity-critical: #ff003c;
+  --severity-high:     #ff4d00;
+  --severity-medium:   #fcee0a;
+  --severity-low:      #00f0ff;
+  --severity-info:     #8a7a55;
+
+  --chart-1: #fcee0a;
+  --chart-2: #ff2a6d;
+  --chart-3: #00f0ff;
+  --chart-4: #fe7317;
+  --chart-5: #05ffa1;
+
+  --glass-bg:          rgba(8, 3, 10, 0.62);
+  --glass-bg-elevated: rgba(18, 8, 16, 0.72);
+  --glass-border:      rgba(252, 238, 10, 0.12);
+
+  --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.55);
+  --shadow-sm:   0 2px 8px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 42, 109, 0.12);
+  --shadow-md:   0 8px 24px rgba(0, 0, 0, 0.65), 0 0 18px rgba(252, 238, 10, 0.08);
+  --shadow-lg:   0 14px 40px rgba(0, 0, 0, 0.75);
+  --shadow-xl:   0 24px 64px rgba(0, 0, 0, 0.85);
+
+  --modal-overlay: rgba(4, 1, 6, 0.88);
+
+  --input-bg:        var(--surface);
+  --input-border:    var(--border);
+  --input-focus:     var(--accent);
+  --table-header-bg: #1a0a14;
+  --table-row-hover: #2a121f;
+  --table-border:    var(--line);
+}
+
 /* ── Light Theme Presets ──────────────────────────────────── */
 
 [data-theme="light"][data-theme-preset="midnight"],
@@ -610,4 +686,31 @@
   --severity-medium:   #CA8A04;
   --severity-low:      #7C3AED;
   --severity-info:     #6B7FC0;
+}
+
+/* Night City stays asphalt even in "light" — 2077 has no daylight HUD */
+[data-theme="light"][data-theme-preset="night-city"] {
+  --bg:            #120c08;
+  --bg-2:          #1a100c;
+  --bg-3:          #24160e;
+  --sidebar:       #0e0906;
+  --sidebar-inset: #1a100c;
+  --surface:       #1c120c;
+  --surface-2:     #26180f;
+  --surface-raised:#2e1c12;
+  --surface-3:     #362214;
+  --surface-muted: #100a06;
+  --surface-hover: #322016;
+  --text-primary:   #fff6b0;
+  --text-secondary: #d4c06a;
+  --text-tertiary:  #8a7048;
+  --accent:        #fcee0a;
+  --accent-2:      #ff2a6d;
+  --accent-soft:   rgba(252, 238, 10, 0.16);
+  --ok:   #05ffa1;
+  --warn: #fe7317;
+  --bad:  #ff003c;
+  --info: #00f0ff;
+  --glass-bg:          rgba(18, 10, 6, 0.7);
+  --glass-border:      rgba(252, 238, 10, 0.16);
 }

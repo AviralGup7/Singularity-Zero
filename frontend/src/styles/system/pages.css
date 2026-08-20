@@ -8,6 +8,7 @@
 @import './pages/settings.css';
 @import './pages/tracing.css';
 @import './pages/layout-fixes.css';
+@import './pages/night-city.css';
 
 .dashboard-page,
 .jobs-page,

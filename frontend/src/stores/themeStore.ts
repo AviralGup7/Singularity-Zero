@@ -3,6 +3,8 @@ import type { EffectCapability, MotionIntensity } from '@/lib/motionPolicy';
 import { safeStorage } from '@/utils/storage';
 import type { ThemeMode, ThemePreset, ThemeState, ThemeUpdater } from '@/context/ThemeContext';
 
+const KNOWN_PRESETS: ThemePreset[] = ['midnight', 'ocean', 'forest', 'sunset', 'arctic', 'neon-void', 'night-city'];
+
 function detectSystemTheme(): ThemeMode {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return 'dark';
@@ -23,7 +25,11 @@ function getInitialTheme(): ThemeState {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      return { ...defaultTheme, ...(parsed.theme || {}) };
+      const merged = { ...defaultTheme, ...(parsed.theme || {}) } as ThemeState;
+      if (!KNOWN_PRESETS.includes(merged.preset)) {
+        merged.preset = defaultTheme.preset;
+      }
+      return merged;
     } catch {
       /* ignore */
     }
@@ -61,7 +67,7 @@ export interface ThemeStore {
 
 export const useThemeStore = create<ThemeStore>((set) => {
   const initialTheme = getInitialTheme();
-  
+
   applyThemeSideEffects(initialTheme);
 
   const updateTheme = (partial: Partial<ThemeState>) => {
