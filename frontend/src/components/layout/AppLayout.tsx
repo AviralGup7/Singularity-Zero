@@ -24,8 +24,9 @@ import { Header } from './Header';
 import { Footer } from './Footer';
 import { ShortcutsModal } from './ShortcutsModal';
 import { ScanStatusBar } from '@/components/ScanStatusBar';
-import { NightCityHud } from './NightCityHud';
+
 const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
+const NightCityHud = lazy(() => import('./NightCityHud').then(m => ({ default: m.NightCityHud })));
 
 interface NavSection {
   label: string;
@@ -381,7 +382,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   if (isLogin) {
     return (
       <>
-        {theme.preset === 'night-city' && <NightCityHud />}
+        {theme.preset === 'night-city' && <Suspense fallback={null}><NightCityHud /></Suspense>}
         <div className="app-shell--auth">{children}</div>
       </>
     );
@@ -389,7 +390,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="app-shell app-shell--hud">
-      {theme.preset === 'night-city' && <NightCityHud />}
+      {theme.preset === 'night-city' && <Suspense fallback={null}><NightCityHud /></Suspense>}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
         Skip to content
       </a>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import '@/styles/system/pages/night-city.css';
 
 function pad(n: number) {
   return String(n).padStart(2, '0');
