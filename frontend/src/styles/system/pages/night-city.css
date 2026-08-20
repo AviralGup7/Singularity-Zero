@@ -40,8 +40,10 @@ html[data-theme-preset='night-city'] body {
   letter-spacing: 0.03em;
   background-color: var(--nc-void);
   background-image:
-    radial-gradient(ellipse 80% 70% at 50% 0%, rgba(180, 0, 40, 0.28), transparent 55%),
-    linear-gradient(180deg, rgba(40, 0, 12, 0.55), #07030a 42%);
+    linear-gradient(180deg, rgba(7, 3, 10, 0.72), rgba(7, 3, 10, 0.82)),
+    url('/night-city/skyline.jpg');
+  background-size: cover;
+  background-position: center 40%;
   background-attachment: fixed;
 }
 
@@ -261,8 +263,8 @@ html[data-theme-preset='night-city'] ::selection {
 
 html[data-theme-preset='night-city'] .sidebar {
   background:
-    linear-gradient(180deg, rgba(255, 0, 60, 0.12), transparent 24%),
-    #0a0408 !important;
+    linear-gradient(180deg, rgba(10, 4, 8, 0.88), rgba(10, 4, 8, 0.92)),
+    url('/night-city/circuit.jpg') center / cover !important;
   border-right: 1px solid color-mix(in srgb, var(--nc-red) 45%, transparent) !important;
 }
 
@@ -470,9 +472,11 @@ html[data-theme-preset='night-city'] .setting-title {
 /* ── Login = main menu (yellow wordmark, cyan list) ───────── */
 
 html[data-theme-preset='night-city'] .auth-canvas {
+  position: relative;
+  overflow: hidden;
   background:
-    radial-gradient(ellipse 50% 80% at 0% 50%, rgba(180, 0, 40, 0.35), transparent 60%),
-    #07030a !important;
+    linear-gradient(90deg, rgba(7, 3, 10, 0.84) 0%, rgba(7, 3, 10, 0.42) 48%, rgba(7, 3, 10, 0.18) 100%),
+    url('/night-city/boot.jpg') center / cover no-repeat !important;
 }
 
 html[data-theme-preset='night-city'] .auth-card {
@@ -571,8 +575,93 @@ html[data-theme-preset='night-city'] .mobile-dock-item--active {
   color: var(--nc-cyan) !important;
 }
 
+.nc-world {
+  position: absolute;
+  inset: -8%;
+  background: url('/night-city/skyline.jpg') center 45% / cover no-repeat;
+  opacity: 0.18;
+  animation: nc-ken 42s ease-in-out infinite alternate;
+  filter: saturate(1.2) contrast(1.08);
+}
+
+.nc-boot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #050208;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.55s ease, visibility 0.55s ease;
+  z-index: 80;
+}
+.nc-boot--on {
+  opacity: 1;
+  visibility: visible;
+}
+.nc-boot-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.75;
+  animation: nc-ken 9s ease-in-out infinite alternate;
+}
+.nc-boot-ring {
+  position: relative;
+  z-index: 1;
+  width: min(38vw, 280px);
+  mix-blend-mode: screen;
+  animation: nc-spin 6s linear infinite;
+  filter: drop-shadow(0 0 18px rgba(255, 0, 60, 0.55));
+}
+.nc-boot-label {
+  position: absolute;
+  bottom: 18%;
+  z-index: 2;
+  font-family: var(--font-mono);
+  letter-spacing: 0.42em;
+  font-size: 11px;
+  color: var(--nc-yellow);
+  text-shadow: 2px 0 var(--nc-hot), -2px 0 var(--nc-cyan);
+}
+
+html[data-theme-preset='night-city'] .nc-page-loading {
+  position: relative;
+  min-height: 40vh;
+  background:
+    linear-gradient(rgba(7, 3, 10, 0.55), rgba(7, 3, 10, 0.72)),
+    url('/night-city/loading.jpg') center / cover no-repeat;
+}
+html[data-theme-preset='night-city'] .nc-page-loading-ring {
+  width: 72px !important;
+  height: 72px !important;
+  border: 0 !important;
+  background: url('/night-city/hud-ring.jpg') center / contain no-repeat;
+  animation: nc-spin 4.5s linear infinite !important;
+  mix-blend-mode: screen;
+}
+html[data-theme-preset='night-city'] .nc-page-loading span {
+  color: var(--nc-yellow) !important;
+  letter-spacing: 0.32em !important;
+}
+
+@keyframes nc-ken {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to { transform: scale(1.08) translate3d(-1.6%, 1.2%, 0); }
+}
+@keyframes nc-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-preset='night-city'] .nc-hud-scan {
+  html[data-theme-preset='night-city'] .nc-hud-scan,
+  html[data-theme-preset='night-city'] .nc-world,
+  html[data-theme-preset='night-city'] .nc-boot-art,
+  html[data-theme-preset='night-city'] .nc-boot-ring,
+  html[data-theme-preset='night-city'] .nc-page-loading-ring {
     animation: none !important;
   }
+  .nc-boot { display: none; }
 }

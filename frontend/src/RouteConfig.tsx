@@ -41,9 +41,9 @@ const EvasionMetricsPage = lazyWithPrefetch('/evasion', () => import('@/pages/Ev
 
 function ContentFallback() {
   return (
-    <div className="flex-1 flex items-center justify-center">
+    <div className="nc-page-loading flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-5 w-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+        <div className="nc-page-loading-ring h-5 w-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
         <span className="text-xs font-mono uppercase tracking-widest text-muted">Loading…</span>
       </div>
     </div>

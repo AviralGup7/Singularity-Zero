@@ -6,17 +6,29 @@ function pad(n: number) {
 
 export function NightCityHud() {
   const [now, setNow] = useState(() => new Date());
+  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
+    const boot = window.setTimeout(() => setBooting(false), 1700);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(boot);
+    };
   }, []);
 
   const stamp = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   return (
     <div className="nc-hud" aria-hidden="true">
+      <div className="nc-world" />
       <div className="nc-hud-scan" />
+
+      <div className={`nc-boot${booting ? ' nc-boot--on' : ''}`}>
+        <img className="nc-boot-art" src="/night-city/loading.jpg" alt="" />
+        <img className="nc-boot-ring" src="/night-city/hud-ring.jpg" alt="" />
+        <span className="nc-boot-label">LINKING NEURALWARE</span>
+      </div>
 
       <div className="nc-hud-vitals">
         <div className="nc-bar nc-bar--hp">
