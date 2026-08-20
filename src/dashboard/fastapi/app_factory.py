@@ -36,15 +36,28 @@ def _apply_local_demo_defaults() -> None:
     do not load ``start_backend.py``. Without these defaults, Demo Sign In
     has no JWT and ``/api/notifications`` returns 401.
     """
+    import secrets
+
     app_env = os.getenv("APP_ENV", "development").strip().lower()
     if app_env in {"production", "prod", "staging"}:
         return
+    os.environ.setdefault("APP_ENV", "development")
     os.environ.setdefault("DASHBOARD_GUEST_ACCESS_ENABLED", "true")
     if "DASHBOARD_AUTH_DISABLED" not in os.environ:
         os.environ["DASHBOARD_AUTH_DISABLED"] = "true"
         logger.warning(
             "DASHBOARD_AUTH_DISABLED defaulted to true for local/development. "
             "Set DASHBOARD_AUTH_DISABLED=false to require API keys/JWT."
+        )
+    current_key = os.environ.get("APP_SECRET_KEY", "").strip()
+    if not current_key or current_key in {
+        "change-me-in-production",
+        "change-me",
+        "secret",
+    }:
+        os.environ["APP_SECRET_KEY"] = secrets.token_urlsafe(48)
+        logger.warning(
+            "APP_SECRET_KEY was missing or a placeholder; generated a local development key."
         )
 
 

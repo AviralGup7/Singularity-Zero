@@ -52,12 +52,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     """Run the FastAPI dashboard server using uvicorn."""
     import os
+    import secrets
 
     app_env = os.environ.get("APP_ENV", "development").strip().lower()
     if app_env not in {"production", "prod", "staging"}:
+        os.environ.setdefault("APP_ENV", "development")
         os.environ.setdefault("DASHBOARD_GUEST_ACCESS_ENABLED", "true")
         os.environ.setdefault("DASHBOARD_AUTH_DISABLED", "true")
-        os.environ.setdefault("APP_SECRET_KEY", "change-me-in-production")
+        current_key = os.environ.get("APP_SECRET_KEY", "").strip()
+        # Never inject the documented placeholder — secret_validator refuses it
+        # when APP_ENV is unset (treated as non-dev).
+        if not current_key or current_key in {
+            "change-me-in-production",
+            "change-me",
+            "secret",
+        }:
+            os.environ["APP_SECRET_KEY"] = secrets.token_urlsafe(48)
 
     args = parse_args(argv)
 
