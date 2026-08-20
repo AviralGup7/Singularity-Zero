@@ -673,18 +673,18 @@ class GossipEngine:
                 should_update = True
         if should_update:
             self.elect_leader()
-            node = self.peers.get(node_id)
-            if node is not None:
+            updated = self.peers.get(node_id)
+            if updated is not None:
                 if resurrected:
-                    self.membership.join(node.id, owned_work=list(node.owned_work or []))
+                    self.membership.join(updated.id, owned_work=list(updated.owned_work or []))
                 else:
                     self.membership.apply_remote(
                         {
-                            "node_id": node.id,
-                            "incarnation": node.incarnation,
-                            "status": node.status,
-                            "owned_work": list(node.owned_work or []),
-                            "last_seen": node.last_seen,
+                            "node_id": updated.id,
+                            "incarnation": updated.incarnation,
+                            "status": updated.status,
+                            "owned_work": list(updated.owned_work or []),
+                            "last_seen": updated.last_seen,
                         }
                     )
             if resurrected:
