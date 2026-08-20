@@ -60,6 +60,7 @@ def _validate_environment() -> None:
         # without pre-creating API keys. Production should opt-in explicitly
         # via DASHBOARD_GUEST_ACCESS_ENABLED if desired.
         os.environ.setdefault("DASHBOARD_GUEST_ACCESS_ENABLED", "true")
+        os.environ.setdefault("DASHBOARD_AUTH_DISABLED", "true")
 
 
 def main() -> None:

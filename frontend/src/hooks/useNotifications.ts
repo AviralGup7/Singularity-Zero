@@ -32,9 +32,11 @@ interface UseNotificationsReturn {
 }
 
 function isBenignBackendMiss(status?: number, err?: unknown): boolean {
-  if (status && (status === 401 || status === 403 || status === 404 || status >= 500)) return true;
+  if (status === 401 || status === 403 || status === 404 || (typeof status === 'number' && status >= 500)) {
+    return true;
+  }
   const msg = err instanceof Error ? err.message : String(err ?? '');
-  return /failed to fetch|networkerror|502|503|504|econnrefused/i.test(msg);
+  return /401|403|unauthorized|failed to fetch|networkerror|502|503|504|econnrefused/i.test(msg);
 }
 
 export function useNotifications(enabled = true): UseNotificationsReturn {
@@ -58,11 +60,16 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   const fetchNotifications = useCallback(async () => {
     try {
       const token = getStreamToken();
-      const url = `${API_BASE}?limit=100&offset=0`;
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      // Demo / name / SSO sessions have no JWT. Do not hit a protected
+      // endpoint — that 401 toast blocked the console after Demo Sign In.
+      if (!token) {
+        if (mountedRef.current) setLoading(false);
+        return;
       }
+      const url = `${API_BASE}?limit=100&offset=0`;
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+      };
 
       const res = await fetch(url, { headers });
       if (!res.ok) {
@@ -108,11 +115,9 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
     }
 
     const token = getStreamToken();
-    let sseUrl = `${API_BASE}/stream`;
-    if (token) {
-      sseUrl += `?token=${encodeURIComponent(token)}`;
-    }
+    if (!token) return;
 
+    const sseUrl = `${API_BASE}/stream?token=${encodeURIComponent(token)}`;
     const es = new EventSource(sseUrl);
     eventSourceRef.current = es;
 
