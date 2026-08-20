@@ -83,7 +83,12 @@ export const useThemeStore = create<ThemeStore>((set) => {
     updater: {
       updateTheme,
       setThemeMode: (mode: ThemeMode) => updateTheme({ mode }),
-      setThemePreset: (preset: ThemePreset) => updateTheme({ preset }),
+      setThemePreset: (preset: ThemePreset) =>
+        updateTheme(
+          preset === 'night-city'
+            ? { preset, mode: 'dark', accentColor: '#3B82F6' }
+            : { preset },
+        ),
       setAccentColor: (accentColor: string) => updateTheme({ accentColor }),
       setMotionIntensity: (motionIntensity: MotionIntensity) => updateTheme({ motionIntensity }),
       setEffectCapability: (effectCapability: EffectCapability) => updateTheme({ effectCapability }),

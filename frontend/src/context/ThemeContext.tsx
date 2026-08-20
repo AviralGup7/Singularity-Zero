@@ -14,7 +14,7 @@ export const THEME_PRESETS: Record<ThemePreset, { label: string; icon: string; d
   sunset: { label: 'Sunset', icon: '', description: 'Warm amber and coral tones for a cozy feel', preview: ['#140E0A', '#FB923C', '#F472B6', '#EF4444'] },
   arctic: { label: 'Arctic Frost', icon: '', description: 'Icy cool blue-white with frosted glass effects', preview: ['#0C1218', '#7DD3FC', '#C4B5FD', '#F43F5E'] },
   'neon-void': { label: 'Neon Void', icon: '', description: 'Deep purple void with vivid neon highlights', preview: ['#06060A', '#C084FC', '#F472B6', '#FF2D87'] },
-  'night-city': { label: 'Night City', icon: '', description: 'Cyberpunk 2077 — preem yellow, hot magenta, glitch cyan on asphalt black', preview: ['#07040A', '#FCEE0A', '#FF2A6D', '#00F0FF'] },
+  'night-city': { label: 'Night City', icon: '', description: 'Full Cyberpunk 2077 HUD takeover — diegetic chrome, glitch, scanlines, ナイトシティ', preview: ['#050308', '#FCEE0A', '#FF003C', '#00F0FF'] },
 };
 
 export interface ThemeState {
