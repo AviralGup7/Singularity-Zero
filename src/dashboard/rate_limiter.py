@@ -551,10 +551,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         if self._is_adaptive_signal(response):
             penalty_count = await self._adaptive.record_signal(client_ip, path)
-        else:
+        elif request.method.upper() != "GET":
             penalty_count = await self._adaptive.record_signal(
                 client_ip, path, latency_ms=latency_ms
             )
+        else:
+            # GET dashboard reads (timeline, findings) can be legitimately
+            # slow. Latency penalties here shrink the window until the SPA
+            # 429-loops on a single page poll.
+            _, penalty_count = await self._adaptive.effective_limit(client_ip, path, base_limit)
 
         # Re-read effective limit after recording signal so header reflects any new penalty
         updated_limit, _ = await self._adaptive.effective_limit(client_ip, path, base_limit)

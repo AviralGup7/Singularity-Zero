@@ -75,6 +75,7 @@ def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
     )
 
     security_enabled = api_security_enabled()
+    findings_limit = 60 if security_enabled else 180
     rate_limit_config = RateLimitConfig(
         window_seconds=1.0 if security_enabled else 60.0,
         default_limit=int(os.getenv("RATE_LIMIT_GLOBAL_RPS", "30"))
@@ -84,6 +85,7 @@ def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
         replay_limit=config.rate_limit_replay,
         redis_url=config.redis_url,
         endpoint_limits={"/api/jobs": 2, "/api/jobs/start": 2} if security_enabled else {},
+        endpoint_prefix_limits={"/api/findings/": findings_limit},
     )
     app.add_middleware(RateLimitMiddleware, config=rate_limit_config)
     app.add_middleware(CSRFProtectionMiddleware)

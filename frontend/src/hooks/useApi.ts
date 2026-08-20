@@ -111,11 +111,13 @@ export function useApi<T>(
     errorContext,
   } = options ?? {};
 
-  // ``params`` is read from the latest closure each time ``fetchData``
-  // is invoked. Because ``params`` is already in the dep array of
-  // ``fetchData`` and the effect that triggers fetches, we don't need
-  // a ref indirection - the value is always fresh.
-  const stableParams = params;
+  // Identity-stable params: callers often pass a fresh object each
+  // render with the same values. Depending on the object itself
+  // retriggers fetchData → abort → refetch → 429 on read endpoints.
+  const paramsKey = JSON.stringify(params ?? null);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+  const rateLimitedUntilRef = useRef(0);
 
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState<boolean>(enabled && !!url);
@@ -152,7 +154,13 @@ export function useApi<T>(
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const cacheKey = apiCache.generateKey(url, stableParams);
+    if (!forceRefetch && Date.now() < rateLimitedUntilRef.current) {
+      if (mountedRef.current) setLoading(false);
+      return;
+    }
+
+    const currentParams = paramsRef.current;
+    const cacheKey = apiCache.generateKey(url, currentParams);
 
     if (!forceRefetch && !bypassCache) {
       const cached = apiCache.get<T>(cacheKey);
@@ -174,7 +182,7 @@ export function useApi<T>(
       if (controller.signal.aborted) return;
 
       const requestFn = (): Promise<T> =>
-        api.get<T>(url, { signal: controller.signal, params: stableParams, schema: schemaRef.current } as AxiosRequestConfig).then((res) => res.data);
+        api.get<T>(url, { signal: controller.signal, params: currentParams, schema: schemaRef.current } as AxiosRequestConfig).then((res) => res.data);
 
       const result = await deduplicateRequest<T>(`${cacheKey}:${refetchKey}`, requestFn, controller.signal);
 
@@ -198,6 +206,9 @@ export function useApi<T>(
         status: (err as { status?: number })?.status,
         original: err,
       };
+      if (lastError.status === 429) {
+        rateLimitedUntilRef.current = Date.now() + 5000;
+      }
 
       if (mountedRef.current) {
         setError(lastError);
@@ -208,7 +219,7 @@ export function useApi<T>(
         }
       }
     }
-  }, [url, enabled, bypassCache, stableParams, refetchKey, ttl, autoToast, errorContext]);
+  }, [url, enabled, bypassCache, paramsKey, refetchKey, ttl, autoToast, errorContext]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -258,7 +269,7 @@ export function useApi<T>(
     setRefetchKey((k) => k + 1);
   }, []);
 
-  const isStale = url ? apiCache.isStale(apiCache.generateKey(url, stableParams)) : false;
+  const isStale = url ? apiCache.isStale(apiCache.generateKey(url, paramsRef.current)) : false;
 
   return { data, loading, error, refetch, isStale };
 }

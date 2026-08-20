@@ -124,6 +124,45 @@ def test_adaptive_limit_lowers_after_429_response() -> None:
     assert blocked.headers["X-RateLimit-Limit"] == "1"
 
 
+def test_get_latency_does_not_penalize_findings_timeline() -> None:
+    app = FastAPI()
+    app.add_middleware(
+        RateLimitMiddleware,
+        config=RateLimitConfig(window_seconds=60.0, default_limit=4, adaptive_penalty_factor=0.5),
+    )
+
+    @app.get("/api/findings/timeline")
+    async def timeline() -> list[dict[str, str]]:
+        return [{"id": "1"}]
+
+    client = TestClient(app)
+    first = client.get("/api/findings/timeline")
+    assert first.status_code == 200
+    assert first.headers["X-RateLimit-Adaptive"] == "0"
+    assert first.headers["X-RateLimit-Limit"] == "4"
+
+
+def test_findings_prefix_allows_more_reads_than_default() -> None:
+    app = FastAPI()
+    app.add_middleware(
+        RateLimitMiddleware,
+        config=RateLimitConfig(
+            window_seconds=60.0,
+            default_limit=2,
+            endpoint_prefix_limits={"/api/findings/": 5},
+        ),
+    )
+
+    @app.get("/api/findings/timeline")
+    async def timeline() -> list[dict[str, str]]:
+        return [{"id": "1"}]
+
+    client = TestClient(app)
+    for _ in range(5):
+        assert client.get("/api/findings/timeline").status_code == 200
+    assert client.get("/api/findings/timeline").status_code == 429
+
+
 def test_adaptive_limit_detects_waf_headers() -> None:
     app = _build_app(
         RateLimitConfig(

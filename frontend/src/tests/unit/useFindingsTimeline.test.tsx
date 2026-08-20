@@ -45,7 +45,7 @@ describe('useFindingsTimeline', () => {
         limit: 2,
         offset: 4,
       },
-      bypassCache: true,
+      ttl: 5000,
     });
     expect(result.current.events).toHaveLength(2);
     expect(result.current.hasMore).toBe(true);
