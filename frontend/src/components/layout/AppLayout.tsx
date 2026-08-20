@@ -194,6 +194,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { theme, updater: themeUpdater } = useTheme();
   const { user } = useAuth();
+  const isLogin = location.pathname === ROUTES.LOGIN;
   const toast = useToast();
   const navSections = useNavSections();
    
@@ -217,7 +218,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     markAllRead,
     dismiss: dismissNotification,
     clearAll: clearAllNotifications,
-  } = useNotifications(Boolean(user));
+  } = useNotifications(Boolean(user) && !isLogin);
    
   const defaultNavItems = useMemo(() => buildDefaultNavItems(navSections), [navSections]);
   const defaultActionItems = useMemo(
@@ -367,7 +368,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     .filter(item => [ROUTES.DASHBOARD, ROUTES.TARGETS, ROUTES.JOBS, ROUTES.FINDINGS, ROUTES.COCKPIT, ROUTES.SETTINGS].some((route) => route === item.path)), [navSections]);
 
   const motionDuration = strategy.duration || 0.2;
-  const isLogin = location.pathname === ROUTES.LOGIN;
+
 
   const pageMeta = useMemo(() => {
     if (location.pathname.startsWith(ROUTES.JOBS + '/')) {

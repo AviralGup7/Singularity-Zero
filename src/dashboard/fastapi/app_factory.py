@@ -31,9 +31,28 @@ _dashboard_stats_lock = asyncio.Lock()
 logger = logging.getLogger(__name__)
 
 
+def _apply_local_demo_defaults() -> None:
+    """Local dashboard entry points (``python -m src.dashboard.fastapi.main``)
+    do not load ``start_backend.py``. Without these defaults, Demo Sign In
+    has no JWT and ``/api/notifications`` returns 401.
+    """
+    app_env = os.getenv("APP_ENV", "development").strip().lower()
+    if app_env in {"production", "prod", "staging"}:
+        return
+    os.environ.setdefault("DASHBOARD_GUEST_ACCESS_ENABLED", "true")
+    if "DASHBOARD_AUTH_DISABLED" not in os.environ:
+        os.environ["DASHBOARD_AUTH_DISABLED"] = "true"
+        logger.warning(
+            "DASHBOARD_AUTH_DISABLED defaulted to true for local/development. "
+            "Set DASHBOARD_AUTH_DISABLED=false to require API keys/JWT."
+        )
+
+
 def create_app(config: DashboardConfig | None = None) -> FastAPI:
     if config is None:
         config = DashboardConfig()
+
+    _apply_local_demo_defaults()
 
     # Production safety guard: refuse SQLite in production (Finding #44)
     if os.getenv("APP_ENV") == "production":

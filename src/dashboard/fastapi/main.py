@@ -51,6 +51,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     """Run the FastAPI dashboard server using uvicorn."""
+    import os
+
+    app_env = os.environ.get("APP_ENV", "development").strip().lower()
+    if app_env not in {"production", "prod", "staging"}:
+        os.environ.setdefault("DASHBOARD_GUEST_ACCESS_ENABLED", "true")
+        os.environ.setdefault("DASHBOARD_AUTH_DISABLED", "true")
+        os.environ.setdefault("APP_SECRET_KEY", "change-me-in-production")
+
     args = parse_args(argv)
 
     logging.basicConfig(
