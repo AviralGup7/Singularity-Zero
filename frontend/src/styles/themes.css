@@ -460,37 +460,37 @@
   --table-border:    var(--line);
 }
 
-/* ── Night City (Cyberpunk 2077) ──────────────────────────── */
+/* ── Night City (Cyberpunk 2077) — red frames, cyan data, yellow jobs ── */
 [data-theme-preset="night-city"] {
-  --bg:            #07040a;
-  --bg-2:          #10060e;
-  --bg-3:          #1a0a14;
-  --sidebar:       #050208;
-  --sidebar-inset: #10060e;
-  --surface:       #120814;
-  --surface-2:     #1c0c18;
-  --surface-raised:#26101e;
-  --surface-3:     #2e1424;
-  --surface-muted: #0a050c;
-  --surface-hover: #2a121f;
+  --bg:            #07030a;
+  --bg-2:          #12040c;
+  --bg-3:          #1c0810;
+  --sidebar:       #0a0408;
+  --sidebar-inset: #12040c;
+  --surface:       #12040c;
+  --surface-2:     #1c0810;
+  --surface-raised:#261014;
+  --surface-3:     #2e1418;
+  --surface-muted: #080208;
+  --surface-hover: #2a1018;
 
-  --line:          rgba(252, 238, 10, 0.10);
-  --line-muted:    rgba(252, 238, 10, 0.05);
-  --line-strong:   rgba(252, 238, 10, 0.18);
-  --border:        rgba(255, 42, 109, 0.16);
-  --border-strong: rgba(252, 238, 10, 0.28);
-  --border-soft:   rgba(0, 240, 255, 0.08);
+  --line:          rgba(255, 0, 60, 0.18);
+  --line-muted:    rgba(255, 0, 60, 0.08);
+  --line-strong:   rgba(255, 0, 60, 0.32);
+  --border:        rgba(255, 0, 60, 0.40);
+  --border-strong: rgba(45, 226, 230, 0.45);
+  --border-soft:   rgba(45, 226, 230, 0.12);
 
-  --text-primary:   #f6f1c4;
-  --text-secondary: #c4b56a;
-  --text-tertiary:  #7a6a48;
+  --text-primary:   #f4f0f2;
+  --text-secondary: #c8b8bc;
+  --text-tertiary:  #7a6068;
 
-  --accent:        #fcee0a;
-  --accent-2:      #ff2a6d;
-  --accent-soft:   rgba(252, 238, 10, 0.14);
-  --accent-muted:  rgba(252, 238, 10, 0.07);
-  --accent-hover:  #ffe94a;
-  --accent-active: #d4c608;
+  --accent:        #2de2e6;
+  --accent-2:      #fcee0a;
+  --accent-soft:   rgba(45, 226, 230, 0.14);
+  --accent-muted:  rgba(45, 226, 230, 0.07);
+  --accent-hover:  #5aeff2;
+  --accent-active: #1ab8bc;
 
   --neon-blue:    #00f0ff;
   --neon-purple:  #c44cff;

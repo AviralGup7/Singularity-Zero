@@ -1,32 +1,32 @@
 /* ══════════════════════════════════════════════════════════════
-   NIGHT CITY — Cyberpunk 2077 diegetic HUD
-   Not a recolor. Full chrome takeover when
-   html[data-theme-preset='night-city'] is set.
+   NIGHT CITY — rebuilt from Cyberpunk 2077 screenshots
+   Inventory / radial / main menu / in-world HUD language:
+   red frames, cyan data, yellow logo & jobs, sparse corners.
    ══════════════════════════════════════════════════════════════ */
 
 html[data-theme-preset='night-city'] {
   --nc-yellow: #fcee0a;
-  --nc-magenta: #ff003c;
+  --nc-red: #ff003c;
   --nc-hot: #ff2a6d;
-  --nc-cyan: #00f0ff;
+  --nc-cyan: #2de2e6;
+  --nc-cyan-hot: #00f0ff;
   --nc-green: #05ffa1;
-  --nc-orange: #fe7317;
-  --nc-void: #050308;
-  --nc-cut: 12px;
+  --nc-void: #07030a;
   --font-ui: 'Rajdhani', 'Oxanium', 'Inter', sans-serif;
   --font-heading: 'Oxanium', 'Rajdhani', sans-serif;
   --font-mono: 'Share Tech Mono', 'JetBrains Mono', ui-monospace, monospace;
   --font-body: var(--font-ui);
   --radius-xs: 0px;
   --radius-sm: 0px;
-  --radius-md: 2px;
+  --radius-md: 0px;
   --radius-lg: 0px;
   --radius-xl: 0px;
   --radius-xxl: 0px;
   --weight-title: 800;
-  --weight-section: 700;
+  --accent: var(--nc-cyan-hot);
+  --accent-2: var(--nc-yellow);
   color-scheme: dark;
-  scrollbar-color: var(--nc-yellow) #0a0608;
+  scrollbar-color: var(--nc-red) #140308;
 }
 
 html[data-theme-preset='night-city'] *,
@@ -37,357 +37,354 @@ html[data-theme-preset='night-city'] *::after {
 
 html[data-theme-preset='night-city'] body {
   font-family: var(--font-ui);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   background-color: var(--nc-void);
   background-image:
-    radial-gradient(ellipse 90% 50% at 80% -10%, rgba(255, 0, 60, 0.18), transparent 50%),
-    radial-gradient(ellipse 70% 40% at 0% 100%, rgba(0, 240, 255, 0.1), transparent 46%),
-    linear-gradient(180deg, rgba(252, 238, 10, 0.04), transparent 30%),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 47px,
-      rgba(252, 238, 10, 0.035) 48px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0,
-      transparent 47px,
-      rgba(0, 240, 255, 0.03) 48px
-    );
+    radial-gradient(ellipse 80% 70% at 50% 0%, rgba(180, 0, 40, 0.28), transparent 55%),
+    linear-gradient(180deg, rgba(40, 0, 12, 0.55), #07030a 42%);
   background-attachment: fixed;
-  cursor: crosshair;
 }
 
 html[data-theme-preset='night-city'] ::selection {
-  background: var(--nc-yellow);
-  color: #0a0800;
+  background: var(--nc-red);
+  color: #fff;
 }
 
-html[data-theme-preset='night-city'] a,
-html[data-theme-preset='night-city'] button,
-html[data-theme-preset='night-city'] [role='button'],
-html[data-theme-preset='night-city'] input,
-html[data-theme-preset='night-city'] select,
-html[data-theme-preset='night-city'] textarea,
-html[data-theme-preset='night-city'] label {
-  cursor: crosshair;
-}
-
-/* ── Diegetic HUD overlay ─────────────────────────────────── */
+/* ── In-world HUD (from gameplay screenshots) ─────────────── */
 
 .nc-hud {
   pointer-events: none;
   position: fixed;
   inset: 0;
-  z-index: 70;
-  overflow: hidden;
-}
-
-.nc-hud-vignette {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at center, transparent 48%, rgba(0, 0, 0, 0.55) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0, transparent 12%, transparent 88%, rgba(0, 0, 0, 0.45) 100%);
+  z-index: 60;
 }
 
 .nc-hud-scan {
   position: absolute;
   inset: 0;
-  opacity: 0.11;
+  opacity: 0.06;
   background: repeating-linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.06) 0px,
-    rgba(255, 255, 255, 0.06) 1px,
+    rgba(255, 255, 255, 0.07) 0px,
+    rgba(255, 255, 255, 0.07) 1px,
     transparent 2px,
-    transparent 4px
+    transparent 3px
   );
   mix-blend-mode: overlay;
-  animation: nc-scan-drift 9s linear infinite;
 }
 
-.nc-hud-noise {
+.nc-hud-vitals {
   position: absolute;
-  inset: -20%;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.7'/></svg>");
-  animation: nc-noise 0.35s steps(2) infinite;
-  mix-blend-mode: overlay;
-}
-
-.nc-c {
-  position: absolute;
-  width: 42px;
-  height: 42px;
-  border: 2px solid var(--nc-yellow);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--nc-yellow) 55%, transparent);
-}
-.nc-c--tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
-.nc-c--tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
-.nc-c--bl { bottom: 28px; left: 10px; border-right: 0; border-top: 0; }
-.nc-c--br { bottom: 28px; right: 10px; border-left: 0; border-top: 0; }
-
-.nc-hud-top {
-  position: absolute;
-  top: 8px;
-  left: 64px;
-  right: 64px;
+  top: 14px;
+  left: 18px;
   display: flex;
-  align-items: baseline;
-  gap: 18px;
+  flex-direction: column;
+  gap: 4px;
+  width: 168px;
+}
+
+.nc-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+.nc-bar span {
+  flex: 1;
+  display: block;
+  background: var(--nc-red);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--nc-red) 50%, transparent);
+}
+.nc-bar--st {
+  height: 5px;
+  width: 72%;
+}
+.nc-bar--st span {
+  background: var(--nc-cyan);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--nc-cyan) 50%, transparent);
+}
+
+.nc-hud-ammo {
+  margin-top: 4px;
+  color: var(--nc-cyan);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 8px var(--nc-cyan);
+}
+.nc-hud-ammo small {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 0.28em;
+  opacity: 0.7;
+}
+
+.nc-hud-map {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.nc-minimap {
+  position: relative;
+  width: 132px;
+  height: 92px;
+  background:
+    linear-gradient(rgba(45, 226, 230, 0.12) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(90deg, rgba(45, 226, 230, 0.12) 1px, transparent 1px) 0 0 / 16px 16px,
+    rgba(4, 10, 14, 0.72);
+  border: 1px solid color-mix(in srgb, var(--nc-cyan) 45%, transparent);
+  overflow: hidden;
+}
+.nc-minimap i {
+  position: absolute;
+  background: var(--nc-cyan);
+  opacity: 0.55;
+}
+.nc-minimap i:nth-child(1) { left: 18%; top: 0; bottom: 0; width: 2px; transform: rotate(18deg); }
+.nc-minimap i:nth-child(2) { left: 0; right: 0; top: 42%; height: 2px; }
+.nc-minimap i:nth-child(3) { right: 22%; top: 10%; bottom: 10%; width: 2px; transform: rotate(-12deg); }
+.nc-minimap b {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  left: 48%;
+  top: 48%;
+  background: var(--nc-yellow);
+  box-shadow: 0 0 8px var(--nc-yellow);
+}
+
+.nc-district {
+  text-align: right;
+  font-family: var(--font-heading);
+  letter-spacing: 0.2em;
+}
+.nc-district em {
+  display: block;
+  font-style: normal;
+  color: var(--nc-red);
+  font-size: 9px;
+}
+.nc-district strong {
+  color: var(--nc-yellow);
+  font-size: 11px;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--nc-yellow) 50%, transparent);
+}
+
+.nc-hud-job {
+  position: absolute;
+  right: 18px;
+  bottom: 86px;
+  text-align: right;
+  max-width: 240px;
+}
+.nc-job-tag {
+  display: inline-block;
+  background: var(--nc-red);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  padding: 2px 6px;
+  margin-bottom: 4px;
+}
+.nc-job-title {
+  color: var(--nc-red);
   font-family: var(--font-heading);
   font-weight: 800;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--nc-yellow);
-  text-shadow:
-    0 0 8px color-mix(in srgb, var(--nc-yellow) 70%, transparent),
-    2px 0 var(--nc-hot),
-    -1px 0 var(--nc-cyan);
+  letter-spacing: 0.16em;
   font-size: 11px;
 }
-
-.nc-hud-mark {
-  color: var(--nc-hot);
-  letter-spacing: 0.18em;
-  text-shadow: 0 0 10px var(--nc-hot);
-  font-size: 10px;
+.nc-job-obj {
+  color: var(--nc-yellow);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--nc-yellow) 40%, transparent);
 }
 
-.nc-hud-brand {
-  font-size: 13px;
+.nc-hud-keys {
+  position: absolute;
+  right: 18px;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--nc-red);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
-
-.nc-hud-district {
+.nc-hud-keys kbd {
+  display: inline-block;
+  margin-left: 8px;
+  min-width: 22px;
+  text-align: center;
+  border: 1px solid var(--nc-cyan);
   color: var(--nc-cyan);
-  text-shadow: 0 0 8px var(--nc-cyan);
-  margin-left: auto;
-  letter-spacing: 0.22em;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+}
+
+.nc-hud-slots {
+  position: absolute;
+  left: 18px;
+  bottom: 28px;
+  display: flex;
+  gap: 6px;
+}
+.nc-hud-slots i {
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--nc-cyan) 50%, transparent);
+  background: rgba(0, 40, 48, 0.35);
 }
 
 .nc-hud-clock {
-  font-family: var(--font-mono);
-  letter-spacing: 0.12em;
-  color: var(--nc-yellow);
-}
-
-.nc-hud-ticker {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 22px;
-  overflow: hidden;
-  background: linear-gradient(90deg, rgba(252, 238, 10, 0.16), rgba(255, 0, 60, 0.12), rgba(0, 240, 255, 0.1));
-  border-top: 1px solid var(--nc-yellow);
-  color: #0a0800;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: color-mix(in srgb, var(--nc-cyan) 70%, white);
+  opacity: 0.55;
 }
 
-.nc-hud-ticker-track {
-  display: inline-block;
-  white-space: nowrap;
-  padding: 4px 0;
-  animation: nc-ticker 28s linear infinite;
-}
-
-@keyframes nc-ticker {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-@keyframes nc-scan-drift {
-  from { background-position: 0 0; }
-  to { background-position: 0 8px; }
-}
-
-@keyframes nc-noise {
-  0% { transform: translate(0, 0); }
-  100% { transform: translate(-2%, 1%); }
-}
-
-@keyframes nc-flicker {
-  0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
-  20%, 24%, 55% { opacity: 0.55; }
-}
-
-@keyframes nc-glitch {
-  0%, 88%, 100% {
-    transform: translate(0);
-    text-shadow: 0 0 8px color-mix(in srgb, var(--nc-yellow) 50%, transparent);
-  }
-  89% {
-    transform: translate(-2px, 0);
-    text-shadow: 2px 0 var(--nc-hot), -2px 0 var(--nc-cyan);
-  }
-  91% {
-    transform: translate(2px, 1px) skewX(-4deg);
-    text-shadow: -2px 0 var(--nc-yellow);
-  }
-  93% { transform: translate(0); }
-}
-
-@keyframes nc-bar {
-  0% { transform: translateX(-120%); }
-  100% { transform: translateX(220%); }
-}
-
-@keyframes nc-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-
-/* ── Shell / chrome ───────────────────────────────────────── */
-
-html[data-theme-preset='night-city'] .app-shell,
-html[data-theme-preset='night-city'] .app-shell--hud {
-  background: transparent;
-}
+/* ── Shell: inventory-screen red wash ─────────────────────── */
 
 html[data-theme-preset='night-city'] .sidebar {
   background:
-    linear-gradient(180deg, rgba(252, 238, 10, 0.06), transparent 18%),
-    #070309 !important;
-  border-right: 1px solid color-mix(in srgb, var(--nc-yellow) 35%, transparent) !important;
-  box-shadow:
-    8px 0 40px -16px color-mix(in srgb, var(--nc-hot) 55%, transparent),
-    inset -1px 0 0 color-mix(in srgb, var(--nc-cyan) 25%, transparent);
-}
-
-html[data-theme-preset='night-city'] .sidebar-brand-text,
-html[data-theme-preset='night-city'] .header-title-block h1,
-html[data-theme-preset='night-city'] .auth-left h1,
-html[data-theme-preset='night-city'] .page-header h1,
-html[data-theme-preset='night-city'] .page-header h2 {
-  font-family: var(--font-heading) !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.18em !important;
-  text-transform: uppercase;
-  color: var(--nc-yellow) !important;
-  animation: nc-glitch 8s steps(2, end) infinite;
+    linear-gradient(180deg, rgba(255, 0, 60, 0.12), transparent 24%),
+    #0a0408 !important;
+  border-right: 1px solid color-mix(in srgb, var(--nc-red) 45%, transparent) !important;
 }
 
 html[data-theme-preset='night-city'] .sidebar-brand-text {
-  animation: nc-flicker 6.5s step-end infinite, nc-glitch 11s steps(2, end) infinite;
+  font-family: var(--font-heading) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nc-yellow) !important;
+  text-shadow:
+    2px 0 var(--nc-hot),
+    -2px 0 var(--nc-cyan),
+    0 0 12px color-mix(in srgb, var(--nc-yellow) 50%, transparent);
 }
 
 html[data-theme-preset='night-city'] .sidebar-section-label {
-  color: var(--nc-cyan) !important;
+  color: var(--nc-red) !important;
   letter-spacing: 0.28em !important;
   font-family: var(--font-mono);
   font-size: 9px !important;
 }
 
 html[data-theme-preset='night-city'] .sidebar-nav-item {
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
   border: 1px solid transparent;
+  color: #d8d0d4;
 }
 
 html[data-theme-preset='night-city'] .sidebar-nav-item--active {
-  border-left: 3px solid var(--nc-yellow) !important;
-  background: color-mix(in srgb, var(--nc-yellow) 12%, transparent) !important;
-  color: var(--nc-yellow) !important;
-  box-shadow:
-    inset 0 0 22px color-mix(in srgb, var(--nc-yellow) 10%, transparent),
-    0 0 16px color-mix(in srgb, var(--nc-yellow) 18%, transparent);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--nc-yellow) 50%, transparent);
+  border: 1px solid var(--nc-cyan) !important;
+  background: color-mix(in srgb, var(--nc-cyan) 16%, transparent) !important;
+  color: var(--nc-cyan) !important;
+  box-shadow: none;
 }
 
 html[data-theme-preset='night-city'] .app-command-header {
-  background: linear-gradient(180deg, rgba(5, 3, 8, 0.92), rgba(8, 4, 10, 0.78)) !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--nc-hot) 45%, transparent) !important;
-  box-shadow:
-    0 1px 0 color-mix(in srgb, var(--nc-cyan) 30%, transparent),
-    0 12px 28px -18px rgba(0, 0, 0, 0.9);
-  padding-top: 22px;
+  background: linear-gradient(180deg, rgba(20, 0, 8, 0.88), rgba(8, 2, 6, 0.7)) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--nc-red) 40%, transparent) !important;
+  box-shadow: none;
+  padding-top: 8px;
+}
+
+html[data-theme-preset='night-city'] .header-title-block h1 {
+  font-family: var(--font-heading) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f4f0f2 !important;
+  font-size: 13px !important;
 }
 
 html[data-theme-preset='night-city'] .header-title-block p {
   font-family: var(--font-mono);
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--nc-cyan) !important;
+  font-size: 10px;
+}
+
+html[data-theme-preset='night-city'] .command-search {
+  background: rgba(8, 2, 6, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--nc-red) 40%, transparent) !important;
+  font-family: var(--font-mono);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--nc-cyan) !important;
 }
 
-html[data-theme-preset='night-city'] .command-search {
-  background: #0a0608 !important;
-  border: 1px solid color-mix(in srgb, var(--nc-cyan) 40%, transparent) !important;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+html[data-theme-preset='night-city'] footer,
+html[data-theme-preset='night-city'] .app-footer {
+  background: transparent !important;
+  border-top: 1px solid color-mix(in srgb, var(--nc-red) 28%, transparent) !important;
   font-family: var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  margin-bottom: 8px;
 }
 
-html[data-theme-preset='night-city'] footer,
-html[data-theme-preset='night-city'] .app-footer {
-  background: #050208 !important;
-  border-top: 1px solid color-mix(in srgb, var(--nc-cyan) 28%, transparent) !important;
-  font-family: var(--font-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin-bottom: 22px;
-}
-
-/* ── Buttons ──────────────────────────────────────────────── */
+/* ── Buttons: yellow fill = logo energy; cyan = selected ─── */
 
 html[data-theme-preset='night-city'] .btn-primary,
 html[data-theme-preset='night-city'] .topbar-primary,
-html[data-theme-preset='night-city'] .auth-submit,
-html[data-theme-preset='night-city'] button.btn-primary {
+html[data-theme-preset='night-city'] .auth-submit {
   background: var(--nc-yellow) !important;
   border: 0 !important;
-  color: #0a0800 !important;
+  color: #141000 !important;
   font-family: var(--font-heading) !important;
   font-weight: 800 !important;
-  letter-spacing: 0.16em !important;
+  letter-spacing: 0.14em !important;
   text-transform: uppercase !important;
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-  box-shadow:
-    0 0 18px color-mix(in srgb, var(--nc-yellow) 55%, transparent),
-    0 0 2px var(--nc-yellow);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--nc-yellow) 40%, transparent);
 }
 
 html[data-theme-preset='night-city'] .btn-primary:hover,
-html[data-theme-preset='night-city'] .topbar-primary:hover,
 html[data-theme-preset='night-city'] .auth-submit:hover:not(:disabled) {
   background: #fff56a !important;
-  box-shadow:
-    0 0 32px color-mix(in srgb, var(--nc-yellow) 80%, transparent),
-    0 0 8px var(--nc-cyan);
 }
 
 html[data-theme-preset='night-city'] .btn-secondary,
 html[data-theme-preset='night-city'] .auth-sso,
 html[data-theme-preset='night-city'] .sidebar-theme-toggle {
   background: transparent !important;
-  border: 1px solid var(--nc-hot) !important;
-  color: var(--nc-hot) !important;
+  border: 1px solid var(--nc-cyan) !important;
+  color: var(--nc-cyan) !important;
   font-family: var(--font-heading);
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
 }
 
-html[data-theme-preset='night-city'] .btn-secondary:hover,
-html[data-theme-preset='night-city'] .auth-sso:hover {
-  background: color-mix(in srgb, var(--nc-hot) 12%, transparent) !important;
-  box-shadow: 0 0 18px color-mix(in srgb, var(--nc-hot) 40%, transparent);
+html[data-theme-preset='night-city'] .auth-sso:hover,
+html[data-theme-preset='night-city'] .btn-secondary:hover {
+  background: color-mix(in srgb, var(--nc-cyan) 14%, transparent) !important;
 }
 
 html[data-theme-preset='night-city'] .header-live-pill {
-  background: var(--nc-yellow) !important;
-  color: #0a0800 !important;
-  clip-path: polygon(20% 0, 100% 0, 80% 100%, 0 100%);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--nc-yellow) 55%, transparent);
-  font-family: var(--font-heading);
+  background: var(--nc-red) !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--nc-red) 50%, transparent);
 }
 
-/* ── Panels / cards ───────────────────────────────────────── */
+/* ── Cards = inventory slots (thin red frames, corner ticks) */
 
 html[data-theme-preset='night-city'] .card,
 html[data-theme-preset='night-city'] .glass-stat-card,
@@ -396,12 +393,9 @@ html[data-theme-preset='night-city'] .ops-panel,
 html[data-theme-preset='night-city'] .pipeline-stat-card,
 html[data-theme-preset='night-city'] .auth-card {
   position: relative;
-  background: linear-gradient(180deg, rgba(18, 8, 14, 0.92), rgba(8, 3, 10, 0.88)) !important;
-  border: 1px solid color-mix(in srgb, var(--nc-yellow) 22%, transparent) !important;
-  box-shadow:
-    0 18px 40px -16px rgba(0, 0, 0, 0.85),
-    inset 0 0 0 1px color-mix(in srgb, var(--nc-hot) 12%, transparent);
-  overflow: hidden;
+  background: rgba(12, 2, 8, 0.72) !important;
+  border: 1px solid color-mix(in srgb, var(--nc-red) 55%, transparent) !important;
+  box-shadow: none;
 }
 
 html[data-theme-preset='night-city'] .card::before,
@@ -412,57 +406,36 @@ html[data-theme-preset='night-city'] .pipeline-stat-card::before,
 html[data-theme-preset='night-city'] .auth-card::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: -1px;
   pointer-events: none;
   background:
-    linear-gradient(var(--nc-yellow), var(--nc-yellow)) top left / 18px 2px no-repeat,
-    linear-gradient(var(--nc-yellow), var(--nc-yellow)) top left / 2px 18px no-repeat,
-    linear-gradient(var(--nc-cyan), var(--nc-cyan)) top right / 18px 2px no-repeat,
-    linear-gradient(var(--nc-cyan), var(--nc-cyan)) top right / 2px 18px no-repeat,
-    linear-gradient(var(--nc-hot), var(--nc-hot)) bottom left / 18px 2px no-repeat,
-    linear-gradient(var(--nc-hot), var(--nc-hot)) bottom left / 2px 18px no-repeat,
-    linear-gradient(var(--nc-yellow), var(--nc-yellow)) bottom right / 18px 2px no-repeat,
-    linear-gradient(var(--nc-yellow), var(--nc-yellow)) bottom right / 2px 18px no-repeat;
-  opacity: 0.9;
-  z-index: 2;
-}
-
-html[data-theme-preset='night-city'] .card::after,
-html[data-theme-preset='night-city'] .pipeline-stat-card::after,
-html[data-theme-preset='night-city'] .auth-card::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  top: 0;
-  background: linear-gradient(90deg, transparent, var(--nc-yellow), var(--nc-cyan), transparent);
-  animation: nc-bar 4.8s linear infinite;
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 3;
+    linear-gradient(var(--nc-red), var(--nc-red)) top left / 12px 1px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) top left / 1px 12px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) top right / 12px 1px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) top right / 1px 12px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) bottom left / 12px 1px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) bottom left / 1px 12px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) bottom right / 12px 1px no-repeat,
+    linear-gradient(var(--nc-red), var(--nc-red)) bottom right / 1px 12px no-repeat;
 }
 
 html[data-theme-preset='night-city'] .card:hover,
 html[data-theme-preset='night-city'] .pipeline-stat-card:hover {
-  border-color: color-mix(in srgb, var(--nc-hot) 55%, var(--nc-yellow)) !important;
-  box-shadow:
-    0 20px 48px -12px rgba(0, 0, 0, 0.8),
-    0 0 28px color-mix(in srgb, var(--nc-hot) 22%, transparent);
+  border-color: var(--nc-cyan) !important;
 }
 
 html[data-theme-preset='night-city'] .pipeline-stat-card .stat-label,
 html[data-theme-preset='night-city'] .stat-label {
   font-family: var(--font-mono);
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   color: var(--nc-cyan) !important;
+  text-transform: uppercase;
 }
 
 html[data-theme-preset='night-city'] .pipeline-stat-card .stat-value,
 html[data-theme-preset='night-city'] .stat-value {
   font-family: var(--font-heading);
-  color: var(--nc-yellow) !important;
-  text-shadow: 0 0 14px color-mix(in srgb, var(--nc-yellow) 45%, transparent);
+  color: #fff !important;
 }
 
 /* ── Forms ────────────────────────────────────────────────── */
@@ -471,22 +444,18 @@ html[data-theme-preset='night-city'] input,
 html[data-theme-preset='night-city'] select,
 html[data-theme-preset='night-city'] textarea,
 html[data-theme-preset='night-city'] .auth-field {
-  background: #0a0608 !important;
-  border-color: color-mix(in srgb, var(--nc-yellow) 22%, transparent) !important;
-  color: var(--nc-yellow) !important;
+  background: rgba(8, 2, 6, 0.85) !important;
+  border-color: color-mix(in srgb, var(--nc-red) 40%, transparent) !important;
+  color: #f2eef0 !important;
   font-family: var(--font-mono);
-  letter-spacing: 0.08em;
 }
 
 html[data-theme-preset='night-city'] input:focus,
 html[data-theme-preset='night-city'] select:focus,
 html[data-theme-preset='night-city'] textarea:focus,
 html[data-theme-preset='night-city'] .auth-field:focus-within {
-  border-color: var(--nc-yellow) !important;
-  box-shadow:
-    0 0 0 1px var(--nc-yellow),
-    0 0 22px color-mix(in srgb, var(--nc-cyan) 30%, transparent) !important;
-  outline: none !important;
+  border-color: var(--nc-cyan) !important;
+  box-shadow: 0 0 0 1px var(--nc-cyan) !important;
 }
 
 html[data-theme-preset='night-city'] label,
@@ -498,21 +467,42 @@ html[data-theme-preset='night-city'] .setting-title {
   font-size: 11px !important;
 }
 
-/* ── Auth / login as game boot ────────────────────────────── */
+/* ── Login = main menu (yellow wordmark, cyan list) ───────── */
 
 html[data-theme-preset='night-city'] .auth-canvas {
   background:
-    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(255, 0, 60, 0.28), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(0, 240, 255, 0.16), transparent 50%),
-    #050208 !important;
+    radial-gradient(ellipse 50% 80% at 0% 50%, rgba(180, 0, 40, 0.35), transparent 60%),
+    #07030a !important;
+}
+
+html[data-theme-preset='night-city'] .auth-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-preset='night-city'] .auth-left h1 {
+  font-family: var(--font-heading) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--nc-yellow) !important;
+  font-size: 42px !important;
+  line-height: 0.9;
+  text-shadow:
+    3px 0 var(--nc-hot),
+    -3px 0 var(--nc-cyan),
+    0 0 18px color-mix(in srgb, var(--nc-yellow) 45%, transparent);
 }
 
 html[data-theme-preset='night-city'] .auth-left h1::after {
-  content: ' / ナイトシティ';
-  color: var(--nc-hot);
-  font-size: 0.55em;
-  letter-spacing: 0.2em;
-  margin-left: 8px;
+  content: '  2077';
+  display: block;
+  font-size: 0.38em;
+  letter-spacing: 0.4em;
+  color: var(--nc-cyan);
+  text-shadow: none;
+  margin-top: 6px;
 }
 
 html[data-theme-preset='night-city'] .auth-subtitle {
@@ -524,125 +514,65 @@ html[data-theme-preset='night-city'] .auth-subtitle {
 
 html[data-theme-preset='night-city'] .feature-row strong {
   font-family: var(--font-heading);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--nc-yellow) !important;
+  color: var(--nc-cyan) !important;
 }
 
 html[data-theme-preset='night-city'] .feature-icon {
-  background: color-mix(in srgb, var(--nc-yellow) 12%, transparent) !important;
-  border: 1px solid var(--nc-yellow) !important;
-  color: var(--nc-yellow) !important;
-  box-shadow: 0 0 16px color-mix(in srgb, var(--nc-yellow) 30%, transparent);
+  background: transparent !important;
+  border: 1px solid var(--nc-red) !important;
+  color: var(--nc-red) !important;
 }
 
 html[data-theme-preset='night-city'] .scene-shield {
-  color: var(--nc-yellow) !important;
-  filter: drop-shadow(0 0 28px rgba(252, 238, 10, 0.55));
+  color: var(--nc-red) !important;
+  filter: drop-shadow(0 0 24px rgba(255, 0, 60, 0.45));
 }
 
 html[data-theme-preset='night-city'] .scene-grid {
   background-image:
-    linear-gradient(rgba(252, 238, 10, 0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.1) 1px, transparent 1px) !important;
+    linear-gradient(rgba(255, 0, 60, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45, 226, 230, 0.08) 1px, transparent 1px) !important;
 }
 
 html[data-theme-preset='night-city'] .auth-demo {
   font-family: var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: var(--nc-red) !important;
 }
 
-/* ── Tables / lists ───────────────────────────────────────── */
+/* ── Tables ───────────────────────────────────────────────── */
 
-html[data-theme-preset='night-city'] table,
-html[data-theme-preset='night-city'] .table {
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-}
-
-html[data-theme-preset='night-city'] thead,
 html[data-theme-preset='night-city'] th {
-  background: #14080e !important;
-  color: var(--nc-yellow) !important;
-  letter-spacing: 0.18em;
+  background: rgba(40, 0, 12, 0.6) !important;
+  color: var(--nc-cyan) !important;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   font-size: 11px;
+  font-family: var(--font-mono);
 }
 
 html[data-theme-preset='night-city'] tbody tr:hover {
-  background: color-mix(in srgb, var(--nc-yellow) 8%, transparent) !important;
+  background: color-mix(in srgb, var(--nc-red) 10%, transparent) !important;
 }
 
-html[data-theme-preset='night-city'] .badge,
-html[data-theme-preset='night-city'] [class*='badge'] {
-  font-family: var(--font-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-/* ── Scrollbar ────────────────────────────────────────────── */
-
-html[data-theme-preset='night-city'] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-html[data-theme-preset='night-city'] ::-webkit-scrollbar-track {
-  background: #050208;
-}
-html[data-theme-preset='night-city'] ::-webkit-scrollbar-thumb {
-  background: var(--nc-yellow);
-  box-shadow: 0 0 8px var(--nc-yellow);
-}
-
-/* ── Toasts ───────────────────────────────────────────────── */
-
-html[data-theme-preset='night-city'] [class*='toast'],
-html[data-theme-preset='night-city'] .toast {
-  border: 1px solid var(--nc-yellow) !important;
-  background: #0a0608 !important;
-  font-family: var(--font-mono);
-  letter-spacing: 0.08em;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-}
-
-/* ── Settings cards ───────────────────────────────────────── */
-
-html[data-theme-preset='night-city'] .theme-option-card.active,
-html[data-theme-preset='night-city'] button[aria-label*='Night City'] {
-  border-color: var(--nc-yellow) !important;
-  box-shadow: 0 0 22px color-mix(in srgb, var(--nc-yellow) 35%, transparent);
-}
-
-/* ── Mobile dock ──────────────────────────────────────────── */
+html[data-theme-preset='night-city'] ::-webkit-scrollbar { width: 6px; height: 6px; }
+html[data-theme-preset='night-city'] ::-webkit-scrollbar-track { background: #0a0408; }
+html[data-theme-preset='night-city'] ::-webkit-scrollbar-thumb { background: var(--nc-red); }
 
 html[data-theme-preset='night-city'] .mobile-dock {
-  background: #050208 !important;
-  border-top: 1px solid var(--nc-yellow) !important;
-  margin-bottom: 22px;
+  background: #0a0408 !important;
+  border-top: 1px solid var(--nc-red) !important;
 }
 
 html[data-theme-preset='night-city'] .mobile-dock-item--active {
-  color: var(--nc-yellow) !important;
+  color: var(--nc-cyan) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-preset='night-city'] .sidebar-brand-text,
-  html[data-theme-preset='night-city'] .header-title-block h1,
-  html[data-theme-preset='night-city'] .auth-left h1,
-  html[data-theme-preset='night-city'] .page-header h1,
-  html[data-theme-preset='night-city'] .nc-hud-scan,
-  html[data-theme-preset='night-city'] .nc-hud-noise,
-  html[data-theme-preset='night-city'] .nc-hud-ticker-track,
-  html[data-theme-preset='night-city'] .card::after {
+  html[data-theme-preset='night-city'] .nc-hud-scan {
     animation: none !important;
   }
-}
-
-html[data-theme-preset='night-city'][data-motion-intensity='off'] .nc-hud-scan,
-html[data-theme-preset='night-city'][data-motion-intensity='off'] .nc-hud-noise,
-html[data-theme-preset='night-city'][data-motion-intensity='off'] .nc-hud-ticker-track,
-html[data-theme-preset='night-city'][data-motion-intensity='off'] .card::after,
-html[data-theme-preset='night-city'][data-motion-intensity='off'] .sidebar-brand-text {
-  animation: none !important;
 }
