@@ -26,6 +26,7 @@ import { ShortcutsModal } from './ShortcutsModal';
 import { ScanStatusBar } from '@/components/ScanStatusBar';
 import { SessionGuard } from '@/components/SessionGuard';
 import { useEscapeToClose } from '@/hooks/useKeyboardShortcuts';
+import { shouldIgnoreGlobalShortcut } from '@/utils/findingTime';
 
 const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
 const NightCityHud = lazy(() => import('./NightCityHud').then(m => ({ default: m.NightCityHud })));
@@ -297,7 +298,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       return;
     }
 
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (shouldIgnoreGlobalShortcut(e.target)) return;
 
     if (e.key === '?' || (e.shiftKey && e.key === '/')) {
       e.preventDefault();

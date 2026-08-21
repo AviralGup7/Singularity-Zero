@@ -1,4 +1,5 @@
 import type { DetectionGapResponse } from '@/types/api';
+import { clampPercent } from '@/utils/findingTime';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { motion } from 'framer-motion';
 
@@ -21,14 +22,14 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
           }`}
           style={{ fontSize: 'var(--text-card-value)' }}
         >
-          {data.overall_coverage}%
+          {clampPercent(data.overall_coverage)}%
         </div>
         <div className="mt-4 h-1.5 w-full bg-surface-hover rounded-full overflow-hidden">
           <div
             className={`h-full transition-all duration-1000 ${
               data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'bg-bad'
             }`}
-            style={{ width: `${data.overall_coverage}%` }}
+            style={{ width: `${clampPercent(data.overall_coverage)}%` }}
           />
         </div>
       </motion.div>

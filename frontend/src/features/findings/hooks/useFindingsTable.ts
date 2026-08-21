@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import type { Finding } from '@/types/api';
 import { bucketKanbanFindings } from '../components/FindingsKanbanView';
 import { clampFindingsPage } from '../findingsViewMode';
+import { parseFindingTimestamp } from '@/utils/findingTime';
 
 type SortKey = 'severity' | 'bounty_value' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';
@@ -138,8 +139,8 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
       else if (sortKey === 'target') cmp = (a.target || '').localeCompare(b.target || '');
       else if (sortKey === 'status') cmp = (a.status || '').localeCompare(b.status || '');
       else if (sortKey === 'date') {
-        const timeA = typeof a.timestamp === 'number' ? (a.timestamp > 9999999999 ? a.timestamp : a.timestamp * 1000) : new Date(a.timestamp || 0).getTime();
-        const timeB = typeof b.timestamp === 'number' ? (b.timestamp > 9999999999 ? b.timestamp : b.timestamp * 1000) : new Date(b.timestamp || 0).getTime();
+        const timeA = parseFindingTimestamp(a.timestamp);
+        const timeB = parseFindingTimestamp(b.timestamp);
         cmp = timeA - timeB;
       }
       return sortDir === 'asc' ? cmp : -cmp;
