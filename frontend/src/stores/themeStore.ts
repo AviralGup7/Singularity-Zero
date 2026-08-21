@@ -5,13 +5,6 @@ import type { ThemeMode, ThemePreset, ThemeState, ThemeUpdater } from '@/context
 
 const KNOWN_PRESETS: ThemePreset[] = ['midnight', 'ocean', 'forest', 'sunset', 'arctic', 'neon-void', 'night-city'];
 
-function detectSystemTheme(): ThemeMode {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return 'dark';
-  }
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-}
-
 const defaultTheme: ThemeState = {
   mode: 'dark',
   preset: 'night-city',
