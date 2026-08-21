@@ -8,6 +8,3 @@ import pytest
 @pytest.fixture(scope="session", autouse=True)
 def _register_analysis_plugins() -> None:
     import src.analysis.plugin_registration  # noqa: F401
-    from src.analysis.plugins import get_analysis_plugin_specs
-
-    get_analysis_plugin_specs()
