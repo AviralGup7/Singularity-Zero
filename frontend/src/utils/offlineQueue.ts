@@ -1,9 +1,12 @@
+import { createMutationId, nextOfflineRetryCount } from './offlineQueuePolicy';
+
 interface QueuedMutation<T = unknown> {
   id: string;
   execute: () => Promise<T>;
   rollback: () => void;
   timestamp: number;
   description: string;
+  retries: number;
 }
 
 type QueueListener = (queue: QueuedMutation[]) => void;
@@ -27,11 +30,12 @@ class OfflineMutationQueue {
     return this.queue.length;
   }
 
-  enqueue<T>(mutation: Omit<QueuedMutation<T>, 'id' | 'timestamp'>): void {
+  enqueue<T>(mutation: Omit<QueuedMutation<T>, 'id' | 'timestamp' | 'retries'>): void {
     const entry: QueuedMutation<T> = {
       ...mutation,
-      id: crypto.randomUUID(),
+      id: createMutationId(),
       timestamp: Date.now(),
+      retries: 0,
     };
     this.queue.push(entry as QueuedMutation);
     this.notify();
@@ -74,8 +78,15 @@ class OfflineMutationQueue {
         this.queue.shift();
         this.notify();
       } catch {
-        // Failed — keep in queue for retry
+        const retries = nextOfflineRetryCount(mutation.retries);
+        if (retries === null) {
+          this.queue.shift();
+          this.notify();
+          continue;
+        }
+        this.queue[0] = { ...mutation, retries };
         this.processing = false;
+        this.ensureOnlineHandler();
         return;
       }
     }

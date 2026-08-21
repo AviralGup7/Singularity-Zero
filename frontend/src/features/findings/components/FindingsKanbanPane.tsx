@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Finding } from '@/types/api';
 import { bulkUpdateFindings, updateFinding } from '@/api/client';
 import { useToast } from '@/hooks/useToast';
@@ -36,6 +36,7 @@ export function FindingsKanbanPane({ findings, onOpenDetail }: FindingsKanbanPan
   const toast = useToast();
   const [overrides, setOverrides] = useState<Record<string, KanbanColumn>>({});
   const [dragged, setDragged] = useState<Finding | null>(null);
+  const draggedRef = useRef<Finding | null>(null);
   const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
   const [fpDialogFinding, setFpDialogFinding] = useState<Finding | null>(null);
   const [fpJustification, setFpJustification] = useState('');
@@ -85,6 +86,7 @@ export function FindingsKanbanPane({ findings, onOpenDetail }: FindingsKanbanPan
   }, [toast]);
 
   const handleDragStart = useCallback((finding: Finding) => {
+    draggedRef.current = finding;
     setDragged(finding);
   }, []);
 
@@ -93,22 +95,25 @@ export function FindingsKanbanPane({ findings, onOpenDetail }: FindingsKanbanPan
   }, []);
 
   const handleDrop = useCallback(async (column: KanbanColumn) => {
-    if (!dragged) return;
-    const previous = resolveKanbanColumn({ ...dragged, kanbanStatus: overrides[dragged.id] ?? dragged.kanbanStatus });
+    const active = draggedRef.current ?? dragged;
+    if (!active) return;
+    const previous = resolveKanbanColumn({ ...active, kanbanStatus: overrides[active.id] ?? active.kanbanStatus });
     if (previous === column) {
+      draggedRef.current = null;
       setDragged(null);
       return;
     }
-    setOverrides((prev) => ({ ...prev, [dragged.id]: column }));
+    setOverrides((prev) => ({ ...prev, [active.id]: column }));
+    draggedRef.current = null;
     setDragged(null);
     try {
-      await updateFinding(dragged.id, { kanbanStatus: column });
+      await updateFinding(active.id, { kanbanStatus: column });
       toast.success(`Moved to ${column.replace(/_/g, ' ')}`);
     } catch {
       setOverrides((prev) => {
         const next = { ...prev };
-        if (previous) next[dragged.id] = previous;
-        else delete next[dragged.id];
+        if (previous) next[active.id] = previous;
+        else delete next[active.id];
         return next;
       });
       toast.error('Failed to update board status');

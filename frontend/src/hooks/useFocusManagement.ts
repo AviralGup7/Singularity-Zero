@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
+import { isFocusableHeading } from '@/utils/offlineQueuePolicy';
 
 export function useFocusManagement() {
   const mainContentRef = useRef<HTMLElement | null>(null);
@@ -45,6 +46,7 @@ export function useFocusOnRouteChange(selector = '[data-focus-heading], h1, h2')
     const runFocus = () => {
       const elements = document.querySelectorAll<HTMLElement>(selector);
       for (const el of elements) {
+        if (!isFocusableHeading(el)) continue;
         if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
         el.focus({ preventScroll: false });
         hasFocusRef.current = true;
@@ -57,7 +59,8 @@ export function useFocusOnRouteChange(selector = '[data-focus-heading], h1, h2')
       }
     };
 
-    runFocus();
+    const frame = window.requestAnimationFrame(() => runFocus());
+    return () => window.cancelAnimationFrame(frame);
    
   }, [location.pathname, selector]);
 
