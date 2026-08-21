@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.jobs.events import EventLog, JobEvent
+from src.jobs.events import EventLog
 from src.jobs.stages import STAGE_ORDER, StageKey, parse_stage_status
 
 

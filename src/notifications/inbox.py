@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import threading
 from collections.abc import Callable
 
@@ -37,7 +38,7 @@ class Inbox:
         event: NotificationEvent | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[Notification]:
+    ) -> builtins.list[Notification]:
         with self._lock:
             items = list(self._items)
         if unread_only:

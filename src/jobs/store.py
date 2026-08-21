@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import threading
 import time
 from collections.abc import Callable, Iterable
@@ -86,15 +87,21 @@ class MemoryJobStore:
             job = self._jobs.get(job_id)
             if job is None:
                 raise KeyError(job_id)
-            ok = _transition(job, status)
+            ok = _transition(job, parse_job_status(status))
             if not ok:
                 return dict(job)
             touch(job)
             snapshot = dict(job)
-        self._emit(event_for_status(job_id, snapshot["status"], message=message, stage=snapshot.get("stage")))
+        self._emit(
+            event_for_status(
+                job_id, snapshot["status"], message=message, stage=snapshot.get("stage")
+            )
+        )
         return snapshot
 
-    def update_stage(self, job_id: str, stage: object, status: object, **kwargs: Any) -> dict[str, Any]:
+    def update_stage(
+        self, job_id: str, stage: object, status: object, **kwargs: Any
+    ) -> dict[str, Any]:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
@@ -110,10 +117,14 @@ class MemoryJobStore:
                 raise KeyError(job_id)
             apply_failure(job, failure)
             snapshot = dict(job)
-        self._emit(event_for_status(job_id, JobStatus.FAILED, message=failure.message, stage=failure.stage))
+        self._emit(
+            event_for_status(job_id, JobStatus.FAILED, message=failure.message, stage=failure.stage)
+        )
         return snapshot
 
-    def finish(self, job_id: str, *, returncode: int = 0, stop_requested: bool = False, stderr: str = "") -> dict[str, Any]:
+    def finish(
+        self, job_id: str, *, returncode: int = 0, stop_requested: bool = False, stderr: str = ""
+    ) -> dict[str, Any]:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
@@ -162,7 +173,7 @@ class MemoryJobStore:
         with self._lock:
             return len(self._jobs)
 
-    def ids(self) -> list[str]:
+    def ids(self) -> builtins.list[str]:
         with self._lock:
             return list(self._jobs)
 

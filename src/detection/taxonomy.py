@@ -15,32 +15,6 @@ class Taxon:
     surface: str
 
 
-_FAMILIES: tuple[tuple[str, str], ...] = (
-    ("sqli", "injection"),
-    ("xss", "injection"),
-    ("ssti", "injection"),
-    ("ssrf", "ssrf"),
-    ("idor", "access"),
-    ("auth", "access"),
-    ("jwt", "access"),
-    ("cors", "misconfig"),
-    ("csp", "misconfig"),
-    ("hsts", "misconfig"),
-    ("graphql", "api"),
-    ("grpc", "api"),
-    ("websocket", "api"),
-    ("upload", "upload"),
-    ("path_traversal", "lfi"),
-    ("lfi", "lfi"),
-    ("race", "runtime"),
-    ("cache", "cache"),
-    ("header", "misconfig"),
-    ("tls", "crypto"),
-    ("takeover", "dns"),
-    ("waf", "defense"),
-)
-
-
 _SURFACES: tuple[tuple[str, str], ...] = (
     ("graphql", "graphql"),
     ("grpc", "grpc"),
@@ -54,11 +28,7 @@ _SURFACES: tuple[tuple[str, str], ...] = (
 
 def classify_key(key: str) -> Taxon:
     lowered = key.lower()
-    family = "other"
-    for needle, label in _FAMILIES:
-        if needle in lowered:
-            family = label
-            break
+    family = family_for(key)
     surface = "http"
     for needle, label in _SURFACES:
         if needle in lowered:

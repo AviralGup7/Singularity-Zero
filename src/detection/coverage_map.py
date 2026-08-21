@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.detection.taxonomy import catalog_taxonomy, families
 
 
-def coverage_report() -> dict[str, object]:
+def coverage_report() -> dict[str, Any]:
     taxons = catalog_taxonomy()
     fam = families()
     uncovered = [item.key for item in taxons if item.family == "other"]

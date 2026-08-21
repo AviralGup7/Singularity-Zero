@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from src.intel.feeds import configured_feed_keys, is_feed_configured
 from src.intel.ioc import Indicator, classify_indicator, related_indicators
@@ -64,14 +65,22 @@ class FeedAggregator:
     def lookup_many(self, values: list[object]) -> list[LookupResult]:
         return [self.lookup(value) for value in values]
 
-    def seed_from_mapping(self, payload: dict[str, object]) -> None:
+    def seed_from_mapping(self, payload: dict[str, Any]) -> None:
         source = str(payload.get("source") or "manual")
         verdict = parse_verdict(payload.get("verdict"))
-        score = float(payload.get("score") or 0.0)
-        tags = tuple(str(tag) for tag in (payload.get("tags") or []) if tag)
+        score_raw = payload.get("score") or 0.0
+        score = float(score_raw) if isinstance(score_raw, (int, float, str)) else 0.0
+        tags_raw = payload.get("tags") or []
+        tags = (
+            tuple(str(tag) for tag in tags_raw if tag)
+            if isinstance(tags_raw, (list, tuple))
+            else ()
+        )
         value = payload.get("value") or payload.get("indicator")
         self.seed(str(value), FeedVote(source=source, verdict=verdict, score=score, tags=tags))
 
 
 def unavailable_feeds() -> tuple[str, ...]:
-    return tuple(key for key in ("virustotal", "otx", "misp", "shodan") if not is_feed_configured(key))
+    return tuple(
+        key for key in ("virustotal", "otx", "misp", "shodan") if not is_feed_configured(key)
+    )

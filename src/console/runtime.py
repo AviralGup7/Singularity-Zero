@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from src.auth.sessions import SessionRegistry
 from src.intel.aggregator import FeedAggregator
@@ -33,7 +34,7 @@ class ConsoleRuntime:
         sim = PipelineSimulator(self.store)
         return sim.run(base_url=url, findings=findings, fail_at=fail_at)
 
-    def snapshot(self, *, now: float) -> dict[str, object]:
+    def snapshot(self, *, now: float) -> dict[str, Any]:
         jobs = self.store.list()
         return {
             "jobs": health_from_jobs(jobs, now=now),
