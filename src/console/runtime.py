@@ -42,3 +42,8 @@ class ConsoleRuntime:
             "sessions": len(self.sessions),
             "failed_jobs": self.store.counts().get(JobStatus.FAILED.value, 0),
         }
+
+    def gateway(self) -> object:
+        from src.console.gateway import ConsoleGateway
+
+        return ConsoleGateway(self)

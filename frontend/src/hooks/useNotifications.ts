@@ -16,8 +16,30 @@ import type {
 } from '@/types/notifications';
 import { sseEventToAppNotification, apiNotificationToAppNotification } from '@/types/notifications';
 import { getStreamToken } from '@/api/streamAuth';
+import {
+  inboxWriteBase,
+  notificationsFetchUrl,
+  notificationsStreamUrl,
+  unwrapEnvelope,
+} from '@/features/bridge/demoChannel';
 import { shouldFetchNotifications, shouldOpenNotificationStream } from '@/features/notifications/policy';
+import { useAuthStore } from '@/stores/authStore';
 import { showErrorToast } from '@/utils/extractErrorMessage';
+
+function consoleGate() {
+  const token = getStreamToken();
+  const user = useAuthStore.getState().user;
+  const session = user
+    ? {
+        kind: (token ? 'jwt' : 'demo') as 'jwt' | 'demo',
+        subject: user.name,
+        role: String(user.role),
+        capabilities: [] as string[],
+        has_bearer_token: Boolean(token),
+      }
+    : null;
+  return { token, session };
+}
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -49,8 +71,6 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   const seenIdsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const API_BASE = '/api/notifications';
-
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -60,15 +80,19 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = getStreamToken();
-      if (!shouldFetchNotifications(token)) {
+      const { token, session } = consoleGate();
+      const url = notificationsFetchUrl({ session, bearerToken: token });
+      if (!url) {
         if (mountedRef.current) setLoading(false);
         return;
       }
-      const url = `${API_BASE}?limit=100&offset=0`;
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-      };
+      const headers: Record<string, string> = {};
+      if (shouldFetchNotifications(token)) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      if (session?.subject) {
+        headers['X-Console-Subject'] = session.subject;
+      }
 
       const res = await fetch(url, { headers });
       if (!res.ok) {
@@ -78,8 +102,9 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
         return;
       }
 
-      const data: NotificationListResponse = await res.json();
+      const data = unwrapEnvelope<NotificationListResponse>(await res.json());
       if (!mountedRef.current) return;
+      if (!Array.isArray(data.notifications)) return;
 
       const appNotifs = data.notifications.map(apiNotificationToAppNotification);
       setNotifications(appNotifs);
@@ -113,10 +138,11 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
       eventSourceRef.current.close();
     }
 
-    const token = getStreamToken();
-    if (!shouldOpenNotificationStream(token)) return;
+    const { token, session } = consoleGate();
+    const streamUrl = notificationsStreamUrl({ session, bearerToken: token });
+    if (!streamUrl || !shouldOpenNotificationStream(token)) return;
 
-    const sseUrl = `${API_BASE}/stream?token=${encodeURIComponent(token)}`;
+    const sseUrl = streamUrl;
     const es = new EventSource(sseUrl);
     eventSourceRef.current = es;
 
@@ -159,11 +185,14 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
     setUnreadCount((c) => Math.max(0, c - 1));
 
     try {
-      const token = getStreamToken();
+      const { token, session } = consoleGate();
+      const base = inboxWriteBase({ session, bearerToken: token });
+      if (!base) return;
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (session?.subject) headers['X-Console-Subject'] = session.subject;
 
-      const res = await fetch(`${API_BASE}/${id}/read`, {
+      const res = await fetch(`${base}/${id}/read`, {
         method: 'PATCH',
         headers,
       });
@@ -183,11 +212,14 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
     setUnreadCount(0);
 
     try {
-      const token = getStreamToken();
+      const { token, session } = consoleGate();
+      const base = inboxWriteBase({ session, bearerToken: token });
+      if (!base) return;
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (session?.subject) headers['X-Console-Subject'] = session.subject;
 
-      const res = await fetch(`${API_BASE}/read-all`, {
+      const res = await fetch(`${base}/read-all`, {
         method: 'PATCH',
         headers,
       });
@@ -205,11 +237,14 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
 
     try {
-      const token = getStreamToken();
+      const { token, session } = consoleGate();
+      const base = inboxWriteBase({ session, bearerToken: token });
+      if (!base) return;
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (session?.subject) headers['X-Console-Subject'] = session.subject;
 
-      await fetch(`${API_BASE}/${id}`, { method: 'DELETE', headers });
+      await fetch(`${base}/${id}`, { method: 'DELETE', headers });
       // Update unread count
       setNotifications((prev) => {
         setUnreadCount(prev.filter((n) => !n.read).length);
