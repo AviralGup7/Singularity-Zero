@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Finding } from '../types/api';
+import { keyForFinding } from '@/pages/scanDiffModel';
 
 interface RunData {
   runId: string;
@@ -17,7 +18,7 @@ interface RunDiffViewerProps {
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
 function computeFindingKey(f: Finding): string {
-  return `${f.type}::${f.target}::${f.severity}`;
+  return keyForFinding(f);
 }
 
 export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {

@@ -179,10 +179,13 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
 
   const markRead = useCallback(async (id: string) => {
     // Optimistic update
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-    setUnreadCount((c) => Math.max(0, c - 1));
+    setNotifications((prev) => {
+      const current = prev.find((n) => n.id === id);
+      if (current && !current.read) {
+        setUnreadCount((c) => Math.max(0, c - 1));
+      }
+      return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+    });
 
     try {
       const { token, session } = consoleGate();

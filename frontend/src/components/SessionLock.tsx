@@ -13,7 +13,7 @@ export function SessionLockScreen({ onUnlock, requirePassword = true }: SessionL
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { user, verifyUnlockPassword } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (requirePassword) {
@@ -27,21 +27,16 @@ export function SessionLockScreen({ onUnlock, requirePassword = true }: SessionL
     setIsVerifying(true);
     setError('');
     try {
-      if (!requirePassword) {
-        onUnlock('');
+      const ok = onUnlock(requirePassword ? password : '');
+      if (ok) {
         setPassword('');
-        return;
-      }
-      if (verifyUnlockPassword(password)) {
-        onUnlock(password);
-        setPassword('');
-      } else {
+      } else if (requirePassword) {
         setError('Incorrect password');
       }
     } finally {
       setIsVerifying(false);
     }
-  }, [password, onUnlock, verifyUnlockPassword, isVerifying, requirePassword]);
+  }, [password, onUnlock, isVerifying, requirePassword]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleUnlock();

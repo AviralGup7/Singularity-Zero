@@ -16,6 +16,7 @@ import { usePersistedState } from '../../hooks/usePersistedState';
 import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsViewMode';
 import { offlineQueue } from '../../utils/offlineQueue';
 import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
+import { visibleFindingIds } from '@/features/notifications/unread';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Columns3, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw, ArrowUpDown } from 'lucide-react';
@@ -222,11 +223,16 @@ export function FindingsPage() {
    
   const sort = useMemo(() => ({ key: sortKey, direction: sortDir }), [sortKey, sortDir]);
 
-  const { processed: findings, isProcessing } = useProcessedFindings(
+  const { processed: allFindings, isProcessing } = useProcessedFindings(
     findingsData?.findings || emptyFindings,
     filters,
     sort
   );
+
+  const findings = useMemo(() => {
+    const allowed = new Set(visibleFindingIds(allFindings.map((item) => item.id), newFindingIds));
+    return allFindings.filter((item) => allowed.has(item.id));
+  }, [allFindings, newFindingIds]);
 
   const comparePair = useMemo(() => {
     if (selectedFindingIds.size !== 2) return null;

@@ -32,6 +32,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useSSEProgress  } from './useSSEProgress';
 import type {SseEvent} from './useSSEProgress';
 import { useWebSocket } from './useWebSocket';
+import { shouldEnableSse, shouldEnableWs } from './realtimeTransport';
 
 export type RealtimeTransport = 'sse' | 'ws' | 'auto';
 
@@ -104,9 +105,7 @@ export function useRealtimeStream<T = unknown>({
   onEvent,
   onFallback,
 }: UseRealtimeStreamOptions<T>): UseRealtimeStreamReturn {
-  const useSse = transport === 'sse' || transport === 'auto';
-  const useWs = transport === 'ws' || transport === 'auto';
-
+  const useSse = shouldEnableSse(transport);
   const onEventRef = useLatestRef(onEvent);
   const onFallbackRef = useLatestRef(onFallback);
 
@@ -126,6 +125,8 @@ export function useRealtimeStream<T = unknown>({
         }
       : undefined,
   });
+
+  const useWs = shouldEnableWs(transport, sse.connectionState);
 
   const ws = useWebSocket({
     jobId: useWs ? resourceId : undefined,
