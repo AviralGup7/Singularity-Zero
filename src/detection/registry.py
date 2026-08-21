@@ -254,7 +254,7 @@ def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
     for key, binding in bindings.items():
         spec = specs.get(key)
         label = spec.label if spec else key.replace("_", " ").title()
-        group = spec.group if spec else "custom"
+        group = spec.group if spec else "passive"
         enabled_by_default = spec.enabled_by_default if spec else True
         baseline, tier, engines, tags = _classify_plugin(key)
         plugins.append(
