@@ -15,6 +15,7 @@ import { useToast } from '../../hooks/useToast';
 import { usePersistedState } from '../../hooks/usePersistedState';
 import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsViewMode';
 import { offlineQueue } from '../../utils/offlineQueue';
+import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Columns3, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw, ArrowUpDown } from 'lucide-react';
@@ -107,7 +108,7 @@ export function FindingsPage() {
     setBulkActionMode(null);
   }, []);
 
-  const [failedBulkAction, setFailedBulkAction] = useState<{ ids: string[]; action: string } | null>(null);
+  const [failedBulkAction, setFailedBulkAction] = useState<FailedBulkAction | null>(null);
 
   const executeBulkUpdate = useCallback(async (
     ids: string[],
@@ -121,7 +122,7 @@ export function FindingsPage() {
       setFailedBulkAction(null);
       clearSelection();
     } catch {
-      setFailedBulkAction({ ids, action: actionLabel });
+      setFailedBulkAction(buildFailedBulkAction(ids, data, successMsg, actionLabel));
       if (!navigator.onLine) {
         offlineQueue.enqueue({
           execute: () => bulkUpdateFindings(ids, data),
@@ -172,13 +173,9 @@ export function FindingsPage() {
 
   const retryFailedBulk = useCallback(() => {
     if (!failedBulkAction) return;
-    const { ids, action } = failedBulkAction;
+    const { ids, action, data, successMsg } = failedBulkAction;
     setFailedBulkAction(null);
-    if (action === 'Bulk delete') {
-      executeBulkUpdate(ids, { _deleted: true }, `${ids.length} finding(s) deleted`, 'Bulk delete');
-    } else {
-      executeBulkUpdate(ids, { status: 'closed' }, `${ids.length} finding(s) updated`, action);
-    }
+    executeBulkUpdate(ids, data, successMsg, action);
   }, [failedBulkAction, executeBulkUpdate]);
 
   // Initialize filters from URL params

@@ -9,10 +9,12 @@ import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
 import { PageHeader, EmptyState, Pagination, ErrorCard } from '../components/ui';
 import { useJobsContext } from '../context/JobsContext';
 import { usePersistedState } from '../hooks';
+import { JOB_STATUS_FILTERS, normalizeJobStatusFilter } from './jobsFilters';
+import { clampFindingsPage } from '../features/findings/findingsViewMode';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 const PAGE_SIZE = 20;
-const STATUS_FILTERS = ['all', 'running', 'completed', 'failed', 'stopped'] as const;
+const STATUS_FILTERS = JOB_STATUS_FILTERS;
 
 export function JobsPage() {
   const navigate = useNavigate();
@@ -20,6 +22,7 @@ export function JobsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
    
   const [statusFilter, setStatusFilter] = usePersistedState<string>('jobs-status-filter', searchParams.get('status') || 'all');
+  const safeStatusFilter = normalizeJobStatusFilter(statusFilter);
    
   const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', searchParams.get('q') || '');
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,19 +47,19 @@ export function JobsPage() {
   const handleStatusChange = useCallback((status: string) => {
     setStatusFilter(status);
     setCurrentPage(1);
-    updateUrlParams(status, searchQuery);
+    updateUrlParams(normalizeJobStatusFilter(status), searchQuery);
   }, [setStatusFilter, searchQuery, updateUrlParams]);
 
   const handleSearchChange = useCallback((q: string) => {
     setSearchQuery(q);
     setCurrentPage(1);
-    updateUrlParams(statusFilter, q);
-  }, [setSearchQuery, statusFilter, updateUrlParams]);
+    updateUrlParams(safeStatusFilter, q);
+  }, [setSearchQuery, safeStatusFilter, updateUrlParams]);
 
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return (jobs ?? [])
-      .filter(j => statusFilter === 'all' || j?.status === statusFilter)
+      .filter(j => safeStatusFilter === 'all' || j?.status === safeStatusFilter)
       .filter(j => !query || [
         j?.base_url,
         j?.status,
@@ -157,12 +160,12 @@ export function JobsPage() {
             <button
               key={status}
               className={`filter-btn transition-all duration-200 ${
-                statusFilter === status
+                safeStatusFilter === status
                   ? 'bg-accent-dim text-accent border-accent/30'
                   : 'hover:bg-surface-hover'
               }`}
               onClick={() => handleStatusChange(status)}
-              aria-pressed={statusFilter === status}
+              aria-pressed={safeStatusFilter === status}
             >
               {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
             </button>
@@ -178,7 +181,7 @@ export function JobsPage() {
         {filtered.length === 0 ? (
           <EmptyState
             title="No jobs found"
-            description={statusFilter !== 'all' || searchQuery 
+            description={safeStatusFilter !== 'all' || searchQuery 
               ? "No jobs match your current filters. Try adjusting the status filter or search query."
               : "No pipeline jobs have been run yet. Expand Start New Scan above, or launch from Targets / Cockpit."}
             icon="zap"

@@ -2,24 +2,12 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { X, ArrowUpDown, Bug, DollarSign, Shield, TrendingUp } from 'lucide-react';
 import type { Finding } from '@/types/api';
+import { getFindingBounty, getFindingCvss, getFindingEpss } from '../findingMetrics';
 
 interface FindingComparisonPanelProps {
   findingA: Finding;
   findingB: Finding;
   onClose: () => void;
-}
-
-function getCVSS(f: Finding): number {
-  const val = f.cvss_v4_score ?? f.cvss_score ?? (typeof f.cvss === 'number' ? f.cvss : null);
-  return val || 0;
-}
-
-function getEpss(f: Finding): number {
-  return f.threat_intel?.epss_score ?? f.epss_score ?? 0;
-}
-
-function getBounty(f: Finding): number {
-  return f.bounty_value || 0;
 }
 
 export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingComparisonPanelProps) {
@@ -47,9 +35,9 @@ export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingC
     const sevA = sevOrder[findingA.severity] ?? 0;
     const sevB = sevOrder[findingB.severity] ?? 0;
     addField('Severity', <Shield size={14} />, sevA, sevB, (v) => Object.entries(sevOrder).find(([, o]) => o === v)?.[0] ?? 'unknown');
-    addField('CVSS Score', <TrendingUp size={14} />, getCVSS(findingA), getCVSS(findingB), (v) => v.toFixed(1));
-    addField('EPSS %', <Bug size={14} />, getEpss(findingA) * 100, getEpss(findingB) * 100, (v) => `${v.toFixed(1)}%`);
-    addField('Bounty Value', <DollarSign size={14} />, getBounty(findingA), getBounty(findingB), (v) => `$${v.toLocaleString()}`);
+    addField('CVSS Score', <TrendingUp size={14} />, getFindingCvss(findingA), getFindingCvss(findingB), (v) => v.toFixed(1));
+    addField('EPSS %', <Bug size={14} />, getFindingEpss(findingA) * 100, getFindingEpss(findingB) * 100, (v) => `${v.toFixed(1)}%`);
+    addField('Bounty Value', <DollarSign size={14} />, getFindingBounty(findingA), getFindingBounty(findingB), (v) => `$${v.toLocaleString()}`);
 
     return fields;
   }, [findingA, findingB]);
@@ -59,9 +47,20 @@ export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingC
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-panel p-4"
+      className="fixed inset-0 z-[10050] flex items-center justify-center bg-panel p-4"
+      role="presentation"
+      onClick={onClose}
+      onKeyDown={(event: React.KeyboardEvent) => {
+        if (event.key === 'Escape') onClose();
+      }}
     >
-      <div className="w-full max-w-4xl rounded-2xl border border-accent/20 bg-bg p-6 shadow-xl space-y-4 max-h-[80vh] overflow-y-auto">
+      <div
+        className="w-full max-w-4xl rounded-2xl border border-accent/20 bg-bg p-6 shadow-xl space-y-4 max-h-[80vh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Finding comparison"
+        onClick={(event: React.MouseEvent) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wider text-accent flex items-center gap-2">
             <ArrowUpDown size={16} /> Finding Comparison

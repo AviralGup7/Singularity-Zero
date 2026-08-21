@@ -70,6 +70,11 @@ export function usePersistedState<T>(
       if (pendingWriteRef.current !== null) {
         clearTimeout(pendingWriteRef.current);
         pendingWriteRef.current = null;
+        try {
+          localStorage.setItem(key, serialize(value));
+        } catch {
+          /* ignore quota errors */
+        }
       }
     };
    

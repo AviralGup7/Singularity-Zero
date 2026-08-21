@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CopyButton } from '../ui/CopyButton';
+import { nextExpandedSections } from './reconSections';
 
 interface SubdomainResult {
   domain: string;
@@ -34,13 +35,8 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
    
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['subdomains']));
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(section)) next.delete(section);
-      else next.add(section);
-      return next;
-    });
+  const setSectionOpen = (section: string, open: boolean) => {
+    setExpandedSections((prev) => nextExpandedSections(prev, section, open));
   };
 
   const isExpanded = (section: string) => expandedSections.has(section);
@@ -56,9 +52,8 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
         className="recon-section bg-panel border border-line rounded-xl overflow-hidden"
         open={isExpanded('subdomains')}
         onToggle={e => {
-          const el = e.target as HTMLDetailsElement;
-          if (el.open) toggleSection('subdomains');
-          else setExpandedSections(prev => { const n = new Set(prev); n.delete('subdomains'); return n; });
+          const el = e.currentTarget as HTMLDetailsElement;
+          setSectionOpen('subdomains', el.open);
         }}
       >
         <summary className="recon-section-header p-4 bg-surface-hover cursor-pointer hover:bg-surface-2 transition-colors flex items-center justify-between">
@@ -110,9 +105,8 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
         className="recon-section bg-panel border border-line rounded-xl overflow-hidden"
         open={isExpanded('urls')}
         onToggle={e => {
-          const el = e.target as HTMLDetailsElement;
-          if (el.open) toggleSection('urls');
-          else setExpandedSections(prev => { const n = new Set(prev); n.delete('urls'); return n; });
+          const el = e.currentTarget as HTMLDetailsElement;
+          setSectionOpen('urls', el.open);
         }}
       >
         <summary className="recon-section-header p-4 bg-surface-hover cursor-pointer hover:bg-surface-2 transition-colors flex items-center justify-between">
@@ -173,9 +167,8 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
         className="recon-section bg-panel border border-line rounded-xl overflow-hidden"
         open={isExpanded('parameters')}
         onToggle={e => {
-          const el = e.target as HTMLDetailsElement;
-          if (el.open) toggleSection('parameters');
-          else setExpandedSections(prev => { const n = new Set(prev); n.delete('parameters'); return n; });
+          const el = e.currentTarget as HTMLDetailsElement;
+          setSectionOpen('parameters', el.open);
         }}
       >
         <summary className="recon-section-header p-4 bg-surface-hover cursor-pointer hover:bg-surface-2 transition-colors flex items-center gap-3">
