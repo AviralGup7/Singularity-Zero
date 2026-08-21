@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { Finding } from '@/types/api';
 import { bucketKanbanFindings } from '../components/FindingsKanbanView';
+import { clampFindingsPage } from '../findingsViewMode';
 
 type SortKey = 'severity' | 'bounty_value' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';
@@ -149,7 +150,8 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
    
-  const paginated = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
+  const safePage = clampFindingsPage(page, totalPages);
+  const paginated = useMemo(() => filtered.slice((safePage - 1) * pageSize, safePage * pageSize), [filtered, safePage, pageSize]);
 
   const kanbanFindings = useMemo(() => bucketKanbanFindings(filtered), [filtered]);
 
@@ -182,7 +184,7 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
   const setSearchQueryAndReset = useCallback((val: string) => { setSearchQuery(val); setPage(1); }, []);
 
   return {
-    sortKey, sortDir, severityFilter, statusFilter, targetFilter, searchQuery, page, viewMode,
+    sortKey, sortDir, severityFilter, statusFilter, targetFilter, searchQuery, page: safePage, viewMode,
     expandedDuplicates, pageSize, filtered, totalPages, paginated,
     primaryFindings, kanbanFindings, uniqueTargets, uniqueAssignees,
     handleSort, toggleDuplicateExpand, getDuplicateById,

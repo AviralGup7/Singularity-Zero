@@ -41,7 +41,7 @@ export function showErrorOverlay(title: string, message: string, stack?: string)
 }
 
 export function ErrorOverlay({ title, message, stack }: { title: string; message: string; stack?: string }) {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(true);
 
   useLayoutEffect(() => {
     const node = ensureOverlayRoot();

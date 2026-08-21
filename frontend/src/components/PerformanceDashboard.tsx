@@ -1,11 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
-
-interface MetricRecord {
-  name: string;
-  value: number;
-  timestamp: string;
-}
+import { appendClientMetrics, clampUnitInterval, type MetricRecord } from './performanceMetrics';
 
 function getNavMetrics(): MetricRecord[] {
   const navEntries = performance.getEntriesByType('navigation');
@@ -28,8 +23,9 @@ interface CircularProgressProps {
 function CircularProgress({ value, label, color = 'var(--neon-cyan)' }: CircularProgressProps) {
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (value * circumference);
-  const percentage = Math.round(value * 100);
+  const safeValue = clampUnitInterval(value);
+  const percentage = Math.round(safeValue * 100);
+  const strokeDashoffset = circumference - (safeValue * circumference);
 
   return (
     <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-accent/20 bg-surface/45 shadow-sm backdrop-blur-md" role="meter" aria-label={`${label}: ${percentage}%`} aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100}>
@@ -82,14 +78,15 @@ export function PerformanceDashboard() {
 
   useEffect(() => {
     onReportRef.current = (m: MetricRecord) => {
-      setMetrics(prev => [...prev, m]);
+      setMetrics((prev) => appendClientMetrics(prev, [m]));
     };
   }, []);
 
   useEffect(() => {
+    let observer: PerformanceObserver | null = null;
     try {
-      const observer = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
+      observer = new PerformanceObserver((list) => {
+        const incoming = list.getEntries().map((entry) => {
           let value: number;
           if (entry.entryType === 'layout-shift') {
             value = (entry as unknown as { value: number }).value;
@@ -98,15 +95,13 @@ export function PerformanceDashboard() {
           } else {
             value = entry.startTime;
           }
-          setMetrics((prev) => [
-            ...prev,
-            {
-              name: entry.entryType === 'largest-contentful-paint' ? 'LCP' : entry.name,
-              value,
-              timestamp: new Date().toISOString(),
-            },
-          ]);
-        }
+          return {
+            name: entry.entryType === 'largest-contentful-paint' ? 'LCP' : entry.name,
+            value,
+            timestamp: new Date().toISOString(),
+          };
+        });
+        setMetrics((prev) => appendClientMetrics(prev, incoming));
       });
 
       try {
@@ -122,6 +117,9 @@ export function PerformanceDashboard() {
     } catch (e) {
       console.debug('PerformanceObserver not supported:', e);
     }
+    return () => {
+      observer?.disconnect();
+    };
   }, []);
 
   const formatMs = (ms: number): string => {
@@ -146,9 +144,9 @@ export function PerformanceDashboard() {
       <div className="border-t border-border/60 pt-6">
         <h3 className="text-sm font-semibold text-text mb-4">ML Intelligence & Calibration</h3>
         <div className="grid grid-cols-3 gap-4">
-          <CircularProgress value={kpis?.precision ?? 0.85} label="Precision" color="var(--neon-cyan)" />
-          <CircularProgress value={kpis?.recall ?? 0.78} label="Recall" color="var(--severity-high)" />
-          <CircularProgress value={kpis?.f1_score ?? 0.81} label="F1 Score" color="var(--severity-low)" />
+          <CircularProgress value={clampUnitInterval(kpis?.precision)} label="Precision" color="var(--neon-cyan)" />
+          <CircularProgress value={clampUnitInterval(kpis?.recall)} label="Recall" color="var(--severity-high)" />
+          <CircularProgress value={clampUnitInterval(kpis?.f1_score)} label="F1 Score" color="var(--severity-low)" />
         </div>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded-xl border border-cyan-500/20 bg-surface-2 p-3 flex items-center justify-between">
@@ -159,7 +157,7 @@ export function PerformanceDashboard() {
           </div>
           <div className="rounded-xl border border-cyan-500/20 bg-surface-2 p-3 flex items-center justify-between">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Suppression Patterns</span>
-            <span className="text-xs font-black text-text-primary tabular-nums">{kpis?.fp_pattern_count ?? 12} active</span>
+            <span className="text-xs font-black text-text-primary tabular-nums">{kpis?.fp_pattern_count ?? 0} active</span>
           </div>
         </div>
       </div>

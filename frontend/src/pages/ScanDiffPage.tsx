@@ -13,44 +13,11 @@ import { useToast } from '@/hooks/useToast';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 import { RunDiffViewer } from '@/components/RunDiffViewer';
 
-interface DiffBucket {
-  newFindings: Finding[];
-  removedFindings: Finding[];
-  changedFindings: { old: Finding; new: Finding }[];
-}
+import { computeDiff, nextScanDiffSearch } from './scanDiffModel';
+import { clampFindingsPage } from '@/features/findings/findingsViewMode';
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const PAGE_SIZE = 50;
-
-function keyForFinding(f: Finding): string {
-  return `${f.type}::${f.target}::${f.severity}::${f.url ?? ''}`;
-}
-
-function computeDiff(runA: Finding[], runB: Finding[]): DiffBucket {
-  const mapA = new Map(runA.map((f) => [keyForFinding(f), f]));
-  const mapB = new Map(runB.map((f) => [keyForFinding(f), f]));
-  const newFindings: Finding[] = [];
-  const removedFindings: Finding[] = [];
-  const changedFindings: { old: Finding; new: Finding }[] = [];
-
-  mapB.forEach((finding, key) => {
-    const old = mapA.get(key);
-    if (!old) {
-      newFindings.push(finding);
-    } else if (
-      old.status !== finding.status ||
-      old.description !== finding.description ||
-      old.lifecycle_state !== finding.lifecycle_state ||
-      (old.bounty_value ?? 0) !== (finding.bounty_value ?? 0)
-    ) {
-      changedFindings.push({ old, new: finding });
-    }
-  });
-  mapA.forEach((finding, key) => {
-    if (!mapB.has(key)) removedFindings.push(finding);
-  });
-  return { newFindings, removedFindings, changedFindings };
-}
 
 function bountyDelta(items: Finding[]): { min: number; max: number; count: number } {
   let min = 0;
@@ -120,11 +87,10 @@ export function ScanDiffPage() {
   };
 
   useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    if (filter !== 'all') next.set('filter', filter); else next.delete('filter');
-    if (runA) next.set('runA', runA); else next.delete('runA');
-    if (runB) next.set('runB', runB); else next.delete('runB');
-    setSearchParams(next, { replace: true });
+    const next = nextScanDiffSearch(searchParams, filter, runA, runB);
+    if (next !== searchParams.toString()) {
+      setSearchParams(new URLSearchParams(next), { replace: true });
+    }
   }, [filter, runA, runB, searchParams, setSearchParams]);
 
   const { data: dataA, loading: loadingA, error: errorA, refetch: refetchA } = useApi<{ findings: Finding[] }>(
@@ -187,7 +153,8 @@ export function ScanDiffPage() {
   }, [filter, diff]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const safePage = clampFindingsPage(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const ready = runA && runB;
   return (
@@ -249,7 +216,7 @@ export function ScanDiffPage() {
           <p className="text-sm text-text-secondary">
             Pick two targets to compare their latest runs side-by-side.
           </p>
-          <p className="mt-2 text-xs text-muted">Looking for the same target twice? You can select it in both slots — the system will compare the two most recent runs.</p>
+          <p className="mt-2 text-xs text-muted">Each slot loads that target&apos;s latest run. Pick two different targets to see what changed.</p>
         </GlassCard>
       )}
 
@@ -396,16 +363,16 @@ export function ScanDiffPage() {
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
-                disabled={page === 1}
+                disabled={safePage === 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 Prev
               </button>
-              <span className="text-xs text-muted">Page {page} of {totalPages}</span>
+              <span className="text-xs text-muted">Page {safePage} of {totalPages}</span>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
-                disabled={page === totalPages}
+                disabled={safePage === totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 Next
