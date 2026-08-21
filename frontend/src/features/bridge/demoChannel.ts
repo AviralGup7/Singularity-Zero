@@ -1,5 +1,6 @@
 import { JWT_NOTIFICATION_PATHS } from './commands';
-import { shouldCallJwtNotifications, shouldUseConsoleInbox, type GateInput } from './authGate';
+import type { GateInput } from './authGate';
+import { shouldCallJwtNotifications, shouldUseConsoleInbox } from './authGate';
 import type { TransportHints } from './types';
 
 export function transportHints(input: GateInput): TransportHints {
@@ -63,7 +64,7 @@ export function inboxWriteBase(input: GateInput): string | null {
   return null;
 }
 
-export function unwrapEnvelope<T extends Record<string, unknown>>(json: unknown): T {
+export function unwrapEnvelope<T>(json: unknown): T {
   if (!json || typeof json !== 'object') {
     return {} as T;
   }

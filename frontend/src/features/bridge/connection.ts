@@ -16,8 +16,11 @@ export class ConsoleConnection {
   session: ConsoleSession | null = null;
   transport: TransportHints | null = null;
   lastError: string | null = null;
+  private readonly client: ConsoleClient;
 
-  constructor(private readonly client: ConsoleClient) {}
+  constructor(client: ConsoleClient) {
+    this.client = client;
+  }
 
   async open(name = 'Demo Analyst', role = 'analyst'): Promise<HandshakeResult> {
     this.state = 'connecting';

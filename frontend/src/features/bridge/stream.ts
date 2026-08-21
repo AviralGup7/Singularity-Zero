@@ -11,12 +11,15 @@ export interface StreamFrame {
 export class ConsoleStream {
   private afterId: string | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly client: ConsoleClient;
+  private readonly onFrame: (frame: StreamFrame) => void;
+  private readonly intervalMs: number;
 
-  constructor(
-    private readonly client: ConsoleClient,
-    private readonly onFrame: (frame: StreamFrame) => void,
-    private readonly intervalMs = 2500,
-  ) {}
+  constructor(client: ConsoleClient, onFrame: (frame: StreamFrame) => void, intervalMs = 2500) {
+    this.client = client;
+    this.onFrame = onFrame;
+    this.intervalMs = intervalMs;
+  }
 
   start(): void {
     if (this.timer) return;

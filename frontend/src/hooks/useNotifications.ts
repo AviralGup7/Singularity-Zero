@@ -261,11 +261,14 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
     setUnreadCount(0);
 
     try {
-      const token = getStreamToken();
+      const { token, session } = consoleGate();
+      const base = inboxWriteBase({ session, bearerToken: token });
+      if (!base) return;
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (session?.subject) headers['X-Console-Subject'] = session.subject;
 
-      await fetch(API_BASE, { method: 'DELETE', headers });
+      await fetch(base, { method: 'DELETE', headers });
     } catch (err) {
       showErrorToast(err, 'Failed to clear all notifications');
       fetchNotifications();
