@@ -379,10 +379,26 @@ export function AppLayout({ children }: AppLayoutProps) {
     return PAGE_META[location.pathname] ?? { title: 'Security Console', subtitle: '' };
   }, [location.pathname]);
 
+  const nightCityHud = theme.preset === 'night-city' ? (
+    <Suspense fallback={null}>
+      <NightCityHud
+        sector={isLogin ? 'WATSON' : 'OPS'}
+        district={isLogin ? 'NIGHT CITY' : pageMeta.title}
+        jobTitle={isLogin ? 'JACK IN' : 'PIPELINE LIVE'}
+        jobObjective={
+          isLogin
+            ? 'Sign in to open the console.'
+            : pageMeta.subtitle || 'Triage findings. Keep scans live.'
+        }
+        ready={!healthStatus.error && healthStatus.ready}
+      />
+    </Suspense>
+  ) : null;
+
   if (isLogin) {
     return (
       <>
-        {theme.preset === 'night-city' && <Suspense fallback={null}><NightCityHud /></Suspense>}
+        {nightCityHud}
         <div className="app-shell--auth">{children}</div>
       </>
     );
@@ -390,7 +406,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="app-shell app-shell--hud">
-      {theme.preset === 'night-city' && <Suspense fallback={null}><NightCityHud /></Suspense>}
+      {nightCityHud}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
         Skip to content
       </a>

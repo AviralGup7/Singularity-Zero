@@ -39,12 +39,21 @@ html[data-theme-preset='night-city'] body {
   font-family: var(--font-ui);
   letter-spacing: 0.03em;
   background-color: var(--nc-void);
-  background-image:
-    linear-gradient(180deg, rgba(7, 3, 10, 0.72), rgba(7, 3, 10, 0.82)),
-    url('/night-city/skyline.jpg');
-  background-size: cover;
-  background-position: center 40%;
-  background-attachment: fixed;
+}
+
+/* Opaque shell used to bury the skyline still. Keep it open so art reads. */
+html[data-theme-preset='night-city'] .app-shell,
+html[data-theme-preset='night-city'] .app-main-wrapper,
+html[data-theme-preset='night-city'] .app-shell--auth {
+  background: transparent !important;
+}
+html[data-theme-preset='night-city'] .app-shell {
+  isolation: isolate;
+}
+html[data-theme-preset='night-city'] .app-main-wrapper,
+html[data-theme-preset='night-city'] .app-shell--auth {
+  position: relative;
+  z-index: 1;
 }
 
 html[data-theme-preset='night-city'] ::selection {
@@ -54,11 +63,28 @@ html[data-theme-preset='night-city'] ::selection {
 
 /* ── In-world HUD (from gameplay screenshots) ─────────────── */
 
+.nc-world {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+.nc-world img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  opacity: 0.62;
+  filter: saturate(1.18) contrast(1.08);
+  animation: nc-ken 42s ease-in-out infinite alternate;
+}
+
 .nc-hud {
   pointer-events: none;
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 45;
 }
 
 .nc-hud-scan {
@@ -137,18 +163,28 @@ html[data-theme-preset='night-city'] ::selection {
   background:
     linear-gradient(rgba(45, 226, 230, 0.12) 1px, transparent 1px) 0 0 / 16px 16px,
     linear-gradient(90deg, rgba(45, 226, 230, 0.12) 1px, transparent 1px) 0 0 / 16px 16px,
-    rgba(4, 10, 14, 0.72);
+    rgba(4, 10, 14, 0.42);
   border: 1px solid color-mix(in srgb, var(--nc-cyan) 45%, transparent);
   overflow: hidden;
 }
+.nc-minimap img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+  filter: saturate(1.3) hue-rotate(160deg);
+}
 .nc-minimap i {
   position: absolute;
+  z-index: 1;
   background: var(--nc-cyan);
   opacity: 0.55;
 }
-.nc-minimap i:nth-child(1) { left: 18%; top: 0; bottom: 0; width: 2px; transform: rotate(18deg); }
-.nc-minimap i:nth-child(2) { left: 0; right: 0; top: 42%; height: 2px; }
-.nc-minimap i:nth-child(3) { right: 22%; top: 10%; bottom: 10%; width: 2px; transform: rotate(-12deg); }
+.nc-minimap i:nth-of-type(1) { left: 18%; top: 0; bottom: 0; width: 2px; transform: rotate(18deg); }
+.nc-minimap i:nth-of-type(2) { left: 0; right: 0; top: 42%; height: 2px; }
+.nc-minimap i:nth-of-type(3) { right: 22%; top: 10%; bottom: 10%; width: 2px; transform: rotate(-12deg); }
 .nc-minimap b {
   position: absolute;
   width: 7px;
@@ -263,7 +299,7 @@ html[data-theme-preset='night-city'] ::selection {
 
 html[data-theme-preset='night-city'] .sidebar {
   background:
-    linear-gradient(180deg, rgba(10, 4, 8, 0.88), rgba(10, 4, 8, 0.92)),
+    linear-gradient(180deg, rgba(10, 4, 8, 0.48), rgba(10, 4, 8, 0.7)),
     url('/night-city/circuit.jpg') center / cover !important;
   border-right: 1px solid color-mix(in srgb, var(--nc-red) 45%, transparent) !important;
 }
@@ -300,7 +336,7 @@ html[data-theme-preset='night-city'] .sidebar-nav-item--active {
 }
 
 html[data-theme-preset='night-city'] .app-command-header {
-  background: linear-gradient(180deg, rgba(20, 0, 8, 0.88), rgba(8, 2, 6, 0.7)) !important;
+  background: linear-gradient(180deg, rgba(20, 0, 8, 0.55), rgba(8, 2, 6, 0.28)) !important;
   border-bottom: 1px solid color-mix(in srgb, var(--nc-red) 40%, transparent) !important;
   box-shadow: none;
   padding-top: 8px;
@@ -395,7 +431,7 @@ html[data-theme-preset='night-city'] .ops-panel,
 html[data-theme-preset='night-city'] .pipeline-stat-card,
 html[data-theme-preset='night-city'] .auth-card {
   position: relative;
-  background: rgba(12, 2, 8, 0.72) !important;
+  background: rgba(12, 2, 8, 0.58) !important;
   border: 1px solid color-mix(in srgb, var(--nc-red) 55%, transparent) !important;
   box-shadow: none;
 }
@@ -475,7 +511,7 @@ html[data-theme-preset='night-city'] .auth-canvas {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgba(7, 3, 10, 0.84) 0%, rgba(7, 3, 10, 0.42) 48%, rgba(7, 3, 10, 0.18) 100%),
+    linear-gradient(90deg, rgba(7, 3, 10, 0.55) 0%, rgba(7, 3, 10, 0.22) 52%, rgba(7, 3, 10, 0.08) 100%),
     url('/night-city/boot.jpg') center / cover no-repeat !important;
 }
 
@@ -483,6 +519,17 @@ html[data-theme-preset='night-city'] .auth-card {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
+}
+
+html[data-theme-preset='night-city'] .auth-right {
+  background:
+    linear-gradient(180deg, rgba(7, 3, 10, 0.18), rgba(7, 3, 10, 0.55)),
+    url('/night-city/skyline.jpg') center 40% / cover no-repeat !important;
+  border-left: 1px solid color-mix(in srgb, var(--nc-red) 40%, transparent) !important;
+}
+
+html[data-theme-preset='night-city'] .security-scene {
+  display: none;
 }
 
 html[data-theme-preset='night-city'] .auth-left h1 {
@@ -575,17 +622,9 @@ html[data-theme-preset='night-city'] .mobile-dock-item--active {
   color: var(--nc-cyan) !important;
 }
 
-.nc-world {
-  position: absolute;
-  inset: -8%;
-  background: url('/night-city/skyline.jpg') center 45% / cover no-repeat;
-  opacity: 0.18;
-  animation: nc-ken 42s ease-in-out infinite alternate;
-  filter: saturate(1.2) contrast(1.08);
-}
-
 .nc-boot {
-  position: absolute;
+  pointer-events: none;
+  position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
@@ -657,7 +696,7 @@ html[data-theme-preset='night-city'] .nc-page-loading span {
 
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-preset='night-city'] .nc-hud-scan,
-  html[data-theme-preset='night-city'] .nc-world,
+  html[data-theme-preset='night-city'] .nc-world img,
   html[data-theme-preset='night-city'] .nc-boot-art,
   html[data-theme-preset='night-city'] .nc-boot-ring,
   html[data-theme-preset='night-city'] .nc-page-loading-ring {

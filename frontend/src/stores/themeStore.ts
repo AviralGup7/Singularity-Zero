@@ -13,8 +13,8 @@ function detectSystemTheme(): ThemeMode {
 }
 
 const defaultTheme: ThemeState = {
-  mode: detectSystemTheme(),
-  preset: 'midnight',
+  mode: 'dark',
+  preset: 'night-city',
   accentColor: '#3B82F6',
   motionIntensity: 'high' as MotionIntensity,
   effectCapability: 'auto' as EffectCapability,

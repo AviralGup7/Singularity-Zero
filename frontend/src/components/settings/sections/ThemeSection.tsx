@@ -60,15 +60,23 @@ export function ThemeSection({ themeMode, themePreset, accentColor, onThemeModeC
               aria-label={`Select ${preset.label} theme`}
             >
               <span className="text-xs font-semibold text-text-primary">{preset.label}</span>
-              <div className="flex gap-1 mt-1">
-                {preset.preview.map((color, i) => (
-                  <span
-                    key={i}
-                    className="w-4 h-4 rounded-full border border-line"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              {key === 'night-city' ? (
+                <img
+                  src="/night-city/skyline.jpg"
+                  alt=""
+                  className="mt-1 w-full h-12 object-cover border border-line"
+                />
+              ) : (
+                <div className="flex gap-1 mt-1">
+                  {preset.preview.map((color, i) => (
+                    <span
+                      key={i}
+                      className="w-4 h-4 rounded-full border border-line"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              )}
               {themePreset === key && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent" />
               )}
