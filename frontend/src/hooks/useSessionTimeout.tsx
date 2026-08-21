@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-
-const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
-const WARNING_LEAD_MS = 2 * 60 * 1000;
+import { resolveSessionTimeoutMs, resolveSessionWarningAt } from './sessionTimeoutPolicy';
 
 interface SessionState {
   isLocked: boolean;
@@ -11,9 +9,9 @@ interface SessionState {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useSessionTimeout(onTimeout?: () => void, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  const timeout = Math.max(60_000, timeoutMs);
-  const warningAt = Math.max(10_000, timeout - WARNING_LEAD_MS);
+export function useSessionTimeout(onTimeout?: () => void, timeoutMs?: number) {
+  const timeout = resolveSessionTimeoutMs(timeoutMs);
+  const warningAt = resolveSessionWarningAt(timeout);
   const [state, setState] = useState<SessionState>(() => ({
     isLocked: false,
     showWarning: false,

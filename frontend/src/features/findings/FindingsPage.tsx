@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { SavedFilterPresets } from '../../components/ui/SavedFilterPresets';
 import { useToast } from '../../hooks/useToast';
 import { usePersistedState } from '../../hooks/usePersistedState';
+import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsViewMode';
 import { offlineQueue } from '../../utils/offlineQueue';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
@@ -48,7 +49,8 @@ export function FindingsPage() {
 
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const [viewMode, setViewMode] = usePersistedState<'grid' | 'table' | 'kanban'>('findings-view-mode', 'grid');
+  const [viewMode, setViewMode] = usePersistedState<FindingsViewMode>('findings-view-mode', 'grid');
+  const safeViewMode = normalizeFindingsViewMode(viewMode);
   const [compareDismissed, setCompareDismissed] = useState(false);
 
   const [selectedFindingIds, setSelectedFindingIds] = useState<Set<string>>(new Set());
@@ -342,13 +344,26 @@ export function FindingsPage() {
              </button>
           </div>
           <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-line">
-             <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
+             <button type="button" aria-label="Grid view" aria-pressed={safeViewMode === 'grid'} onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${safeViewMode === 'grid' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
                 <LayoutGrid size={16} />
              </button>
-             <button onClick={() => setViewMode('table')} className={`p-1.5 rounded ${viewMode === 'table' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
+             <button type="button" aria-label="Table view" aria-pressed={safeViewMode === 'table'} onClick={() => setViewMode('table')} className={`p-1.5 rounded ${safeViewMode === 'table' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
                 <ListIcon size={16} />
              </button>
+             <button type="button" aria-label="Kanban view" aria-pressed={safeViewMode === 'kanban'} onClick={() => setViewMode('kanban')} className={`p-1.5 rounded ${safeViewMode === 'kanban' ? 'bg-accent text-black' : 'text-muted hover:text-text-primary'}`}>
+                <Columns3 size={16} />
+             </button>
           </div>
+          {comparePair && (
+            <button
+              type="button"
+              onClick={() => setCompareDismissed(false)}
+              className="btn-secondary btn-small flex items-center gap-1.5"
+            >
+              <ArrowUpDown size={12} />
+              Compare
+            </button>
+          )}
           <div className="flex gap-2">
             <button onClick={() => handleExport('json')} className="btn-secondary btn-small">Export JSON</button>
             <button onClick={() => handleExport('csv')} className="btn-secondary btn-small">Export CSV</button>
@@ -518,12 +533,12 @@ export function FindingsPage() {
               ctaHref={searchQuery || severityFilter.length > 0 ? undefined : '/targets'}
             />
           </div>
-        ) : viewMode === 'kanban' ? (
+        ) : safeViewMode === 'kanban' ? (
           <FindingsKanbanPane
             findings={findings}
             onOpenDetail={setDetailFinding}
           />
-        ) : viewMode === 'table' ? (
+        ) : safeViewMode === 'table' ? (
           <FindingsTablePane
             findings={findings}
             selectedIds={selectedFindingIds}

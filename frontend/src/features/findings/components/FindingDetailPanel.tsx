@@ -20,6 +20,8 @@ import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
 import { ThreatIntelPanel } from './ThreatIntelPanel';
 import { CVSSDetail } from './CVSSDetail';
 import { PIIControls } from './PIIControls';
+import { isPIIVisible } from '@/utils/piiRedactor';
+import { sanitizePiiFromVisibility } from '@/utils/piiVisibility';
 import { RemediationTracker } from './RemediationTracker';
 import { BountyPanel } from './FindingDetailPanel/BountyPanel';
 import { RiskPanel } from './FindingDetailPanel/RiskPanel';
@@ -101,7 +103,7 @@ export function FindingDetailPanel({
   const [bountyCurrency, setBountyCurrency] = useState(finding.bounty_currency || 'USD');
   const [alreadyReported, setAlreadyReported] = useState(finding.already_reported || false);
   const [savingBounty, setSavingBounty] = useState(false);
-  const [sanitizePII, setSanitizePII] = useState(true);
+  const [sanitizePII, setSanitizePII] = useState(() => sanitizePiiFromVisibility(isPIIVisible()));
   const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
   const [loadingRemediation, setLoadingRemediation] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
@@ -457,7 +459,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                 {features.piiControls && (
                   <PIIControls
                     className="mb-2"
-                    onChange={(visible) => setSanitizePII(!visible)}
+                    onChange={(visible) => setSanitizePII(sanitizePiiFromVisibility(visible))}
                   />
                 )}
                 <p className="text-sm text-text/80 leading-relaxed italic border-l-2 border-accent/20 pl-4">

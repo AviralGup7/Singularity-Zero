@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Finding } from '@/types/api';
 import { bulkUpdateFindings } from '@/api/client';
 import { useToast } from '@/hooks/useToast';
 import { FindingsTableView } from './FindingsTableView';
 import { FindingsFpDialogs } from './FindingsFpDialogs';
 import { dedupeFindings } from '../hooks/useFindingsTable';
+import { clampFindingsPage } from '../findingsViewMode';
 
 type TableSortKey = 'severity' | 'type' | 'target' | 'status' | 'date' | 'bounty_value';
 
@@ -78,7 +79,11 @@ export function FindingsTablePane({
   const uniqueFindings = useMemo(() => dedupeFindings(findings), [findings]);
   const tableSortKey: TableSortKey = TABLE_SORT_KEYS.has(sortKey) ? (sortKey as TableSortKey) : 'severity';
   const totalPages = Math.max(1, Math.ceil(uniqueFindings.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
+  const safePage = clampFindingsPage(page, totalPages);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
   const paginated = useMemo(
     () => uniqueFindings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [uniqueFindings, safePage],
@@ -159,7 +164,7 @@ export function FindingsTablePane({
     <div className="h-full overflow-auto px-4 pb-24">
       <FindingsTableView
         paginated={paginated}
-        filtered={findings}
+        filtered={uniqueFindings}
         page={safePage}
         pageSize={PAGE_SIZE}
         sortKey={tableSortKey}

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { useApi } from '@/hooks/useApi';
 import { useRealtimeStream } from '@/hooks/useRealtimeStream';
+import { applyLiveScanEvent, mergePolledScanState } from '@/components/scanStatusMerge';
 import type { Job } from '@/types/api';
 
 interface ActiveScanState {
@@ -54,16 +55,12 @@ export function ScanStatusBar() {
         : typeof data.stage_processed === 'number'
           ? data.stage_processed
           : undefined;
-      setActiveScan((prev) => {
-        if (!prev || (runningJobId && prev.jobId !== runningJobId)) return prev;
-        return {
-          ...prev,
-          progress: progress ?? prev.progress,
-          status: status || prev.status,
-          findingsCount: findingsCount ?? prev.findingsCount,
-          urlsFound: urlsFound ?? prev.urlsFound,
-        };
-      });
+      setActiveScan((prev) => applyLiveScanEvent(prev, runningJobId, {
+        progress,
+        status,
+        findingsCount,
+        urlsFound,
+      }));
     },
   });
 
@@ -71,7 +68,7 @@ export function ScanStatusBar() {
     const running = (jobsResponse?.jobs ?? []).find(j => j.status === 'running');
     if (running) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveScan({
+      setActiveScan((prev) => mergePolledScanState(prev, {
         jobId: running.id,
         targetName: running.target_name,
         progress: running.progress_percent,
@@ -79,7 +76,7 @@ export function ScanStatusBar() {
         etaLabel: running.eta_label || '',
         findingsCount: running.findings_count ?? 0,
         urlsFound: running.stage_processed ?? 0,
-      });
+      }));
     } else {
       setActiveScan(null);
     }

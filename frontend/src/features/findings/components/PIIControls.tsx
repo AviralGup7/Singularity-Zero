@@ -16,10 +16,13 @@ export function PIIControls({ className, onChange }: PIIControlsProps) {
   useEffect(() => {
     let mounted = true;
     Promise.resolve().then(() => {
-      if (mounted) setVisible(isPIIVisible());
+      if (!mounted) return;
+      const current = isPIIVisible();
+      setVisible(current);
+      onChange?.(current);
     });
     return () => { mounted = false; };
-  }, []);
+  }, [onChange]);
 
   const toggle = () => {
     const next = !visible;
