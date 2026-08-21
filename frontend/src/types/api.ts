@@ -406,7 +406,14 @@ export interface Finding {
   falsePositive?: boolean;
   fpStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   fpJustification?: string;
-  kanbanStatus?: 'new' | 'in-progress' | 'resolved';
+  kanbanStatus?:
+    | 'new'
+    | 'needs_validation'
+    | 'in-progress'
+    | 'report_ready'
+    | 'submitted'
+    | 'resolved'
+    | 'not_interested';
   _deleted?: boolean;
 
   // Operator-economics fields

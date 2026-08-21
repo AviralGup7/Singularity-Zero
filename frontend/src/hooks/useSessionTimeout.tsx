@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const TIMEOUT_MS = 15 * 60 * 1000;
-const WARNING_MS = 2 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
+const WARNING_LEAD_MS = 2 * 60 * 1000;
 
 interface SessionState {
   isLocked: boolean;
@@ -11,12 +11,13 @@ interface SessionState {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useSessionTimeout(onTimeout?: () => void) {
-   
+export function useSessionTimeout(onTimeout?: () => void, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  const timeout = Math.max(60_000, timeoutMs);
+  const warningAt = Math.max(10_000, timeout - WARNING_LEAD_MS);
   const [state, setState] = useState<SessionState>(() => ({
     isLocked: false,
     showWarning: false,
-    remainingMs: TIMEOUT_MS,
+    remainingMs: timeout,
     lastActivity: Date.now(),
   }));
 
@@ -40,7 +41,7 @@ export function useSessionTimeout(onTimeout?: () => void) {
         ...prev,
         isLocked: false,
         showWarning: false,
-        remainingMs: TIMEOUT_MS,
+        remainingMs: timeout,
         lastActivity: Date.now(),
       }));
     });
@@ -50,14 +51,13 @@ export function useSessionTimeout(onTimeout?: () => void) {
 
     warningTimerRef.current = setTimeout(() => {
       setState(prev => ({ ...prev, showWarning: true }));
-    }, TIMEOUT_MS - WARNING_MS);
+    }, warningAt);
 
     timeoutRef.current = setTimeout(() => {
       setState(prev => ({ ...prev, isLocked: true, showWarning: false }));
       onTimeout?.();
-    }, TIMEOUT_MS);
-   
-  }, [onTimeout]);
+    }, timeout);
+  }, [onTimeout, timeout, warningAt]);
 
   useEffect(() => {
    
@@ -82,7 +82,7 @@ export function useSessionTimeout(onTimeout?: () => void) {
       if (!isLockedRef.current) {
         setState(prev => {
           const elapsed = Date.now() - prev.lastActivity;
-          const remaining = Math.max(0, TIMEOUT_MS - elapsed);
+          const remaining = Math.max(0, timeout - elapsed);
           return { ...prev, remainingMs: remaining };
         });
       }
@@ -101,8 +101,12 @@ export function useSessionTimeout(onTimeout?: () => void) {
 
   const unlock = useCallback(() => {
     resetTimer();
-   
   }, [resetTimer]);
+
+  const lock = useCallback(() => {
+    setState((prev) => ({ ...prev, isLocked: true, showWarning: false, remainingMs: 0 }));
+    isLockedRef.current = true;
+  }, []);
 
   return {
     isLocked: state.isLocked,
@@ -111,6 +115,7 @@ export function useSessionTimeout(onTimeout?: () => void) {
     remainingMinutes: Math.floor(state.remainingMs / 60000),
     remainingSeconds: Math.floor((state.remainingMs % 60000) / 1000),
     unlock,
+    lock,
   };
 }
 

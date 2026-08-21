@@ -74,41 +74,6 @@ export function JobsPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, safePage]);
 
-  if (loading) {
-    return (
-      <div className="jobs-page">
-        <div className="page-header">
-          <SkeletonText lines={1} />
-          <div className="flex gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="skeleton skeleton-line" style={{ '--skel-width': '60px', '--skel-height': '1em' } as CSSProperties} />
-            ))}
-          </div>
-        </div>
-        <SkeletonCard />
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="jobs-page space-y-6">
-        <PageHeader
-          icon={<Briefcase size={20} />}
-          title="Pipeline Jobs"
-          subtitle="Manage and monitor scan jobs"
-        />
-        <ErrorCard
-          title="Error loading jobs"
-          message={error.message}
-          onRetry={() => { void refetch(); }}
-        />
-      </div>
-    );
-  }
-
   const runningCount = filtered.filter(j => j?.status === 'running').length;
   const failedCount = filtered.filter(j => j?.status === 'failed').length;
 
@@ -118,16 +83,20 @@ export function JobsPage() {
         icon={<Briefcase size={20} />}
         title="Pipeline Jobs"
         subtitle={
-          <span className="flex items-center gap-2">
-            <span
-              className="status-pill status-running"
-              style={runningCount > 0 ? { animation: 'glow-pulse 2s ease-in-out infinite', color: 'var(--accent)' } : undefined}
-            >
-              {runningCount} running
+          loading ? (
+            'Manage and monitor scan jobs'
+          ) : (
+            <span className="flex items-center gap-2">
+              <span
+                className="status-pill status-running"
+                style={runningCount > 0 ? { animation: 'glow-pulse 2s ease-in-out infinite', color: 'var(--accent)' } : undefined}
+              >
+                {runningCount} running
+              </span>
+              <span className="status-pill status-failed">{failedCount} failed</span>
+              <span className="status-pill">{filtered.length} total</span>
             </span>
-            <span className="status-pill status-failed">{failedCount} failed</span>
-            <span className="status-pill">{filtered.length} total</span>
-          </span>
+          )
         }
       />
 
@@ -138,6 +107,32 @@ export function JobsPage() {
         }}
       />
 
+      {loading && (
+        <div className="space-y-4">
+          <div className="page-header">
+            <SkeletonText lines={1} />
+            <div className="flex gap-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="skeleton skeleton-line" style={{ '--skel-width': '60px', '--skel-height': '1em' } as CSSProperties} />
+              ))}
+            </div>
+          </div>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      )}
+
+      {!loading && error && (
+        <ErrorCard
+          title="Error loading jobs"
+          message={error.message}
+          onRetry={() => { void refetch(); }}
+        />
+      )}
+
+      {!loading && !error && (
+      <>
       <motion.div
         className="jobs-toolbar"
         initial={{ opacity: 0, y: 12 }}
@@ -206,6 +201,8 @@ export function JobsPage() {
       <div aria-live="polite" aria-atomic="true" className="sr-only" id="job-progress-announcer-page">
         {`${filtered.length} jobs loaded. ${runningCount} running.`}
       </div>
+      </>
+      )}
     </div>
   );
 }

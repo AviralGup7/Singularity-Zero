@@ -14,6 +14,7 @@ interface HeaderProps {
   liveConnectionState: string;
   user: { name?: string } | null;
   isOnline: boolean;
+  healthReady?: boolean;
   policy: { allowFramer: boolean };
   motionDuration: number;
   notifications?: AppNotification[];
@@ -33,6 +34,7 @@ export function Header({
   liveConnectionState,
   user,
   isOnline,
+  healthReady = false,
   policy,
   motionDuration,
   notifications = [],
@@ -106,6 +108,18 @@ export function Header({
         </div>
 
         <div className="header-right-actions flex items-center gap-4">
+          {healthReady && isOnline && (
+            <div
+              className="header-online-chip flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-ok/30 bg-ok/10 text-ok"
+              role="status"
+              aria-live="polite"
+              aria-label="System online"
+              title="Backend health check is ready"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-ok" aria-hidden="true" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Online</span>
+            </div>
+          )}
           <NotificationCenter
             notifications={notifications}
             onMarkRead={onMarkNotificationRead}

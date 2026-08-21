@@ -5,9 +5,10 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface PIIControlsProps {
   className?: string;
+  onChange?: (visible: boolean) => void;
 }
 
-export function PIIControls({ className }: PIIControlsProps) {
+export function PIIControls({ className, onChange }: PIIControlsProps) {
    
   const [visible, setVisible] = useState(isPIIVisible());
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export function PIIControls({ className }: PIIControlsProps) {
     const next = !visible;
     setVisible(next);
     setPIIVisible(next, user?.name || 'anonymous');
+    onChange?.(next);
   };
 
   return (

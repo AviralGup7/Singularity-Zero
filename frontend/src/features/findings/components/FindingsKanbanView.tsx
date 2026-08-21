@@ -11,6 +11,53 @@ export type KanbanColumn =
   | 'resolved'
   | 'not_interested';
 
+export const KANBAN_COLUMNS: { key: KanbanColumn; label: string }[] = [
+  { key: 'new', label: 'New' },
+  { key: 'needs_validation', label: 'Needs Validation' },
+  { key: 'in-progress', label: 'In Progress' },
+  { key: 'report_ready', label: 'Report Ready' },
+  { key: 'submitted', label: 'Submitted' },
+  { key: 'resolved', label: 'Resolved' },
+  { key: 'not_interested', label: 'Not Interested' },
+];
+
+const KANBAN_KEYS = new Set<KanbanColumn>(KANBAN_COLUMNS.map((column) => column.key));
+
+export function isKanbanColumn(value: string | undefined | null): value is KanbanColumn {
+  return Boolean(value && KANBAN_KEYS.has(value as KanbanColumn));
+}
+
+export function resolveKanbanColumn(finding: Finding): KanbanColumn {
+  if (isKanbanColumn(finding.kanbanStatus)) return finding.kanbanStatus;
+  if (finding.falsePositive || finding.fpStatus === 'approved') return 'not_interested';
+  if (finding.status === 'closed') return 'resolved';
+  if (finding.already_reported) return 'submitted';
+  if (finding.lifecycle_state === 'reportable') return 'report_ready';
+  if (finding.status === 'accepted') return 'in-progress';
+  if (finding.fpStatus === 'pending' || finding.lifecycle_state === 'validated') return 'needs_validation';
+  return 'new';
+}
+
+export function emptyKanbanBuckets(): Record<KanbanColumn, Finding[]> {
+  return {
+    new: [],
+    needs_validation: [],
+    'in-progress': [],
+    report_ready: [],
+    submitted: [],
+    resolved: [],
+    not_interested: [],
+  };
+}
+
+export function bucketKanbanFindings(findings: Finding[]): Record<KanbanColumn, Finding[]> {
+  const buckets = emptyKanbanBuckets();
+  for (const finding of findings) {
+    buckets[resolveKanbanColumn(finding)].push(finding);
+  }
+  return buckets;
+}
+
 interface FindingsKanbanViewProps {
   kanbanFindings: Record<KanbanColumn, Finding[]>;
   uniqueAssignees: string[];
@@ -25,17 +72,8 @@ interface FindingsKanbanViewProps {
   setFpReviewDialog: (finding: Finding | null) => void;
   hashToColor: (str: string) => string;
   getInitials: (name: string) => string;
+  onOpenDetail?: (finding: Finding) => void;
 }
-
-const KANBAN_COLUMNS: { key: KanbanColumn; label: string }[] = [
-  { key: 'new', label: 'New' },
-  { key: 'needs_validation', label: 'Needs Validation' },
-  { key: 'in-progress', label: 'In Progress' },
-  { key: 'report_ready', label: 'Report Ready' },
-  { key: 'submitted', label: 'Submitted' },
-  { key: 'resolved', label: 'Resolved' },
-  { key: 'not_interested', label: 'Not Interested' },
-];
 
 export function FindingsKanbanView({
   kanbanFindings,
@@ -51,6 +89,7 @@ export function FindingsKanbanView({
   setFpReviewDialog,
   hashToColor,
   getInitials,
+  onOpenDetail,
 }: FindingsKanbanViewProps) {
   return (
     <div className="kanban-board">
@@ -88,7 +127,13 @@ export function FindingsKanbanView({
                         </span>
                         {fpStatusBadge}
                       </div>
-                      <div className="kanban-card-type">{finding.type || '—'}</div>
+                      <button
+                        type="button"
+                        className="kanban-card-type text-left"
+                        onClick={() => onOpenDetail?.(finding)}
+                      >
+                        {finding.type || '—'}
+                      </button>
                       <div className="kanban-card-target" title={finding.target}>{finding.target || '—'}</div>
                       <div className="kanban-card-date">{formatFindingDate(finding.timestamp)}</div>
                       {finding.assignedTo && (

@@ -33,6 +33,13 @@ function removeOverlayRoot() {
   if (root && root.parentNode) root.parentNode.removeChild(root);
 }
 
+export function showErrorOverlay(title: string, message: string, stack?: string) {
+  if (typeof document === 'undefined') return;
+  const node = ensureOverlayRoot();
+  if (!node || !errorRoot) return;
+  errorRoot.render(<ErrorOverlay title={title} message={message} stack={stack} />);
+}
+
 export function ErrorOverlay({ title, message, stack }: { title: string; message: string; stack?: string }) {
   const [visible, setVisible] = useState(false);
 

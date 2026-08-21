@@ -24,6 +24,7 @@ function sampleFinding(id: string): Finding {
     lifecycle_state: 'detected',
     target: 'https://app.test',
     status: 'open',
+    evidence: { match: id },
   };
 }
 

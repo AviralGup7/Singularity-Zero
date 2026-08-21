@@ -11,6 +11,7 @@ import { useApi } from '@/hooks/useApi';
 import { bulkUpdateFindings } from '@/api/findings';
 import { useToast } from '@/hooks/useToast';
 import { showErrorToast } from '@/utils/extractErrorMessage';
+import { RunDiffViewer } from '@/components/RunDiffViewer';
 
 interface DiffBucket {
   newFindings: Finding[];
@@ -272,6 +273,11 @@ export function ScanDiffPage() {
             <BountyDeltaCard label="Bounty upside (new)" {...bountyNew} accent="ok" />
             <BountyDeltaCard label="Bounty at risk (removed)" {...bountyRemoved} accent="bad" />
           </div>
+
+          <RunDiffViewer
+            runA={{ runId: runA, target: runA, date: 'Run A', findings: findingsA }}
+            runB={{ runId: runB, target: runB, date: 'Run B', findings: findingsB }}
+          />
 
           <GlassCard hoverable={false}>
             <h3 className="text-sm font-semibold mb-3 text-text">Severity Breakdown</h3>

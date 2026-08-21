@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/index.css'
 import App from '@/App.tsx'
+import { showErrorOverlay } from '@/utils/errorOverlay'
 
 // Auto-recover when stale hashed chunks 404 after a new deploy/build.
 window.addEventListener('vite:preloadError', (event) => {
@@ -17,88 +18,6 @@ window.addEventListener('vite:preloadError', (event) => {
 // idempotency flag (setupGlobalErrorTracking). The listeners here
 // handle boot-time errors BEFORE the React tree mounts; the init.ts
 // listeners take over after mount for runtime errors.
-
-function showErrorOverlay(title: string, message: string, stack?: string) {
-  const existing = document.getElementById('error-overlay');
-  if (existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'error-overlay';
-  overlay.className = 'error-overlay';
-
-  const card = document.createElement('div');
-  card.className = 'error-overlay-card';
-
-  // Header section
-  const header = document.createElement('div');
-  header.className = 'error-overlay-header';
-
-  const titleEl = document.createElement('h2');
-  titleEl.className = 'error-overlay-title';
-  titleEl.textContent = `\u26A0\uFE0F ${title}`;
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'error-overlay-close';
-  closeBtn.textContent = '\u2715 Close';
-  closeBtn.addEventListener('click', () => overlay.remove());
-
-  header.appendChild(titleEl);
-  header.appendChild(closeBtn);
-
-  // Content section
-  const content = document.createElement('div');
-  content.className = 'error-overlay-content';
-
-  // Error details box
-  const errorBox = document.createElement('div');
-  errorBox.className = 'error-overlay-box';
-
-  const errorLabel = document.createElement('p');
-  errorLabel.className = 'error-overlay-label';
-  errorLabel.textContent = 'Error Details:';
-
-  const errorPre = document.createElement('pre');
-  errorPre.className = 'error-overlay-pre';
-  errorPre.textContent = message; // Safe: textContent escapes HTML
-
-  errorBox.appendChild(errorLabel);
-  errorBox.appendChild(errorPre);
-  content.appendChild(errorBox);
-
-  // Stack trace (collapsible)
-  if (stack) {
-    // SECURITY: Hide stack traces in production to avoid leaking internal paths
-    const showStack = import.meta.env?.DEV ?? true;
-
-    if (showStack) {
-      const details = document.createElement('details');
-      details.className = 'error-overlay-details';
-
-      const summary = document.createElement('summary');
-      summary.className = 'error-overlay-summary';
-      summary.textContent = '\uD83D\uDCCB Full Stack Trace';
-
-      const stackPre = document.createElement('pre');
-      stackPre.className = 'error-overlay-stack';
-      stackPre.textContent = stack;
-
-      details.appendChild(summary);
-      details.appendChild(stackPre);
-      content.appendChild(details);
-    }
-  }
-
-  // Tip section
-  const tip = document.createElement('div');
-  tip.className = 'error-overlay-tip';
-  tip.textContent = '\uD83D\uDCA1 Tip: Check the browser console (F12) for more details.';
-  content.appendChild(tip);
-
-  card.appendChild(header);
-  card.appendChild(content);
-  overlay.appendChild(card);
-  document.body.appendChild(overlay);
-}
 
 // Global JavaScript errors (bubbling phase)
 window.addEventListener('error', (e) => {

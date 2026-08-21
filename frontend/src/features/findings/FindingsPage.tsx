@@ -6,14 +6,17 @@ import { useProcessedFindings } from '../../hooks/useProcessedFindings';
 import { useDebouncedFilter } from '../../hooks/useDebouncedFilter';
 import { VirtualizedFindingsList } from './components/VirtualizedFindingsList';
 import { FindingsTablePane } from './components/FindingsTablePane';
+import { FindingsKanbanPane } from './components/FindingsKanbanPane';
+import { FindingComparisonPanel } from './components/FindingComparisonPanel';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SavedFilterPresets } from '../../components/ui/SavedFilterPresets';
 import { useToast } from '../../hooks/useToast';
+import { usePersistedState } from '../../hooks/usePersistedState';
 import { offlineQueue } from '../../utils/offlineQueue';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
-import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Columns3, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 const ReportFab = lazy(() => import('../../components/report/ReportFab').then(m => ({ default: m.ReportFab })));
 const OnboardingTour = lazy(() => import('../../components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
@@ -45,7 +48,8 @@ export function FindingsPage() {
 
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = usePersistedState<'grid' | 'table' | 'kanban'>('findings-view-mode', 'grid');
+  const [compareDismissed, setCompareDismissed] = useState(false);
 
   const [selectedFindingIds, setSelectedFindingIds] = useState<Set<string>>(new Set());
   const [bulkActionMode, setBulkActionMode] = useState<string | null>(null);
@@ -224,6 +228,18 @@ export function FindingsPage() {
     filters,
     sort
   );
+
+  const comparePair = useMemo(() => {
+    if (selectedFindingIds.size !== 2) return null;
+    const [idA, idB] = Array.from(selectedFindingIds);
+    const findingA = findings.find((finding) => finding.id === idA);
+    const findingB = findings.find((finding) => finding.id === idB);
+    return findingA && findingB ? { findingA, findingB } : null;
+  }, [selectedFindingIds, findings]);
+
+  useEffect(() => {
+    setCompareDismissed(false);
+  }, [selectedFindingIds]);
 
   const selectAllFindings = useCallback(() => {
     setSelectedFindingIds(new Set(findings.map((f: Finding) => f.id).filter(Boolean) as string[]));
@@ -502,6 +518,11 @@ export function FindingsPage() {
               ctaHref={searchQuery || severityFilter.length > 0 ? undefined : '/targets'}
             />
           </div>
+        ) : viewMode === 'kanban' ? (
+          <FindingsKanbanPane
+            findings={findings}
+            onOpenDetail={setDetailFinding}
+          />
         ) : viewMode === 'table' ? (
           <FindingsTablePane
             findings={findings}
@@ -612,6 +633,16 @@ export function FindingsPage() {
           <FindingDetailPanel
             finding={detailFinding}
             onClose={() => setDetailFinding(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {comparePair && !compareDismissed && (
+          <FindingComparisonPanel
+            findingA={comparePair.findingA}
+            findingB={comparePair.findingB}
+            onClose={() => setCompareDismissed(true)}
           />
         )}
       </AnimatePresence>

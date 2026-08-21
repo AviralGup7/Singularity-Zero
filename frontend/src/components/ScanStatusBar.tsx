@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { useApi } from '@/hooks/useApi';
+import { useRealtimeStream } from '@/hooks/useRealtimeStream';
 import type { Job } from '@/types/api';
 
 interface ActiveScanState {
@@ -24,6 +25,47 @@ export function ScanStatusBar() {
     enabled: !!user,
   });
   const [activeScan, setActiveScan] = useState<ActiveScanState | null>(null);
+  const runningJobId = (jobsResponse?.jobs ?? []).find((job) => job.status === 'running')?.id;
+
+  useRealtimeStream({
+    resourceId: runningJobId,
+    enabled: Boolean(runningJobId),
+    transport: 'sse',
+    sseEndpoint: 'progress',
+    onEvent: (event) => {
+      const data = (event.data ?? {}) as Record<string, unknown>;
+      const progress = typeof data.progress === 'number'
+        ? data.progress
+        : typeof data.progress_percent === 'number'
+          ? data.progress_percent
+          : undefined;
+      const status = typeof data.message === 'string'
+        ? data.message
+        : typeof data.stage === 'string'
+          ? data.stage
+          : event.type;
+      const findingsCount = typeof data.finding_count === 'number'
+        ? data.finding_count
+        : typeof data.findings_count === 'number'
+          ? data.findings_count
+          : undefined;
+      const urlsFound = typeof data.urls_found === 'number'
+        ? data.urls_found
+        : typeof data.stage_processed === 'number'
+          ? data.stage_processed
+          : undefined;
+      setActiveScan((prev) => {
+        if (!prev || (runningJobId && prev.jobId !== runningJobId)) return prev;
+        return {
+          ...prev,
+          progress: progress ?? prev.progress,
+          status: status || prev.status,
+          findingsCount: findingsCount ?? prev.findingsCount,
+          urlsFound: urlsFound ?? prev.urlsFound,
+        };
+      });
+    },
+  });
 
   useEffect(() => {
     const running = (jobsResponse?.jobs ?? []).find(j => j.status === 'running');

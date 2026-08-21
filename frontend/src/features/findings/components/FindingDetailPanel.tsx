@@ -454,7 +454,12 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
             {detailTab === 'csi' && (
               <div className="space-y-6">
-                {features.piiControls && <PIIControls className="mb-2" />}
+                {features.piiControls && (
+                  <PIIControls
+                    className="mb-2"
+                    onChange={(visible) => setSanitizePII(!visible)}
+                  />
+                )}
                 <p className="text-sm text-text/80 leading-relaxed italic border-l-2 border-accent/20 pl-4">
                   {finding.description}
                 </p>

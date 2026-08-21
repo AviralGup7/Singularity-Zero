@@ -252,6 +252,8 @@ export const AppSettingsSchema = z.object({
     remediationTracker: z.boolean().default(false),
     dashboardAnalytics: z.boolean().default(false),
     cinematicIntro: z.boolean().default(false),
+    clientPerformance: z.boolean().default(false),
+    reconDetails: z.boolean().default(false),
   }).default({
     threatIntel: true,
     cvssDetails: true,
@@ -259,6 +261,8 @@ export const AppSettingsSchema = z.object({
     remediationTracker: false,
     dashboardAnalytics: false,
     cinematicIntro: false,
+    clientPerformance: false,
+    reconDetails: false,
   }),
   performance: z.object({
     enableCaching: z.boolean().default(true),

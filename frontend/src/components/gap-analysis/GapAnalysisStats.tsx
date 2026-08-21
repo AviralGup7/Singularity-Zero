@@ -26,7 +26,7 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
         <div className="mt-4 h-1.5 w-full bg-surface-hover rounded-full overflow-hidden">
           <div
             className={`h-full transition-all duration-1000 ${
-              data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'text-bad'
+              data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'bg-bad'
             }`}
             style={{ width: `${data.overall_coverage}%` }}
           />

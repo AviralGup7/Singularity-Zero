@@ -48,6 +48,18 @@ export function FeaturesSection({ features, onChange }: FeaturesSectionProps) {
         onChange={(v) => onChange({ cinematicIntro: v })}
         description="Animated login entrance (respects reduced-motion policy)"
       />
+      <SettingToggle
+        label="Client Performance"
+        checked={features.clientPerformance}
+        onChange={(v) => onChange({ clientPerformance: v })}
+        description="Show browser timing and model calibration on the Performance settings page"
+      />
+      <SettingToggle
+        label="Recon Details"
+        checked={features.reconDetails}
+        onChange={(v) => onChange({ reconDetails: v })}
+        description="Show discovered host and scope URLs on completed job detail"
+      />
     </SettingsSectionCard>
   );
 }

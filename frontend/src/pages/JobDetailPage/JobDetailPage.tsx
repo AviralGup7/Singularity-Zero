@@ -7,6 +7,8 @@ import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StalledExplainerPanel } from '@/components/StalledExplainerPanel';
 import { ScanSummaryCard } from '@/components/targets/ScanSummaryCard';
+import { ReconResults } from '@/components/targets/ReconResults';
+import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
 import { IterationProgressBar } from '@/components/IterationProgressBar';
 import { PluginProgressGrid } from '@/components/PluginProgressGrid';
 import { LiveTerminalFeed } from '@/components/LiveTerminalFeed';
@@ -56,6 +58,7 @@ export function JobDetailPage() {
   console.debug(`[JobDetailPage] mounted jobId=${jobId}`);
 
   const monitor = useJobMonitor(jobId, { onRestarted: handleRestarted });
+  const features = useOptionalFeatures();
 
   const {
     job, loading, error, sseError, wsFailed, durationForecast, durationLoading,
@@ -268,6 +271,19 @@ export function JobDetailPage() {
         )}
 
         {job.status === 'completed' && <ScanSummaryCard job={job} />}
+
+        {job.status === 'completed' && features.reconDetails && (
+          <motion.div variants={itemVariants} className="card" role="region" aria-label="Reconnaissance results">
+            <ReconResults
+              target={job.hostname || job.target_name || job.base_url}
+              urls={(job.scope_entries ?? []).map((entry) => ({
+                url: entry,
+                statusCode: 0,
+                title: entry,
+              }))}
+            />
+          </motion.div>
+        )}
 
         {job.enabled_modules && job.enabled_modules.length > 0 && (
           <motion.div variants={itemVariants} className="card">

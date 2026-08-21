@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/ui/Icon';
 import { EmptyState } from '../components/ui';
 import { useGapAnalysis, useGapAnalysisSorting, useGapAnalysisFiltering } from '../hooks/useGapAnalysis';
 import { GapDeficiencies } from '../components/gap-analysis/GapAnalysisComponents';
+import { GapAnalysisStats } from '../components/gap-analysis/GapAnalysisStats';
 import { MitigationModal } from '../components/gap-analysis/MitigationModal';
 import { ROUTES } from '@/config/paths';
 
@@ -158,64 +158,7 @@ export function GapAnalysisPage() {
         </div>
       )}
 
-      {data && !isNoTelemetryState && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass-stat-card"
-          >
-            <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Overall Coverage</div>
-            <div
-              className={`font-semibold ${
-                data.overall_coverage > 80 ? 'text-ok' : data.overall_coverage > 50 ? 'text-warn' : 'text-bad'
-              }`}
-              style={{ fontSize: 'var(--text-card-value)' }}
-            >
-              {data.overall_coverage}%
-            </div>
-            <div className="mt-4 h-1.5 w-full bg-surface-hover rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-1000 ${
-                  data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'bg-bad'
-                }`}
-                style={{ width: `${data.overall_coverage}%` }}
-              />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="glass-stat-card"
-          >
-            <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Module Integrity</div>
-            <div className="font-semibold text-text" style={{ fontSize: 'var(--text-card-value)' }}>
-              {data.total_modules - data.modules_with_gaps}
-              <span className="text-lg text-muted font-normal ml-2">/ {data.total_modules} OK</span>
-            </div>
-            <div className="text-xs text-muted mt-2 italic">
-              Modules meeting 100% of detection registry requirements.
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="glass-stat-card"
-          >
-            <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Identified Gaps</div>
-            <div className={`font-semibold ${data.modules_with_gaps > 0 ? 'text-warn' : 'text-ok'}`} style={{ fontSize: 'var(--text-card-value)' }}>
-              {data.modules_with_gaps}
-            </div>
-            <div className="text-xs text-muted mt-2">
-              Requires immediate action to reach full security posture.
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {data && !isNoTelemetryState && <GapAnalysisStats data={data} />}
 
       {data && !isNoTelemetryState && (
       <div className="bg-panel border border-line rounded-xl overflow-hidden shadow-2xl">

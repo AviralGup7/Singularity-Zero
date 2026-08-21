@@ -24,6 +24,8 @@ import { Header } from './Header';
 import { Footer } from './Footer';
 import { ShortcutsModal } from './ShortcutsModal';
 import { ScanStatusBar } from '@/components/ScanStatusBar';
+import { SessionGuard } from '@/components/SessionGuard';
+import { useEscapeToClose } from '@/hooks/useKeyboardShortcuts';
 
 const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
 const NightCityHud = lazy(() => import('./NightCityHud').then(m => ({ default: m.NightCityHud })));
@@ -204,6 +206,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEscapeToClose(() => {
+    setShowShortcuts(false);
+    setCommandPaletteOpen(false);
+    setSidebarOpen(false);
+  }, commandPaletteOpen || showShortcuts || sidebarOpen);
 
   const sidebarCollapsed = useDisplayStore((state) => state.sidebarCollapsed);
   const toggleSidebarCollapsed = useDisplayStore((state) => state.toggleSidebarCollapsed);
@@ -406,6 +414,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="app-shell app-shell--hud">
+      <SessionGuard />
       {nightCityHud}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
         Skip to content
@@ -435,6 +444,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           liveConnectionState={liveConnectionState}
           user={user}
           isOnline={isOnline}
+          healthReady={!healthStatus.loading && healthStatus.ready && !healthStatus.error}
           policy={policy}
           motionDuration={motionDuration}
           notifications={notifications}

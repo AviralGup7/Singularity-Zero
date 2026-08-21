@@ -5,9 +5,10 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface SessionLockScreenProps {
   onUnlock: (password: string) => boolean;
+  requirePassword?: boolean;
 }
 
-export function SessionLockScreen({ onUnlock }: SessionLockScreenProps) {
+export function SessionLockScreen({ onUnlock, requirePassword = true }: SessionLockScreenProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -15,14 +16,22 @@ export function SessionLockScreen({ onUnlock }: SessionLockScreenProps) {
   const { user, verifyUnlockPassword } = useAuth();
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (requirePassword) {
+      inputRef.current?.focus();
+    }
+  }, [requirePassword]);
 
   const handleUnlock = useCallback(() => {
-    if (!password || isVerifying) return;
+    if (isVerifying) return;
+    if (requirePassword && !password) return;
     setIsVerifying(true);
     setError('');
     try {
+      if (!requirePassword) {
+        onUnlock('');
+        setPassword('');
+        return;
+      }
       if (verifyUnlockPassword(password)) {
         onUnlock(password);
         setPassword('');
@@ -32,7 +41,7 @@ export function SessionLockScreen({ onUnlock }: SessionLockScreenProps) {
     } finally {
       setIsVerifying(false);
     }
-  }, [password, onUnlock, verifyUnlockPassword, isVerifying]);
+  }, [password, onUnlock, verifyUnlockPassword, isVerifying, requirePassword]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleUnlock();
@@ -47,34 +56,36 @@ export function SessionLockScreen({ onUnlock }: SessionLockScreenProps) {
             Session Locked
           </h2>
           <p className="text-muted text-sm mt-1">
-            {user?.name || 'User'} — Re-authenticate to continue
+            {user?.name || 'User'} — {requirePassword ? 'Re-authenticate to continue' : 'Continue to resume this session'}
           </p>
         </div>
 
-        <Input
-          ref={inputRef}
-          id="unlock-password"
-          type="password"
-          label="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={handleKeyDown}
-          error={error}
-          placeholder="Enter password"
-          className="mb-3"
-          aria-describedby={error ? 'unlock-error' : undefined}
-          autoComplete="current-password"
-          disabled={isVerifying}
-        />
+        {requirePassword && (
+          <Input
+            ref={inputRef}
+            id="unlock-password"
+            type="password"
+            label="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={handleKeyDown}
+            error={error}
+            placeholder="Enter password"
+            className="mb-3"
+            aria-describedby={error ? 'unlock-error' : undefined}
+            autoComplete="current-password"
+            disabled={isVerifying}
+          />
+        )}
 
         <Button
           variant="primary"
           onClick={handleUnlock}
           className="w-full"
-          disabled={!password || isVerifying}
+          disabled={(requirePassword && !password) || isVerifying}
           aria-busy={isVerifying}
         >
-          {isVerifying ? 'Verifying...' : 'Unlock'}
+          {isVerifying ? 'Verifying...' : requirePassword ? 'Unlock' : 'Continue session'}
         </Button>
       </div>
     </div>

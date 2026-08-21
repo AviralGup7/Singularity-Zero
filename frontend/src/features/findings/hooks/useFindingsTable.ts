@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { Finding } from '@/types/api';
+import { bucketKanbanFindings } from '../components/FindingsKanbanView';
 
 type SortKey = 'severity' | 'bounty_value' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';
 type SeverityFilter = 'all' | 'critical' | 'high' | 'medium' | 'low' | 'info';
 type StatusFilter = 'all' | 'open' | 'closed' | 'accepted';
 type ViewMode = 'table' | 'kanban';
-type KanbanColumn = 'new' | 'in-progress' | 'resolved';
 
 const SEVERITY_ORDER = new Map<string, number>([
   ['critical', 0],
@@ -17,9 +17,30 @@ const SEVERITY_ORDER = new Map<string, number>([
 ]);
 const PAGE_SIZE = 20;
 
-function computeDuplicateKey(f: Finding): string {
-  const evStr = typeof f.evidence === 'string' ? f.evidence : '';
+export function computeDuplicateKey(f: Finding): string {
+  const evStr = typeof f.evidence === 'string' ? f.evidence : JSON.stringify(f.evidence ?? '');
   return `${f.type}::${f.target}::${evStr.substring(0, 50).toLowerCase()}`;
+}
+
+export function dedupeFindings(findings: Finding[]): Finding[] {
+  const groups = new Map<string, Finding[]>();
+  for (const finding of findings) {
+    const key = computeDuplicateKey(finding);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(finding);
+    else groups.set(key, [finding]);
+  }
+  const primaries: Finding[] = [];
+  const seen = new Set<string>();
+  for (const finding of findings) {
+    const key = computeDuplicateKey(finding);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const group = groups.get(key) || [];
+    const duplicates = group.filter((item) => item.id !== finding.id).map((item) => item.id);
+    primaries.push(duplicates.length > 0 ? { ...finding, duplicates } : finding);
+  }
+  return primaries;
 }
 
 interface UseFindingsTableInput {
@@ -130,23 +151,7 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
    
   const paginated = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
 
-  const kanbanFindings = useMemo(() => {
-   
-    const cols = new Map<KanbanColumn, Finding[]>([
-      ['new', []],
-      ['in-progress', []],
-      ['resolved', []]
-    ]);
-    for (const f of filtered) {
-      const col = f.kanbanStatus || 'new';
-      const arr = cols.get(col);
-      if (arr) {
-        arr.push(f);
-      }
-    }
-    return Object.fromEntries(cols.entries()) as Record<KanbanColumn, Finding[]>;
-   
-  }, [filtered]);
+  const kanbanFindings = useMemo(() => bucketKanbanFindings(filtered), [filtered]);
 
    
   const uniqueTargets = useMemo(() => [...new Set(findings.map(f => f.target).filter(Boolean))], [findings]);

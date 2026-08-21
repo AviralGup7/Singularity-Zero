@@ -1,4 +1,6 @@
 import { SettingsSectionCard, SettingToggle, SettingNumberInput } from '../SettingsComponents';
+import { PerformanceDashboard } from '@/components/PerformanceDashboard';
+import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
 
 interface PerformanceSectionProps {
   enableCaching: boolean;

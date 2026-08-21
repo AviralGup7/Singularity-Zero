@@ -1,15 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Finding } from '@/types/api';
-import { bulkUpdateFindings } from '@/api/client';
+import { bulkUpdateFindings, updateFinding } from '@/api/client';
 import { useToast } from '@/hooks/useToast';
-import { FindingsTableView } from './FindingsTableView';
 import { FindingsFpDialogs } from './FindingsFpDialogs';
-import { dedupeFindings } from '../hooks/useFindingsTable';
-
-type TableSortKey = 'severity' | 'type' | 'target' | 'status' | 'date' | 'bounty_value';
-
-const TABLE_SORT_KEYS = new Set<string>(['severity', 'type', 'target', 'status', 'date', 'bounty_value']);
-const PAGE_SIZE = 20;
+import {
+  FindingsKanbanView,
+  bucketKanbanFindings,
+  resolveKanbanColumn,
+  type KanbanColumn,
+} from './FindingsKanbanView';
 
 function hashToColor(str: string): string {
   let hash = 0;
@@ -28,79 +27,39 @@ function getInitials(name: string): string {
     .toUpperCase() || '?';
 }
 
-interface FindingsTablePaneProps {
+interface FindingsKanbanPaneProps {
   findings: Finding[];
-  selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
   onOpenDetail: (finding: Finding) => void;
-  bulkActionMode: string | null;
-  setBulkActionMode: (mode: string | null) => void;
-  bulkAssignee: string;
-  setBulkAssignee: (name: string) => void;
-  handleBulkStatus: (status: 'open' | 'closed' | 'accepted') => void;
-  handleBulkFalsePositive: () => void;
-  handleBulkAssign: () => void;
-  handleBulkDelete: () => void;
-  sortKey: string;
-  sortDir: 'asc' | 'desc';
-  onSort: (key: TableSortKey) => void;
 }
 
-export function FindingsTablePane({
-  findings,
-  selectedIds,
-  onToggleSelect,
-  onSelectAll,
-  onClearSelection,
-  onOpenDetail,
-  bulkActionMode,
-  setBulkActionMode,
-  bulkAssignee,
-  setBulkAssignee,
-  handleBulkStatus,
-  handleBulkFalsePositive,
-  handleBulkAssign,
-  handleBulkDelete,
-  sortKey,
-  sortDir,
-  onSort,
-}: FindingsTablePaneProps) {
+export function FindingsKanbanPane({ findings, onOpenDetail }: FindingsKanbanPaneProps) {
   const toast = useToast();
-  const [page, setPage] = useState(1);
+  const [overrides, setOverrides] = useState<Record<string, KanbanColumn>>({});
+  const [dragged, setDragged] = useState<Finding | null>(null);
   const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
   const [fpDialogFinding, setFpDialogFinding] = useState<Finding | null>(null);
   const [fpJustification, setFpJustification] = useState('');
   const [fpReviewDialog, setFpReviewDialog] = useState<Finding | null>(null);
   const [fpReviewComment, setFpReviewComment] = useState('');
 
-  const uniqueFindings = useMemo(() => dedupeFindings(findings), [findings]);
-  const tableSortKey: TableSortKey = TABLE_SORT_KEYS.has(sortKey) ? (sortKey as TableSortKey) : 'severity';
-  const totalPages = Math.max(1, Math.ceil(uniqueFindings.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paginated = useMemo(
-    () => uniqueFindings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [uniqueFindings, safePage],
+  const boardFindings = useMemo(
+    () => findings.map((finding) => (
+      overrides[finding.id]
+        ? { ...finding, kanbanStatus: overrides[finding.id] }
+        : finding
+    )),
+    [findings, overrides],
   );
-  const allOnPageSelected = paginated.length > 0 && paginated.every((finding) => selectedIds.has(finding.id));
-  const uniqueAssignees = useMemo(() => {
-    const names = uniqueFindings.map((finding) => finding.assignedTo).filter((name): name is string => Boolean(name));
-    return [...new Set(names)].sort();
-  }, [uniqueFindings]);
 
-  const togglePage = useCallback(() => {
-    const ids = paginated.map((finding) => finding.id);
-    if (allOnPageSelected) {
-      ids.forEach((id) => {
-        if (selectedIds.has(id)) onToggleSelect(id);
-      });
-      return;
-    }
-    ids.forEach((id) => {
-      if (!selectedIds.has(id)) onToggleSelect(id);
-    });
-  }, [allOnPageSelected, onToggleSelect, paginated, selectedIds]);
+  const kanbanFindings = useMemo(
+    () => bucketKanbanFindings(boardFindings),
+    [boardFindings],
+  );
+
+  const uniqueAssignees = useMemo(() => {
+    const names = findings.map((finding) => finding.assignedTo).filter((name): name is string => Boolean(name));
+    return [...new Set(names)].sort();
+  }, [findings]);
 
   const toggleDuplicateExpand = useCallback((id: string) => {
     setExpandedDuplicates((prev) => {
@@ -112,8 +71,8 @@ export function FindingsTablePane({
   }, []);
 
   const getDuplicateById = useCallback(
-    (id: string) => findings.find((finding) => finding.id === id) ?? uniqueFindings.find((finding) => finding.id === id),
-    [findings, uniqueFindings],
+    (id: string) => findings.find((finding) => finding.id === id),
+    [findings],
   );
 
   const handleAssign = useCallback(async (findingId: string, assignee: string) => {
@@ -125,6 +84,37 @@ export function FindingsTablePane({
     }
   }, [toast]);
 
+  const handleDragStart = useCallback((finding: Finding) => {
+    setDragged(finding);
+  }, []);
+
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback(async (column: KanbanColumn) => {
+    if (!dragged) return;
+    const previous = resolveKanbanColumn({ ...dragged, kanbanStatus: overrides[dragged.id] ?? dragged.kanbanStatus });
+    if (previous === column) {
+      setDragged(null);
+      return;
+    }
+    setOverrides((prev) => ({ ...prev, [dragged.id]: column }));
+    setDragged(null);
+    try {
+      await updateFinding(dragged.id, { kanbanStatus: column });
+      toast.success(`Moved to ${column.replace(/_/g, ' ')}`);
+    } catch {
+      setOverrides((prev) => {
+        const next = { ...prev };
+        if (previous) next[dragged.id] = previous;
+        else delete next[dragged.id];
+        return next;
+      });
+      toast.error('Failed to update board status');
+    }
+  }, [dragged, overrides, toast]);
+
   const onMarkFalsePositive = useCallback(async () => {
     if (!fpDialogFinding || !fpJustification.trim()) return;
     try {
@@ -133,6 +123,7 @@ export function FindingsTablePane({
         fpStatus: 'pending',
         fpJustification: fpJustification.trim(),
       });
+      setOverrides((prev) => ({ ...prev, [fpDialogFinding.id]: 'needs_validation' }));
       toast.success('Marked as false positive');
       setFpDialogFinding(null);
       setFpJustification('');
@@ -147,49 +138,35 @@ export function FindingsTablePane({
         fpStatus: decision,
         falsePositive: decision === 'approved',
       });
+      setOverrides((prev) => ({
+        ...prev,
+        [finding.id]: decision === 'approved' ? 'not_interested' : 'needs_validation',
+      }));
       toast.success(decision === 'approved' ? 'FP approved' : 'FP rejected');
       setFpReviewDialog(null);
       setFpReviewComment('');
     } catch {
       toast.error('Failed to review false positive');
     }
-  }, [fpReviewComment, toast]);
+  }, [toast]);
 
   return (
     <div className="h-full overflow-auto px-4 pb-24">
-      <FindingsTableView
-        paginated={paginated}
-        filtered={findings}
-        page={safePage}
-        pageSize={PAGE_SIZE}
-        sortKey={tableSortKey}
-        sortDir={sortDir}
-        selectedIds={selectedIds}
-        expandedDuplicates={expandedDuplicates}
-        allOnPageSelected={allOnPageSelected}
+      <FindingsKanbanView
+        kanbanFindings={kanbanFindings}
         uniqueAssignees={uniqueAssignees}
-        bulkActionMode={bulkActionMode}
-        bulkAssignee={bulkAssignee}
-        handleSort={onSort}
-        toggleRow={onToggleSelect}
-        togglePage={togglePage}
-        selectAll={onSelectAll}
-        clearSelection={onClearSelection}
-        onPageChange={setPage}
+        handleDragStart={handleDragStart}
+        handleDragOver={handleDragOver}
+        handleDrop={handleDrop}
+        handleAssign={handleAssign}
         toggleDuplicateExpand={toggleDuplicateExpand}
         getDuplicateById={getDuplicateById}
-        handleAssign={handleAssign}
+        expandedDuplicates={expandedDuplicates}
         setFpDialogFinding={setFpDialogFinding}
         setFpReviewDialog={setFpReviewDialog}
-        handleOpenDetail={onOpenDetail}
         hashToColor={hashToColor}
         getInitials={getInitials}
-        setBulkActionMode={setBulkActionMode}
-        setBulkAssignee={setBulkAssignee}
-        handleBulkStatus={handleBulkStatus}
-        handleBulkFalsePositive={handleBulkFalsePositive}
-        handleBulkAssign={handleBulkAssign}
-        handleBulkDelete={handleBulkDelete}
+        onOpenDetail={onOpenDetail}
       />
       <FindingsFpDialogs
         fpDialogFinding={fpDialogFinding}
