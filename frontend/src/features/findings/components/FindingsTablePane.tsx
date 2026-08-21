@@ -75,9 +75,11 @@ export function FindingsTablePane({
   const [fpReviewComment, setFpReviewComment] = useState('');
 
   const tableSortKey: TableSortKey = TABLE_SORT_KEYS.has(sortKey) ? (sortKey as TableSortKey) : 'severity';
+  const totalPages = Math.max(1, Math.ceil(findings.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
   const paginated = useMemo(
-    () => findings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [findings, page],
+    () => findings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [findings, safePage],
   );
   const allOnPageSelected = paginated.length > 0 && paginated.every((finding) => selectedIds.has(finding.id));
   const uniqueAssignees = useMemo(() => {
@@ -156,7 +158,7 @@ export function FindingsTablePane({
       <FindingsTableView
         paginated={paginated}
         filtered={findings}
-        page={page}
+        page={safePage}
         pageSize={PAGE_SIZE}
         sortKey={tableSortKey}
         sortDir={sortDir}

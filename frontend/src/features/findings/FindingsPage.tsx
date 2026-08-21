@@ -537,7 +537,7 @@ export function FindingsPage() {
       {/* ── Bulk Action Bar (Grid View) ───────────────────────────── */}
       <div aria-live="polite" aria-atomic="true">
       <AnimatePresence>
-        {selectedFindingIds.size > 0 && (
+        {selectedFindingIds.size > 0 && viewMode === 'grid' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -185,7 +185,7 @@ export function JobsPage() {
             title="No jobs found"
             description={statusFilter !== 'all' || searchQuery 
               ? "No jobs match your current filters. Try adjusting the status filter or search query."
-              : "No pipeline jobs have been run yet. Start a scan from the Targets page."}
+              : "No pipeline jobs have been run yet. Expand Start New Scan above, or launch from Targets / Cockpit."}
             icon="zap"
           />
         ) : (
