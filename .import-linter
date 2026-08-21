@@ -112,3 +112,21 @@ name = Core must not depend on fuzzing
 type = forbidden
 source_modules = src.core
 forbidden_modules = src.fuzzing
+
+[importlinter:contract:18]
+name = Auth domain must not depend on dashboard
+type = forbidden
+source_modules = src.auth
+forbidden_modules = src.dashboard, src.pipeline
+
+[importlinter:contract:19]
+name = Jobs domain must not depend on dashboard
+type = forbidden
+source_modules = src.jobs
+forbidden_modules = src.dashboard, src.pipeline
+
+[importlinter:contract:20]
+name = Resilience must not depend on pipeline
+type = forbidden
+source_modules = src.resilience
+forbidden_modules = src.pipeline, src.dashboard

@@ -16,6 +16,7 @@ import type {
 } from '@/types/notifications';
 import { sseEventToAppNotification, apiNotificationToAppNotification } from '@/types/notifications';
 import { getStreamToken } from '@/api/streamAuth';
+import { shouldFetchNotifications, shouldOpenNotificationStream } from '@/features/notifications/policy';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 
 const POLL_INTERVAL_MS = 30000;
@@ -60,9 +61,7 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   const fetchNotifications = useCallback(async () => {
     try {
       const token = getStreamToken();
-      // Demo / name / SSO sessions have no JWT. Do not hit a protected
-      // endpoint — that 401 toast blocked the console after Demo Sign In.
-      if (!token) {
+      if (!shouldFetchNotifications(token)) {
         if (mountedRef.current) setLoading(false);
         return;
       }
@@ -115,7 +114,7 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
     }
 
     const token = getStreamToken();
-    if (!token) return;
+    if (!shouldOpenNotificationStream(token)) return;
 
     const sseUrl = `${API_BASE}/stream?token=${encodeURIComponent(token)}`;
     const es = new EventSource(sseUrl);

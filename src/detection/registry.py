@@ -244,24 +244,11 @@ def _classify_plugin(key: str) -> tuple[float, str, tuple[str, ...], tuple[str, 
 
 def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
     bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
-    if not bindings:
-        try:
-            import src.analysis.plugin_registration  # noqa: F401
-            from src.analysis.plugins import get_analysis_plugin_specs
-
-            get_analysis_plugin_specs()
-        except ImportError:
-            pass
-        bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
     specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
-    if len(specs) < len(bindings):
-        try:
-            from src.analysis.plugins import get_analysis_plugin_specs
-
-            get_analysis_plugin_specs()
-            specs = {reg.key: reg.provider for reg in list_plugins(DETECTOR_SPEC)}
-        except ImportError:
-            pass
+    if not bindings:
+        logger.debug(
+            "No analyzer bindings registered; composition root must import analysis plugins"
+        )
 
     plugins: list[DetectionPlugin] = []
     for key, binding in bindings.items():
@@ -331,11 +318,6 @@ def get_detection_plugin(plugin_key: str) -> DetectionPlugin:
 def run_detection_plugin(
     plugin_key: str, context: AnalysisExecutionContext
 ) -> list[dict[str, Any]]:
-    if _run_plugin_handler is None:
-        try:
-            import src.analysis.plugin_registration  # noqa: F401
-        except ImportError:
-            pass
     if _run_plugin_handler is not None:
         return _run_plugin_handler(plugin_key, context)
     raise RuntimeError("No run_plugin_handler registered in src.detection")

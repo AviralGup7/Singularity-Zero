@@ -1,7 +1,7 @@
-"""Detection runtime facade delegating to the analysis layer.
+"""Detection runtime. Handlers are injected by the composition root.
 
-Provides the analysis plugin execution system entry point.
-Uses a class-based registry for testability and DI support.
+Analysis registers implementations via ``register_detection_handlers``.
+This module must not import ``src.analysis``.
 """
 
 import logging
@@ -79,18 +79,7 @@ def _default_prime_context(**kwargs: Any) -> AnalysisExecutionContext:
 def get_runtime() -> DetectionRuntime:
     global _default_runtime
     if _default_runtime is None:
-        try:
-            from src.analysis.plugin_registration import (
-                prime_detection_context_impl,
-                run_detection_plugins_impl,
-            )
-
-            _default_runtime = DetectionRuntime(
-                prime_ctx=prime_detection_context_impl,
-                run_plugins=run_detection_plugins_impl,
-            )
-        except Exception:
-            _default_runtime = DetectionRuntime(prime_ctx=_default_prime_context)
+        _default_runtime = DetectionRuntime(prime_ctx=_default_prime_context)
     elif _default_runtime._prime_context_handler is None:
         _default_runtime._prime_context_handler = _default_prime_context
     return _default_runtime

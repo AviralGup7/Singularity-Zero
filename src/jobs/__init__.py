@@ -1,10 +1,9 @@
-"""Compatibility shim. Job status lives in ``src.jobs.status``."""
+"""Job lifecycle domain. Independent of FastAPI."""
 
 from src.jobs.status import (
     ACTIVE_JOB_STATUSES,
     TERMINAL_JOB_STATUSES,
     JobStatus,
-    _transition,
     apply_pipeline_exit_status,
     can_transition_job,
     is_active_job_status,
@@ -16,7 +15,6 @@ __all__ = [
     "ACTIVE_JOB_STATUSES",
     "TERMINAL_JOB_STATUSES",
     "JobStatus",
-    "_transition",
     "apply_pipeline_exit_status",
     "can_transition_job",
     "is_active_job_status",
