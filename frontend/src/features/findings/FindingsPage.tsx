@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi';
 import { useProcessedFindings } from '../../hooks/useProcessedFindings';
 import { useDebouncedFilter } from '../../hooks/useDebouncedFilter';
 import { VirtualizedFindingsList } from './components/VirtualizedFindingsList';
+import { FindingsTablePane } from './components/FindingsTablePane';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SavedFilterPresets } from '../../components/ui/SavedFilterPresets';
@@ -501,6 +502,26 @@ export function FindingsPage() {
               ctaHref={searchQuery || severityFilter.length > 0 ? undefined : '/targets'}
             />
           </div>
+        ) : viewMode === 'table' ? (
+          <FindingsTablePane
+            findings={findings}
+            selectedIds={selectedFindingIds}
+            onToggleSelect={toggleFindingSelection}
+            onSelectAll={selectAllFindings}
+            onClearSelection={clearSelection}
+            onOpenDetail={setDetailFinding}
+            bulkActionMode={bulkActionMode}
+            setBulkActionMode={setBulkActionMode}
+            bulkAssignee={bulkAssignee}
+            setBulkAssignee={setBulkAssignee}
+            handleBulkStatus={handleBulkStatus}
+            handleBulkFalsePositive={handleBulkFalsePositive}
+            handleBulkAssign={handleBulkAssign}
+            handleBulkDelete={handleBulkDelete}
+            sortKey={String(sortKey)}
+            sortDir={sortDir}
+            onSort={(key) => handleSortToggle(key === 'date' ? 'timestamp' : key)}
+          />
         ) : (
           <VirtualizedFindingsList 
             findings={findings}
