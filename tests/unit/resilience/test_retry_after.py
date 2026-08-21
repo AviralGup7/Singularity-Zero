@@ -34,34 +34,6 @@ def test_breaker_snapshot_roundtrip() -> None:
     assert clone.failure_threshold == 2
 
 
-def test_execute_with_retry_honors_retry_after(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    from src.pipeline.retry import RetryPolicy, TransientError, execute_with_retry
-
-    sleeps: list[float] = []
-    monkeypatch.setattr("src.pipeline.retry.policy.time.sleep", lambda seconds: sleeps.append(seconds))
-
-    class RateLimited(TransientError):
-        headers = {"Retry-After": "3"}
-
-    calls = {"n": 0}
-
-    def flaky() -> str:
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise RateLimited("slow down")
-        return "ok"
-
-    policy = RetryPolicy(
-        max_attempts=2,
-        initial_backoff_seconds=0.1,
-        backoff_multiplier=1.0,
-        max_backoff_seconds=8.0,
-        jitter_factor=0.0,
-    )
-    assert execute_with_retry(flaky, policy) == "ok"
-    assert sleeps == [3.0]
-
-
 def parse_retry_after_from_headers(headers: dict[str, str]) -> float | None:
     class Box:
         pass

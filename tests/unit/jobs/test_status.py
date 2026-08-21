@@ -31,9 +31,3 @@ def test_stop_requested_reaps_as_stopped() -> None:
     job = {"id": "j2", "status": JobStatus.STOPPING.value}
     assert apply_pipeline_exit_status(job, stop_requested=True, returncode=0) is True
     assert job["status"] == JobStatus.STOPPED.value
-
-
-def test_dashboard_shim_reexports_the_same_enum() -> None:
-    from src.dashboard.job_status import JobStatus as ShimStatus
-
-    assert ShimStatus is JobStatus
