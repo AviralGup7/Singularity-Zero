@@ -139,7 +139,7 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
                     <tr key={idx} className="hover:bg-surface-hover">
                       <td className="py-2 text-accent truncate max-w-md" title={url?.url ?? '—'}>{url?.url ?? '—'}</td>
                       <td className="py-2">
-                        <span className={`font-mono font-bold ${url?.statusCode >= 200 && url?.statusCode < 300 ? 'text-ok' : url?.statusCode >= 400 ? 'text-bad' : 'text-warn'}`}>
+                        <span className={`font-mono font-bold ${!url?.statusCode ? 'text-muted' : url.statusCode >= 200 && url.statusCode < 300 ? 'text-ok' : url.statusCode >= 400 ? 'text-bad' : 'text-warn'}`}>
                           {url?.statusCode ?? 0}
                         </span>
                       </td>

@@ -4,30 +4,12 @@ import type { AppSettings, SettingsUpdater } from '@/context/SettingsContext';
 import { tenantSafeStorage } from '@/utils/tenantStorage';
 import { apiClient } from '@/api/core';
 import { useAuthStore } from './authStore';
+import { deepMergeSettings } from './settingsHydrate';
 
 const defaultSettings: AppSettings = AppSettingsSchema.parse({});
 
 function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-  const result = { ...target } as Record<string, unknown>;
-  for (const key of Object.keys(source)) {
-    const sourceVal = source[key as keyof T];
-    const targetVal = target[key as keyof T];
-
-    if (sourceVal !== undefined) {
-      if (sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal) &&
-          targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
-        // ``key`` is a member of ``Object.keys(source)``, i.e. a known
-        // setting key from the validated settings schema. The
-        // dynamic-key warning is a false positive.
-        /* eslint-disable-next-line security/detect-object-injection */
-        result[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
-      } else {
-        /* eslint-disable-next-line security/detect-object-injection */
-        result[key] = sourceVal;
-      }
-    }
-  }
-  return result as T;
+  return deepMergeSettings(target, source);
 }
 
 const STORAGE_KEY = 'cyber-pipeline-settings';
@@ -57,7 +39,7 @@ function getInitialSettings(): AppSettings {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      return AppSettingsSchema.parse({ ...defaultSettings, ...parsed });
+      return AppSettingsSchema.parse(deepMerge(defaultSettings as Record<string, unknown>, parsed));
     } catch {
       /* ignore */
     }
@@ -101,7 +83,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
     try {
       const validated = AppSettingsSchema.partial().parse(newSettings);
       set((state) => {
-        const nextSettings = { ...state.settings, ...validated } as AppSettings;
+        const nextSettings = AppSettingsSchema.parse(
+          deepMerge(state.settings as Record<string, unknown>, validated as Record<string, unknown>),
+        );
         persistSettingsDebounced(nextSettings);
         return { settings: nextSettings };
       });

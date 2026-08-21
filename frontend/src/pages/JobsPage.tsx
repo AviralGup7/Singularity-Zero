@@ -10,6 +10,7 @@ import { PageHeader, EmptyState, Pagination, ErrorCard } from '../components/ui'
 import { useJobsContext } from '../context/JobsContext';
 import { usePersistedState } from '../hooks';
 import { JOB_STATUS_FILTERS, normalizeJobStatusFilter } from './jobsFilters';
+import { pickPreferredFilter } from '../stores/settingsHydrate';
 import { clampFindingsPage } from '../features/findings/findingsViewMode';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
@@ -22,7 +23,7 @@ export function JobsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
    
   const [statusFilter, setStatusFilter] = usePersistedState<string>('jobs-status-filter', searchParams.get('status') || 'all');
-  const safeStatusFilter = normalizeJobStatusFilter(statusFilter);
+  const safeStatusFilter = normalizeJobStatusFilter(pickPreferredFilter(searchParams.get('status'), statusFilter));
    
   const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', searchParams.get('q') || '');
   const [currentPage, setCurrentPage] = useState(1);

@@ -1,4 +1,5 @@
 import { normalizeUrl } from './urlUtils';
+import { parseFindingTimestamp } from '@/utils/findingTime';
 import clsx from 'clsx';
 import type {ClassValue} from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -162,12 +163,10 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
 }
 
 export function formatFindingDate(timestamp: number | string | undefined | null): string {
-  if (!timestamp) return '—';
+  const ms = parseFindingTimestamp(timestamp);
+  if (!ms) return '—';
   try {
-    const date = typeof timestamp === 'number'
-      ? new Date(timestamp * (timestamp > 9999999999 ? 1 : 1000))
-      : new Date(timestamp);
-    return date.toLocaleDateString();
+    return new Date(ms).toLocaleDateString();
   } catch {
     return '—';
   }
