@@ -22,6 +22,7 @@ import { CVSSDetail } from './CVSSDetail';
 import { PIIControls } from './PIIControls';
 import { isPIIVisible } from '@/utils/piiRedactor';
 import { sanitizePiiFromVisibility } from '@/utils/piiVisibility';
+import { confidencePercent } from '@/utils/normalizeScale';
 import { RemediationTracker } from './RemediationTracker';
 import { BountyPanel } from './FindingDetailPanel/BountyPanel';
 import { RiskPanel } from './FindingDetailPanel/RiskPanel';
@@ -408,7 +409,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
           <div className="grid grid-cols-4 gap-4">
             {[
               { label: 'CSI Index', value: finding.csi_score || 'N/A', cls: 'text-accent' },
-              { label: 'Confidence', value: `${Math.round(finding.confidence * 100)}%`, cls: 'text-text-primary' },
+              { label: 'Confidence', value: `${confidencePercent(finding.confidence)}%`, cls: 'text-text-primary' },
               { label: 'State', value: triageStatus, cls: 'text-text uppercase' },
               {
                 label: 'Severity',

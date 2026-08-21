@@ -17,6 +17,7 @@ import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsView
 import { offlineQueue } from '../../utils/offlineQueue';
 import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
 import { visibleFindingIds } from '@/features/notifications/unread';
+import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Columns3, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw, ArrowUpDown } from 'lucide-react';
@@ -242,9 +243,10 @@ export function FindingsPage() {
     return findingA && findingB ? { findingA, findingB } : null;
   }, [selectedFindingIds, findings]);
 
+  const selectionKey = compareSelectionKey(selectedFindingIds);
   useEffect(() => {
     setCompareDismissed(false);
-  }, [selectedFindingIds]);
+  }, [selectionKey]);
 
   const selectAllFindings = useCallback(() => {
     setSelectedFindingIds(new Set(findings.map((f: Finding) => f.id).filter(Boolean) as string[]));

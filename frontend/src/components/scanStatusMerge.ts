@@ -1,3 +1,5 @@
+import { normalizeProgressPercent } from '@/utils/normalizeScale';
+
 export interface ActiveScanSnapshot {
   jobId: string;
   targetName: string;
@@ -13,10 +15,11 @@ export function mergePolledScanState(
   next: ActiveScanSnapshot | null,
 ): ActiveScanSnapshot | null {
   if (!next) return null;
-  if (!prev || prev.jobId !== next.jobId) return next;
+  const incoming = { ...next, progress: normalizeProgressPercent(next.progress) };
+  if (!prev || prev.jobId !== next.jobId) return incoming;
   return {
-    ...next,
-    progress: Math.max(prev.progress ?? 0, next.progress ?? 0),
+    ...incoming,
+    progress: Math.max(prev.progress ?? 0, incoming.progress),
     findingsCount: Math.max(prev.findingsCount ?? 0, next.findingsCount ?? 0),
     urlsFound: Math.max(prev.urlsFound ?? 0, next.urlsFound ?? 0),
     status: next.status || prev.status,
@@ -32,7 +35,7 @@ export function applyLiveScanEvent(
   if (jobId && prev.jobId !== jobId) return prev;
   return {
     ...prev,
-    progress: patch.progress ?? prev.progress,
+    progress: patch.progress === undefined ? prev.progress : normalizeProgressPercent(patch.progress),
     status: patch.status || prev.status,
     findingsCount: patch.findingsCount ?? prev.findingsCount,
     urlsFound: patch.urlsFound ?? prev.urlsFound,

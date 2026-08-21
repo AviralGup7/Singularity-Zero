@@ -35,6 +35,7 @@ export function useSessionTimeout(onTimeout?: () => void, timeoutMs?: number) {
     pendingResetRef.current = true;
     requestAnimationFrame(() => {
       pendingResetRef.current = false;
+      if (isLockedRef.current) return;
       setState(prev => ({
         ...prev,
         isLocked: false,
