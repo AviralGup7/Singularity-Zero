@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState } from 'react';
 import { createRoot  } from 'react-dom/client';
+import { shouldShowErrorStack } from '@/utils/errorOverlayPolicy';
 import type {Root} from 'react-dom/client';
 
 let errorRoot: Root | null = null;
@@ -132,7 +133,7 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
               {message}
             </pre>
           </div>
-          {stack ? (
+          {shouldShowErrorStack(Boolean(import.meta.env?.DEV), stack) ? (
             <details style={{ marginTop: '1rem' }}>
               <summary
                 style={{

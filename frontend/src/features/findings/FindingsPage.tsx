@@ -17,6 +17,7 @@ import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsView
 import { offlineQueue } from '../../utils/offlineQueue';
 import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
 import { visibleFindingIds } from '@/features/notifications/unread';
+import { acknowledgeNewFindings } from './newFindingsFeed';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
@@ -86,8 +87,9 @@ export function FindingsPage() {
   }, [findingsData?.findings]);
 
   const loadNewFindings = useCallback(() => {
+    lastSeenIdsRef.current = new Set(acknowledgeNewFindings(lastSeenIdsRef.current, newFindingIds));
     setNewFindingIds([]);
-  }, []);
+  }, [newFindingIds]);
 
   const dismissNewFindings = useCallback(() => {
     setNewFindingIds([]);

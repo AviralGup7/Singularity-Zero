@@ -88,7 +88,7 @@ export function ScanStatusBar() {
     if (!isOnCockpit && activeScan) {
       const url = `/cockpit?job_id=${activeScan.jobId}&target=${encodeURIComponent(activeScan.targetName)}`;
       console.debug(`[ScanStatusBar] navigate to=${url} jobId=${activeScan.jobId}`);
-      navigate(url, { replace: true });
+      navigate(url);
     }
   }, [activeScan, isOnCockpit, navigate]);
 

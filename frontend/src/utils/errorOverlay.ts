@@ -36,7 +36,7 @@ function showDomFallback(title: string, message: string, stack?: string) {
   pre.className = 'error-overlay-pre';
   pre.textContent = message;
   content.appendChild(pre);
-  if (stack && (import.meta.env?.DEV ?? true)) {
+  if (stack && (import.meta.env?.DEV ?? false)) {
     const details = document.createElement('details');
     const summary = document.createElement('summary');
     summary.textContent = 'Full stack trace';
