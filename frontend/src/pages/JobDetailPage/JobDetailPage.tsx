@@ -55,8 +55,6 @@ export function JobDetailPage() {
   const navigate = useNavigate();
   const handleRestarted = useCallback((newJobId: string) => { navigate(`${ROUTES.JOBS}/${newJobId}`); }, [navigate]);
 
-  console.debug(`[JobDetailPage] mounted jobId=${jobId}`);
-
   const monitor = useJobMonitor(jobId, { onRestarted: handleRestarted });
   const features = useOptionalFeatures();
 

@@ -1,5 +1,6 @@
 import type { DetectionGapResponse } from '@/types/api';
 import { clampPercent } from '@/utils/findingTime';
+import { moduleIntegrity } from './gapIntegrity';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { motion } from 'framer-motion';
 
@@ -42,9 +43,9 @@ export function GapAnalysisStats({ data }: GapAnalysisStatsProps) {
       >
         <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Module Integrity</div>
         <div className="font-semibold text-text" style={{ fontSize: 'var(--text-card-value)' }}>
-          {data.total_modules - data.modules_with_gaps}
+          {moduleIntegrity(data.total_modules, data.modules_with_gaps).ok}
           <span className="text-lg text-muted font-normal ml-2">
-            / {data.total_modules} OK
+            / {moduleIntegrity(data.total_modules, data.modules_with_gaps).total} OK
           </span>
         </div>
         <div className="text-xs text-muted mt-2 italic">

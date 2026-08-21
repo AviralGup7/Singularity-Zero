@@ -47,7 +47,7 @@ export function FindingComparisonPanel({ findingA, findingB, onClose }: FindingC
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="fixed inset-0 z-[10050] flex items-center justify-center bg-panel p-4"
+      className="fixed inset-0 z-[9000] flex items-center justify-center bg-panel p-4"
       role="presentation"
       onClick={onClose}
       onKeyDown={(event: React.KeyboardEvent) => {

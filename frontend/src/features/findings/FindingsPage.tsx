@@ -206,7 +206,7 @@ export function FindingsPage() {
         // Fetch from the new singular endpoint
         getFindingById(fid)
           .then((finding: Finding | null) => {
-            if (mounted) setDetailFinding(finding);
+            if (mounted && finding) setDetailFinding(finding);
           })
           .catch(() => {
             console.error('Failed to deep-link to finding:', fid);
