@@ -245,6 +245,21 @@ export const AppSettingsSchema = z.object({
     polymorphicEvasion: false,
     antiForensicMode: false,
   }),
+  features: z.object({
+    threatIntel: z.boolean().default(true),
+    cvssDetails: z.boolean().default(true),
+    piiControls: z.boolean().default(true),
+    remediationTracker: z.boolean().default(false),
+    dashboardAnalytics: z.boolean().default(false),
+    cinematicIntro: z.boolean().default(false),
+  }).default({
+    threatIntel: true,
+    cvssDetails: true,
+    piiControls: true,
+    remediationTracker: false,
+    dashboardAnalytics: false,
+    cinematicIntro: false,
+  }),
   performance: z.object({
     enableCaching: z.boolean().default(true),
     cacheDuration: z.number().default(300),

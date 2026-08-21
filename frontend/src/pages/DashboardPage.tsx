@@ -18,6 +18,8 @@ import { useApi } from '../hooks/useApi';
 import { DashboardStatsSchema } from '../api/schemas';
 import { formatDistanceToNow } from '../utils/time';
 import FindingsOverview from '@/features/findings/components/FindingsOverview';
+import { DashboardTrendCharts } from '@/components/DashboardTrendCharts';
+import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
 import { DashboardSkeleton, GlassCard, AnimatedCounter, GlowProgress, PageHeader, EmptyState, ErrorCard } from '../components/ui';
 
 interface TelemetryCounts {
@@ -59,6 +61,7 @@ function persistStats<T>(key: string, data: T): void {
 
 export function DashboardPage() {
   const { jobs, loading: jobsLoading, error: jobsError } = useJobsContext();
+  const features = useOptionalFeatures();
   const [lastUpdated, setLastUpdated] = useState<Date>(loadPersistedTimestamp);
   const [, setTick] = useState(0);
 
@@ -212,6 +215,21 @@ export function DashboardPage() {
 
       {/* ── Severity Breakdown & Score ──────────────────────────── */}
       <FindingsOverview />
+
+      {features.dashboardAnalytics && (
+        <DashboardTrendCharts
+          data={(effectiveStats?.trend_data ?? []).map((value, index) => ({
+            date: String(index + 1),
+            findings: typeof value === 'number' ? value : 0,
+            critical: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.critical ?? 0) : 0,
+            high: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.high ?? 0) : 0,
+            medium: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.medium ?? 0) : 0,
+            low: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.low ?? 0) : 0,
+            info: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.info ?? 0) : 0,
+            scans: (effectiveJobs ?? []).length,
+          }))}
+        />
+      )}
 
       <motion.section
         className="card card--accent-top"

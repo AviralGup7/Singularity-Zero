@@ -2,6 +2,7 @@ export { ThemeSection } from './ThemeSection';
 export { DisplaySection } from './DisplaySection';
 export { AccessibilitySection } from './AccessibilitySection';
 export { DashboardSection } from './DashboardSection';
+export { FeaturesSection } from './FeaturesSection';
 export { NotificationsSection } from './NotificationsSection';
 export { SecuritySection } from './SecuritySection';
 export { PipelineSection } from './PipelineSection';

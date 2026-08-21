@@ -19,6 +19,7 @@ import {
   DisplaySection,
   AccessibilitySection,
   DashboardSection,
+  FeaturesSection,
   NotificationsSection,
   SecuritySection,
   PipelineSection,
@@ -35,13 +36,13 @@ import {
   WorkflowModeSection,
 } from '@/components/settings/sections';
 
-type SettingsSection = 'theme' | 'display' | 'dashboard' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language' | 'workflowMode';
+type SettingsSection = 'theme' | 'display' | 'dashboard' | 'features' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language' | 'workflowMode';
 
 type SettingsTab = 'appearance' | 'dashboard' | 'pipeline' | 'advanced' | 'data';
 
 const settingsTabs: { id: SettingsTab; label: string; icon: React.ReactNode; sections: SettingsSection[] }[] = [
   { id: 'appearance', label: 'Appearance', icon: <Palette size={18} />, sections: ['theme', 'display', 'language', 'accessibility', 'workflowMode'] },
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, sections: ['dashboard', 'notifications'] },
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, sections: ['dashboard', 'features', 'notifications'] },
   { id: 'pipeline', label: 'Pipeline', icon: <SettingsIcon size={18} />, sections: ['pipeline', 'api', 'security'] },
   { id: 'advanced', label: 'Advanced', icon: <Zap size={18} />, sections: ['reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'profiles', 'shortcuts'] },
   { id: 'data', label: 'Data', icon: <Database size={18} />, sections: ['data', 'about'] },
@@ -60,6 +61,7 @@ const settingsNavItems: SettingsNavItem[] = [
   { id: 'display', label: 'Display', icon: <Monitor size={18} /> },
   { id: 'language', label: 'Language', icon: <Globe size={18} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+  { id: 'features', label: 'Features', icon: <Zap size={18} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
   { id: 'security', label: 'Security', icon: <Shield size={18} /> },
   { id: 'pipeline', label: 'Pipeline', icon: <SettingsIcon size={18} /> },
@@ -157,6 +159,10 @@ export function SettingsPage() {
   const setIncludePassiveAnalysis = useCallback((v: boolean) => updateSection('scanProfiles', { includePassiveAnalysis: v }), [updateSection]);
   const setIncludeActiveProbes = useCallback((v: boolean) => updateSection('scanProfiles', { includeActiveProbes: v }), [updateSection]);
   const setIncludeIntelligence = useCallback((v: boolean) => updateSection('scanProfiles', { includeIntelligence: v }), [updateSection]);
+  const setOptionalFeatures = useCallback((partial: Partial<AppSettings['features']>) => {
+    updateSection('features', partial);
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
   const setExperimentalEnabled = useCallback((v: boolean) => updateSection('experimental', { enabled: v }), [updateSection]);
   const setBehaviorAnalysis = useCallback((v: boolean) => updateSection('experimental', { behaviorAnalysis: v }), [updateSection]);
   const setAttackValidation = useCallback((v: boolean) => updateSection('experimental', { attackValidation: v }), [updateSection]);
@@ -258,7 +264,7 @@ export function SettingsPage() {
         if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
           throw new Error('Invalid format');
         }
-        const knownKeys = ['dashboard', 'notifications', 'security', 'pipeline', 'api', 'reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'shortcuts', 'profiles', 'logging', 'rateLimiting'];
+        const knownKeys = ['dashboard', 'features', 'notifications', 'security', 'pipeline', 'api', 'reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'shortcuts', 'profiles', 'logging', 'rateLimiting'];
         const hasKnownKey = knownKeys.some(k => k in parsed);
         if (!hasKnownKey) {
           throw new Error('Unrecognized settings format');
@@ -304,6 +310,7 @@ export function SettingsPage() {
     language: <LanguageSection />,
     workflowMode: <WorkflowModeSection mode={workflowMode} onChange={setWorkflowMode} />,
     dashboard: <DashboardSection autoRefresh={settings.dashboard.autoRefresh} refreshInterval={settings.dashboard.refreshInterval} onAutoRefreshChange={setAutoRefresh} onRefreshIntervalChange={setRefreshInterval} />,
+    features: <FeaturesSection features={settings.features} onChange={setOptionalFeatures} />,
     notifications: <NotificationsSection jobCompleteNotification={settings.notifications.jobComplete} jobFailedNotification={settings.notifications.jobFailed} criticalFindingsNotification={settings.notifications.criticalFindings} soundEnabled={settings.notifications.soundEnabled} onJobCompleteNotificationChange={setJobCompleteNotification} onJobFailedNotificationChange={setJobFailedNotification} onCriticalFindingsNotificationChange={setCriticalFindingsNotification} onSoundEnabledChange={setSoundEnabled} />,
     security: <SecuritySection confirmDestructiveActions={settings.security.confirmDestructiveActions} showSensitiveData={settings.security.showSensitiveData} autoLogoutMinutes={settings.security.autoLogoutMinutes} onConfirmDestructiveActionsChange={setConfirmDestructiveActions} onShowSensitiveDataChange={setShowSensitiveData} onAutoLogoutMinutesChange={setAutoLogoutMinutes} />,
     pipeline: <PipelineSection pipelineConcurrency={settings.pipeline.concurrency} pipelineTimeout={settings.pipeline.timeout} pipelineMaxRetries={settings.pipeline.maxRetries} pipelineVerboseLogging={settings.pipeline.verboseLogging} pipelineParallelModules={settings.pipeline.parallelModules} onPipelineConcurrencyChange={setPipelineConcurrency} onPipelineTimeoutChange={setPipelineTimeout} onPipelineMaxRetriesChange={setPipelineMaxRetries} onPipelineVerboseLoggingChange={setPipelineVerboseLogging} onPipelineParallelModulesChange={setPipelineParallelModules} />,

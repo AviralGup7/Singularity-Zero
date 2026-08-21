@@ -16,6 +16,11 @@ import { SubmitToPlatformDialog } from './SubmitToPlatformDialog';
 import { DetailHeader } from './FindingDetailPanel/DetailHeader';
 import { DetailFooter } from './FindingDetailPanel/DetailFooter';
 import { DetailTabs, buildTabs } from './FindingDetailPanel/DetailTabs';
+import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
+import { ThreatIntelPanel } from './ThreatIntelPanel';
+import { CVSSDetail } from './CVSSDetail';
+import { PIIControls } from './PIIControls';
+import { RemediationTracker } from './RemediationTracker';
 import { BountyPanel } from './FindingDetailPanel/BountyPanel';
 import { RiskPanel } from './FindingDetailPanel/RiskPanel';
 import { remediationCache, prefetchRemediation } from './FindingDetailPanel/helpers';
@@ -101,6 +106,7 @@ export function FindingDetailPanel({
   const [loadingRemediation, setLoadingRemediation] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const toast = useToast();
+  const features = useOptionalFeatures();
 
   useEffect(() => {
     setBountyValue(finding.bounty_value || 0);
@@ -448,9 +454,29 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
             {detailTab === 'csi' && (
               <div className="space-y-6">
+                {features.piiControls && <PIIControls className="mb-2" />}
                 <p className="text-sm text-text/80 leading-relaxed italic border-l-2 border-accent/20 pl-4">
                   {finding.description}
                 </p>
+                {features.threatIntel && (
+                  <ThreatIntelPanel
+                    cveId={finding.cve || (finding.metadata?.cve_id as string | undefined)}
+                    cweId={finding.cwe || (finding.metadata?.cwe_id as string | undefined)}
+                  />
+                )}
+                {features.cvssDetails && <CVSSDetail finding={finding} />}
+                {features.remediationTracker && (
+                  <RemediationTracker
+                    entries={[{
+                      id: finding.id,
+                      findingType: finding.type,
+                      severity: finding.severity,
+                      target: finding.target || finding.host || '',
+                      detectedAt: String(finding.timestamp ?? ''),
+                      status: finding.status === 'closed' ? 'remediated' : finding.status === 'accepted' ? 'accepted' : 'open',
+                    }]}
+                  />
+                )}
                 {loadingRemediation ? (
                   <div className="flex items-center gap-2 text-[10px] text-accent animate-pulse uppercase tracking-widest">
                     <div className="w-2 h-2 rounded-full bg-accent" />

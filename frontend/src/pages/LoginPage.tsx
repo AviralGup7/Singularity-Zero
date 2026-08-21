@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { LogIn, ChevronDown, LockKeyhole, ScanLine, Shield, User, Workflow, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { CinematicIntro } from '@/components/motion/CinematicIntro';
 import { APP_VERSION } from '@/config';
 import { dispatchToast } from '@/lib/toastDispatcher';
 import type { UserRole } from '@/context/AuthContext';
@@ -25,6 +26,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const enableGuestLogin = useSettingsStore((state) => state.settings.api.enableGuestLogin);
+  const cinematicIntro = useSettingsStore((state) => state.settings.features.cinematicIntro);
 
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('analyst');
@@ -89,11 +91,12 @@ export function LoginPage() {
 
   const inputFocusClass = 'focus-within:shadow-[0_0_0_2px_var(--accent-soft),0_0_12px_color-mix(in_srgb,var(--accent)_15%,transparent)] transition-shadow duration-200';
 
-  return (
+  const canvas = (
     <main className="auth-canvas" aria-label="Sign in">
       <section className="auth-card" style={{ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
         <motion.div
           className="auth-left"
+          data-cinematic
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, ease: EASE_OUT }}
@@ -208,6 +211,7 @@ export function LoginPage() {
 
         <motion.div
           className="auth-right"
+          data-cinematic
           aria-hidden="true"
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
@@ -257,4 +261,9 @@ export function LoginPage() {
       </footer>
     </main>
   );
+
+  if (cinematicIntro) {
+    return <CinematicIntro>{canvas}</CinematicIntro>;
+  }
+  return canvas;
 }
