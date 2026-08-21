@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
 import { useState, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Briefcase, Search } from 'lucide-react';
 import JobList from '../components/jobs/JobList';
+import StartJobForm from '../components/jobs/StartJobForm';
 import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
 import { PageHeader, EmptyState, Pagination, ErrorCard } from '../components/ui';
 import { useJobsContext } from '../context/JobsContext';
@@ -14,6 +15,7 @@ const PAGE_SIZE = 20;
 const STATUS_FILTERS = ['all', 'running', 'completed', 'failed', 'stopped'] as const;
 
 export function JobsPage() {
+  const navigate = useNavigate();
   const { jobs, loading, error, refetch } = useJobsContext();
   const [searchParams, setSearchParams] = useSearchParams();
    
@@ -127,6 +129,13 @@ export function JobsPage() {
             <span className="status-pill">{filtered.length} total</span>
           </span>
         }
+      />
+
+      <StartJobForm
+        onJobStarted={(jobId) => {
+          void refetch();
+          navigate(`/jobs/${jobId}`);
+        }}
       />
 
       <motion.div
