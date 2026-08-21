@@ -331,15 +331,35 @@ Frontend mirrors the nouns under `frontend/src/features/*`.
 
 ---
 
+## Status (2026-08-21)
+
+Shipped as packages with tests and shims — old import paths still work.
+
+| Package | Status |
+|---|---|
+| `src/auth`, `src/jobs`, `src/notifications`, `src/resilience`, `src/intel` | Done |
+| `src/detection` no longer imports `src.analysis`; `src/detection/catalog.py` lists the 88 specs | Done |
+| `src/frontier` CRDT/WAL only (no WASM) | Done |
+| `src/sandbox` WASM gate | Done |
+| `src/analysis/checks/registry.py` indexes both check trees | Done |
+| `src/reporting/exporters.py` | Done |
+| `src/decision/next_action.py` | Done |
+| `src/learning/rl.py` PPO gated | Done |
+| `src/fuzzing/protocol.py` Mutator | Done |
+| `src/exploitation/catalog.py` | Done |
+| Frontend `features/{auth,jobs,theme,notifications,pipeline,cockpit,targets,settings}` | Done |
+
+Physical moves of WAL/WASM/88 spec files are **not** required for the boundary to hold.
+
 ## Extraction order (do not boil the ocean)
 
-1. **Auth session type** — unblocks demo 401s and notification policy
-2. **Notifications policy** — one `should_fetch(session)` 
-3. **Jobs domain** — dashboard routers become thin
-4. **Detection ↛ analysis import** — break the cycle
-5. **Resilience merge** — one breaker, persist it
-6. **Frontend features/theme + features/jobs** — stop layout/CSS dumps
-7. Then frontier/checkpoint/cache/realtime as time allows
+1. **Auth session type** — done
+2. **Notifications policy** — done
+3. **Jobs domain** — done
+4. **Detection ↛ analysis import** — done
+5. **Resilience merge** — done
+6. **Frontend features** — barrels in place
+7. Frontier / sandbox / catalog / exporters / next_action / RL gate — done
 
 Each step: public `__init__` + import-linter contract + tests in
 `tests/unit/<module>/`. No “move 400 files” PR.

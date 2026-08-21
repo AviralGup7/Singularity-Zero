@@ -47,3 +47,11 @@ def test_notifications_only_depends_on_auth() -> None:
 
 def test_resilience_does_not_import_pipeline() -> None:
     _forbids("resilience", "src.pipeline", "src.dashboard")
+
+
+def test_frontier_does_not_import_execution_or_wasm() -> None:
+    _forbids("frontier", "src.execution", "wasmtime")
+
+
+def test_sandbox_does_not_import_pipeline() -> None:
+    _forbids("sandbox", "src.pipeline", "src.dashboard")

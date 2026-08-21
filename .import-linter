@@ -130,3 +130,9 @@ name = Resilience must not depend on pipeline
 type = forbidden
 source_modules = src.resilience
 forbidden_modules = src.pipeline, src.dashboard
+
+[importlinter:contract:21]
+name = Frontier CRDT must not depend on WASM execution
+type = forbidden
+source_modules = src.frontier
+forbidden_modules = src.execution, src.dashboard
