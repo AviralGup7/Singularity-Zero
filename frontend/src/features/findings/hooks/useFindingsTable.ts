@@ -3,6 +3,7 @@ import type { Finding } from '@/types/api';
 import { bucketKanbanFindings } from '../components/FindingsKanbanView';
 import { clampFindingsPage } from '../findingsViewMode';
 import { parseFindingTimestamp } from '@/utils/findingTime';
+import { isSparseEvidence } from '@/utils/userChrome';
 
 type SortKey = 'severity' | 'bounty_value' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';
@@ -20,6 +21,7 @@ const SEVERITY_ORDER = new Map<string, number>([
 const PAGE_SIZE = 20;
 
 export function computeDuplicateKey(f: Finding): string {
+  if (isSparseEvidence(f.evidence)) return `id:${f.id}`;
   const evStr = typeof f.evidence === 'string' ? f.evidence : JSON.stringify(f.evidence ?? '');
   return `${f.type}::${f.target}::${evStr.substring(0, 50).toLowerCase()}`;
 }

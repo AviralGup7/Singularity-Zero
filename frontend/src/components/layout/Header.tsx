@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { NotificationCenter } from './NotificationCenter';
 import type { AppNotification } from '@/types/notifications';
+import { shortcutGlyph, userInitials } from '@/utils/userChrome';
 
 interface HeaderProps {
   sidebarOpen: boolean;
@@ -85,7 +86,7 @@ export function Header({
               <span>Search or run command...</span>
             </div>
             <kbd className="bg-surface-2 px-1.5 py-0.5 rounded text-[10px] font-mono border border-line">
-              ⌘ K
+              {shortcutGlyph()}
             </kbd>
           </button>
           <div
@@ -171,14 +172,7 @@ export function Header({
             role="img"
             aria-label={user?.name ? `User avatar for ${user.name}` : 'User avatar'}
           >
-            {user?.name
-              ? user.name
-                  .split(' ')
-                  .map((n) => n[0])
-                  .join('')
-                  .toUpperCase()
-                  .substring(0, 2)
-              : 'A'}
+            {userInitials(user?.name)}
           </div>
         </div>
       </motion.header>

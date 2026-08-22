@@ -21,8 +21,8 @@ export function useFocusManagement() {
 
   const focusHeading = useCallback(() => {
    
-    const heading = document.querySelector<HTMLElement>('[data-focus-heading]')
-      || document.querySelector<HTMLElement>('h1, h2');
+    const candidates = document.querySelectorAll<HTMLElement>('[data-focus-heading], h1, h2');
+    const heading = Array.from(candidates).find((el) => isFocusableHeading(el));
     if (heading) {
       if (!heading.hasAttribute('tabindex')) {
         heading.setAttribute('tabindex', '-1');
