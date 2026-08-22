@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
+
+from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
@@ -196,3 +199,36 @@ def _node_health(severity: str, node_type: str, edge_count: int) -> float:
     if node_type in {"subdomain", "endpoint"}:
         return round(max(0.05, 1.0 - risk - exposure), 2)
     return round(max(0.08, 1.0 - risk), 2)
+
+
+@router.get(
+    "/edges",
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Get cockpit graph edges for a run",
+)
+async def get_cockpit_edges(
+    target: str = Query(..., min_length=1),
+    run: str | None = Query(None),
+    job_id: str | None = Query(None),
+    max_nodes: int = Query(2000, ge=1, le=10000),
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    """Return only the edge list from the same graph as ``/graph``."""
+    from src.dashboard.fastapi.routers.cockpit.nodes import get_cockpit_graph
+
+    graph = await get_cockpit_graph(
+        target=target,
+        run=run,
+        job_id=job_id,
+        max_nodes=max_nodes,
+        _auth=_auth,
+        services=services,
+    )
+    return {
+        "edges": graph.get("edges", []),
+        "metadata": {
+            **(graph.get("metadata") or {}),
+            "edge_count": len(graph.get("edges", [])),
+        },
+    }

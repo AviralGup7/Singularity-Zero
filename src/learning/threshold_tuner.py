@@ -77,6 +77,14 @@ class ThresholdTuner:
             "reproducible": 1.10,
         }
 
+    def seed_from_feedback(self, book: Any) -> float:
+        """Apply analyst-feedback thresholds without replacing PI calibration."""
+        from src.learning.thresholds import suggested_threshold
+
+        seeded = suggested_threshold(book, default=self.config.medium_threshold)
+        self.current_thresholds["medium"] = seeded
+        return seeded
+
     def calibrate(self, run_id: str) -> dict[str, float]:
         """Calibrate thresholds based on recent run outcomes.
 

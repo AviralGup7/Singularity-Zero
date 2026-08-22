@@ -24,6 +24,7 @@ import { Header } from './Header';
 import { Footer } from './Footer';
 import { ShortcutsModal } from './ShortcutsModal';
 import { ScanStatusBar } from '@/components/ScanStatusBar';
+import { VisibilityIndicator } from '@/hooks/useVisibilityAPI';
 import { SessionGuard } from '@/components/SessionGuard';
 import { useEscapeToClose } from '@/hooks/useKeyboardShortcuts';
 import { shouldIgnoreGlobalShortcut } from '@/utils/findingTime';
@@ -416,6 +417,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="app-shell app-shell--hud">
       <SessionGuard />
+      <VisibilityIndicator />
       {nightCityHud}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
         Skip to content

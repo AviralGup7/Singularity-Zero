@@ -255,6 +255,7 @@ export const AppSettingsSchema = z.object({
     clientPerformance: z.boolean().default(false),
     reconDetails: z.boolean().default(false),
     livePipelineStatus: z.boolean().default(false),
+    compactFindingsFilters: z.boolean().default(false),
   }).default({
     threatIntel: true,
     cvssDetails: true,
@@ -265,6 +266,7 @@ export const AppSettingsSchema = z.object({
     clientPerformance: false,
     reconDetails: false,
     livePipelineStatus: false,
+    compactFindingsFilters: false,
   }),
   performance: z.object({
     enableCaching: z.boolean().default(true),

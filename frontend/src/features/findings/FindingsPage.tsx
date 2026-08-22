@@ -11,6 +11,8 @@ import { FindingComparisonPanel } from './components/FindingComparisonPanel';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SavedFilterPresets } from '../../components/ui/SavedFilterPresets';
+import { FindingsFilterBar } from './components/FindingsFilterBar';
+import { useOptionalFeatures } from '../../hooks/useOptionalFeatures';
 import { useToast } from '../../hooks/useToast';
 import { usePersistedState } from '../../hooks/usePersistedState';
 import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsViewMode';
@@ -21,6 +23,7 @@ import { acknowledgeNewFindings, detectFreshFindingIds, withoutFindingParam } fr
 import { sanitizeSeverityFilters } from './severityFilter';
 import { applyFilterPreset } from './filterPreset';
 import { pruneSelection } from './selection';
+import { toggleIdInSet } from './hooks/useBulkActions';
 import { unreadAfterDismiss } from '@/features/notifications/unread';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
@@ -32,6 +35,7 @@ const OnboardingTour = lazy(() => import('../../components/OnboardingTour').then
 
 export function FindingsPage() {
   const toast = useToast();
+  const features = useOptionalFeatures();
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -97,15 +101,7 @@ export function FindingsPage() {
   }, [newFindingIds]);
 
   const toggleFindingSelection = useCallback((findingId: string) => {
-    setSelectedFindingIds(prev => {
-      const next = new Set(prev);
-      if (next.has(findingId)) {
-        next.delete(findingId);
-      } else {
-        next.add(findingId);
-      }
-      return next;
-    });
+    setSelectedFindingIds((prev) => toggleIdInSet(prev, findingId));
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -472,6 +468,37 @@ export function FindingsPage() {
       </AnimatePresence>
 
       {/* ── Tactical Filters ─────────────────────────────────────── */}
+      {features.compactFindingsFilters && (
+        <div className="px-8 pt-4">
+          <FindingsFilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            severityFilter={severityFilter}
+            onSeverityToggle={(sev) => {
+              setSeverityFilter((prev) => {
+                const next = prev.includes(sev) ? prev.filter((item) => item !== sev) : [...prev, sev];
+                setSearchParams((current) => {
+                  const params = new URLSearchParams(current);
+                  if (next.length > 0) params.set('severity', next.join(','));
+                  else params.delete('severity');
+                  return params;
+                }, { replace: true });
+                return next;
+              });
+            }}
+            onClearFilters={() => {
+              setSearchQuery('');
+              setSeverityFilter([]);
+              setSearchParams((current) => {
+                const params = new URLSearchParams(current);
+                params.delete('severity');
+                return params;
+              }, { replace: true });
+            }}
+            totalResults={findings.length}
+          />
+        </div>
+      )}
       <div className="px-8 py-4 card mx-4 mt-4 flex items-center gap-6 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />

@@ -484,7 +484,7 @@ def analysis_check_options() -> list[dict[str, object]]:
     from src.core.plugins.loader import refresh_dynamic_plugins
 
     refresh_dynamic_plugins()
-    return [
+    options = [
         {
             "name": spec.key,
             "label": spec.label,
@@ -496,3 +496,12 @@ def analysis_check_options() -> list[dict[str, object]]:
         }
         for spec in get_analysis_plugin_specs()
     ]
+    from src.detection.plugins_view import rows_from_options
+
+    taxonomy_rows = {row["key"]: row for row in rows_from_options(options)}
+    for option in options:
+        taxon = taxonomy_rows.get(str(option.get("name") or ""))
+        if taxon:
+            option["family"] = taxon["family"]
+            option["surface"] = taxon["surface"]
+    return options

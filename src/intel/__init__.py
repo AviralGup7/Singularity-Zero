@@ -11,6 +11,8 @@ from src.intel.feeds import (
 from src.intel.ioc import Indicator, IndicatorKind, classify_indicator, extract_indicators
 from src.intel.verdict import FeedVote, Verdict, combine_votes
 from src.intel.watchlist import Watchlist
+from src.intel.metrics import aggregator_size, lookup_stats
+from src.intel.report import render_intel_report
 
 __all__ = [
     "FeedAggregator",
@@ -30,4 +32,7 @@ __all__ = [
     "extract_indicators",
     "is_feed_configured",
     "list_feeds",
+    "lookup_stats",
+    "aggregator_size",
+    "render_intel_report",
 ]

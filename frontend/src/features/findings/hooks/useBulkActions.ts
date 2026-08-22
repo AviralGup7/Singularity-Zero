@@ -7,6 +7,13 @@ interface UseBulkActionsInput {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
 }
 
+export function toggleIdInSet(prev: Set<string>, id: string): Set<string> {
+  const next = new Set(prev);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
+}
+
 export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: UseBulkActionsInput) {
    
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -16,12 +23,7 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
   const [bulkAssignee, setBulkAssignee] = useState('');
 
   const toggleRow = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedIds(prev => toggleIdInSet(prev, id));
   }, []);
 
   const togglePage = useCallback((paginated: Finding[], allOnPageSelected: boolean) => {

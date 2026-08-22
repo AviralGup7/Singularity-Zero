@@ -12,6 +12,7 @@ from src.execution.auth.auth_flow import (
     OAuthAuthenticator,
     SessionContext,
 )
+from src.execution.auth.select import normalize_auth_flow_engine, resolve_auth_flow_runner_cls
 
 __all__ = [
     "AuthFlowRunner",
@@ -19,4 +20,6 @@ __all__ = [
     "AuthStep",
     "OAuthAuthenticator",
     "SessionContext",
+    "normalize_auth_flow_engine",
+    "resolve_auth_flow_runner_cls",
 ]

@@ -201,10 +201,11 @@ def register_all_implementations() -> None:
         logger.debug("Isolated execution not available")
 
     try:
-        from src.execution.auth import AuthFlowRunner, OAuthAuthenticator
+        from src.execution.auth import OAuthAuthenticator
+        from src.execution.auth.select import resolve_auth_flow_runner_cls
 
         register_oauth_authenticator_cls(OAuthAuthenticator)
-        register_auth_flow_runner_cls(AuthFlowRunner)
+        register_auth_flow_runner_cls(resolve_auth_flow_runner_cls())
         logger.debug("Registered OAuth authenticator and auth flow runner")
     except ImportError:
         logger.debug("Auth modules not available")

@@ -66,6 +66,12 @@ export function FeaturesSection({ features, onChange }: FeaturesSectionProps) {
         onChange={(v) => onChange({ livePipelineStatus: v })}
         description="Show running-stage chips and connection state on the Jobs page (ScanStatusBar stays available either way)"
       />
+      <SettingToggle
+        label="Compact Findings Filters"
+        checked={features.compactFindingsFilters}
+        onChange={(v) => onChange({ compactFindingsFilters: v })}
+        description="Use the compact filter bar chrome on Findings. Tactical filters stay the default."
+      />
     </SettingsSectionCard>
   );
 }

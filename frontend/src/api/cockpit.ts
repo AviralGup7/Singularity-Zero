@@ -82,6 +82,9 @@ export const cockpitApi = {
   getGraph: (target: string, run?: string, jobId?: string, config?: { signal?: AbortSignal }) =>
     apiClient.get<CockpitGraphResponse>('/api/cockpit/graph', { ...config, params: { target, run, job_id: jobId } }),
 
+  getEdges: (target: string, run?: string, jobId?: string, config?: { signal?: AbortSignal }) =>
+    apiClient.get<{ edges: CockpitEdge[]; metadata: CockpitGraphResponse['metadata'] }>('/api/cockpit/edges', { ...config, params: { target, run, job_id: jobId } }),
+
   getAttackChains: (target: string, config?: { signal?: AbortSignal }) =>
     apiClient.get<AttackChain[]>('/api/cockpit/attack-chains', { ...config, params: { target } }),
 

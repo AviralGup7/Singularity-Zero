@@ -38,15 +38,25 @@ class Inbox:
         event: NotificationEvent | None = None,
         limit: int = 100,
         offset: int = 0,
+        spec: Any = None,
     ) -> builtins.list[Notification]:
         with self._lock:
             items = list(self._items)
+        if spec is not None:
+            from src.notifications.filters import apply_filter
+
+            items = apply_filter(items, spec)
         if unread_only:
             items = [item for item in items if not item.read]
         if event is not None:
             items = [item for item in items if item.event is event]
         start = max(0, offset)
         return items[start : start + max(1, limit)]
+
+    def overdue_critical_ids(self, *, older_than: float, now: float | None = None) -> list[str]:
+        from src.notifications.escalation import overdue_critical
+
+        return overdue_critical(self, older_than=older_than, now=now)
 
     def unread_count(self) -> int:
         with self._lock:

@@ -6,6 +6,7 @@ import {
   selectJobsByStatus,
   summarizeJobStages,
 } from '@/components/livePipelineStatus';
+import { toggleIdInSet } from '@/features/findings/hooks/useBulkActions';
 import type { Job } from '@/types/api';
 
 function job(partial: Partial<Job> & Pick<Job, 'id' | 'status'>): Job {
@@ -21,6 +22,7 @@ describe('optional leftover UI stays behind settings', () => {
     const settings = AppSettingsSchema.parse({});
     expect(settings.features.livePipelineStatus).toBe(false);
     expect(settings.features.clientPerformance).toBe(false);
+    expect(settings.features.compactFindingsFilters).toBe(false);
   });
 });
 
@@ -50,5 +52,16 @@ describe('live pipeline status helpers', () => {
     expect(liveConnectionLabel('connected', false)).toBe('Live');
     expect(liveConnectionLabel('connected', true)).toBe('Polling');
     expect(liveConnectionLabel('mystery', false)).toBe('Unknown');
+  });
+});
+
+describe('shared bulk selection helper', () => {
+  it('toggles ids without mutating the previous set', () => {
+    const start = new Set(['a']);
+    const added = toggleIdInSet(start, 'b');
+    const removed = toggleIdInSet(added, 'a');
+    expect([...start]).toEqual(['a']);
+    expect([...added].sort()).toEqual(['a', 'b']);
+    expect([...removed]).toEqual(['b']);
   });
 });

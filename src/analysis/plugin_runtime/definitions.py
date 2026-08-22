@@ -827,4 +827,39 @@ LAZY_BINDINGS: dict[str, tuple[str, str, str]] = {
         "run_cognitive_flow_analysis",
         "urls_and_cache",
     ),
+    "secrets_response_scanner": (
+        "src.analysis.optional_probes",
+        "secrets_response_scanner",
+        "responses_only",
+    ),
+    "passive_mass_assignment_detector": (
+        "src.analysis.optional_probes",
+        "passive_mass_assignment_detector",
+        "urls_and_responses",
+    ),
+    "csp_bypass_probe": (
+        "src.analysis.optional_probes",
+        "csp_bypass_probe",
+        "responses_only",
+    ),
+    "api_security_assessor": (
+        "src.analysis.optional_probes",
+        "api_security_assessor",
+        "urls_and_responses",
+    ),
+    "differential_logic_prober": (
+        "src.analysis.optional_probes",
+        "differential_logic_prober",
+        "responses_only",
+    ),
+    "semantic_finding_dedup": (
+        "src.analysis.optional_probes",
+        "semantic_finding_dedup",
+        "bulk_findings_only",
+    ),
+    "graphql_batch_attack_probe": (
+        "src.analysis.optional_probes",
+        "graphql_batch_attack_probe",
+        "priority_urls_and_cache",
+    ),
 }

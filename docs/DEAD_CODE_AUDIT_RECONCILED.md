@@ -184,13 +184,16 @@ This file is the reconciliation record. Route overview docs were **not** rewritt
 
 ## Remaining debt
 
-1. Unused-but-valuable analysis modules are not registered in `ANALYSIS_PLUGIN_SPECS`. Wiring them into the live pipeline is a feature project, not a deletion.
-2. `auth_flow_runner.py` vs `auth_flow.py` should become an explicit operator choice (YAML vs built-in runner) when auth UX is next touched.
-3. Cockpit `edges.py` has no HTTP handlers; helpers may later be shared with `nodes.py`.
-4. `FindingsFilterBar` / `useBulkActions` remain unused by design (do not replace working filters).
-5. `RoleGate` vs `RequireRole` — both acceptable; adopt one wrapper when a page needs declarative gates.
-6. Scripts outside CI remain diagnostic/historical value.
-7. Cross-layer duplication is intentional.
+**None.** Closed in the follow-up pass:
+
+1. Optional analysis modules are registered in `ACTIVE_PLUGIN_SPECS` with `enabled_by_default=False` and bound through `src/analysis/optional_probes.py`.
+2. Auth runners are an operator choice via `AUTH_FLOW_ENGINE` (`builtin` | `yaml`).
+3. Cockpit `edges.py` owns graph helpers; `nodes.py` imports them; `GET /api/cockpit/edges` is live.
+4. Compact Findings filter chrome is optional (`compactFindingsFilters`); tactical filters stay default. Bulk selection helper is shared.
+5. `RoleGate` (hierarchy) wraps Experimental settings; `RequireRole` stays exact-match.
+6. Scripts outside CI remain tooling, not debt.
+7. Cross-layer FE/BE duplication is intentional and closed as such.
+8. Notification filters/escalation, intel metrics/report, detection plugin rows, and learning `suggested_threshold` are wired into their live packages.
 
 ---
 
