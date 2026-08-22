@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Job } from '../../types/api';
+import { normalizeStageName } from '@/lib/stageTheaterUtils';
 
 interface HeatmapCell {
   jobId: string;
@@ -56,16 +57,6 @@ const STAGE_LABELS: Record<string, string> = {
   intelligence: 'Intelligence',
   reporting: 'Reporting',
 };
-
-const STAGE_ALIASES: Record<string, string> = {
-  priority: 'ranking',
-};
-
-function normalizeStageName(stageName: string): string {
-  const normalized = String(stageName || '').trim().toLowerCase();
-  if (!normalized) return '';
-  return Reflect.get(STAGE_ALIASES, normalized) ?? normalized;
-}
 
 export function StageDurationHeatmap({ jobs }: { jobs: Job[] }) {
   const heatmap = useMemo(() => {

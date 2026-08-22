@@ -1,5 +1,5 @@
 /* ── Form Inputs ────────────────────────────────────────────── */
-.search-wrapper, .search-input-wrapper, .findings-view-toggle, .findings-export-actions, .findings-filters, .jobs-toolbar {
+.search-wrapper, .jobs-toolbar {
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
@@ -72,17 +72,6 @@ select.form-input {
   background-size: 12px;
 }
 
-/* Error state for inputs */
-.form-input--error, .form-textarea--error {
-  border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 3%, var(--surface));
-}
-
-.form-input--error:focus-visible, .form-textarea--error:focus-visible {
-  border-color: var(--bad);
-  box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px color-mix(in srgb, var(--bad) 25%, transparent);
-}
-
 .filter-group {
   display: grid;
   gap: var(--space-1);
@@ -92,44 +81,6 @@ select.form-input {
   font-size: var(--text-small);
   color: var(--text-secondary);
   font-weight: 500;
-}
-
-/* Checkbox / Toggle */
-.form-checkbox {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--easing-out);
-  position: relative;
-}
-
-.form-checkbox:hover {
-  border-color: var(--accent);
-  background: var(--surface-hover);
-}
-
-.form-checkbox:checked {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.form-checkbox:checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.form-checkbox:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 /* Cockpit scan-tuning slider (P1-3) */
@@ -179,49 +130,6 @@ select.form-input {
   font-size: var(--text-small);
   font-weight: 600;
   color: var(--text-secondary);
-}
-
-.form-help {
-  font-size: var(--text-micro);
-  color: var(--text-tertiary);
-}
-
-.form-error-text {
-  font-size: var(--text-micro);
-  color: var(--bad);
-}
-
-.form-switch {
-  appearance: none;
-  width: 36px;
-  height: 20px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface-3);
-  position: relative;
-  cursor: pointer;
-}
-
-.form-switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--text-secondary);
-  transition: transform 140ms ease;
-}
-
-.form-switch:checked {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.form-switch:checked::after {
-  transform: translateX(16px);
-  background: #fff;
 }
 
 .search-input[type='search']::-webkit-search-cancel-button {

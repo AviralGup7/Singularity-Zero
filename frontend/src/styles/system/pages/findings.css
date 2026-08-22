@@ -141,10 +141,6 @@
   flex-wrap: wrap;
 }
 
-.bulk-actions-placeholder {
-  height: 48px;
-}
-
 .bulk-clear-btn {
   margin-left: auto;
   background: transparent;
@@ -239,13 +235,6 @@
   font-size: var(--text-micro);
   color: var(--text-tertiary);
   margin-bottom: var(--space-2);
-}
-
-.scan-progress-bar {
-  height: 4px;
-  background: var(--surface-3);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
 }
 
 .scan-progress-item {

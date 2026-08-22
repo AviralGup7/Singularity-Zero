@@ -199,44 +199,6 @@ textarea:disabled {
   pointer-events: none;
 }
 
-/* ── Input with leading icon (common pattern) ──────────────── */
-.input-icon-wrap {
-  position: relative;
-}
-
-.input-icon-wrap > svg:first-child {
-  position: absolute;
-  left: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: var(--text-tertiary);
-  transition: color var(--motion-fast) var(--easing-out);
-}
-
-.input-icon-wrap:focus-within > svg:first-child {
-  color: var(--accent);
-}
-
-.input-icon-wrap input,
-.input-icon-wrap select {
-  padding-left: calc(var(--space-3) + 20px + var(--space-2));
-}
-
-/* ── Validation states ─────────────────────────────────────── */
-.input-error {
-  border-color: var(--bad) !important;
-  box-shadow: 0 0 0 1px var(--bad) !important;
-}
-
-.input-error:focus-visible {
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--bad) 40%, transparent) !important;
-}
-
-.input-success {
-  border-color: var(--ok) !important;
-}
-
 /* ── Focus Rings ────────────────────────────────────────────── */
 input:focus-visible,
 select:focus-visible,

@@ -34,7 +34,7 @@ describe('stage classification', () => {
 
 describe('inline log lines', () => {
   it('does not treat a URL with error in the path as an error line', () => {
-    expect(classifyInlineLogLine('GET https://app.test/error')).not.toContain('rose');
-    expect(classifyInlineLogLine('fatal exception')).toContain('rose');
+    expect(classifyInlineLogLine('GET https://app.test/error')).not.toContain('log-line-error');
+    expect(classifyInlineLogLine('fatal exception')).toContain('log-line-error');
   });
 });

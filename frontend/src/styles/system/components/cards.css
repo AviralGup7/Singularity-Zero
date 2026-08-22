@@ -29,13 +29,6 @@
   transform: translateY(-2px);
 }
 
-.card--glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-color: var(--glass-border);
-}
-
 .error-card {
   border-color: var(--bad);
   background: color-mix(in srgb, var(--bad) 4%, var(--surface));
@@ -46,18 +39,6 @@
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 4%, var(--surface));
   box-shadow: var(--glow-warn);
-}
-
-.success-card {
-  border-color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 4%, var(--surface));
-  box-shadow: var(--glow-ok);
-}
-
-.info-card {
-  border-color: var(--info);
-  background: color-mix(in srgb, var(--info) 4%, var(--surface));
-  box-shadow: var(--glow-accent);
 }
 
 /* ── Card Modifiers ──────────────────────────────────────────── */
@@ -90,10 +71,6 @@
   background: var(--glass-bg-elevated);
 }
 
-
-.card--compact {
-  padding: var(--space-3);
-}
 
 .card-title {
   margin: 0 0 var(--space-3);

@@ -144,27 +144,19 @@
   transform: translateY(-1px);
 }
 
-.topbar-refresh {
-  height: 32px;
-  padding: 0 var(--space-3);
-  font-size: var(--text-label);
-}
-
-.help-btn {
-  border: 0;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-size: 16px;
-  font-weight: 600;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  transition: all var(--motion-fast) var(--easing-out);
-}
-
-.help-btn:hover {
-  color: var(--text-primary);
-  background: var(--surface-hover);
+.header-online-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ok);
+  font-size: var(--text-micro);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .header-live-pill {
@@ -180,6 +172,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  text-decoration: none;
   transition: all var(--motion-fast) var(--easing-out);
 }
 
@@ -244,10 +237,6 @@
 
 .app-main-wrapper:has(.scan-status-bar) .app-main-content {
   padding-bottom: 64px;
-}
-
-.header-live-pill {
-  text-decoration: none;
 }
 
 /* ── Light Mode Header ───────────────────────────────────────── */

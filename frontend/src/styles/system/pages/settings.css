@@ -89,26 +89,6 @@
   box-shadow: 0 0 0 1px var(--accent-muted);
 }
 
-.search-clear-btn {
-  position: absolute;
-  right: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: none;
-  color: var(--text-tertiary);
-  font-size: 20px;
-  cursor: pointer;
-  padding: var(--space-1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.search-clear-btn:hover {
-  color: var(--text-secondary);
-}
-
 /* ── Layout ───────────────────────────────────────────────── */
 .settings-layout {
   display: grid;

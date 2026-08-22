@@ -45,39 +45,6 @@
   pointer-events: none;
 }
 
-/* Size variants */
-.modal-card--sm { width: min(420px, 100%); }
-.modal-card--lg { width: min(800px, 100%); }
-.modal-card--full { width: min(1100px, 95%); }
-
-/* Modal header */
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-5);
-}
-
-.modal-header h3 {
-  font-size: var(--text-section-title);
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-/* Modal footer */
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border);
-  margin-top: var(--space-5);
-}
-
 /* Modal close button */
 .modal-close {
   width: 28px;
@@ -92,11 +59,6 @@
 .modal-close:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
-}
-
-.modal-body {
-  display: grid;
-  gap: var(--space-4);
 }
 
 .modal-card p {
@@ -115,8 +77,4 @@
     border-radius: var(--radius-lg);
   }
 
-  .modal-footer {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
 }

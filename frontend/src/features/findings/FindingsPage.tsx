@@ -24,7 +24,6 @@ import { sanitizeSeverityFilters } from './severityFilter';
 import { applyFilterPreset } from './filterPreset';
 import { pruneSelection } from './selection';
 import { toggleIdInSet } from './hooks/useBulkActions';
-import { unreadAfterDismiss } from '@/features/notifications/unread';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
@@ -297,6 +296,29 @@ export function FindingsPage() {
     setSeverityFilter(next.severity);
   }, [searchQuery, severityFilter, setSearchQuery, setSeverityFilter]);
 
+  const toggleSeverity = useCallback((sev: string) => {
+    setSeverityFilter((prev) => {
+      const next = prev.includes(sev) ? prev.filter((item) => item !== sev) : [...prev, sev];
+      setSearchParams((current) => {
+        const params = new URLSearchParams(current);
+        if (next.length > 0) params.set('severity', next.join(','));
+        else params.delete('severity');
+        return params;
+      }, { replace: true });
+      return next;
+    });
+  }, [setSearchParams]);
+
+  const clearFindingFilters = useCallback(() => {
+    setSearchQuery('');
+    setSeverityFilter([]);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('severity');
+      return params;
+    }, { replace: true });
+  }, [setSearchQuery, setSearchParams]);
+
   if (loading && !findingsData) return (
     <div className="p-10 space-y-4">
       <Skeleton className="h-12 w-1/4" />
@@ -305,7 +327,7 @@ export function FindingsPage() {
   );
 
   return (
-    <div className="flex flex-col h-full bg-bg font-sans">
+    <div className="findings-page flex flex-col h-full bg-bg font-sans">
       {/* ── Cyber Page Header ────────────────────────────────────── */}
       <div className="px-8 py-6 border-b border-line flex items-center justify-between glass-panel sticky top-0 z-20">
         <div className="flex items-center gap-4">
@@ -468,37 +490,22 @@ export function FindingsPage() {
       </AnimatePresence>
 
       {/* ── Tactical Filters ─────────────────────────────────────── */}
-      {features.compactFindingsFilters && (
-        <div className="px-8 pt-4">
+      {features.compactFindingsFilters ? (
+        <div className="findings-filter-compact px-8 pt-4">
           <FindingsFilterBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             severityFilter={severityFilter}
-            onSeverityToggle={(sev) => {
-              setSeverityFilter((prev) => {
-                const next = prev.includes(sev) ? prev.filter((item) => item !== sev) : [...prev, sev];
-                setSearchParams((current) => {
-                  const params = new URLSearchParams(current);
-                  if (next.length > 0) params.set('severity', next.join(','));
-                  else params.delete('severity');
-                  return params;
-                }, { replace: true });
-                return next;
-              });
-            }}
-            onClearFilters={() => {
-              setSearchQuery('');
-              setSeverityFilter([]);
-              setSearchParams((current) => {
-                const params = new URLSearchParams(current);
-                params.delete('severity');
-                return params;
-              }, { replace: true });
-            }}
+            onSeverityToggle={toggleSeverity}
+            onClearFilters={clearFindingFilters}
             totalResults={findings.length}
           />
+          <SavedFilterPresets
+            currentFilters={currentFilters}
+            onLoadPreset={handleLoadPreset}
+          />
         </div>
-      )}
+      ) : (
       <div className="px-8 py-4 card mx-4 mt-4 flex items-center gap-6 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -524,21 +531,7 @@ export function FindingsPage() {
                return (
            <button 
                    key={sev}
-                   onClick={() => {
-                     setSeverityFilter(prev => {
-                       const next = prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev];
-                       setSearchParams(prev => {
-                         const params = new URLSearchParams(prev);
-                         if (next.length > 0) {
-                           params.set('severity', next.join(','));
-                         } else {
-                           params.delete('severity');
-                         }
-                         return params;
-                       }, { replace: true });
-                       return next;
-                     });
-                   }}
+                   onClick={() => toggleSeverity(sev)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all flex items-center gap-2 cursor-pointer ${
                     severityFilter.includes(sev) 
                       ? 'bg-surface-2 border-line text-text-primary' 
@@ -558,6 +551,7 @@ export function FindingsPage() {
           onLoadPreset={handleLoadPreset}
         />
       </div>
+      )}
 
       {/* ── Virtualized Data Grid ─────────────────────────────────── */}
       <div className="flex-1 min-h-0 relative">

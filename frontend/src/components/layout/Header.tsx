@@ -48,13 +48,13 @@ export function Header({
   return (
     <>
       <motion.header
-        className="app-command-header border-b border-line bg-panel/90 backdrop-blur-md sticky top-0 z-30"
+        className="app-command-header"
         role="banner"
         initial={policy.allowFramer ? { y: -18, opacity: 0 } : false}
         animate={policy.allowFramer ? { y: 0, opacity: 1 } : undefined}
         transition={{ duration: motionDuration, ease: 'easeOut' }}
       >
-        <div className="header-left flex items-center gap-4">
+        <div className="header-left">
           <button
             type="button"
             className="sidebar-toggle-btn mobile-visible hover:bg-surface-hover p-2 rounded transition-colors"
@@ -66,32 +66,28 @@ export function Header({
             <Icon name="menu" size={20} aria-hidden="true" />
           </button>
           <div className="header-title-block">
-            <h1 className="text-xl font-bold tracking-tight text-text">
+            <h1>
               {pageMeta.title}
             </h1>
             {pageMeta.subtitle && (
-              <p className="text-xs text-muted/80">{pageMeta.subtitle}</p>
+              <p className="header-subtitle">{pageMeta.subtitle}</p>
             )}
           </div>
         </div>
 
-        <div className="header-command-row flex items-center gap-4 flex-1 justify-center max-w-2xl px-4">
+        <div className="header-command-row">
           <button
             type="button"
-            className="command-search flex items-center justify-between w-full max-w-md bg-surface-hover border border-line hover:border-accent/40 rounded-lg px-3 py-1.5 text-xs text-muted hover:text-text transition-all duration-200"
+            className="command-search"
             onClick={() => setCommandPaletteOpen(true)}
             aria-label="Open command palette"
           >
-            <div className="flex items-center gap-2">
-              <Icon name="search" size={14} className="text-muted/60" aria-hidden="true" />
-              <span>Search or run command...</span>
-            </div>
-            <kbd className="bg-surface-2 px-1.5 py-0.5 rounded text-[10px] font-mono border border-line">
-              {shortcutGlyph()}
-            </kbd>
+            <Icon name="search" size={14} aria-hidden="true" />
+            <span>Search or run command...</span>
+            <kbd>{shortcutGlyph()}</kbd>
           </button>
           <div
-            className="header-quick-actions flex items-center gap-2"
+            className="header-quick-actions"
             role="navigation"
             aria-label="Quick actions"
           >
@@ -99,7 +95,7 @@ export function Header({
               <Link
                 key={action.path}
                 to={action.path}
-                className="btn btn-primary btn-sm topbar-primary flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-semibold rounded-lg shadow-md transition-all duration-200"
+                className="btn btn-primary btn-sm topbar-primary"
                 aria-label={action.label}
               >
                 <Icon name={action.icon} size={13} aria-hidden="true" />
@@ -109,10 +105,10 @@ export function Header({
           </div>
         </div>
 
-        <div className="header-right-actions flex items-center gap-4">
+        <div className="header-right-actions">
           {healthReady && isOnline && (
             <div
-              className="header-online-chip flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-ok/30 bg-ok/10 text-ok"
+              className="header-online-chip"
               role="status"
               aria-live="polite"
               aria-label="System online"
@@ -131,12 +127,12 @@ export function Header({
           />
           {workflowMode === 'pentest' && (
             <div
-              className={`header-live-indicator flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line bg-surface-hover ${
+              className={`header-live-indicator ${
                 liveConnectionState === 'connected'
-                  ? 'header-live-indicator--connected text-ok'
+                  ? 'header-live-indicator--connected'
                   : liveConnectionState === 'reconnecting'
-                    ? 'header-live-indicator--reconnecting text-warn'
-                    : 'header-live-indicator--offline text-muted'
+                    ? 'header-live-indicator--reconnecting'
+                    : 'header-live-indicator--offline'
               }`}
               role="status"
               aria-live="polite"
@@ -150,16 +146,10 @@ export function Header({
               }
             >
               <span
-                className={`header-live-indicator-dot w-1.5 h-1.5 rounded-full ${
-                  liveConnectionState === 'connected'
-                    ? 'bg-ok pulse-dot'
-                    : liveConnectionState === 'reconnecting'
-                      ? 'bg-warn'
-                      : 'bg-muted'
-                }`}
+                className="header-live-indicator-dot"
                 aria-hidden="true"
               />
-              <span className="text-[10px] font-black uppercase tracking-widest">
+              <span>
                 {liveConnectionState === 'connected'
                   ? 'Live'
                   : liveConnectionState === 'reconnecting'
@@ -170,7 +160,7 @@ export function Header({
           )}
           <Link
             to={ROUTES.SETTINGS}
-            className="header-live-pill w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-sm font-semibold border border-line hover:scale-105 transition-transform"
+            className="header-live-pill"
             aria-label={user?.name ? `Open settings for ${user.name}` : 'Open settings'}
             title={user?.name ? `${user.name} · Settings` : 'Settings'}
           >
@@ -180,8 +170,8 @@ export function Header({
       </motion.header>
 
       {!isOnline && (
-        <div className="status-rail w-full" role="region" aria-label="Live pipeline status">
-          <div className="banner warning text-center py-2 bg-warn/10 text-warn border-b border-warn/20 text-xs font-semibold" role="alert" aria-live="assertive">
+        <div className="status-rail" role="region" aria-label="Live pipeline status">
+          <div className="banner warning" role="alert" aria-live="assertive">
             You are offline. Data may be stale while reconnection is pending.
           </div>
         </div>

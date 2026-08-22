@@ -51,7 +51,7 @@ const STAGE_ALIASES: Record<string, string> = {
   priority: 'ranking',
 };
 
-function normalizeStageName(stageName: string | undefined): string {
+export function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
   return Object.prototype.hasOwnProperty.call(STAGE_ALIASES, normalized) ? Reflect.get(STAGE_ALIASES, normalized) : normalized;

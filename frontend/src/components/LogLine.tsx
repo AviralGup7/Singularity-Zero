@@ -12,11 +12,7 @@ export const LogLine = memo(function LogLine({ line, index, style }: LogLineProp
 
   return (
     <div
-      className={cn(
-        "px-2 py-0.5 font-mono text-xs leading-relaxed",
-        "hover:bg-muted/30 transition-colors duration-100",
-        cssClass
-      )}
+      className={cn('log-line', cssClass)}
       style={style}
       data-line-index={index}
       role="log"
@@ -39,24 +35,24 @@ export function classifyInlineLogLine(line: string): string {
     lower.includes('traceback')
     )
   ) {
-    return 'text-rose-400 bg-rose-500/5';
+    return 'log-line-error';
   }
   if (lower.includes('warn')) {
-    return 'text-amber-400 bg-amber-500/5';
+    return 'log-line-warn';
   }
   if (
     lower.includes('success') ||
     lower.includes('complete') ||
     lower.includes('done')
   ) {
-    return 'text-emerald-400 bg-emerald-500/5';
+    return 'log-line-success';
   }
   if (
     lower.includes('info') ||
     lower.includes('starting') ||
     lower.includes('loading')
   ) {
-    return 'text-sky-400 bg-sky-500/5';
+    return 'log-line-info';
   }
-  return 'text-text';
+  return '';
 }

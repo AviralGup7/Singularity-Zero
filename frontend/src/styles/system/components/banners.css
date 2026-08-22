@@ -54,26 +54,6 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-.banner--compact {
-  padding: 8px var(--space-3);
-  font-size: var(--text-small);
-}
-
-.banner-title {
-  font-weight: 800;
-}
-
-.banner-body {
-  color: inherit;
-  opacity: 0.88;
-}
-
-.banner .banner-actions {
-  display: inline-flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
 .status-rail .banner {
   border-radius: 0;
   border-left: 0;

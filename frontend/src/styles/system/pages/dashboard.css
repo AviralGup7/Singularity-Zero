@@ -1,30 +1,14 @@
 /* Dashboard KPI row, telemetry ledger, and recent jobs */
 
-.dashboard-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
 .hero-stat,
 .kpi-card {
   min-height: 108px;
 }
 
-.dashboard-page .card-title {
-  margin: 0;
-  font-size: var(--text-small);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.dashboard-page .vital-metric,
-.dashboard-page .telemetry-metric {
+.dashboard-page {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-6);
 }
 
 .dashboard-stale-banner {
@@ -75,20 +59,7 @@
 }
 
 @media (max-width: 768px) {
-  .dashboard-page .grid {
-    gap: var(--space-3);
+  .dashboard-page {
+    gap: var(--space-4);
   }
-}
-
-
-.dashboard-page .text-muted {
-  color: var(--text-tertiary);
-}
-
-.dashboard-page .card {
-  min-width: 0;
-}
-
-.dashboard-page a.btn {
-  text-decoration: none;
 }

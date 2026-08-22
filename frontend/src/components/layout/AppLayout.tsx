@@ -341,12 +341,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       emitRefresh();
-    } else if (e.key === 'Escape') {
-      setShowShortcuts(false);
-      setCommandPaletteOpen(false);
-      if (sidebarOpen) setSidebarOpen(false);
     }
-  }, [navigate, sidebarOpen, theme.mode, themeUpdater, toggleSidebarCollapsed]);
+  }, [navigate, theme.mode, themeUpdater, toggleSidebarCollapsed]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -420,7 +416,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <SessionGuard />
       <VisibilityIndicator />
       {nightCityHud}
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded">
+      <a href="#main-content" className="skip-link">
         Skip to content
       </a>
 

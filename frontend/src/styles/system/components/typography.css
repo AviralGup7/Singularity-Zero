@@ -26,23 +26,6 @@
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.card-title {
-  font-size: var(--text-body);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--space-3);
-  letter-spacing: -0.01em;
-}
-
-.subsection-title {
-  font-size: var(--text-small);
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--space-2);
-}
-
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -70,7 +53,7 @@ code, .code {
   color: var(--accent);
 }
 
-pre, .pre-block {
+pre {
   font-family: var(--font-mono);
   font-size: var(--text-small);
   padding: var(--space-4);
@@ -84,30 +67,4 @@ pre, .pre-block {
   color: var(--text-primary);
 }
 
-/* Keyboard shortcut keys */
-kbd, .kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  box-shadow: 0 1px 0 var(--border), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
 
-/* Data label */
-.data-label {
-  font-size: var(--text-micro);
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.8;
-}

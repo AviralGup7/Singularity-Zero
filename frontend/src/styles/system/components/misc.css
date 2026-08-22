@@ -1,5 +1,5 @@
 /* ── Misc Components ────────────────────────────────────────── */
-.empty-state, .empty-state-card {
+.empty-state {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
   padding: var(--space-8) var(--space-4);
@@ -7,32 +7,6 @@
   color: var(--text-secondary);
   background: var(--surface-2);
   animation: fade-in-up var(--motion-base) var(--easing-out) both;
-}
-
-.dropdown-menu {
-  margin-top: var(--space-1);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  min-width: 180px;
-  display: grid;
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-1);
-  animation: scale-in var(--motion-fast) var(--easing-spring) both;
-  transform-origin: top center;
-}
-
-.dropdown-item {
-  padding: 6px var(--space-3);
-  text-align: left;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--text-body);
-  transition: background var(--motion-fast) var(--easing-out);
-}
-
-.dropdown-item:hover {
-  background: var(--surface-2);
 }
 
 .info-grid {
@@ -56,7 +30,7 @@
   word-break: break-word;
 }
 
-.job-header, .job-actions, .modules-list, .job-files-grid, .job-header-title, .job-connection-badges, .page-header--job-detail, .jobs-page-summary {
+.job-header, .job-actions, .modules-list, .job-files-grid, .job-header-title, .job-connection-badges, .page-header--job-detail {
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
@@ -189,34 +163,6 @@
   font-weight: 700;
 }
 
-.settings-page .settings-tabs {
-  display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  padding-bottom: var(--space-2);
-}
-
-.settings-page .settings-tab {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  border: 1px solid transparent;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.settings-page .settings-tab.active {
-  background: var(--surface-3);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-xs);
-}
-
-.settings-page .settings-tab:hover:not(.active) {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
 /* ── Log Lines ────────────────────────────────────────────────── */
 .log-line {
   font-family: var(--font-mono);
@@ -295,14 +241,3 @@
   margin-bottom: 8px;
 }
 
-.skeleton-title {
-  height: 20px;
-  width: 60%;
-  margin-bottom: 12px;
-}
-
-.skeleton-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-}

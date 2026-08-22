@@ -143,28 +143,9 @@
   color: var(--text-secondary);
 }
 
-.settings-section-title {
-  text-transform: none;
-}
-
-.header-title-block h1 {
-  font-size: 0.95rem;
-}
-
-
-.bg-card.border.border-border.rounded-xl {
-  /* compact findings filter chrome */
-}
-
 .findings-filter-compact {
   display: grid;
   gap: var(--space-3);
-}
-
-.data-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
 }
 
 .page-header .status-pill + .status-pill {

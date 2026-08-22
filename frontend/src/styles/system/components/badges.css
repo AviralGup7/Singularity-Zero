@@ -86,37 +86,6 @@
   background: color-mix(in srgb, var(--severity-info) 10%, transparent);
 }
 
-/* Severity-specific badge colors */
-.status-critical, .status-badge.status-critical {
-  color: var(--severity-critical);
-  border-color: color-mix(in srgb, var(--severity-critical) 30%, transparent);
-  background: color-mix(in srgb, var(--severity-critical) 10%, transparent);
-}
-
-.status-high, .status-badge.status-high {
-  color: var(--severity-high);
-  border-color: color-mix(in srgb, var(--severity-high) 30%, transparent);
-  background: color-mix(in srgb, var(--severity-high) 10%, transparent);
-}
-
-.status-medium, .status-badge.status-medium {
-  color: var(--severity-medium);
-  border-color: color-mix(in srgb, var(--severity-medium) 30%, transparent);
-  background: color-mix(in srgb, var(--severity-medium) 10%, transparent);
-}
-
-.status-low, .status-badge.status-low {
-  color: var(--severity-low);
-  border-color: color-mix(in srgb, var(--severity-low) 30%, transparent);
-  background: color-mix(in srgb, var(--severity-low) 10%, transparent);
-}
-
-.status-info, .status-badge.status-info {
-  color: var(--severity-info);
-  border-color: color-mix(in srgb, var(--severity-info) 30%, transparent);
-  background: color-mix(in srgb, var(--severity-info) 10%, transparent);
-}
-
 /* Pulsing dot for running states */
 .status-running::before {
   animation: status-pulse 1.8s ease-in-out infinite;
@@ -125,66 +94,6 @@
 @keyframes status-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.4; transform: scale(0.7); }
-}
-
-/* Count badge (notification bell, etc.) */
-.count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  border-radius: var(--radius-pill);
-  background: var(--bad);
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 0 5px;
-  line-height: 1;
-}
-
-/* ── Scope Compliance Badge (P4-11) ─────────────────────────────── */
-.scope-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: var(--radius-pill);
-  padding: 1px 8px;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  border: 1px solid transparent;
-  white-space: nowrap;
-  line-height: 1.4;
-}
-
-.scope-badge-label {
-  display: inline-block;
-}
-
-.scope-badge--in {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 12%, transparent);
-  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
-}
-
-.scope-badge--out {
-  color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 12%, transparent);
-  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
-  animation: scope-pulse 2.4s ease-in-out infinite;
-}
-
-.scope-badge--unknown {
-  color: var(--text-secondary);
-  background: var(--surface-2);
-  border-color: var(--border);
-}
-
-@keyframes scope-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--bad) 30%, transparent); }
-  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 0%, transparent); }
 }
 
 .scope-warning-banner {
@@ -217,14 +126,6 @@
 
 .bounty-empty {
   color: var(--text-tertiary);
-}
-
-.bounty-sort-btn {
-  color: var(--accent);
-}
-
-.bounty-sort-btn:hover {
-  color: var(--accent-2, var(--accent));
 }
 
 /* ── One-click Report FAB (P2-5) ─────────────────────────────── */

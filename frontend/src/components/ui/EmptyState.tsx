@@ -53,7 +53,7 @@ export function EmptyState({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className={cn(
-        'flex flex-col items-center justify-center gap-4 p-10 text-center',
+        'empty-state flex flex-col items-center justify-center gap-4 p-10 text-center',
         'rounded-xl border border-line bg-glass-bg',
         'backdrop-blur-[var(--glass-blur)] shadow-[var(--glass-shadow)]',
         styles.container,
@@ -73,13 +73,13 @@ export function EmptyState({
           {ctaHref ? (
             <Link
               to={ctaHref}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent transition-all duration-200 shadow-[0_4px_12px_-2px_var(--accent-soft)] hover:shadow-[0_6px_20px_-2px_var(--accent-soft)] hover:-translate-y-0.5"
+              className="btn btn-primary"
             >
               {ctaLabel}
             </Link>
           ) : (
             <button
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent transition-all duration-200 shadow-[0_4px_12px_-2px_var(--accent-soft)] hover:shadow-[0_6px_20px_-2px_var(--accent-soft)] hover:-translate-y-0.5"
+              className="btn btn-primary"
               onClick={onCtaClick}
             >
               {ctaLabel}

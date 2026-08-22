@@ -137,9 +137,9 @@ export function DashboardPage() {
   const totalTargets = effectiveStats?.total_targets || 0;
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page space-y-6">
       {showStaleBanner && (
-        <div className="flex items-center gap-3 px-5 py-3 rounded-xl border border-warn/30 bg-warn/10 text-warn text-sm" role="alert">
+        <div className="dashboard-stale-banner" role="alert">
           <CloudOff size={16} />
           <span className="font-medium">Backend unreachable</span>
           <span className="opacity-80">— showing last-known data</span>
@@ -288,9 +288,9 @@ export function DashboardPage() {
                 >
                   <Link 
                     to={`${ROUTES.JOBS}/${job.id}`}
-                    className="flex items-center gap-4 p-3 rounded-lg border border-transparent hover:border-line transition-all duration-200 group hover:-translate-y-0.5 hover:bg-surface-hover card--interactive"
+                    className="recent-job-row card--interactive"
                   >
-                    <div className={`w-2.5 h-2.5 rounded-full ${
+                    <div className={`recent-job-dot ${
                       job.status === 'running' ? 'bg-accent shadow-glow-accent-sm' :
                       job.status === 'completed' ? 'bg-ok' : 'bg-bad'
                     }`} />
@@ -358,7 +358,7 @@ export function DashboardPage() {
                 <Link 
                   key={action.label} 
                   to={action.href}
-                  className="flex items-center justify-between p-3 rounded-lg border border-line hover:border-accent hover:bg-surface-hover transition-all duration-200 group hover:-translate-y-0.5"
+                  className="quick-action-row group"
                 >
                   <div className="flex items-center gap-3">
                     <action.icon size={16} className="text-muted group-hover:text-accent transition-colors" />

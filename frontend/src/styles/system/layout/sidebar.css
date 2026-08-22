@@ -91,8 +91,7 @@
 }
 
 .sidebar-collapse-btn,
-.sidebar-theme-toggle,
-.icon-btn {
+.sidebar-theme-toggle {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -104,8 +103,7 @@
 }
 
 .sidebar-collapse-btn:hover,
-.sidebar-theme-toggle:hover,
-.icon-btn:hover {
+.sidebar-theme-toggle:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
@@ -251,12 +249,6 @@
   color: var(--text-tertiary);
   font-size: 13px;
   border-radius: var(--radius-md);
-}
-
-.sidebar-status-pill {
-  color: var(--text-tertiary);
-  font-size: var(--text-micro);
-  opacity: 0.6;
 }
 
 /* ── Collapsed State ───────────────────────────────────────── */

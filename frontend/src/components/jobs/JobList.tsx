@@ -13,6 +13,7 @@ import VirtualizedJobGrid from './VirtualizedJobGrid';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
 import { MicroPulseValue } from '../motion/MicroPulseValue';
 import type { Job } from '../../types/api';
+import { normalizeStageName } from '@/lib/stageTheaterUtils';
 
 const STAGE_LABELS: Record<string, string> = {
   startup: 'Preparing run',
@@ -32,18 +33,8 @@ const STAGE_LABELS: Record<string, string> = {
   reporting: 'Report generation',
 };
 
-const STAGE_ALIASES: Record<string, string> = {
-  priority: 'ranking',
-};
-
-function normalizeStageName(stageName?: string): string | undefined {
-  const normalized = String(stageName || '').trim().toLowerCase();
-  if (!normalized) return undefined;
-  return (Reflect.get(STAGE_ALIASES, normalized) as string | undefined) ?? normalized;
-}
-
 function stageName(stageLabel?: string, stage?: string): string {
-  const normalizedStage = normalizeStageName(stage);
+  const normalizedStage = normalizeStageName(stage) || undefined;
   if (stageLabel) return stageLabel;
   const stageLabelValue = normalizedStage ? (Reflect.get(STAGE_LABELS, normalizedStage) as string | undefined) : undefined;
   if (normalizedStage && stageLabelValue) return stageLabelValue;
@@ -268,15 +259,16 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
 
   if (error) return <div className="banner error">{error}</div>;
 
-  const filteredJobs = jobs.filter(j => {
-    if (filter === 'all') return true;
-    return j.status === filter;
-  });
+  const filteredJobs = propJobs
+    ? jobs
+    : jobs.filter((j) => filter === 'all' || j.status === filter);
 
   const runningCount = jobs.filter(j => j?.status === 'running').length;
+  const embedded = Boolean(propJobs);
 
   return (
     <div className="section section-jobs">
+      {!embedded && (
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="section-title !mb-0">
           Pipeline Jobs ({runningCount} running, {jobs.length - runningCount} closed)
@@ -289,7 +281,7 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
             value={filter}
             onChange={(e) => setFilter(e.target.value as 'all' | 'running' | 'completed' | 'failed')}
    
-            className="bg-surface-2 border border-line rounded-lg px-3 py-1.5 text-xs text-text focus:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/30 outline-none appearance-none cursor-pointer min-w-[120px]"
+            className="form-select"
             aria-label="Filter jobs by status"
           >
             <option value="all">All Jobs</option>
@@ -299,6 +291,7 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
           </select>
         </div>
       </div>
+      )}
 
       {filteredJobs.length === 0 ? (
         <EmptyState

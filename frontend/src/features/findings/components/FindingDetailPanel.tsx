@@ -383,7 +383,6 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
     <div
       className="fixed inset-0 z-[8500] flex items-center justify-center bg-panel backdrop-blur-md p-4"
       onClick={onClose}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
       role="presentation"
     >
       <motion.div

@@ -107,12 +107,6 @@
     linear-gradient(to bottom, var(--line-muted) 1px, transparent 1px);
 }
 
-/* ── Shimmer Glow (for progress bars and loading states) ──── */
-@keyframes shimmer-glow {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
 /* ── Shimmer Sweep (for progress bar fill overlay) ───────────── */
 @keyframes shimmer {
   0%   { transform: translateX(-100%); }
@@ -123,12 +117,6 @@
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 8px currentColor; }
   50%      { box-shadow: 0 0 24px currentColor, 0 0 48px currentColor; }
-}
-
-/* ── Slide In Up (for section entrances) ────────────────────── */
-@keyframes slide-in-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Gradient Shift (for gradient buttons/borders) ─────────── */
@@ -179,88 +167,7 @@
   transform: translateY(-1px);
 }
 
-/* ── Neon Border Animation ────────────────────────────────────── */
-.neon-border {
-  position: relative;
-  overflow: hidden;
-}
-
-.neon-border::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--neon-cyan), var(--accent), var(--accent-2), var(--neon-cyan));
-  background-size: 400% 400%;
-  animation: gradient-shift 4s ease infinite;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--easing-out);
-}
-
-.neon-border:hover::before {
-  opacity: 1;
-}
-
-/* ── Glass Stat Card ─────────────────────────────────────────── */
-.glass-stat-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
-  padding: var(--inner-padding);
-  transition: all var(--motion-fast) var(--easing-out);
-  position: relative;
-}
-
-.glass-stat-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--line), transparent);
-  pointer-events: none;
-}
-
-.glass-stat-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--glass-shadow), 0 0 24px color-mix(in srgb, var(--accent) 5%, transparent);
-  transform: translateY(-2px);
-}
-
-/* ── Shimmer Loading Effect ──────────────────────────────────── */
-.shimmer-effect {
-  position: relative;
-  overflow: hidden;
-}
-
-.shimmer-effect::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent 0%, var(--line-muted) 50%, transparent 100%);
-  background-size: 200% 100%;
-  animation: shimmer-glow 2.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
 /* ── Animated Entrance Classes ──────────────────────────────── */
-.animate-slide-in-up {
-  animation: slide-in-up var(--motion-base) var(--easing-out) both;
-}
-
 .animate-scale-bounce {
   animation: scale-bounce-in var(--motion-base) var(--easing-spring) both;
 }
@@ -268,18 +175,6 @@
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
-
-/* ── Stagger Delay Utilities (extended) ──────────────────────── */
-.stagger-delay-1 { animation-delay: 30ms; }
-.stagger-delay-2 { animation-delay: 60ms; }
-.stagger-delay-3 { animation-delay: 90ms; }
-.stagger-delay-4 { animation-delay: 120ms; }
-.stagger-delay-5 { animation-delay: 150ms; }
-.stagger-delay-6 { animation-delay: 180ms; }
-.stagger-delay-7 { animation-delay: 210ms; }
-.stagger-delay-8 { animation-delay: 240ms; }
-.stagger-delay-9 { animation-delay: 270ms; }
-.stagger-delay-10 { animation-delay: 300ms; }
 
 /* ── Scrollbar Cyber Style ───────────────────────────────────── */
 .scrollbar-cyber::-webkit-scrollbar {
@@ -296,23 +191,6 @@
   background: var(--accent-muted);
 }
 
-/* ── Focus Ring Enhancement ───────────────────────────────────── */
-.focus-ring {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--app-bg), 0 0 0 4px color-mix(in srgb, var(--accent) 50%, transparent);
-}
-
-/* ── Data Transition ──────────────────────────────────────────── */
-.data-transition {
-  transition: all var(--motion-base) var(--easing-emphasized);
-}
-
-/* ── Subtle Inner Highlight ───────────────────────────────────── */
-.inner-highlight {
-  box-shadow: inset 0 1px 0 var(--line);
-}
-
 /* ── Fade In ──────────────────────────────────────────────────── */
 @keyframes fade-in {
   from { opacity: 0; }
@@ -323,22 +201,3 @@
   animation: fade-in var(--motion-base) var(--easing-smooth) both;
 }
 
-/* ── Scale In ─────────────────────────────────────────────────── */
-@keyframes scale-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.animate-scale-in {
-  animation: scale-in var(--motion-base) var(--easing-spring) both;
-}
-
-/* ── Slide In Right ───────────────────────────────────────────── */
-@keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(8px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-.animate-slide-in-right {
-  animation: slide-in-right var(--motion-base) var(--easing-out) both;
-}

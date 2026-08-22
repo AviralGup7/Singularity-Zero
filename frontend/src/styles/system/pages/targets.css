@@ -9,13 +9,6 @@
   min-height: 100%;
 }
 
-.targets-header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
 .jobs-search {
   display: flex;
   align-items: center;

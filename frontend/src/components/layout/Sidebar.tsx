@@ -84,7 +84,7 @@ export function Sidebar({
         <div className="sidebar-header">
           <button
             type="button"
-            className="sidebar-brand flex items-center gap-2 group transition-all duration-300"
+            className="sidebar-brand group"
             onClick={() => navigate(ROUTES.DASHBOARD)}
             aria-label="Navigate to dashboard"
           >
@@ -95,14 +95,14 @@ export function Sidebar({
               aria-hidden="true"
             />
             {!sidebarCollapsed && (
-              <span className="sidebar-brand-text font-bold tracking-wider hover:text-accent transition-colors duration-300">
+              <span className="sidebar-brand-text">
                 Security Console
               </span>
             )}
           </button>
           <button
             type="button"
-            className="sidebar-collapse-btn hover:bg-surface-hover p-1.5 rounded transition-colors duration-200"
+            className="sidebar-collapse-btn"
             onClick={() => toggleSidebarCollapsed()}
             title="Toggle sidebar (Ctrl+B)"
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -124,7 +124,7 @@ export function Sidebar({
                 <div key={section.label} className="sidebar-section">
                   {!sidebarCollapsed && (
                     <div className="flex items-center justify-between mb-2">
-                      <span className="sidebar-section-label text-[10px] font-bold uppercase tracking-wider text-muted/60">
+                      <span className="sidebar-section-label">
                         {section.label}
                       </span>
                       {section.collapsible && (
@@ -153,10 +153,8 @@ export function Sidebar({
                             to={item.path}
                             onMouseEnter={() => prefetchRoute(item.path)}
                             onFocus={() => prefetchRoute(item.path)}
-                            className={`sidebar-nav-item flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 hover:bg-surface-hover hover:translate-x-0.5 group ${
-                              isActive
-                                ? 'sidebar-nav-item--active bg-accent-dim/10 text-accent font-semibold border-l-2 border-accent shadow-glow-accent-sm'
-                                : ''
+                            className={`sidebar-nav-item group ${
+                              isActive ? 'sidebar-nav-item--active' : ''
                             }`}
                             aria-current={isActive ? 'page' : undefined}
                             aria-label={`Navigate to ${item.label}`}
@@ -166,19 +164,17 @@ export function Sidebar({
                               <Icon
                                 name={item.icon}
                                 size={17}
-                                className={`group-hover:text-accent transition-colors duration-200 ${
-                                  isActive ? 'text-accent' : 'text-muted'
-                                }`}
+                                className="sidebar-nav-icon"
                                 aria-hidden="true"
                               />
                               {!sidebarCollapsed && (
-                                <span className="sidebar-nav-label text-sm transition-colors duration-200">
+                                <span className="sidebar-nav-label">
                                   {item.label}
                                 </span>
                               )}
                             </div>
                             {!sidebarCollapsed && (item.count || item.key) && (
-                              <span className="sidebar-nav-hotkey text-[10px] font-mono bg-surface-hover text-text-secondary px-1.5 py-0.5 rounded border border-line-muted group-hover:border-accent/30 group-hover:text-accent transition-all duration-200">
+                              <span className="sidebar-nav-hotkey">
                                 {item.count || item.key}
                               </span>
                             )}

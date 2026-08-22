@@ -10,7 +10,6 @@
 @import './pages/layout-fixes.css';
 @import './pages/jobs.css';
 @import './pages/dashboard.css';
-@import './pages/cockpit.css';
 
 .dashboard-page,
 .jobs-page,

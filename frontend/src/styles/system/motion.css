@@ -9,16 +9,9 @@
 .shadow-glow-accent-md {
   box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 20%, transparent);
 }
-.shadow-glow-accent-lg {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-
 /* ── Status Glow Shadows ──────────────────────────────────── */
 .shadow-glow-ok-sm {
   box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 15%, transparent);
-}
-.shadow-glow-ok-md {
-  box-shadow: 0 0 12px color-mix(in srgb, var(--ok) 30%, transparent);
 }
 .shadow-glow-warn-md {
   box-shadow: 0 0 12px color-mix(in srgb, var(--warn) 20%, transparent);
@@ -33,14 +26,6 @@
 }
 .shadow-overlay-lg {
   box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
-}
-
-/* ── Surface Glow (for cards with accent border) ──────────── */
-.surface-glow-accent {
-  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.surface-glow-accent-hover {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 /* ── Inset Glow (for circular progress / meters) ──────────── */
@@ -63,11 +48,6 @@
   50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent), 0 0 20px color-mix(in srgb, var(--accent) 15%, transparent); }
 }
 
-@keyframes throughput-sweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
 @keyframes glitch-jitter {
   0%, 100% { transform: translateX(0); text-shadow: 0 0 0 transparent; }
   20% { transform: translateX(-1px); text-shadow: -1px 0 color-mix(in srgb, var(--bad) 60%, transparent); }
@@ -75,25 +55,13 @@
   60% { transform: translateX(-1px); text-shadow: -1px 0 color-mix(in srgb, var(--bad) 55%, transparent); }
 }
 
-@keyframes breathe {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-.animate-breathe {
-  animation: breathe 3s ease-in-out infinite;
-}
-
 .job-card--running,
-.status-running,
-.ws-connected,
-.sse-connected {
+.status-running {
   animation: pulse-border 3s ease-in-out infinite;
 }
 
 .pipeline-timeline-node,
 .hero-stat,
-.quick-link-card,
 .stage-progress-item,
 .job-stage-card {
   transition:
@@ -105,7 +73,6 @@
 
 .pipeline-timeline-node:hover,
 .hero-stat:hover,
-.quick-link-card:hover,
 .stage-progress-item:hover,
 .job-stage-card:hover {
   transform: translateY(-2px);
@@ -139,20 +106,3 @@
   animation: fade-in-up var(--motion-base) var(--easing-out) both;
 }
 
-.animate-scale-in {
-  animation: scale-in var(--motion-base) var(--easing-spring) both;
-}
-
-/* ── Stagger Delays for Lists ──────────────────────────────── */
-.stagger > :nth-child(1) { animation-delay: 0ms; }
-.stagger > :nth-child(2) { animation-delay: 30ms; }
-.stagger > :nth-child(3) { animation-delay: 60ms; }
-.stagger > :nth-child(4) { animation-delay: 90ms; }
-.stagger > :nth-child(5) { animation-delay: 120ms; }
-.stagger > :nth-child(6) { animation-delay: 150ms; }
-.stagger > :nth-child(7) { animation-delay: 180ms; }
-.stagger > :nth-child(8) { animation-delay: 210ms; }
-.stagger > :nth-child(9) { animation-delay: 240ms; }
-.stagger > :nth-child(10) { animation-delay: 270ms; }
-.stagger > :nth-child(11) { animation-delay: 300ms; }
-.stagger > :nth-child(12) { animation-delay: 330ms; }

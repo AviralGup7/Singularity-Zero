@@ -22,7 +22,7 @@ export function FindingsFilterBar({
   const hasActiveFilters = searchQuery !== '' || severityFilter.length > 0;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 mb-6 shadow-sm space-y-4">
+    <div className="findings-filter-compact bg-card border border-border rounded-xl p-4 mb-6 shadow-sm space-y-4">
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
         {/* Search Bar */}
         <div className="relative flex-1">
