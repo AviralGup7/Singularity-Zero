@@ -32,6 +32,7 @@
  */
 
 import type { Finding } from '@/types/api';
+import { confidencePercent } from '@/utils/normalizeScale';
 
 export type ExporterFormat =
   | 'csv'
@@ -195,7 +196,7 @@ function jiraDescription(f: Finding): string {
     `CVE: ${f.cve ?? '—'}`,
     `CWE: ${f.cwe ?? '—'}`,
     `CVSS: ${f.cvss_score ?? '—'}`,
-    `Confidence: ${Math.round(f.confidence * 100)}%`,
+    `Confidence: ${confidencePercent(f.confidence)}%`,
   ].join('\n');
 }
 

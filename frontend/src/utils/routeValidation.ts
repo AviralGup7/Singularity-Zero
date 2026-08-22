@@ -35,10 +35,12 @@ export function sanitizeRedirectPath(path: string): string {
 
 export function isExternalUrl(url: string): boolean {
   try {
-    const parsed = new URL(url, window.location.origin);
+    const parsed = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'https://localhost');
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return true;
+    if (typeof window === 'undefined') return true;
     return parsed.hostname !== window.location.hostname;
   } catch {
-    return false;
+    return true;
   }
 }
 

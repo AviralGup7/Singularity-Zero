@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Finding } from '../types/api';
-import { keyForFinding } from '@/pages/scanDiffModel';
+import { computeDiff } from '@/pages/scanDiffModel';
 
 interface RunData {
   runId: string;
@@ -17,47 +17,11 @@ interface RunDiffViewerProps {
    
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
-function computeFindingKey(f: Finding): string {
-  return keyForFinding(f);
-}
-
 export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
    
   const [filter, setFilter] = useState<'all' | 'new' | 'removed' | 'changed'>('all');
 
-  const diff = useMemo(() => {
-   
-    const mapA = new Map(runA.findings.map(f => [computeFindingKey(f), f]));
-   
-    const mapB = new Map(runB.findings.map(f => [computeFindingKey(f), f]));
-
-   
-    const newFindings: Finding[] = [];
-   
-    const removedFindings: Finding[] = [];
-   
-    const changedFindings: { old: Finding; new: Finding }[] = [];
-
-    mapB.forEach((finding, key) => {
-      if (!mapA.has(key)) {
-        newFindings.push(finding);
-      } else {
-        const oldFinding = mapA.get(key)!;
-        if (oldFinding.status !== finding.status || oldFinding.description !== finding.description) {
-          changedFindings.push({ old: oldFinding, new: finding });
-        }
-      }
-    });
-
-    mapA.forEach((finding, key) => {
-      if (!mapB.has(key)) {
-        removedFindings.push(finding);
-      }
-    });
-
-    return { newFindings, removedFindings, changedFindings };
-   
-  }, [runA, runB]);
+  const diff = useMemo(() => computeDiff(runA.findings, runB.findings), [runA, runB]);
 
   const severityBreakdown = useMemo(() => {
     const breakdown = new Map<string, { new: number; removed: number; changed: number }>();
