@@ -2,6 +2,7 @@ import type { FindingsSummary, Finding, RemediationResponse } from '@/types/api'
 import type { FindingTimelineEvent } from '@/types/extended';
 import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
+import { FindingSchema } from './schemas';
 import {
   collectAllPages,
   mapFindingUpdate,
@@ -14,7 +15,14 @@ import {
 
 function toFinding(value: unknown): Finding | null {
   const rec = normalizeFindingRecord(value);
-  return rec ? (rec as unknown as Finding) : null;
+  if (!rec) return null;
+  if (import.meta.env?.DEV) {
+    const parsed = FindingSchema.safeParse(rec);
+    if (!parsed.success) {
+      console.debug('Finding payload drifted from FindingSchema', parsed.error.issues.slice(0, 3));
+    }
+  }
+  return rec as unknown as Finding;
 }
 
 export function asFindingList(value: unknown): Finding[] {

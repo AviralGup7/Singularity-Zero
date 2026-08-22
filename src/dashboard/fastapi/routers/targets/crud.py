@@ -27,6 +27,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/targets", tags=["Targets CRUD"])
 
 
+def _severity_allowed(value: Any, filter_spec: str | None) -> bool:
+    """Match a finding severity against a comma-separated filter list."""
+    if not filter_spec:
+        return True
+    allowed = {part.strip().lower() for part in str(filter_spec).split(",") if part.strip()}
+    if not allowed:
+        return True
+    return str(value or "").strip().lower() in allowed
+
+
 @router.get(
     "",
     response_model=TargetListResponse,
@@ -299,7 +309,7 @@ async def list_all_findings(
                     index=idx,
                     generated_at=run_generated_at,
                 )
-                if severity and str(normalized.get("severity", "")).lower() != severity.lower():
+                if not _severity_allowed(normalized.get("severity"), severity):
                     continue
                 query = (search or "").strip().lower()
                 if query:

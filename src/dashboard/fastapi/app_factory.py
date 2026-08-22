@@ -23,6 +23,7 @@ from src.dashboard.fastapi.dependencies import require_admin, require_auth, set_
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
+from src.dashboard.fastapi.dashboard_metrics import build_stage_counts, job_series
 from src.dashboard.fastapi.schemas import DashboardStatsResponse
 from src.dashboard.fastapi.security_setup import setup_security_store
 from src.dashboard.fastapi.spa import setup_spa_routes
@@ -466,34 +467,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                 "targets_with_findings": sum(1 for t in targets if int(t.get("finding_count") or 0) > 0),
                 "total_targets": total_targets,
             },
-            "trend_data": [
-                max(0, total_findings - idx * max(1, total_findings // 8))
-                for idx in range(7, -1, -1)
-            ],
-            "stage_counts": {
-                "discovery": sum(
-                    1
-                    for j in active_jobs
-                    if "subdomain" in j.get("stage", "").lower()
-                    or "recon" in j.get("stage", "").lower()
-                ),
-                "collection": sum(
-                    1
-                    for j in active_jobs
-                    if "urls" in j.get("stage", "").lower() or "scan" in j.get("stage", "").lower()
-                ),
-                "analysis": sum(1 for j in active_jobs if "analysis" in j.get("stage", "").lower()),
-                "validation": sum(1 for j in active_jobs if "val" in j.get("stage", "").lower()),
-                "reporting": sum(1 for j in active_jobs if "report" in j.get("stage", "").lower()),
-                "other": sum(
-                    1
-                    for j in active_jobs
-                    if not any(
-                        k in j.get("stage", "").lower()
-                        for k in ["subdomain", "recon", "url", "scan", "analysis", "val", "report"]
-                    )
-                ),
-            },
+            **job_series(jobs),
+            "stage_counts": build_stage_counts(active_jobs),
         }
 
         if cache_manager is not None:

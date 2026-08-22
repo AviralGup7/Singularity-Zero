@@ -234,16 +234,17 @@ export function AppLayout({ children }: AppLayoutProps) {
   } = useNotifications(Boolean(user) && !isLogin);
    
   const defaultNavItems = useMemo(() => buildDefaultNavItems(navSections), [navSections]);
+  const toggleShortcuts = useCallback(() => setShowShortcuts((prev) => !prev), []);
   const defaultActionItems = useMemo(
     () => buildDefaultActionItems(
       theme,
       themeUpdater,
       toggleSidebarCollapsed,
-      () => setShowShortcuts(prev => !prev),
+      toggleShortcuts,
       navigate,
       toast,
     ),
-    [theme, themeUpdater, toggleSidebarCollapsed, navigate, toast]
+    [theme, themeUpdater, toggleSidebarCollapsed, toggleShortcuts, navigate, toast]
   );
   const { policy, strategy } = useMotionPolicy('layout');
 

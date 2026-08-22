@@ -524,6 +524,8 @@ export interface DashboardStats {
   pipeline_health_score: number;
   pipeline_health_label: string;
   trend_data: number[];
+  scan_trend?: number[];
+  trend_source?: 'jobs' | 'empty' | string;
   findings_summary: FindingsSummary;
   mesh_health?: Record<string, unknown>;
   mesh?: MeshNode[];

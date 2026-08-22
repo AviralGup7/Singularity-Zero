@@ -610,6 +610,10 @@ class DashboardStatsResponse(BaseModel):
     severity_counts: dict[str, int] = Field(default_factory=dict)
     pipeline_health_score: int
     pipeline_health_label: str
+    trend_data: list[int] = Field(default_factory=list)
+    scan_trend: list[int] = Field(default_factory=list)
+    trend_source: str = "empty"
+    findings_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 class DefaultsResponse(BaseModel):

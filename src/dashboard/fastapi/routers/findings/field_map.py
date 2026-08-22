@@ -11,7 +11,10 @@ the other.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Frontend camelCase → persisted snake_case
 CAMEL_TO_SNAKE: dict[str, str] = {
@@ -49,6 +52,7 @@ CAMEL_TO_SNAKE: dict[str, str] = {
     "remediation_notes": "remediation_notes",
     "remediationStatus": "remediation_status",
     "remediationNotes": "remediation_notes",
+    "_deleted": "_deleted",
 }
 
 # Persisted snake_case → frontend camelCase (only fields the console reads)
@@ -140,8 +144,14 @@ ALLOWED_BULK_FIELDS: frozenset[str] = frozenset(
 
 def canonicalize_status(value: Any, *, for_api: bool = True) -> str:
     raw = str(value or "").strip().lower()
+    if not raw:
+        return "open"
     table = STATUS_TO_API if for_api else STATUS_TO_STORAGE
-    return table.get(raw, "open" if for_api else "open")
+    mapped = table.get(raw)
+    if mapped is not None:
+        return mapped
+    # Unknown values stay visible instead of being silently rewritten to "open".
+    return raw
 
 
 def map_update_payload(raw: dict[str, Any], *, bulk: bool = False) -> dict[str, Any]:
@@ -189,9 +199,12 @@ def project_finding_aliases(finding: dict[str, Any]) -> dict[str, Any]:
         projected["fpJustification"] = projected.get("fp_justification")
     if "kanban_status" in projected and "kanbanStatus" not in projected:
         projected["kanbanStatus"] = projected.get("kanban_status")
-    status = canonicalize_status(projected.get("status"), for_api=True)
+    stored_status = str(projected.get("status") or "").strip()
+    status = canonicalize_status(stored_status, for_api=True)
+    # Only infer false_positive when the caller left status empty/open.
+    # An explicit accepted/closed/custom status must win over the FP flag.
     if projected.get("false_positive") or projected.get("falsePositive"):
-        if status == "open":
+        if not stored_status or status == "open":
             status = "false_positive"
     projected["status"] = status
     return projected

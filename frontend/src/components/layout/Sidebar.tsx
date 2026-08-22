@@ -4,7 +4,7 @@ import { ROUTES } from '@/config/paths';
 import { Icon } from '../ui/Icon';
 import { prefetchRoute } from '@/PrefetchRegistry';
 import { isNavPathActive } from '@/utils/navActive';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 interface SidebarProps {
   sidebarRef: React.RefObject<HTMLElement | null>;
@@ -56,6 +56,14 @@ export function Sidebar({
       return next;
     });
   };
+
+  const prefetched = useRef(new Set<string>());
+  const prefetchOnce = useCallback((path: string) => {
+    if (prefetched.current.has(path)) return;
+    prefetched.current.add(path);
+    prefetchRoute(path);
+  }, []);
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
 
   return (
     <>
@@ -151,8 +159,8 @@ export function Sidebar({
                           <Link
                             key={item.path}
                             to={item.path}
-                            onMouseEnter={() => prefetchRoute(item.path)}
-                            onFocus={() => prefetchRoute(item.path)}
+                            onMouseEnter={() => prefetchOnce(item.path)}
+                            onFocus={() => prefetchOnce(item.path)}
                             className={`sidebar-nav-item group ${
                               isActive ? 'sidebar-nav-item--active' : ''
                             }`}

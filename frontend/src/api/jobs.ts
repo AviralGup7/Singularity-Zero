@@ -4,6 +4,7 @@ import { apiCache } from './cache';
 import { appendStreamToken } from './streamAuth';
 
 import { asNumber, asRecord, asString, canonicalizeJobStatus, collectAllPages, readPageEnvelope, toJobListParams, type JobListQuery, type PageEnvelope } from './contract';
+import { JobSchema } from './schemas';
 
 export interface JobsListParams {
   page?: number;
@@ -20,6 +21,12 @@ export function normalizeJobRecord(raw: unknown): Job | null {
   const id = asString(rec.id);
   if (!id) return null;
   const status = canonicalizeJobStatus(rec.status);
+  if (import.meta.env?.DEV) {
+    const parsed = JobSchema.safeParse({ ...rec, id, status });
+    if (!parsed.success) {
+      console.debug('Job payload drifted from JobSchema', parsed.error.issues.slice(0, 3));
+    }
+  }
   return {
     ...(rec as unknown as Job),
     id,

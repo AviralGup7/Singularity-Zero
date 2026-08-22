@@ -108,7 +108,8 @@ export function asStringArray(value: unknown): string[] {
 
 export function canonicalizeFindingStatus(value: unknown): FindingStatusApi {
   const key = asString(value).trim().toLowerCase();
-  return FINDING_STATUS_TO_API[key] ?? 'open';
+  if (!key) return 'open';
+  return FINDING_STATUS_TO_API[key] ?? (key as FindingStatusApi);
 }
 
 export function mapFindingUpdate(input: Record<string, unknown>): Record<string, unknown> {

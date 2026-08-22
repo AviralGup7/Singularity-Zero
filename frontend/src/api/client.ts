@@ -31,6 +31,8 @@ export async function getDashboardStats(signal?: AbortSignal, ttl?: number): Pro
   return {
     ...raw,
     trend_data: Array.isArray(raw.trend_data) ? raw.trend_data : [],
+    scan_trend: Array.isArray(raw.scan_trend) ? raw.scan_trend : [],
+    trend_source: typeof raw.trend_source === 'string' ? raw.trend_source : 'empty',
     findings_summary: summary,
   };
 }

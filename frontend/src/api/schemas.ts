@@ -13,6 +13,8 @@ export const DashboardStatsSchema = z.object({
   failed_jobs: z.number(),
   completed_targets: z.number(),
   trend_data: z.array(z.number()).optional(),
+  scan_trend: z.array(z.number()).optional(),
+  trend_source: z.string().optional(),
   findings_summary: z.record(z.string(), z.any()).optional(),
   mesh_health: z.record(z.string(), z.any()).optional(),
 });

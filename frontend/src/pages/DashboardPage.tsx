@@ -219,16 +219,24 @@ export function DashboardPage() {
 
       {features.dashboardAnalytics && (
         <DashboardTrendCharts
-          data={(effectiveStats?.trend_data ?? []).map((value, index) => ({
-            date: String(index + 1),
-            findings: typeof value === 'number' ? value : 0,
-            critical: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.critical ?? 0) : 0,
-            high: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.high ?? 0) : 0,
-            medium: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.medium ?? 0) : 0,
-            low: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.low ?? 0) : 0,
-            info: index === 0 ? (effectiveStats?.findings_summary?.severity_totals?.info ?? 0) : 0,
-            scans: (effectiveJobs ?? []).length,
-          }))}
+          data={(() => {
+            const findingsTrend = effectiveStats?.trend_data ?? [];
+            const scanTrend = effectiveStats?.scan_trend ?? [];
+            const length = Math.max(findingsTrend.length, scanTrend.length);
+            const last = length - 1;
+            const severity = effectiveStats?.findings_summary?.severity_totals ?? {};
+            return Array.from({ length }, (_, index) => ({
+              date: String(index + 1),
+              findings: typeof findingsTrend[index] === 'number' ? findingsTrend[index] : 0,
+              // Current severity totals belong to today, not invented history.
+              critical: index === last ? (severity.critical ?? 0) : 0,
+              high: index === last ? (severity.high ?? 0) : 0,
+              medium: index === last ? (severity.medium ?? 0) : 0,
+              low: index === last ? (severity.low ?? 0) : 0,
+              info: index === last ? (severity.info ?? 0) : 0,
+              scans: typeof scanTrend[index] === 'number' ? scanTrend[index] : 0,
+            }));
+          })()}
         />
       )}
 

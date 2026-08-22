@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { exportFindings, getFindingById, bulkUpdateFindings } from '../../api/client';
-import { useApi } from '../../hooks/useApi';
+import { exportFindings, getFindingById, getFindings, bulkUpdateFindings } from '../../api/client';
+import { emitRefresh, onRefresh } from '../../lib/events';
 import { useProcessedFindings } from '../../hooks/useProcessedFindings';
 import { useDebouncedFilter } from '../../hooks/useDebouncedFilter';
 import { VirtualizedFindingsList } from './components/VirtualizedFindingsList';
@@ -26,7 +26,6 @@ import { pruneSelection } from './selection';
 import { toggleIdInSet } from './hooks/useBulkActions';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
-import { asFindingList } from '../../api/findings';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Columns3, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -41,22 +40,49 @@ export function FindingsPage() {
 
   const [detailFinding, setDetailFinding] = useState<Finding | null>(null);
 
-  const { data: findingsData, loading } = useApi<{ findings: Finding[]; total: number }>('/api/targets/findings/list', {
-    refetchInterval: detailFinding ? undefined : 5000,
-    params: { page: 1, page_size: 200 },
-  });
-
   const { filter: searchQuery, setFilter: setSearchQuery, debouncedFilter: debouncedSearch } = useDebouncedFilter(300);
 
-  // Capture the export timestamp once at mount via an effect so render output
-  // stays stable. Empty string is fine for the filename before mount completes.
-  const [exportStamp, setExportStamp] = useState<string>('');
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setExportStamp(String(Date.now()));
-  }, []);
+  const [exportStamp] = useState(() => String(Date.now()));
 
   const [severityFilter, setSeverityFilter] = useState<string[]>([]);
+  const [rawList, setRawList] = useState<Finding[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const listParams = useMemo(() => ({
+    page_size: 200,
+    search: debouncedSearch.trim() || undefined,
+    severity: severityFilter.length > 0 ? severityFilter.join(',') : undefined,
+  }), [debouncedSearch, severityFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controllers: AbortController[] = [];
+    const load = async () => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      try {
+        const items = await getFindings(listParams, controller.signal);
+        if (cancelled) return;
+        setRawList(items);
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        const name = (err as { name?: string })?.name;
+        const code = (err as { code?: string })?.code;
+        if (name === 'CanceledError' || name === 'AbortError' || code === 'ERR_CANCELED') return;
+        setLoading(false);
+      }
+    };
+    void load();
+    const unbind = onRefresh(() => { void load(); });
+    const interval = detailFinding ? undefined : window.setInterval(() => { void load(); }, 5000);
+    return () => {
+      cancelled = true;
+      controllers.forEach((controller) => controller.abort());
+      unbind();
+      if (interval) window.clearInterval(interval);
+    };
+  }, [listParams, detailFinding]);
 
   const [sortKey, setSortKey] = useState<keyof Finding | 'bounty_value' | 'remediation_priority'>('severity');
 
@@ -77,8 +103,13 @@ export function FindingsPage() {
   const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (!findingsData?.findings) return;
-    const currentIds = new Set(findingsData.findings.map((f: Finding) => f.id).filter(Boolean) as string[]);
+    initializedRef.current = false;
+    setNewFindingIds([]);
+  }, [listParams]);
+
+  useEffect(() => {
+    if (rawList.length === 0 && !initializedRef.current) return;
+    const currentIds = new Set(rawList.map((f: Finding) => f.id).filter(Boolean) as string[]);
     if (!initializedRef.current) {
       lastSeenIdsRef.current = currentIds;
       initializedRef.current = true;
@@ -89,14 +120,9 @@ export function FindingsPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setNewFindingIds(prev => Array.from(new Set([...prev, ...fresh])));
     }
-  }, [findingsData?.findings]);
+  }, [rawList]);
 
-  const loadNewFindings = useCallback(() => {
-    lastSeenIdsRef.current = new Set(acknowledgeNewFindings(lastSeenIdsRef.current, newFindingIds));
-    setNewFindingIds([]);
-  }, [newFindingIds]);
-
-  const dismissNewFindings = useCallback(() => {
+  const acknowledgePendingFindings = useCallback(() => {
     lastSeenIdsRef.current = new Set(acknowledgeNewFindings(lastSeenIdsRef.current, newFindingIds));
     setNewFindingIds([]);
   }, [newFindingIds]);
@@ -123,6 +149,7 @@ export function FindingsPage() {
       toast.success(successMsg);
       setFailedBulkAction(null);
       clearSelection();
+      emitRefresh();
     } catch {
       setFailedBulkAction(buildFailedBulkAction(ids, data, successMsg, actionLabel));
       if (!navigator.onLine) {
@@ -196,7 +223,7 @@ export function FindingsPage() {
     const fid = searchParams.get('finding');
     if (fid) {
       // Check if we already have it in the list
-      const existing = findingsData?.findings.find((f: Finding) => f.id === fid);
+      const existing = rawList.find((f: Finding) => f.id === fid);
       if (existing) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailFinding(existing);
@@ -214,7 +241,7 @@ export function FindingsPage() {
 
     return () => { mounted = false; };
 
-  }, [searchParams, findingsData?.findings]);
+  }, [searchParams, rawList]);
 
   // --- Overhaul: Off-Main-Thread Processing ---
    
@@ -224,10 +251,7 @@ export function FindingsPage() {
    
   const sort = useMemo(() => ({ key: sortKey, direction: sortDir }), [sortKey, sortDir]);
 
-  const rawFindings = useMemo(
-    () => asFindingList(findingsData?.findings ?? findingsData),
-    [findingsData],
-  );
+  const rawFindings = rawList;
 
   const { processed: allFindings, isProcessing } = useProcessedFindings(
     rawFindings.length ? rawFindings : emptyFindings,
@@ -326,7 +350,7 @@ export function FindingsPage() {
     }, { replace: true });
   }, [setSearchQuery, setSearchParams]);
 
-  if (loading && !findingsData) return (
+  if (loading && rawList.length === 0) return (
     <div className="p-10 space-y-4">
       <Skeleton className="h-12 w-1/4" />
       <Skeleton className="h-[600px] w-full" />
@@ -408,8 +432,8 @@ export function FindingsPage() {
             </button>
           )}
           <div className="flex gap-2">
-            <button onClick={() => handleExport('json')} className="btn-secondary btn-small">Export JSON</button>
-            <button onClick={() => handleExport('csv')} className="btn-secondary btn-small">Export CSV</button>
+            <button type="button" onClick={() => handleExport('json')} className="btn-secondary btn-small">Export JSON</button>
+            <button type="button" onClick={() => handleExport('csv')} className="btn-secondary btn-small">Export CSV</button>
           </div>
         </div>
       </div>
@@ -439,7 +463,7 @@ export function FindingsPage() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={loadNewFindings}
+                  onClick={acknowledgePendingFindings}
                   className="px-4 py-1.5 rounded-lg bg-accent text-black font-black text-xs uppercase tracking-widest hover:bg-accent-dim transition-all shadow-glow-accent-sm cursor-pointer"
                   aria-label="Load new findings"
                 >
@@ -447,7 +471,7 @@ export function FindingsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={dismissNewFindings}
+                  onClick={acknowledgePendingFindings}
                   className="p-1 rounded-lg text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
                   aria-label="Dismiss banner"
                 >
@@ -537,6 +561,7 @@ export function FindingsPage() {
                  sev === 'low' ? 'bg-low' : 'bg-info';
                return (
            <button 
+                   type="button"
                    key={sev}
                    onClick={() => toggleSeverity(sev)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all flex items-center gap-2 cursor-pointer ${
@@ -649,10 +674,10 @@ export function FindingsPage() {
             <div className="w-px h-6 bg-surface-2" />
             {bulkActionMode === 'status' ? (
               <div className="flex items-center gap-2">
-                <button onClick={() => handleBulkStatus('open')} className="btn-secondary btn-small text-[9px]">New</button>
-                <button onClick={() => handleBulkStatus('accepted')} className="btn-secondary btn-small text-[9px]">In Progress</button>
-                <button onClick={() => handleBulkStatus('closed')} className="btn-secondary btn-small text-[9px]">Resolved</button>
-                <button onClick={() => setBulkActionMode(null)} className="btn-ghost btn-small text-[9px]">Cancel</button>
+                <button type="button" onClick={() => handleBulkStatus('open')} className="btn-secondary btn-small text-[9px]">New</button>
+                <button type="button" onClick={() => handleBulkStatus('accepted')} className="btn-secondary btn-small text-[9px]">In Progress</button>
+                <button type="button" onClick={() => handleBulkStatus('closed')} className="btn-secondary btn-small text-[9px]">Resolved</button>
+                <button type="button" onClick={() => setBulkActionMode(null)} className="btn-ghost btn-small text-[9px]">Cancel</button>
               </div>
             ) : bulkActionMode === 'assign' ? (
               <div className="flex items-center gap-2">
@@ -664,21 +689,21 @@ export function FindingsPage() {
                   onChange={e => setBulkAssignee(e.target.value)}
                   className="bg-surface-hover border border-line rounded px-2 py-1 text-[10px] font-mono text-text w-28 focus:border-accent/50 outline-none"
                 />
-                <button onClick={handleBulkAssign} disabled={!bulkAssignee.trim()} className="btn-primary btn-small text-[9px] disabled:opacity-40">Assign</button>
-                <button onClick={() => { setBulkActionMode(null); setBulkAssignee(''); }} className="btn-ghost btn-small text-[9px]">Cancel</button>
+                <button type="button" onClick={handleBulkAssign} disabled={!bulkAssignee.trim()} className="btn-primary btn-small text-[9px] disabled:opacity-40">Assign</button>
+                <button type="button" onClick={() => { setBulkActionMode(null); setBulkAssignee(''); }} className="btn-ghost btn-small text-[9px]">Cancel</button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button onClick={() => setBulkActionMode('status')} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
+                <button type="button" onClick={() => setBulkActionMode('status')} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
                   <CheckSquare size={12} /> Status
                 </button>
-                <button onClick={handleBulkFalsePositive} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
+                <button type="button" onClick={handleBulkFalsePositive} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
                   <Tag size={12} /> Mark FP
                 </button>
-                <button onClick={() => setBulkActionMode('assign')} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
+                <button type="button" onClick={() => setBulkActionMode('assign')} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
                   <UserPlus size={12} /> Assign
                 </button>
-                <button onClick={handleBulkDelete} className="btn-secondary btn-small text-[9px] flex items-center gap-1 text-rose-400 hover:text-rose-300">
+                <button type="button" onClick={handleBulkDelete} className="btn-secondary btn-small text-[9px] flex items-center gap-1 text-rose-400 hover:text-rose-300">
                   <Trash2 size={12} /> Delete
                 </button>
               </div>

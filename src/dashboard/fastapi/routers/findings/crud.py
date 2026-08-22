@@ -76,10 +76,13 @@ async def update_finding(
         findings_file_path,
     ) = located
 
-    mapped = map_update_payload(update_data, bulk=False)
+    # Bulk already mapped the body (including tombstones). Remap, but keep
+    # ``_deleted`` when the caller already sent the persisted key.
+    mapped = map_update_payload(update_data, bulk=bool(update_data.get("_deleted")))
     rejected = set(update_data) - set(mapped) - {"id", "finding_id", "ids"}
     if rejected:
         logger.warning("update_finding: ignoring disallowed fields %s", sorted(rejected))
+    delete_requested = bool(mapped.pop("_deleted", False) or update_data.get("_deleted"))
     for key, value in mapped.items():
         finding_payload[key] = value
     if mapped.get("false_positive") and not finding_payload.get("fp_status"):
@@ -88,11 +91,16 @@ async def update_finding(
         finding_payload["decision"] = "DROP"
 
     try:
-        if findings_file_path:
-            findings_list[target_finding_idx] = finding_payload
-            findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
-        else:
+        if not findings_file_path:
             raise ValueError("Finding path not found")
+        if delete_requested:
+            del findings_list[target_finding_idx]
+            findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
+            return {"id": finding_id, "deleted": True}
+        findings_list[target_finding_idx] = finding_payload
+        findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Failed to save updated finding: %s", e)
         raise HTTPException(status_code=500, detail="Failed to persist finding update")

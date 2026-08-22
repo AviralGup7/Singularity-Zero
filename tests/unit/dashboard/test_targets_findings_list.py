@@ -58,7 +58,7 @@ class TargetsFindingsListTests(unittest.TestCase):
             self.assertEqual(len(result["findings"]), 2)
             first = result["findings"][0]
             self.assertEqual(first["target"], "square.com")
-            self.assertEqual(first["status"], "active")
+            self.assertEqual(first["status"], "open")
             self.assertIn(first["severity"], {"high", "medium"})
             self.assertTrue(str(first.get("id", "")).strip())
             self.assertTrue(str(first.get("type", "")).strip())
@@ -118,6 +118,57 @@ class TargetsFindingsListTests(unittest.TestCase):
             self.assertEqual(finding["severity"], "critical")
             self.assertEqual(finding["type"], "header_checker")
             self.assertEqual(finding["target"], "square.com")
+
+    def test_list_all_findings_accepts_comma_separated_severity_and_search(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir)
+            run_dir = output_root / "square.com" / "20260409-030000"
+            run_dir.mkdir(parents=True)
+
+            (run_dir / "findings.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "crit-1",
+                            "severity": "critical",
+                            "type": "ssrf",
+                            "title": "Cloud metadata SSRF",
+                            "url": "https://square.com/meta",
+                        },
+                        {
+                            "id": "high-1",
+                            "severity": "high",
+                            "type": "xss",
+                            "title": "Reflected XSS",
+                            "url": "https://square.com/search",
+                        },
+                        {
+                            "id": "low-1",
+                            "severity": "low",
+                            "type": "info",
+                            "title": "Missing header",
+                            "url": "https://square.com/",
+                        },
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "run_summary.json").write_text("{}", encoding="utf-8")
+
+            result = asyncio.run(
+                list_all_findings(
+                    page=1,
+                    page_size=50,
+                    severity="critical,high",
+                    search="xss",
+                    target=None,
+                    _auth=None,
+                    services=self._services(output_root),
+                )
+            )
+
+            self.assertEqual(result["total"], 1)
+            self.assertEqual(result["findings"][0]["id"], "high-1")
 
 
 if __name__ == "__main__":
