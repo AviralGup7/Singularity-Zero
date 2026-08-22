@@ -3,8 +3,7 @@ import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
 import { appendStreamToken } from './streamAuth';
 
-import { JobSchema } from './schemas';
-import { z } from 'zod';
+import { asNumber, asRecord, asString, readPageEnvelope, toJobListParams, type JobListQuery, type PageEnvelope } from './contract';
 
 export interface JobsListParams {
   page?: number;
@@ -15,23 +14,69 @@ export interface JobsListParams {
   search?: string;
 }
 
-export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl?: number): Promise<Job[]> {
-  const res = await cachedGet<{ jobs: Job[]; total: number }>('/api/jobs', { 
-    signal, 
+export function normalizeJobRecord(raw: unknown): Job | null {
+  const rec = asRecord(raw);
+  if (!rec) return null;
+  const id = asString(rec.id);
+  if (!id) return null;
+  const status = asString(rec.status || 'queued') as Job['status'];
+  return {
+    ...(rec as unknown as Job),
+    id,
+    status,
+    base_url: asString(rec.base_url),
+    hostname: asString(rec.hostname || rec.target_name),
+    target_name: asString(rec.target_name || rec.hostname),
+    mode: asString(rec.mode),
+    stage_label: asString(rec.stage_label || rec.stage),
+    progress_percent: asNumber(rec.progress_percent, 0),
+    has_eta: Boolean(rec.has_eta),
+    eta_label: asString(rec.eta_label),
+    stalled: Boolean(rec.stalled),
+    started_at: asString(rec.started_at),
+    latest_logs: Array.isArray(rec.latest_logs) ? rec.latest_logs.map((line) => asString(line)) : [],
+    error: rec.error == null ? null : asString(rec.error),
+    warnings: Array.isArray(rec.warnings) ? rec.warnings.map((line) => asString(line)) : [],
+    enabled_modules: Array.isArray(rec.enabled_modules) ? rec.enabled_modules.map((item) => asString(item)) : [],
+    scope_entries: Array.isArray(rec.scope_entries) ? rec.scope_entries.map((item) => asString(item)) : [],
+    status_message: asString(rec.status_message),
+    execution_options: (asRecord(rec.execution_options) as Record<string, boolean>) ?? {},
+  };
+}
+
+export async function getJobsPage(params?: JobListQuery, signal?: AbortSignal, ttl?: number): Promise<PageEnvelope<Job>> {
+  const res = await cachedGet<unknown>('/api/jobs', {
+    signal,
     ttl,
-    params: params as Record<string, unknown>,
-    schema: z.object({ jobs: z.array(JobSchema) })
+    params: toJobListParams(params),
   });
-  return asJobList(res.jobs);
+  return readPageEnvelope(res, 'jobs', (item) => normalizeJobRecord(item));
+}
+
+export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl?: number): Promise<Job[]> {
+  const query: JobListQuery = {
+    page: params?.page ?? 1,
+    page_size: params?.page_size ?? 100,
+    status: params?.status,
+    search: params?.search,
+    sort_by: params?.sort_by,
+    sort_dir: params?.sort_dir,
+  };
+  const first = await getJobsPage(query, signal, ttl);
+  if (first.total <= first.items.length) return first.items;
+  const pages = Math.min(8, Math.ceil(first.total / first.pageSize));
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, index) =>
+      getJobsPage({ ...query, page: index + 2, page_size: first.pageSize }, signal, ttl),
+    ),
+  );
+  return rest.reduce((acc, page) => acc.concat(page.items), first.items);
 }
 
 export async function getJob(jobId: string, signal?: AbortSignal, ttl?: number): Promise<Job | null> {
   try {
-    return await cachedGet<Job>(`/api/jobs/${jobId}`, { 
-      signal, 
-      ttl,
-      schema: JobSchema
-    });
+    const raw = await cachedGet<unknown>(`/api/jobs/${jobId}`, { signal, ttl });
+    return normalizeJobRecord(raw);
   } catch (error) {
     const status = (error as { status?: number } | undefined)?.status;
     if (status === 404) {
@@ -153,7 +198,10 @@ export function jobProgressStreamUrl(jobId: string): string {
 }
 
 export function asJobList(value: unknown): Job[] {
-  return Array.isArray(value) ? value as Job[] : [];
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeJobRecord(item)).filter((item): item is Job => Boolean(item));
+  }
+  return readPageEnvelope(value, 'jobs', (item) => normalizeJobRecord(item)).items;
 }
 
 export function asDurationEntries(value: unknown): HistoricalDurationEntry[] {

@@ -232,7 +232,4 @@ export function nextCustodyRecordsAfterDelete(
   });
 }
 
-export function deleteEvidenceRecord(evidenceId: string, user = 'anonymous'): void {
-  const records = nextCustodyRecordsAfterDelete(getAllEvidenceRecords(), evidenceId, user);
-  sessionStorage.setItem(CUSTODY_STORAGE_KEY, JSON.stringify(records));
-}
+

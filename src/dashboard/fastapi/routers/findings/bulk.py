@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.routers.findings.crud import update_finding
+from src.dashboard.fastapi.routers.findings.field_map import map_update_payload
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)

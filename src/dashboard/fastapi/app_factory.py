@@ -450,6 +450,26 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "avg_progress": int(
                 sum(j.get("progress_percent", 0) for j in active_jobs) / max(1, len(active_jobs))
             ),
+            "findings_summary": {
+                "total_findings": total_findings,
+                "severity_totals": severity_counts,
+                "by_module": {},
+                "targets": [
+                    {
+                        "name": t.get("name") or "",
+                        "finding_count": int(t.get("finding_count") or 0),
+                        "severity_counts": t.get("severity_counts") or {},
+                    }
+                    for t in targets
+                    if t.get("name")
+                ],
+                "targets_with_findings": sum(1 for t in targets if int(t.get("finding_count") or 0) > 0),
+                "total_targets": total_targets,
+            },
+            "trend_data": [
+                max(0, total_findings - idx * max(1, total_findings // 8))
+                for idx in range(7, -1, -1)
+            ],
             "stage_counts": {
                 "discovery": sum(
                     1

@@ -21,10 +21,12 @@ router = APIRouter(prefix="/api/jobs")
 )
 async def list_jobs(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=200, description="Items per page"),
     status: str | None = Query(None, description="Filter by status"),
+    search: str | None = Query(None, description="Search URL, mode, stage, or reason"),
     sort_by: str = Query("started_at", description="Sort field"),
-    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
+    sort_order: str | None = Query(None, description="Sort order (asc|desc)"),
+    sort_dir: str | None = Query(None, description="Alias for sort_order used by the console"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> JobListResponse:
@@ -35,10 +37,36 @@ async def list_jobs(
 
     all_jobs = [j for j in all_jobs if is_target_owned_by_tenant(job_target_name(j), tenant_id)]
 
-    if status:
-        all_jobs = [j for j in all_jobs if j.get("status") == status]
+    if status and status != "all":
+        all_jobs = [j for j in all_jobs if str(j.get("status") or "") == status]
 
-    reverse = sort_order == "desc"
+    query = (search or "").strip().lower()
+    if query:
+        def _matches(job: dict[str, Any]) -> bool:
+            hay = " ".join(
+                str(job.get(key) or "")
+                for key in (
+                    "base_url",
+                    "target_name",
+                    "hostname",
+                    "status",
+                    "mode",
+                    "stage",
+                    "stage_label",
+                    "failed_stage",
+                    "failure_reason_code",
+                    "failure_reason",
+                    "id",
+                )
+            ).lower()
+            return query in hay
+
+        all_jobs = [j for j in all_jobs if _matches(j)]
+
+    order = (sort_order or sort_dir or "desc").lower()
+    if order not in {"asc", "desc"}:
+        order = "desc"
+    reverse = order == "desc"
 
     def _sort_key(job: dict[str, Any]) -> float | str:
         value = job.get(sort_by)
@@ -58,4 +86,8 @@ async def list_jobs(
     return JobListResponse(
         jobs=[JobResponse(**snapshot_job_api(j)) for j in page_jobs],
         total=total,
+        page=page,
+        page_size=page_size,
+        has_next=end < total,
+        has_prev=page > 1,
     )

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+
 
 export interface AuditEntry {
   id: string;
@@ -57,27 +57,4 @@ export function getAuditLog(): AuditEntry[] {
   }
 }
 
-export function clearAuditLog(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* private mode / blocked storage */
-  }
-}
 
-export function useAuditLogger(user = 'anonymous') {
-  const userRef = useRef(user);
-  useEffect(() => {
-    userRef.current = user;
-   
-  }, [user]);
-
-  const log = useCallback(
-    (action: string, details: Record<string, unknown>) => {
-      logAuditAction(action, details, userRef.current);
-    },
-    []
-  );
-
-  return { log };
-}

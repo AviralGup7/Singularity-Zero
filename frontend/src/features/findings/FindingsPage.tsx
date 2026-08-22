@@ -26,6 +26,7 @@ import { pruneSelection } from './selection';
 import { toggleIdInSet } from './hooks/useBulkActions';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
+import { asFindingList } from '../../api/findings';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Columns3, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -42,6 +43,7 @@ export function FindingsPage() {
 
   const { data: findingsData, loading } = useApi<{ findings: Finding[]; total: number }>('/api/targets/findings/list', {
     refetchInterval: detailFinding ? undefined : 5000,
+    params: { page: 1, page_size: 200 },
   });
 
   const { filter: searchQuery, setFilter: setSearchQuery, debouncedFilter: debouncedSearch } = useDebouncedFilter(300);
@@ -222,8 +224,13 @@ export function FindingsPage() {
    
   const sort = useMemo(() => ({ key: sortKey, direction: sortDir }), [sortKey, sortDir]);
 
+  const rawFindings = useMemo(
+    () => asFindingList(findingsData?.findings ?? findingsData),
+    [findingsData],
+  );
+
   const { processed: allFindings, isProcessing } = useProcessedFindings(
-    findingsData?.findings || emptyFindings,
+    rawFindings.length ? rawFindings : emptyFindings,
     filters,
     sort
   );

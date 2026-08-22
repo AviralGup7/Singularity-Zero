@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.routers.findings.field_map import map_update_payload
 from src.dashboard.fastapi.routers.targets import _normalize_finding_payload
 from src.dashboard.fastapi.schemas import ErrorResponse
 
@@ -13,18 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
 
 
-ALLOWED_UPDATE_FIELDS = {
-    "status",
-    "severity",
-    "decision",
-    "notes",
-    "lifecycle_state",
-    "assignee",
-    "tags",
-    "false_positive",
-    "remediation_status",
-    "remediation_notes",
-}
+# Field allow-list lives in field_map so bulk + single-item updates stay aligned.
 
 
 def _locate_finding_on_disk(
@@ -86,11 +76,16 @@ async def update_finding(
         findings_file_path,
     ) = located
 
-    for key, value in update_data.items():
-        if key in ALLOWED_UPDATE_FIELDS:
-            finding_payload[key] = value
-        elif key not in {"id", "finding_id"}:
-            logger.warning("update_finding: ignoring disallowed field '%s'", key)
+    mapped = map_update_payload(update_data, bulk=False)
+    rejected = set(update_data) - set(mapped) - {"id", "finding_id", "ids"}
+    if rejected:
+        logger.warning("update_finding: ignoring disallowed fields %s", sorted(rejected))
+    for key, value in mapped.items():
+        finding_payload[key] = value
+    if mapped.get("false_positive") and not finding_payload.get("fp_status"):
+        finding_payload["fp_status"] = "approved"
+    if mapped.get("false_positive") and not finding_payload.get("decision"):
+        finding_payload["decision"] = "DROP"
 
     try:
         if findings_file_path:

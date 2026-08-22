@@ -6,8 +6,8 @@ export async function getReadiness(signal?: AbortSignal): Promise<ReadinessRespo
   return cachedGet<ReadinessResponse>('/api/health/ready', { signal, bypassCache: true });
 }
 
-export async function getLiveness(signal?: AbortSignal): Promise<{ status: string; timestamp: string }> {
-  return cachedGet<{ status: string; timestamp: string }>('/api/health/live', { signal, bypassCache: true });
+export async function getLiveness(signal?: AbortSignal): Promise<{ status: string; timestamp?: string; uptime?: number }> {
+  return cachedGet<{ status: string; timestamp?: string; uptime?: number }>('/api/health/live', { signal, bypassCache: true });
 }
 
 /**
@@ -18,8 +18,9 @@ export async function getLiveness(signal?: AbortSignal): Promise<{ status: strin
  * a fresh timestamp and the request is trivially cheap.
  */
 export async function pingLivenessForTimeSync(): Promise<{ timestamp: string | null }> {
-  const { data } = await apiClient.get<{ status: string; timestamp: string }>('/api/health/live');
-  return { timestamp: data?.timestamp ?? null };
+  const { data, headers } = await apiClient.get<{ status: string; timestamp?: string; uptime?: number }>('/api/health/live');
+  const headerDate = headers?.date ? new Date(headers.date).toISOString() : null;
+  return { timestamp: data?.timestamp ?? headerDate };
 }
 
 export async function getMeshHealth(signal?: AbortSignal): Promise<MeshHealth> {

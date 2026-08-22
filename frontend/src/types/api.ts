@@ -126,7 +126,7 @@ export interface Target {
 
 export interface Job {
   id: string;
-  status: 'running' | 'completed' | 'failed' | 'stopped';
+  status: 'running' | 'completed' | 'failed' | 'stopped' | 'paused' | 'queued';
   base_url: string;
   hostname: string;
   target_name: string;

@@ -134,20 +134,33 @@ def _collect_timeline_events(
                 continue
             if not isinstance(findings, list):
                 continue
+            if job_id and run_entry.name != job_id and tname != job_target:
+                # A job id may be stored as run folder or as finding.job_id
+                pass
             for idx, finding in enumerate(findings, 1):
                 if not isinstance(finding, dict):
+                    continue
+                fid_job = str(finding.get("job_id") or run_entry.name)
+                if job_id and fid_job != job_id and run_entry.name != job_id:
                     continue
                 fsev = str(finding.get("severity", "")).lower()
                 if severity_filter and fsev != severity_filter:
                     continue
+                stamp = str(finding.get("timestamp") or run_entry.name)
+                if start_date and stamp < start_date:
+                    continue
+                if end_date and stamp > end_date:
+                    continue
                 events.append(
                     {
-                        "id": finding.get("finding_id") or f"{tname}:{run_entry.name}:{idx}",
+                        "id": finding.get("id")
+                        or finding.get("finding_id")
+                        or f"{tname}:{run_entry.name}:{idx}",
                         "target_name": tname,
                         "run_name": run_entry.name,
                         "severity": fsev,
                         "title": finding.get("title", ""),
-                        "timestamp": finding.get("timestamp") or run_entry.name,
+                        "timestamp": stamp,
                         "status": finding.get("status", "open"),
                     }
                 )

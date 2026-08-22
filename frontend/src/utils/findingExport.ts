@@ -182,10 +182,6 @@ export function exportFinding(finding: Finding, format: ReportFormat): void {
   }
 }
 
-export const exportFindingAsMarkdown = (finding: Finding) => exportFinding(finding, 'markdown');
-export const exportFindingAsHtml = (finding: Finding) => exportFinding(finding, 'html');
-export const exportFindingAsJson = (finding: Finding) => exportFinding(finding, 'json');
-
 export interface ReportMeta {
   title?: string;
   author?: string;

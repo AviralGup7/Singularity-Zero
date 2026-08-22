@@ -226,8 +226,9 @@ async def get_target_compliance(
 )
 async def list_all_findings(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, le=1000, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=1000, description="Items per page"),
     severity: str | None = Query(None, description="Filter by severity"),
+    search: str | None = Query(None, description="Search title, type, CVE, host, or URL"),
     target: str | None = Query(None, description="Filter by target name"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
@@ -300,6 +301,24 @@ async def list_all_findings(
                 )
                 if severity and str(normalized.get("severity", "")).lower() != severity.lower():
                     continue
+                query = (search or "").strip().lower()
+                if query:
+                    hay = " ".join(
+                        str(normalized.get(key) or "")
+                        for key in (
+                            "title",
+                            "type",
+                            "description",
+                            "cve",
+                            "cwe",
+                            "url",
+                            "host",
+                            "target",
+                            "id",
+                        )
+                    ).lower()
+                    if query not in hay:
+                        continue
                 all_findings.append(normalized)
 
     all_findings.sort(key=lambda finding: str(finding.get("timestamp", "")), reverse=True)

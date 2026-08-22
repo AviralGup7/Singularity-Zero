@@ -4,11 +4,33 @@ import type {
 import { apiClient, cachedGet } from './core';
 
 export { apiClient, cachedGet } from './core';
+export {
+  canonicalizeFindingStatus,
+  mapFindingUpdate,
+  normalizeFindingRecord,
+  readPageEnvelope,
+  toJobListParams,
+  toFindingListParams,
+} from './contract';
+export type { PageEnvelope, JobListQuery, FindingListQuery } from './contract';
 
 export { getOnlineStatus } from './networkStatus';
 
 export async function getDashboardStats(signal?: AbortSignal, ttl?: number): Promise<DashboardStats> {
-  return cachedGet<DashboardStats>('/api/dashboard', { signal, ttl });
+  const raw = await cachedGet<DashboardStats>('/api/dashboard', { signal, ttl });
+  const summary = raw.findings_summary ?? {
+    total_findings: raw.total_findings ?? 0,
+    severity_totals: (raw as { severity_counts?: Record<string, number> }).severity_counts ?? {},
+    by_module: {},
+    targets: [],
+    targets_with_findings: 0,
+    total_targets: raw.total_targets ?? 0,
+  };
+  return {
+    ...raw,
+    trend_data: Array.isArray(raw.trend_data) ? raw.trend_data : [],
+    findings_summary: summary,
+  };
 }
 
 export { getTargets, getDefaults, deleteTarget, compareTargets, getTargetFindings } from './targets';

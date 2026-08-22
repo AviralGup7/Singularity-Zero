@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+
 
 export type NotificationType = 'scan-complete' | 'critical-finding' | 'sla-breach' | 'info';
 
@@ -60,33 +60,6 @@ export function sendPushNotification(
   }
 }
 
-export function sendScanCompleteNotification(jobId: string, jobName: string): void {
-  sendPushNotification(
-    'scan-complete',
-    'Scan Complete',
-    `Job "${jobName}" (${jobId}) has finished.`,
-    { jobId, jobName }
-  );
-}
-
-export function sendCriticalFindingNotification(findingId: string, severity: string): void {
-  sendPushNotification(
-    'critical-finding',
-    'Critical Finding Detected',
-    `A ${severity} severity finding (${findingId}) requires immediate attention.`,
-    { findingId, severity }
-  );
-}
-
-export function sendSLABreachNotification(slaId: string, metric: string): void {
-  sendPushNotification(
-    'sla-breach',
-    'SLA Breach',
-    `SLA metric "${metric}" (${slaId}) has been breached.`,
-    { slaId, metric }
-  );
-}
-
 function storeInAppNotification(notification: AppNotification): void {
   try {
     const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
@@ -110,44 +83,10 @@ export function parseInAppNotifications(raw: string | null): AppNotification[] {
   }
 }
 
-export function getInAppNotifications(): AppNotification[] {
-  try {
-    return parseInAppNotifications(localStorage.getItem(NOTIFICATION_STORAGE_KEY));
-  } catch {
-    return [];
-  }
-}
-
-export function clearInAppNotifications(): void {
-  try {
-    localStorage.removeItem(NOTIFICATION_STORAGE_KEY);
-  } catch {
-    /* private mode / blocked storage */
-  }
-}
-
 function dispatchInAppEvent(notification: AppNotification): void {
   window.dispatchEvent(
     new CustomEvent('app-notification', { detail: notification })
   );
 }
 
-// FIX: Convert to proper hook with ref to avoid stale closure
-export function useNotificationListener(callback: (notification: AppNotification) => void) {
-  const callbackRef = useRef(callback);
 
-  useEffect(() => {
-    callbackRef.current = callback;
-   
-  }, [callback]);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as AppNotification;
-      callbackRef.current(detail);
-    };
-
-    window.addEventListener('app-notification', handler);
-    return () => window.removeEventListener('app-notification', handler);
-  }, []);
-}

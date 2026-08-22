@@ -66,21 +66,6 @@ export function getComplianceLogs(): ComplianceLogEntry[] {
   }
 }
 
-export function getComplianceLogsByUser(user: string): ComplianceLogEntry[] {
-  return getComplianceLogs().filter((e) => e.user === user);
-}
-
-export function getComplianceLogsByAction(action: string): ComplianceLogEntry[] {
-  return getComplianceLogs().filter((e) => e.action === action);
-}
-
-export function getComplianceLogsByDateRange(start: Date, end: Date): ComplianceLogEntry[] {
-  return getComplianceLogs().filter((e) => {
-    const ts = new Date(e.timestamp);
-    return ts >= start && ts <= end;
-  });
-}
-
 export function escapeCSVValue(val: string): string {
   let next = val;
   if (/^[=+\-@\t\r]/.test(next)) next = `'${next}`;
@@ -117,25 +102,4 @@ export function exportComplianceReport(format: 'json' | 'csv' = 'json'): string 
   );
 }
 
-export function clearComplianceLogs(): void {
-  try {
-    sessionStorage.removeItem(COMPLIANCE_STORAGE_KEY);
-  } catch {
-    /* blocked storage */
-  }
-}
 
-export function useComplianceLogger(user = 'anonymous') {
-  return {
-    log: (
-      action: string,
-      resource: string,
-      reason: string,
-      details: Record<string, unknown> = {},
-   
-      outcome?: ComplianceLogEntry['outcome']
-    ) => logComplianceAction(action, resource, reason, details, user, outcome),
-    getLogs: getComplianceLogs,
-    exportReport: exportComplianceReport,
-  };
-}

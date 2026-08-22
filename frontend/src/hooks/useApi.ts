@@ -52,42 +52,6 @@ function deduplicateRequest<T>(key: string, fn: () => Promise<T>, signal?: Abort
   return promise;
 }
 
-/* eslint-disable security/detect-object-injection */
-// ``isDeepEqual`` was previously exported for callers that needed
-// reference-equality-style value comparison, but no in-tree consumer
-// remains. The hook now relies on ``URLSearchParams``/JSON.stringify
-// based cache keys. The helper is kept here as a tree-shakeable
-// internal utility so future diffing needs can re-use it without
-// re-introducing the security/detect-object-injection disable.
-function _isDeepEqual(obj1: unknown, obj2: unknown): boolean {
-  if (obj1 === obj2) return true;
-  if (obj1 === null || obj2 === null || typeof obj1 !== 'object' || typeof obj2 !== 'object') {
-    return false;
-  }
-
-  if (Array.isArray(obj1)) {
-    if (!Array.isArray(obj2) || obj1.length !== obj2.length) return false;
-    for (let i = 0; i < obj1.length; i++) {
-      if (!_isDeepEqual(obj1[i], obj2[i])) return false;
-    }
-    return true;
-  }
-
-  if (Array.isArray(obj2)) return false;
-
-  const keys1 = Object.keys(obj1 as Record<string, unknown>);
-  const keys2 = Object.keys(obj2 as Record<string, unknown>);
-  if (keys1.length !== keys2.length) return false;
-
-  for (const key of keys1) {
-    if (!Object.prototype.hasOwnProperty.call(obj2, key) || !_isDeepEqual((obj1 as Record<string, unknown>)[key], (obj2 as Record<string, unknown>)[key])) {
-      return false;
-    }
-  }
-  return true;
-}
-/* eslint-enable security/detect-object-injection */
-
 function isExpectedBackendMiss(error: UseApiError): boolean {
   const status = error.status;
   if (status && (status === 401 || status === 403 || status === 404 || status >= 500)) return true;
@@ -207,7 +171,8 @@ export function useApi<T>(
         original: err,
       };
       if (lastError.status === 429) {
-        rateLimitedUntilRef.current = Date.now() + 5000;
+        const retryAfter = (err as { retryAfterMs?: number })?.retryAfterMs;
+        rateLimitedUntilRef.current = Date.now() + (typeof retryAfter === 'number' ? retryAfter : 5000);
       }
 
       if (mountedRef.current) {

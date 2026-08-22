@@ -103,15 +103,16 @@ def _normalize_finding_payload(
     if severity not in {"critical", "high", "medium", "low", "info"}:
         severity = "info"
 
-    status = str(finding.get("status", "active")).strip().lower()
-    mapping = {
-        "open": "active",
-        "closed": "resolved",
-        "accepted": "ignored",
-    }
-    status = mapping.get(status, status)
-    if status not in {"active", "resolved", "false_positive", "ignored"}:
-        status = "active"
+    from src.dashboard.fastapi.routers.findings.field_map import (
+        canonicalize_status,
+        project_finding_aliases,
+    )
+
+    status = canonicalize_status(
+        finding.get("status")
+        or ("false_positive" if finding.get("false_positive") or finding.get("falsePositive") else "open"),
+        for_api=True,
+    )
 
     lifecycle_state = str(finding.get("lifecycle_state", "detected")).strip().lower()
     if lifecycle_state not in {
@@ -144,6 +145,13 @@ def _normalize_finding_payload(
     job_id = finding.get("job_id") or run_name
     target_id = finding.get("target_id") or target_name
 
+    title = str(finding.get("title") or description or finding_type).strip() or finding_type
+    confidence = finding.get("confidence")
+    try:
+        confidence_n = float(confidence) if confidence is not None else 0.0
+    except (TypeError, ValueError):
+        confidence_n = 0.0
+
     normalized = {
         **finding,
         "id": finding_id,
@@ -151,17 +159,20 @@ def _normalize_finding_payload(
         "target_id": target_id,
         "severity": severity,
         "type": finding_type,
+        "title": title,
         "target": str(finding.get("target") or target_name).strip() or target_name,
         "status": status,
         "date": finding_date,
-        "timestamp": finding.get("timestamp") or run_name,
+        "timestamp": finding.get("timestamp") or generated_at or run_name,
         "description": description,
+        "confidence": confidence_n,
         "csi_score": finding.get("csi_score"),
+        "lifecycle_state": lifecycle_state,
         "logic_diff": finding.get("metadata", {}).get("diff")
         if "logic_breach" in finding_type.lower()
-        else None,
+        else finding.get("logic_diff"),
     }
-    return normalized
+    return project_finding_aliases(normalized)
 
 
 class TargetFindingsResponse(BaseModel):

@@ -39,20 +39,18 @@ export const JobSchema = z.object({
 
 export const FindingSchema = z.object({
   id: z.string(),
-  job_id: z.string(),
-  target_id: z.string(),
-  type: z.string(),
-   
-  severity: z.enum(['critical', 'high', 'medium', 'low', 'info']),
-  title: z.string(),
-  description: z.string(),
-  remediation: z.string().optional(),
+  job_id: z.union([z.string(), z.number()]).optional(),
+  target_id: z.string().optional(),
+  type: z.string().optional(),
+  severity: z.enum(['critical', 'high', 'medium', 'low', 'info']).or(z.string()),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  remediation: z.union([z.string(), z.array(z.string())]).optional(),
   proof: z.string().optional(),
-  timestamp: z.string(),
+  timestamp: z.union([z.string(), z.number()]).optional(),
   url: z.string().optional(),
   score: z.number().optional(),
-   
-  status: z.enum(['active', 'resolved', 'false_positive', 'ignored']).default('active'),
+  status: z.string().optional(),
 }).passthrough();
 
 export const FindingsListSchema = z.array(FindingSchema);

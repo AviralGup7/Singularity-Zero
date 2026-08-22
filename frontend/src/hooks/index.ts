@@ -18,7 +18,7 @@ export type { DurationForecastData } from './useJobMonitorReducer';
 export function useJobs(options?: { refetchInterval?: number; params?: Record<string, string | number | undefined>; enabled?: boolean }) {
   const result = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: options?.refetchInterval ?? 5000,
-    params: options?.params,
+    params: { page: 1, page_size: 100, ...(options?.params ?? {}) },
     enabled: options?.enabled,
     autoToast: true,
     errorContext: 'Failed to load jobs',
@@ -78,8 +78,8 @@ export function useJobDetail(jobId: string | undefined, ttl?: number) {
  */
 export function useFindings() {
   // FIX: Reduced page_size from 5000 to a reasonable 100 with pagination support
-  return useApi<{ findings: Finding[]; total: number }>('/api/targets/findings/list', {
-    params: { page: 1, page_size: 100 },
+  return useApi<{ findings: Finding[]; total: number; page?: number; page_size?: number }>('/api/targets/findings/list', {
+    params: { page: 1, page_size: 200 },
     autoToast: true,
     errorContext: 'Failed to load findings',
   });

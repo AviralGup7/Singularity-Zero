@@ -74,6 +74,7 @@ export function DashboardPage() {
 
   const { data: stats, loading: statsLoading, error: statsError } = useApi<StatsType>('/api/dashboard', { 
     refetchInterval: 10000,
+    ttl: 5000,
     schema: DashboardStatsSchema,
     onSuccess: (data) => {
       setLastUpdated(new Date());

@@ -233,7 +233,7 @@ class JobResponse(BaseModel):
     updated_at_label: str | None = None
     finished_at_label: str | None = None
     returncode: int | None = None
-    error: str = ""
+    error: str | None = ""
     warnings: list[str] = Field(default_factory=list)
     execution_options: dict[str, bool] = Field(default_factory=dict)
     can_stop: bool
@@ -261,6 +261,10 @@ class JobListResponse(BaseModel):
 
     jobs: list[JobResponse]
     total: int = 0
+    page: int = 1
+    page_size: int = 100
+    has_next: bool = False
+    has_prev: bool = False
 
 
 class JobLogsResponse(BaseModel):

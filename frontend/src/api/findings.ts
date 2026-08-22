@@ -2,12 +2,25 @@ import type { FindingsSummary, Finding, RemediationResponse } from '@/types/api'
 import type { FindingTimelineEvent } from '@/types/extended';
 import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
+import {
+  mapFindingUpdate,
+  normalizeFindingRecord,
+  readPageEnvelope,
+  toFindingListParams,
+  type FindingListQuery,
+  type PageEnvelope,
+} from './contract';
 
-import { z } from 'zod';
-import { FindingsListSchema } from './schemas';
+function toFinding(value: unknown): Finding | null {
+  const rec = normalizeFindingRecord(value);
+  return rec ? (rec as unknown as Finding) : null;
+}
 
 export function asFindingList(value: unknown): Finding[] {
-  return Array.isArray(value) ? value as Finding[] : [];
+  if (Array.isArray(value)) {
+    return value.map(toFinding).filter((item): item is Finding => Boolean(item?.id));
+  }
+  return readPageEnvelope(value, 'findings', toFinding).items;
 }
 
 export function asTimelineEvents(value: unknown): FindingTimelineEvent[] {
@@ -27,16 +40,34 @@ export interface FindingsListParams {
   search?: string;
 }
 
+export async function getFindingsPage(
+  params?: FindingListQuery,
+  signal?: AbortSignal,
+): Promise<PageEnvelope<Finding>> {
+  const res = await cachedGet<unknown>('/api/targets/findings/list', {
+    signal,
+    params: toFindingListParams(params),
+    ttl: 4000,
+  });
+  return readPageEnvelope(res, 'findings', toFinding);
+}
+
 export async function getFindings(params?: FindingsListParams, signal?: AbortSignal): Promise<Finding[]> {
-  const res = await cachedGet<{ findings: Finding[]; total: number }>(
-    '/api/targets/findings/list',
-    { 
-      signal, 
-      params: { page: 1, page_size: 500, ...params },
-      schema: z.object({ findings: FindingsListSchema })
-    }
+  const first = await getFindingsPage(
+    { page: 1, page_size: Math.min(200, params?.page_size ?? 200), severity: params?.severity, search: params?.search },
+    signal,
   );
-  return asFindingList(res.findings);
+  if (first.total <= first.items.length) return first.items;
+  const pages = Math.min(5, Math.ceil(first.total / first.pageSize));
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, index) =>
+      getFindingsPage(
+        { page: index + 2, page_size: first.pageSize, severity: params?.severity, search: params?.search },
+        signal,
+      ),
+    ),
+  );
+  return rest.reduce((acc, page) => acc.concat(page.items), first.items);
 }
 
 export async function getFindingRemediation(
@@ -54,8 +85,10 @@ export async function getFindingById(findingId: string, signal?: AbortSignal): P
   if (!id) {
     throw new Error('Finding id is required');
   }
-  const { data } = await apiClient.get<Finding>(`/api/findings/${encodeURIComponent(id)}`, { signal });
-  return data;
+  const { data } = await apiClient.get<unknown>(`/api/findings/${encodeURIComponent(id)}`, { signal });
+  const normalized = normalizeFindingRecord(data);
+  if (!normalized) throw new Error('Finding payload was empty');
+  return normalized as unknown as Finding;
 }
 
 export async function deleteFinding(id: string, signal?: AbortSignal): Promise<void> {

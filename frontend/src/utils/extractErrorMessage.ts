@@ -71,16 +71,4 @@ export function showErrorToast(err: unknown, context?: string): void {
   dispatchToast(`${prefix}${message}`, 'error');
 }
 
-/**
- * Shows a toast popup with a specific success message.
- */
-export function showSuccessToast(message: string): void {
-  dispatchToast(message, 'success');
-}
 
-/**
- * Shows a toast popup with a specific warning message.
- */
-export function showWarningToast(message: string): void {
-  dispatchToast(message, 'warning');
-}

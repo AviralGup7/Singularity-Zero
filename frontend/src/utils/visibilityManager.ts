@@ -128,45 +128,6 @@ export function getVisibilityManager(): VisibilityManager {
   return visibilityManagerInstance;
 }
 
-export function useVisibilityPause(
-  pollFn: () => void,
-  intervalMs: number,
-  enabled = true
-): (() => void) | undefined {
-  if (!enabled) return undefined;
-
-  const manager = getVisibilityManager();
-
-  if (manager.isDocumentVisible()) {
-    const interval = setInterval(pollFn, intervalMs);
-    manager.registerPolling(interval);
-
-    const cleanup = manager.registerCallbacks({
-      onVisible: () => {
-        pollFn();
-      },
-    });
-
-    return () => {
-      clearInterval(interval);
-      manager.unregisterPolling(interval);
-      cleanup();
-    };
-  }
-
-  return undefined;
-}
-
 export function isDocumentVisible(): boolean {
   return document.visibilityState === 'visible';
-}
-
-export function onDocumentVisible(callback: () => void): () => void {
-  const manager = getVisibilityManager();
-  return manager.registerCallbacks({ onVisible: callback });
-}
-
-export function onDocumentHidden(callback: () => void): () => void {
-  const manager = getVisibilityManager();
-  return manager.registerCallbacks({ onHidden: callback });
 }

@@ -8,6 +8,7 @@ import { captureException } from '../utils/errorTracker';
 import { withRetry } from './retry';
 import { getStreamToken } from './streamAuth';
 import { useAuthStore } from '../stores/authStore';
+import { flattenApiDetail, parseRetryAfterMs } from './contract';
 
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
@@ -102,12 +103,16 @@ function generateRequestId(): string {
 export class ApiError extends Error {
   status?: number;
   original: unknown;
+  retryAfterMs?: number;
+  code?: string;
 
-  constructor(message: string, status?: number, original?: unknown) {
+  constructor(message: string, status?: number, original?: unknown, extras?: { retryAfterMs?: number; code?: string }) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.original = original;
+    this.retryAfterMs = extras?.retryAfterMs;
+    this.code = extras?.code;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
@@ -246,7 +251,12 @@ apiClient.interceptors.response.use(
 
     let message = i18n.t('errors.unexpectedError');
     const status = error.response?.status;
-    const serverDetail = error.response?.data?.detail;
+    const payload = error.response?.data;
+    const serverDetail =
+      flattenApiDetail(payload?.detail) ||
+      flattenApiDetail(payload?.error) ||
+      flattenApiDetail(payload);
+    const retryAfterMs = parseRetryAfterMs(error.response?.headers);
 
     if (status === 404 && error.config?.url) {
       console.warn(`[404 DEBUG] URL=${error.config.url} status=${status} detail=${JSON.stringify(error.response?.data)}`);
@@ -273,7 +283,10 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const wrapped = new ApiError(message, status, error);
+    const wrapped = new ApiError(message, status, error, {
+      retryAfterMs: status === 429 ? retryAfterMs : undefined,
+      code: typeof payload?.code === 'string' ? payload.code : undefined,
+    });
     captureException(wrapped, {
       component: 'apiClient',
       action: 'response',

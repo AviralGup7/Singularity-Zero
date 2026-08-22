@@ -33,20 +33,6 @@ export async function synchronizeTime(): Promise<number> {
 }
 
 /**
- * Returns the current calculated clock skew offset.
- */
-export function getServerTimeOffset(): number {
-  return serverTimeOffset;
-}
-
-/**
- * Returns a client timestamp corrected to match backend time.
- */
-export function getNormalizedTime(clientTime = Date.now()): number {
-  return clientTime + serverTimeOffset;
-}
-
-/**
  * Sanitizes and normalizes any epoch or ISO timestamp to the corrected server epoch milliseconds.
  */
 export function normalizeTimestamp(timestamp: string | number): number {

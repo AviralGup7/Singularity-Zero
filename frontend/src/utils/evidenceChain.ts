@@ -155,10 +155,6 @@ export async function verifyEvidenceIntegrity(evidenceId: string): Promise<{ val
   return { valid: false, message: 'Evidence integrity compromised - hash mismatch!' };
 }
 
-export function getEvidenceByFinding(findingId: string): EvidenceRecord[] {
-  return loadEvidence().filter(r => r.findingId === findingId);
-}
-
 export function getCustodyChain(evidenceId: string): CustodyEntry[] {
   const records = loadEvidence();
   const record = records.find(r => r.id === evidenceId);
