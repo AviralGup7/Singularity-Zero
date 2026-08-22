@@ -61,6 +61,8 @@ _RECONCILED_FIELDS = (
     "started_at",
     "updated_at",
     "finished_at",
+    "stage_progress",
+    "telemetry_events",
 )
 
 

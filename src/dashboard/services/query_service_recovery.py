@@ -17,6 +17,7 @@ from src.dashboard.services.query_service_log_parsing import (
     last_progress_payload_from_file,
     normalize_progress_status,
     read_all_lines,
+    rebuild_progress_state_from_file,
     tail_lines,
 )
 
@@ -345,6 +346,52 @@ def recover_job_from_launcher(
     latest_logs = [*stdout_lines[-20:]]
     latest_logs.extend([f"stderr: {line}" for line in stderr_lines[-10:]])
 
+    replayed = rebuild_progress_state_from_file(stdout_path, progress_prefix=progress_prefix)
+    stage_progress = replayed.get("stage_progress")
+    if not isinstance(stage_progress, dict):
+        stage_progress = {}
+    from src.dashboard.job_state_helpers import finalize_unfinished_stage_entries
+
+    if status == "stopped":
+        finalize_unfinished_stage_entries(
+            stage_progress, now=updated_at, status="skipped", reason="job_stopped"
+        )
+    elif status == "failed":
+        failed_running = stage_progress.get(failed_stage) if failed_stage else None
+        if isinstance(failed_running, dict) and stage_entry_status(failed_running) == "running":
+            failed_running["status"] = "error"
+            failed_running["updated_at"] = updated_at
+            failed_running["finished_at"] = updated_at
+        finalize_unfinished_stage_entries(
+            stage_progress,
+            now=updated_at,
+            status="skipped",
+            reason="interrupted",
+            exclude={failed_stage} if failed_stage else set(),
+        )
+    elif status == "completed":
+        finalize_unfinished_stage_entries(
+            stage_progress, now=updated_at, status="skipped", reason="interrupted"
+        )
+
+    replayed_telemetry = replayed.get("progress_telemetry")
+    recovered_telemetry = {
+        "active_task_count": 0,
+        "next_best_action": (
+            "Open the generated report and review validated findings."
+            if status == "completed"
+            else "Inspect stdout/stderr launcher artifacts and re-run with --force-fresh-run."
+        ),
+        "event_triggers": ["artifact_recovery"],
+        "last_update_epoch": updated_at,
+    }
+    if isinstance(replayed_telemetry, dict):
+        recovered_telemetry = {**replayed_telemetry, **recovered_telemetry}
+        recovered_telemetry["active_task_count"] = 0
+        skipped = replayed_telemetry.get("skipped_stages")
+        if isinstance(skipped, list):
+            recovered_telemetry["skipped_stages"] = skipped
+
     recovered = {
         "id": job_id,
         "base_url": base_url,
@@ -384,17 +431,9 @@ def recover_job_from_launcher(
         "stderr_href": f"/{prefix}/{job_id}/stderr.txt",
         "target_href": dashboard_href
         or (f"/{target_name}/index.html" if target_name else report_href),
-        "stage_progress": {},
-        "progress_telemetry": {
-            "active_task_count": 0,
-            "next_best_action": (
-                "Open the generated report and review validated findings."
-                if status == "completed"
-                else "Inspect stdout/stderr launcher artifacts and re-run with --force-fresh-run."
-            ),
-            "event_triggers": ["artifact_recovery"],
-            "last_update_epoch": updated_at,
-        },
+        "stage_progress": stage_progress,
+        "progress_telemetry": recovered_telemetry,
+        "telemetry_events": list(replayed.get("telemetry_events") or [])[-500:],
         "process": None,
         "stop_requested": False,
     }
