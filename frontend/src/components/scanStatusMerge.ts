@@ -15,7 +15,7 @@ export function mergePolledScanState(
   next: ActiveScanSnapshot | null,
 ): ActiveScanSnapshot | null {
   if (!next) return null;
-  const incoming = { ...next, progress: normalizeProgressPercent(next.progress) };
+  const incoming = { ...next, progress: normalizeProgressPercent(next.progress, 'percent') };
   if (!prev || prev.jobId !== next.jobId) return incoming;
   return {
     ...incoming,
@@ -35,7 +35,7 @@ export function applyLiveScanEvent(
   if (jobId && prev.jobId !== jobId) return prev;
   return {
     ...prev,
-    progress: patch.progress === undefined ? prev.progress : normalizeProgressPercent(patch.progress),
+    progress: patch.progress === undefined ? prev.progress : patch.progress,
     status: patch.status || prev.status,
     findingsCount: patch.findingsCount ?? prev.findingsCount,
     urlsFound: patch.urlsFound ?? prev.urlsFound,

@@ -9,6 +9,7 @@ import { StalledExplainerPanel } from '@/components/StalledExplainerPanel';
 import { ScanSummaryCard } from '@/components/targets/ScanSummaryCard';
 import { ReconResults } from '@/components/targets/ReconResults';
 import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
+import { normalizeProgressPercent } from '@/utils/normalizeScale';
 import { IterationProgressBar } from '@/components/IterationProgressBar';
 import { PluginProgressGrid } from '@/components/PluginProgressGrid';
 import { LiveTerminalFeed } from '@/components/LiveTerminalFeed';
@@ -205,9 +206,9 @@ export function JobDetailPage() {
           <motion.div variants={itemVariants} className="card" role="region" aria-label="Scan progress">
             <h3>Progress</h3>
             <div className="progress-section space-y-3">
-              <GlowProgress value={job.progress_percent ?? 0} variant="cyber" animated size="lg" />
+              <GlowProgress value={normalizeProgressPercent(job.progress_percent, 'percent')} variant="cyber" animated size="lg" />
               <div className="progress-details flex justify-between text-xs text-text-secondary font-mono tabular-nums">
-                <span>{Math.round(job.progress_percent ?? 0)}% complete</span>
+                <span>{Math.round(normalizeProgressPercent(job.progress_percent, 'percent'))}% complete</span>
                 {job.has_eta && <span>ETA: {job.eta_label ?? '--'}</span>}
               </div>
             </div>

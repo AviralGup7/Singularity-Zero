@@ -6,6 +6,7 @@ import { FindingsTableView } from './FindingsTableView';
 import { FindingsFpDialogs } from './FindingsFpDialogs';
 import { dedupeFindings } from '../hooks/useFindingsTable';
 import { clampFindingsPage } from '../findingsViewMode';
+import { userInitials } from '@/utils/userChrome';
 
 type TableSortKey = 'severity' | 'type' | 'target' | 'status' | 'date' | 'bounty_value';
 
@@ -21,12 +22,7 @@ function hashToColor(str: string): string {
 }
 
 function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((part) => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || '?';
+  return userInitials(name);
 }
 
 interface FindingsTablePaneProps {

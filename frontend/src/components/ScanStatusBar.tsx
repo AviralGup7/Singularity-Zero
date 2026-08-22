@@ -6,6 +6,7 @@ import { useApi } from '@/hooks/useApi';
 import { useRealtimeStream } from '@/hooks/useRealtimeStream';
 import { applyLiveScanEvent, mergePolledScanState } from '@/components/scanStatusMerge';
 import { sanitizeLiveStatus } from '@/hooks/realtimeTransport';
+import { normalizeProgressPercent } from '@/utils/normalizeScale';
 import { ROUTES } from '@/config/paths';
 import type { Job } from '@/types/api';
 
@@ -37,10 +38,10 @@ export function ScanStatusBar() {
     sseEndpoint: 'progress',
     onEvent: (event) => {
       const data = (event.data ?? {}) as Record<string, unknown>;
-      const progress = typeof data.progress === 'number'
-        ? data.progress
-        : typeof data.progress_percent === 'number'
-          ? data.progress_percent
+      const progress = typeof data.progress_percent === 'number'
+        ? normalizeProgressPercent(data.progress_percent, 'percent')
+        : typeof data.progress === 'number'
+          ? normalizeProgressPercent(data.progress, 'fraction')
           : undefined;
       const status = sanitizeLiveStatus(
         typeof data.message === 'string'

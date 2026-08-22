@@ -22,11 +22,11 @@ describe('compare dismiss key', () => {
 });
 
 describe('progress merge after scale normalize', () => {
-  it('does not treat 0.9 as less than 40%', () => {
+  it('treats polled progress as a percent, not a 0-1 fraction', () => {
     const merged = mergePolledScanState(
       { jobId: 'j', targetName: 't', progress: 40, status: 'a', etaLabel: '', findingsCount: 1, urlsFound: 1 },
       { jobId: 'j', targetName: 't', progress: 0.9, status: 'b', etaLabel: '', findingsCount: 1, urlsFound: 1 },
     );
-    expect(merged?.progress).toBe(90);
+    expect(merged?.progress).toBe(40);
   });
 });
