@@ -1,114 +1,90 @@
-# Troubleshooting Logic (AI-Agent Guide)
+# Troubleshooting & Diagnostic Guide
 
-This document provides a parseable decision tree for identifying and resolving pipeline execution failures.
+This document provides a structured diagnostic decision tree and remediation procedures for resolving pipeline, worker, mesh, and dashboard execution issues.
 
 ---
 
-## 🔍 Troubleshooting Decision Tree (Machine-Readable)
+## 🔍 Diagnostic Decision Tree
 
 ```yaml
 failure_diagnosis:
   at_startup:
     checks:
-      - target: "Redis connection"
-        remedy: "Check REDIS_URL and ensure port 6379 is reachable"
-      - target: "Tool PATH"
-        remedy: "Verify 'subfinder', 'httpx', 'nuclei' are in $PATH"
-      - target: "Template Provenance / Signature Failures"
-        remedy: "Template signature verification is currently disabled because configs/templates/ does not exist yet. To enable it, create configs/templates/manifest.json and configs/templates/manifest.json.sig Set NUCLEI_SIGNATURE_PUBLIC_KEY environment variable to match the Ed25519 signing key."
+      - target: "Redis connectivity failure"
+        symptom: "ConnectionRefusedError or Redis Timeout"
+        remedy: "Verify REDIS_URL and ensure Redis server is running (e.g. docker compose up -d redis)."
+      - target: "Missing binary dependencies"
+        symptom: "FileNotFoundError: [Errno 2] No such file or directory: 'nuclei'"
+        remedy: "Run 'cstp system setup' to download pre-compiled binaries to .tools/bin or add Go tools to $PATH."
+      - target: "Configuration schema mismatch"
+        symptom: "ValidationError in ConfigLoader"
+        remedy: "Run 'cstp system doctor' to validate config.json against configs/config.schema.json."
 
-  during_discovery:
+  during_recon_and_discovery:
     checks:
-      - target: "Zero subdomains found"
-        remedy: "Verify DNS resolution and check crt.sh connectivity"
-      - target: "Timeout in subfinder"
-        remedy: "Increase 'subdomains' stage timeout in flow_manifest"
+      - target: "Zero subdomains discovered"
+        symptom: "Recon stage completes with 0 results"
+        remedy: "Check network connectivity to crt.sh/AlienVault; verify scope syntax in configs/scope.txt."
+      - target: "DNS resolution timeout"
+        symptom: "dnsx or massdns timeout warnings"
+        remedy: "Verify upstream resolvers in config.json or check local firewall UDP 53 rules."
 
-  during_mining:
+  during_active_analysis:
     checks:
-      - target: "High URL collection timeouts"
-        remedy: "Reduce 'katana' concurrency and check WAF blocking"
-      - target: "Zero URLs harvested"
-        remedy: "Check 'gau' connectivity and archive availability"
+      - target: "Circuit Breaker TRIPPED to OPEN"
+        symptom: "Stage logs show 'CircuitBreaker: OPEN (rate limit detected)'"
+        remedy: "Target host is returning HTTP 429; orchestrator will automatically honor Retry-After headers."
+      - target: "Zero findings emitted on known-vulnerable host"
+        symptom: "Scan completes cleanly with empty findings"
+        remedy: "Check FAILURE_MODES.md; verify that active modules are enabled in config and nuclei templates match target technology."
 
-  during_execution:
+  dashboard_and_auth:
     checks:
-      - target: "Worker stall"
-        remedy: "Check worker logs (port 8008) for MemoryError or process hangs"
-      - target: "Empty findings"
-        remedy: "Verify nuclei templates are present and target is reachable"
-
-  during_reporting:
-    checks:
-      - target: "Template error"
-        remedy: "Validate findings.json schema vs Jinja2 template"
-      - target: "Disk space full"
-        remedy: "Clean up 'output/cache/' and old checkpoints"
-
-  dashboard_access:
-    checks:
-      - target: "CSRF token verification failed (code: csrf_token_failed)"
-        remedy: "Ensure cookies are preserved. The csrf_token cookie is now HttpOnly=True for maximum XSS protection. JavaScript SPA clients must fetch the token value from the secure 'GET /api/csrf-token' endpoint on app bootstrap or form mount and supply it in the 'X-CSRF-Token' request header on mutating requests."
-      - target: "Access denied to target / Scoping error (403 Forbidden)"
-        remedy: "Verify that the request has the X-Tenant-ID header matching the target owner, or check JWT claims to ensure tenant_id is matching. Security violations are automatically audit-logged under event type 'tenant_violation'."
+      - target: "401 Unauthorized / Token Expired"
+        symptom: "API requests return HTTP 401"
+        remedy: "Re-authenticate at /login or provide valid Authorization: Bearer <token> or X-API-Key header."
+      - target: "403 Forbidden / Tenant Context Violation"
+        symptom: "Access denied to target or job"
+        remedy: "Ensure the X-Tenant-ID header matches the target asset owner."
 ```
 
 ---
 
-## 🛠️ Automated Remediation Commands
+## 🛠️ Operational Recovery & Diagnostic Commands
 
-Agents can use these "last resort" commands to recover the system:
+- **Run System Diagnostic Doctor**:
+  ```bash
+  cstp system doctor
+  ```
 
-- **Reset Mesh Workers**:
+- **Inspect Infrastructure Health**:
   ```bash
-  # Remove dead worker from the global registry
-  redis-cli SREM queue:security-pipeline:workers <dead-worker-id>
-  # Delete worker metadata
-  redis-cli DEL queue:security-pipeline:worker:<dead-worker-id>
+  cstp system status
   ```
-- **Clear Stale Checkpoints**:
+
+- **Purge Stale Checkpoints & Cached Artifacts**:
   ```bash
-  rm -rf output/<target>/checkpoints/*
+  cstp system cleanup --days 3
   ```
-- **Force Cache Refresh**:
+
+- **Force Clean Scan Run (Bypassing Checkpoints)**:
   ```bash
-  cyber-pipeline --config config.json --scope scope.txt --refresh-cache
+  cstp scan run --config configs/config.json --scope configs/scope.txt --fresh
   ```
 
 ---
 
-## 🤖 Health Status Map
+## 🌐 Network & Port Forwarding (Windows / WSL2 / Termux)
 
-| Status | Interpretation | Agent Action |
-|--------|----------------|--------------|
-| `unhealthy:redis` | Queue backend is down | Pause all scans, wait for reconnect. |
-| `unhealthy:mesh` | No workers available | Scale up mesh workers or switch to standalone. |
-| `degraded:performance` | Stage duration > 2x baseline | Analyze logs for rate-limiting patterns. |
+### Windows IP Helper Port Proxying (`iphlpsvc`)
+On Windows hosts, the IP Helper service (`iphlpsvc`) may occupy port `6379` on external interfaces. To bridge remote worker sub-nodes (such as Termux on Android) to your host Redis:
 
----
+```powershell
+# Forward external port 16379 to local Redis port 6379
+netsh interface portproxy add v4tov4 listenport=16379 listenaddress=0.0.0.0 connectport=6379 connectaddress=127.0.0.1
+```
 
-## 🌐 Network & Port Conflicts (Windows/WSL2/Termux Mesh)
-
-When connecting standalone sub-nodes (e.g., Android devices running Termux) to a Redis backplane hosted on a Windows PC or WSL2 environment, you may experience connection timeouts or `Connection reset by peer` errors.
-
-### 1. Windows IP Helper Service Conflict (`iphlpsvc`)
-* **Problem**: The Windows IP Helper service (`iphlpsvc`) binds to port `6379` by default on all host network interfaces. If you attempt to use `netsh interface portproxy` to route external traffic on port `6379` directly to your local Redis instance, the connection will fail or be reset because traffic hits the Windows IP Helper service rather than Redis.
-* **Symptoms**:
-  - `Connection reset by peer` in `worker_lite.py` or other clients.
-  - Port `6379` appears listening on the host but does not serve Redis protocol payloads.
-* **Remediation**:
-  Use a different external port (e.g., `16379`) for port proxying, and forward it to your local Redis port `6379`:
-  ```powershell
-  # Forward incoming traffic on port 16379 to local Redis on port 6379
-  netsh interface portproxy add v4tov4 listenport=16379 listenaddress=0.0.0.0 connectport=6379 connectaddress=127.0.0.1
-  ```
-  Ensure you allow inbound traffic on port `16379` in your Windows Defender Firewall.
-  Then connect the worker using:
-  ```bash
-  python -m src.infrastructure.queue.worker_lite --redis-url redis://<YOUR_PC_IP>:16379/0
-  ```
-
-### 2. WSL2 vs Host Network Binding
-* **Problem**: If Redis is running inside a WSL2 container and you are using `localhost` or `127.0.0.1`, external network devices cannot reach it unless bridged or explicitly proxied.
-* **Remediation**: Ensure Redis binds to `0.0.0.0` or use the Windows host IP address with appropriate `netsh portproxy` rules to bridge the host OS Wi-Fi/Ethernet interface to the WSL2 virtual subnet.
-
+Connect the remote worker node:
+```bash
+python -m src.infrastructure.queue.worker_lite --redis-url redis://<HOST_IP>:16379/0
+```

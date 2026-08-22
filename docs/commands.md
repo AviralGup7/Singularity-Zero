@@ -1,158 +1,144 @@
-﻿# Commands Reference
+# Commands Reference
 
-This guide provides a reference for all CLI operations using the unified `cyber` command engine.
+This document provides a complete reference for all CLI operations, service management commands, and development utilities using the unified `cstp` command engine.
 
 ---
 
-## 🚀 Unified Runtime Commands (`cyber`)
+## 🚀 Unified CLI Engine (`cstp`)
 
-The system uses a centralized command engine `cyber` (installed via `pip install -e .`). You can also execute it directly via `python src/cli.py` or `python -m src.cli`.
+The command engine is installed via `pip install -e .` and provides the `cstp` CLI. You can also invoke it directly with `python -m src.cli`.
 
-### 1. Unified Local Launcher (Cockpit + Worker)
-Start the dashboard server and a background queue worker in a single process. This is the recommended command for local development:
+### 1. Unified Launcher (Dashboard + Worker)
+Spins up both the FastAPI operator cockpit and a background queue worker in a single process. Recommended for local operation:
 ```bash
-cyber launch --host 127.0.0.1 --port 8000 --concurrency 2 --queue security-pipeline
+cstp launch --host 127.0.0.1 --port 8000 --concurrency 2 --queue security-pipeline
 ```
 
-### 2. Pipeline Scans
-Trigger a security scan workflow directly from the command line:
-- **Full Scan**:
-  ```bash
-  cyber scan run --config configs/config.json --scope scope.txt
-  ```
-- **Dry-run (Validate only - no outbound traffic)**:
-  ```bash
-  cyber scan run --config configs/config.json --scope scope.txt --dry-run
-  ```
-- **Force Fresh Run (Ignore checkpoints)**:
-  ```bash
-  cyber scan run --config configs/config.json --scope scope.txt --fresh
-  ```
+### 2. Pipeline Scans (`cstp scan`)
+Execute automated vulnerability scans against configured target scopes:
+```bash
+# Standard scan
+cstp scan run --config configs/config.json --scope configs/scope.txt
 
-### 3. Dashboard Operations
-Start the FastAPI security orchestration dashboard separately:
-```bash
-cyber start dashboard --host 127.0.0.1 --port 8000 --workers 4 --log-level INFO
-```
-For development with auto-reload (single worker):
-```bash
-cyber start dashboard --host 127.0.0.1 --port 8000 --reload --log-level INFO
+# Validation dry-run (No outbound network traffic generated)
+cstp scan run --config configs/config.json --scope configs/scope.txt --dry-run
+
+# Force fresh run (Ignore prior checkpoints)
+cstp scan run --config configs/config.json --scope configs/scope.txt --fresh
 ```
 
-### 4. Distributed Workers
-Start a background distributed queue worker separately:
-- **Start Worker**:
+### 3. Service Lifecycle (`cstp start`)
+Manage individual distributed subsystem processes:
+
+- **Start Dashboard API**:
   ```bash
-  cyber start worker --queue security-pipeline --concurrency 2
-  ```
-- **Custom Worker ID**:
-  ```bash
-  cyber start worker --worker-id node-alpha-01
+  # Production multi-worker mode
+  cstp start dashboard --host 0.0.0.0 --port 8000 --workers 4 --log-level INFO
+
+  # Local development with hot-reload
+  cstp start dashboard --host 127.0.0.1 --port 8000 --reload --log-level DEBUG
   ```
 
-### 5. System Maintenance & Health
-- **Check Infrastructure Status** (Redis, Workspace, DB, Python Engine):
+- **Start Distributed Queue Worker**:
   ```bash
-  cyber system status
-  ```
-- **Environment & Config Doctor** (Verify dependencies, env vars, config integrity):
-  ```bash
-  cyber system doctor
-  ```
-  Exit codes: `0` = all checks passed, `2` = missing system binaries, `3` = `.env` file issues, `5` = config integrity failure.
-- **Automated Tool Setup** (Auto-detect platform and download Go binaries like `nuclei`, `httpx`, `subfinder` locally):
-  ```bash
-  cyber system setup
-  ```
-  Or specify a target folder:
-  ```bash
-  cyber system setup --dir /path/to/custom/bin
-  ```
-- **Clean Up Checkpoints & Artifacts**:
-  ```bash
-  cyber system cleanup --days 7
+  cstp start worker --queue security-pipeline --concurrency 4 --worker-id worker-node-01
   ```
 
-### 6. Custom Plugin Scaffolding
-Scaffold a new custom scanning plugin with clean absolute imports and automatic registration:
-- **Interactive Prompts Scaffolding**:
+### 4. System Maintenance & Health (`cstp system`)
+- **System Doctor** (Verifies Python environment, binary dependencies, and configuration integrity):
   ```bash
-  cyber plugin new
+  cstp system doctor
   ```
-- **Parameter Scaffolding**:
-  ```bash
-  cyber plugin new --name custom_scanner --category recon
-  ```
-  Options:
-  - `--name`: Name of the new plugin (alphanumeric/underscore).
-  - `--category`: Scaffolding category type (`recon`, `exploit`, `reporting`).
+  *Exit Codes: `0` = All checks passed, `2` = Missing system binaries, `3` = `.env` configuration error, `5` = Invalid configuration.*
 
-### 7. CI/CD Integration Flags
-All flags are accepted by `cyber scan run`, the `cyber-pipeline` legacy wrapper, and the
-`run_orchestrator` programmatic entry point. See [CI/CD Integration Guide](ci-cd-integration.md)
-for the full schema, exit-code table, and CI examples.
-- **Apply a declarative policy file**:
+- **Infrastructure Health Probes** (Inspects Redis, database connectivity, and worker slots):
   ```bash
-  cyber scan run --config configs/config.json --scope scope.txt --policy policy.toml
-  ```
-- **Incremental scan (re-crawl only URLs mapped to files changed since `--base-ref`)**:
-  ```bash
-  cyber scan run --config configs/config.json --scope scope.txt --incremental --base-ref origin/main
-  ```
-- **Override the detected branch** (used by `[on_findings] branch_glob`):
-  ```bash
-  cyber scan run --config configs/config.json --scope scope.txt --branch feature/login
-  ```
-- **Restore legacy single-exit-code behaviour** (collapses exit codes 2/3/4 → 1):
-  ```bash
-  cyber-pipeline --config configs/config.json --scope scope.txt --legacy-exit-codes
+  cstp system status
   ```
 
-| Flag | Effect |
-|------|--------|
-| `--policy PATH`        | Load a `policy.toml` file; defaults are conservative (≤5 high, ≤50 medium per run). |
-| `--incremental`        | Restrict the URL set to URLs mapped to files changed since `--base-ref`. |
-| `--base-ref REF`       | Git ref (branch/tag/commit) for the incremental diff baseline. |
-| `--branch NAME`        | Override the detected branch (auto-detected from `GITHUB_REF_NAME` / `CI_COMMIT_REF_NAME` / `BRANCH_NAME` / `CYBER_BRANCH`). |
-| `--legacy-exit-codes`  | Collapse 2/3/4 → 1 for backward compatibility with existing CI scripts. |
+- **Automated External Tool Setup** (Downloads and configures required binaries: `subfinder`, `httpx`, `nuclei`, `katana`, `gau`):
+  ```bash
+  cstp system setup --dir .tools/bin
+  ```
 
-Every run produces `<run_dir>/report.sarif` (SARIF 2.1.0) for native ingestion by GitHub
-Code Scanning, GitLab `artifacts.reports.sast`, and Azure DevOps SARIF tabs. Policy
-verdicts are emitted on the event bus as `INGRESS_POLICY_RESULT` events and persisted
-to `<run_dir>/policy_evaluation.json` for audit.
+- **Prune Old Artifacts & Checkpoints**:
+  ```bash
+  cstp system cleanup --days 7 --output-root output --keep-target-runs 2 --keep-launcher-runs 5
+  ```
+
+### 5. Plugin Scaffolding (`cstp plugin`)
+Scaffold new dynamic security analyzer plugins with pre-configured schemas and contracts:
+```bash
+cstp plugin new --name custom_header_audit --category recon
+```
 
 ---
 
-## 🛠️ Development & Debug
+## ⚙️ Advanced Pipeline Runtime Options (`python -m src.pipeline.runtime`)
 
-### Testing
-- **Run All Tests**: `pytest`
-- **Unit Tests**: `pytest tests/unit/`
-- **Integration Tests**: `pytest tests/integration/`
-- **Architecture Rules**: `pytest tests/architecture/`
+For CI/CD pipelines, headless runners, and automated orchestration:
 
-### Linting & Formatting
-- **Lint & Fix**: `ruff check . --fix`
-- **Format**: `ruff format .`
-- **Type Check**: `mypy .`
+```bash
+python -m src.pipeline.runtime \
+  --config configs/config.json \
+  --scope configs/scope.txt \
+  --policy policy.toml \
+  --incremental \
+  --base-ref origin/main \
+  --resume-from <checkpoint_run_id> \
+  --wal-replay replay \
+  --max-duration 3600
+```
 
-### Database (Alembic)
-- **Upgrade to Latest**: `alembic upgrade head`
-- **Downgrade to Base**: `alembic downgrade base`
-- **Generate Auto-Migration**: `alembic revision --autogenerate -m "description"`
+| Flag | Purpose | Default |
+|---|---|---|
+| `--config PATH` | Path to JSON pipeline configuration | Required |
+| `--scope PATH` | Path to target scope text file | Required |
+| `--policy PATH` | Path to `policy.toml` compliance policy gate | `None` |
+| `--incremental` | Re-scan only URLs and routes modified since `--base-ref` | `False` |
+| `--base-ref REF` | Git branch/commit ref used for incremental diffing | `origin/main` |
+| `--resume-from ID` | Resume execution from a previously persisted checkpoint ID | `None` |
+| `--wal-replay MODE`| Journal recovery mode: `verify`, `replay`, `dry-run` | `replay` |
+| `--max-duration SEC`| Wall-clock budget in seconds before graceful termination | `None` |
+| `--dry-run` | Validate DAG and contracts without issuing external probes | `False` |
+| `--legacy-exit-codes` | Normalize granular exit codes (2/3/4) to standard 1 | `False` |
 
 ---
 
-## 🐳 Docker
+## 🧪 Development, Quality & Test Commands
 
-- **Dev Environment**: `docker compose up --build`
-- **Optimized (Prod)**: `docker compose -f docker-compose.optimized.yml up --build`
+- **Run Test Suite**:
+  ```bash
+  pytest tests/unit/
+  pytest tests/integration/
+  pytest tests/architecture/
+  ```
+
+- **Code Formatting & Linting**:
+  ```bash
+  ruff format .
+  ruff check . --fix
+  ```
+
+- **Static Type Checking**:
+  ```bash
+  mypy src/
+  ```
+
+- **Database Migrations (Alembic)**:
+  ```bash
+  alembic upgrade head
+  alembic revision --autogenerate -m "add_table"
+  ```
 
 ---
 
-## 🔄 Legacy Entrypoint Wrappers
+## 🐳 Docker Deployment Commands
 
-For backward compatibility, individual legacy script wrappers remain available (defined in `pyproject.toml`):
-- **Pipeline Runner**: `cyber-pipeline` (aliases `cyber scan run`)
-- **Dashboard Server**: cyber-dashboard was removed; use `cyber start dashboard` directly
-- **Queue Worker**: `cyber-worker` (aliases `cyber start worker`)
+```bash
+# Standard Full-Stack Development Compose
+docker compose up --build
+
+# Production Optimized Composition
+docker compose -f docker-compose.optimized.yml up --build -d
+```

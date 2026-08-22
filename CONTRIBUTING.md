@@ -1,46 +1,69 @@
-# Contributing
+# Contributing Guidelines
 
-## Branch Naming Convention
+Thank you for contributing to the Cyber Security Test Pipeline. Please review these development conventions, branch naming patterns, and PR verification procedures.
 
-Use the existing convention: `type-subject-description`:
+---
 
-- `bug-audit-*` — bug fixes found during audit
-- `fix-modal-close-and-build-stale` — fixes
-- `feature-*` — new features
+## 🌿 Branch Naming & Commits
 
-## Feature Branches
+Use the conventional commit and branch format:
+- `feat/feature-name` — New scanning capabilities or UI features.
+- `fix/bug-description` — Fixes for identified bugs and regression issues.
+- `refactor/subsystem-name` — Code restructuring and performance optimizations.
+- `doc/topic-name` — Documentation improvements and guides.
 
-All feature work happens under `features/*` branches. After review they are merged into `main`.
+Commit messages must adhere to [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat(pipeline): add adaptive retry handler`).
 
-## Adding a New Page
+---
 
-1. **Create lazy route** in `App.tsx`:
-   ```tsx
-   const NewPage = lazy(() => import('./pages/NewPage'));
-   ```
-2. **Add RouteGuard** — wrap the route with the existing `ProtectedRoute` component.
-3. **Command palette entry** — add an item in `useCommandPaletteItems` or the `items` prop passed to `CommandPalette`.
-4. **i18n keys** — add `navigation.newPage` to `src/i18n/en/translation.json` and `src/i18n/es/translation.json`.
+## 🐍 Backend Quality Checklist
 
-## Health Checklist
-
-Before opening a PR, run:
+Before submitting a backend pull request, ensure all linters, type checks, and test suites pass:
 
 ```bash
-npm run health
+# 1. Format and lint
+ruff format .
+ruff check . --fix
+
+# 2. Type checking
+mypy src/
+
+# 3. Architecture boundaries and unit tests
+pytest tests/architecture/
+pytest tests/unit/
+pytest tests/integration/
+
+# 4. System doctor check
+cstp system doctor
 ```
 
-This runs:
-- `check:types` — TypeScript type-check without emit
-- `lint` — ESLint on all files
-- `check:copy-guard` — verify no forbidden phrases
-- `build` — full production build
-- `audit` — npm audit
-- `check:size` — size-limit analysis
+---
 
-## Code Conventions
+## 🎨 Frontend Quality Checklist
 
-- Use `@/` absolute imports instead of deep relative paths.
-- All API error messages live in `src/i18n/*/translation.json` — never hardcode user-facing strings.
-- Store methods (Zustand) must have JSDoc block comments.
-- Commits must follow [Conventional Commits](https://www.conventionalcommits.org/). Use `npm run cz` to be prompted.
+When modifying or adding frontend components in `frontend/`:
+
+```bash
+cd frontend
+
+# 1. Run type check
+npx tsc --noEmit
+
+# 2. Run linter
+npm run lint
+
+# 3. Run component tests
+npm run test
+
+# 4. Verify production build
+npm run build
+```
+
+---
+
+## 📄 Adding New Pages & Routes
+
+1. **Create Component**: Place your page in `frontend/src/pages/`.
+2. **Register Route**: Add lazy-loaded route definition in `frontend/src/App.tsx`.
+3. **Add Navigation Entry**: Update navigation items and command palette shortcuts in `frontend/src/components/layout/`.
+4. **Translations**: Add localization keys to `frontend/src/i18n/`.

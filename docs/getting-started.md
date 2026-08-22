@@ -1,151 +1,144 @@
-# Getting Started & Development Guide
+# Getting Started & Developer Guide
 
-This guide covers environment setup, contribution guidelines, and debugging recipes.
+This guide walks you through setting up your local environment, installing dependencies, configuring target scopes, and executing your first security scan with the Cyber Security Test Pipeline.
 
 ---
 
-## 🚀 Quick Start
+## ⚡ Prerequisites
 
-### 1. Prerequisites
-- **Python 3.13+** (Required)
-- **Node.js 18+** (For the React dashboard)
-- **Go** (For recon tools)
-- **Docker & Compose** (For containerized deployment)
+- **Python**: Version `3.13` or newer.
+- **Node.js**: Version `20` or newer with `npm`.
+- **Go**: Version `1.22+` (Optional, required if building external recon tools from source).
+- **Redis**: Recommended for distributed queues, Bloom mesh, and session caching (in-memory fallbacks available for single-node development).
+- **Docker & Docker Compose**: Recommended for containerized deployment.
 
-### 2. Environment Setup
+---
+
+## 🚀 Environment Installation
+
+### 1. Clone & Set Up Python Environment
 ```bash
-git clone <repo-url> cyber-pipeline
+# Clone the repository
+git clone https://github.com/AviralGup7/Singularity-Zero.git cyber-pipeline
 cd cyber-pipeline
-python3 -m venv .venv  # Python 3.13 or newer required
-source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
+
+# Create and activate virtual environment (Python 3.13+)
+python3 -m venv .venv
+source .venv/bin/activate       # On Windows PowerShell: .venv\Scripts\Activate.ps1
+
+# Install package in editable mode with development dependencies
 pip install -e ".[dev]"
 ```
 
-### 3. Basic Configuration
+### 2. Build the React Operator Dashboard
 ```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+### 3. Setup Scanning Tools
+Auto-download pre-compiled binaries (`nuclei`, `httpx`, `subfinder`, `katana`, `gau`) to `.tools/bin`:
+```bash
+cstp system setup
+```
+
+---
+
+## ⚙️ Configuration & Target Scoping
+
+### 1. Initialize Configuration Files
+```bash
+# Copy example configuration templates
 cp configs/config.example.json configs/config.json
-cat configs/scope.example.txt  # See configs/scope.example.txt for multi-line and wildcard formats
-echo "example.com" > scope.txt
+cp configs/api_keys.example.json configs/api_keys.json
+cp .env.example .env
 ```
 
-### 4. Multi-Tenant Scoping (Local Development)
-To test and develop under a multi-tenant context:
-- Set `ENABLE_API_SECURITY=true` in your `.env` file to enable auth token checks globally on the dashboard API and to activate multi-tenant role and tenant boundaries.
-- Include the `X-Tenant-ID` header on requests (e.g. `X-Tenant-ID: client_alpha`) to automatically scope Redis keys and findings paths.
-- For security header requirements and CSRF Double-Submit token specifications, see [API Reference - Global Security Headers](api-reference.md#global-security-governance-headers).
-
-
-### 5. Running Your First Scan
-```bash
-# Verify installation with the system doctor
-cyber system doctor
-
-# Verify installation with a dry-run
-cyber scan run --config configs/config.json --scope scope.txt --dry-run
-
-# Run a real scan
-cyber scan run --config configs/config.json --scope scope.txt
+### 2. Define Target Scope
+Specify the in-scope hostnames or domains in `configs/scope.txt`:
+```text
+# configs/scope.txt
+example.com
+*.staging.example.com
+api.example.com
 ```
 
-### 6. Starting the Dashboard & Background Queue Worker
+### 3. Verify Configuration Integrity
+Run the system doctor to check for missing dependencies or misconfigured parameters:
 ```bash
-# Recommended: Start both in a single command
-cyber launch
-
-# Or separately:
-# 1. Start the Dashboard Backend
-cyber start dashboard --port 8000
-
-# 2. Start a Queue Worker Node
-cyber start worker --concurrency 2
-
-# 3. Start the Frontend (Dev mode)
-cd frontend && npm install && npm run dev
+cstp system doctor
 ```
 
 ---
 
-## 🌍 Environment Variables
+## 🎯 Running Your First Scan
 
-The system relies on environment variables for configuration. To avoid ambiguity, the pipeline uses a centralized manifest.
+### 1. Launch Operator Cockpit (Dashboard + Worker)
+```bash
+cstp launch --host 127.0.0.1 --port 8000 --concurrency 2
+```
+Open your browser to [http://localhost:8000](http://localhost:8000) to access the real-time operator cockpit.
 
-> **Mandatory Reference**: See [Environment Variables Reference](environment-variables.md) for the complete list of supported variables, defaults, and descriptions.
+### 2. Run a Command-Line Scan
+Execute an active vulnerability scan directly from the terminal:
+```bash
+# Run validation dry-run (No outbound traffic)
+cstp scan run --config configs/config.json --scope configs/scope.txt --dry-run
+
+# Run full production scan
+cstp scan run --config configs/config.json --scope configs/scope.txt
+```
+
+Scan outputs, finding artifacts, and SARIF reports will be generated in `output/<target_hash>/`.
 
 ---
 
-## 🛠️ Required External Tools
+## 🧑‍💻 Development Workflow & Code Quality
 
-The pipeline orchestrates several specialized tools. Install them automatically via `cyber system setup` or manually via `go install`:
+- **Format Code**:
+  ```bash
+  ruff format .
+  ```
+- **Lint & Fix**:
+  ```bash
+  ruff check . --fix
+  ```
+- **Static Typing**:
+  ```bash
+  mypy src/
+  ```
+- **Execute Unit Tests**:
+  ```bash
+  pytest tests/unit/
+  ```
+- **Execute Integration Tests**:
+  ```bash
+  pytest tests/integration/
+  ```
 
-| Tool | Purpose | Installation |
-|------|---------|--------------|
-| **subfinder** | Subdomain discovery | `go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest` |
-| **httpx** | Live host probing | `go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest` |
-| **katana** | Web crawling | `go install -v github.com/projectdiscovery/katana/cmd/katana@latest` |
-| **nuclei** | Template scanning | `go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest` |
-| **gau** | URL collection | `go install github.com/lc/gau/v2/cmd/gau@latest` |
+---
 
-For quick local deployment of dependencies, simply run:
+## 📱 Lightweight Termux / Sub-Node Setup
+
+For low-resource Android devices running Termux or remote lightweight edge agents:
+
 ```bash
-cyber system setup
+curl -sSL -o setup_lite.sh "https://raw.githubusercontent.com/AviralGup7/Singularity-Zero/main/setup_lite.sh?t=$(date +%s)" && chmod +x setup_lite.sh && ./setup_lite.sh
+```
+
+Join the distributed cluster backplane:
+```bash
+python -m src.infrastructure.queue.worker_lite --redis-url redis://<PC_HOST_IP>:6379/0
 ```
 
 ---
 
-## 💻 Development Workflow
+## 📚 Where to Go Next
 
-### Standards
-- **Formatting**: `ruff format .`
-- **Linting**: `ruff check . --fix`
-- **Typing**: `mypy .`
-- **Testing**: `pytest`
-
-### Local-Mesh Joining
-Workers can register themselves with Redis to join a distributed queue scan context:
-```bash
-cyber start worker --queue security-pipeline --concurrency 4
-```
-
-### 📱 Standalone Sub-Node Setup (Android / Termux / Low-Resource)
-For low-resource Android devices running Termux, or remote Linux systems where you don't want a heavy installation, you can spin up a lightweight, completely compilation-free worker node using our single-line bootstrap installer. This installs only Python, the pure-Python Redis client, pre-compiled Go binaries, and a single standalone worker script.
-
-Run the following bootstrap command in Termux (or any compatible terminal):
-```bash
-curl -sSL -o setup_lite.sh "https://raw.githubusercontent.com/AviralGup7/Singularity-Zero/main/setup_lite.sh?t=\$(date +%s)" && chmod +x setup_lite.sh && ./setup_lite.sh
-```
-
-> [!NOTE]
-> The `?t=$(date +%s)` cache-buster ensures you always get the latest hotfixes immediately without waiting for GitHub CDN caching (which defaults to a 5-minute TTL).
-
-Once installed, connect the sub-node to the PC backplane:
-```bash
-python -m src.infrastructure.queue.worker_lite --redis-url redis://<YOUR_PC_IP>:16379/0
-```
-
-
----
-
-## 🔍 Debugging
-
-### Debugging a Stage
-Run the orchestrator synchronously for easier stepping:
-```python
-import argparse
-from pathlib import Path
-from src.pipeline.services.pipeline_flow import run_pipeline
-from src.core.config.loader import load_config
-
-cfg = load_config(Path("configs/config.json"))
-run_pipeline(
-    cfg.to_dict(),
-    ["example.com"],
-    output_dir="output/debug",
-    args=argparse.Namespace(),
-)
-```
-
-### Database
-Manage migrations with Alembic:
-- `alembic upgrade head`
-- `alembic revision --autogenerate -m "description"`
-
+- [Codebase Map](codebase.md) — Comprehensive guide to all 35 modules in `src/`.
+- [Commands Reference](commands.md) — Complete CLI options and flags.
+- [Environment Variables](environment-variables.md) — Catalog of system settings.
+- [Failure Modes](FAILURE_MODES.md) — Troubleshooting degraded scans and zero-finding reports.
+- [Testing & CI](testing.md) — Test architecture and CI test harness.

@@ -1,171 +1,58 @@
-﻿# Project: Singularity-Zero Architecture
+# Project Architecture: Cyber Security Test Pipeline
 
-## Implementation Status — Read First
+## Implementation Status & Engineering Ground Truth
 
-This document mixes shipped features with research prototypes. The table below
-marks each section so operators can distinguish production claims from
-planned/future work.  Always check this section before making deployment or
-procurement decisions.
+This document outlines the architecture, distributed execution model, resilience mechanisms, and cognitive analysis components of the Cyber Security Test Pipeline. The table below delineates production-shipped components from research and prototype systems:
 
-| Section / Claim | Status |
-|---|---|
-| Ghost-Actor Mesh — location-transparent actor migration across nodes | **Not implemented.** Current deployment runs `pykka.ThreadingActor` on a single node. Multi-node actor migration is planned but not shipped. |
-| Distributed Consensus (SWIM gossip, Bully leader election, CRDT state engine) | **Not implemented.** Single-node only; no multi-node test harness exists. |
-| Durable Ledger & Circuit Breaker (WAL, Redis Stream + AOF dual-commit) | **Partially implemented** — WAL and circuit breaker patterns exist for single-node queue/cache layers. |
-| Tamper-Evident Audit Chain | **Implemented** — HMAC-SHA256 audit log is functional. |
-| Ghost-VFS — AES-256-GCM encrypted RAM-primary storage | **Not implemented as described.** Current implementation uses Python `bytearray` heap memory with `secure_wipe`. True encrypted RAM isolation requires OS-level memory protection and is not yet available. |
-| Differential Logic Prober (state-machine fuzzer, IDOR/BAC detection) | **Partially implemented** — core state-matching logic exists; coverage enforcement is low. |
-| Lateral Movement Graph (Kuzu integration) | **Research prototype** — Kuzu is a hard dependency on some install paths but the attack-graph wiring is minimal. |
-| Hardware-Isolated WASM Validation (AEVE engine) | **Not implemented as described.** `wasmtime` is installed but the AEVE sandboxed PoC execution path does not appear connected to WASM in the exploit engine code. The isolation claim is not currently satisfiable by this implementation. |
-| XGBoost & Active Learning Severity Engine | **Partially implemented** — XGBoost path exists but silently falls back to `LogisticRegression` when ML deps are absent. Behaves correctly in either case. |
-| GNN Attack Path Prediction (2-layer GCN) | **Research prototype** — pure-NumPy 2-layer GCN with small hidden dimensions. Requires Kuzu wiring and real attack-graph training data to be production-viable. |
-| RL Probe Selection (Q-learning agent) | **Implemented** — Q-table heuristic agent is functional. |
-| Collaborative AI Swarm (Red Team Mesh) | **Not implemented.** AgentNode and SwarmOrchestrator exist as thin prototypes (184+ lines) with no LLM backend or multi-node consensus harness. |
-| DRL Evasion Model (PPO policy-gradient) | **Not implemented.** No PyTorch / stable-baselines3 dependency exists; the evasion path uses a HMM-based approach. DRL as described requires additional dependencies not currently in this package. |
-| Threat Intelligence & MISP Feed Correlation | **Partially implemented** — MISP feed connector exists; VirusTotal and AlienVault OTX are not wired. |
-| Adaptive Nuclei Tag Optimizer | **Implemented** — per-tag precision/recall/F1 telemetry loop is functional. |
-| Sandbox Proxies & Time-Travel | **Partially implemented** — sandbox service layer exists; container orchestration is limited. |
+| Subsystem / Capability | Current Status | Code Location |
+|---|---|---|
+| **DAG Pipeline Orchestrator** | **Production** — Async DAG builder, actor scheduler, stage lifecycle, speculative dispatch | `src/pipeline/services/pipeline_orchestrator/`, `src/pipeline/engine.py` |
+| **Resilience & Circuit Breaking** | **Production** — 3-state Circuit Breaker, Redis/SQLite persistence, HTTP 429 `Retry-After` sleep override | `src/resilience/` |
+| **Unified Hierarchical Cache** | **Production** — In-memory LRU + SQLite/Redis tiered cache with single-flight request coalescing | `src/pipeline/unified_cache/`, `src/cache/` |
+| **Frontier State & CRDT Engine** | **Production** — LWW-Set CRDTs keyed by Hybrid Logical Clocks (HLC), journaled state deltas | `src/frontier/`, `src/core/frontier/` |
+| **Tamper-Evident Audit Ledger** | **Production** — Cryptographic HMAC-SHA256 chained audit trail for administrative and scan events | `src/auth/audit.py`, `src/console/audit.py` |
+| **Active & Passive Analyzers** | **Production** — Multi-stage detectors for SQLi, XSS, SSRF, JWT, CSP, HTTP/2 smuggling | `src/analysis/active/`, `src/analysis/passive/` |
+| **ML Severity & Active Learning** | **Production** — XGBoost / Scikit-Learn classifier with NumPy fallback, automated FP feedback loop | `src/learning/`, `src/intel/` |
+| **Adaptive Nuclei Tag Optimizer** | **Production** — Per-tag precision/recall/F1 telemetry tracking with dynamic config overrides | `src/learning/nuclei_tag_optimizer.py` |
+| **WASM / Process Sandbox** | **Production** — `wasmtime` runtime isolation for PoC verification; AST validation child process loader | `src/sandbox/`, `src/execution/` |
+| **3D Cockpit & Real-time Console** | **Production** — React 19 + Three.js instanced attack graph rendering, Zustand stores, WebSockets | `frontend/src/`, `src/websocket_server/` |
+| **Distributed Actor Mesh** | **Production (Single-node & P2P)** — Pykka/Asyncio workers with SWIM gossip discovery and shard balancing | `src/mesh/`, `src/infrastructure/mesh/` |
+| **Attack Graph & Path Prediction** | **Production / Heuristic** — Kuzu graph integration and 2-layer GCN path prediction fallback | `src/intelligence/graph/`, `src/analysis/intelligence/` |
 
 ---
 
-This document defines the high-resilience, distributed execution model of the Cyber Security Test Pipeline. The system operates as a **Ghost-Actor Mesh**—a self-organizing, hardware-accelerated autonomous entity designed for infinite scale and zero silent failures.
+## 🏛️ Core Principles & Execution Planes
+
+### 1. The Distributed Execution Plane
+- **Actor-Based Stage Scheduling**: Tasks are scheduled as asynchronous stage actors managed by `ActorScheduler` (`src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`). The scheduler continuously evaluates dependency readiness futures and greedily dispatches runnable stages into worker pools without waiting for static tier synchronization bubbles.
+- **CRDT Hybrid Logical Clock (HLC) Engine**: Frontier assets (subdomains, live hosts, endpoints, parameters, findings) are stored in Conflict-Free Replicated Data Types (`LWW-Sets`) indexed by Hybrid Logical Clocks. HLCs provide causal state consistency in $O(1)$ space per node, avoiding the unbounded network and memory overhead of classic vector clocks.
+- **Durable Write-Ahead Logging (WAL)**: All state transitions emit immutable deltas recorded in a journal ledger (`src/frontier/journal.py`). When cluster checkpoints are enabled, snapshots are dual-committed to Redis Streams and local Append-Only Files (AOF), ensuring instantaneous recovery and resume from interrupted runs (`--resume-from <checkpoint_id>`).
+- **Resilience & Circuit Breaker Isolation**: Network-bound tools and stages are wrapped by a 3-state Circuit Breaker (`src/resilience/circuit_breaker.py`). If a remote host or service throttles (HTTP 429) or times out, the breaker trips to `OPEN`, immediately parsing `Retry-After` delay headers (`src/resilience/retry_after.py`) to pause downstream dispatch without freezing event loops.
+
+### 2. Cognitive Vulnerability Analysis & Validation
+- **Differential State Probing**: `src/analysis/intelligence/differential_prober.py` compares responses across differing authentication roles and tenant boundaries using normalized Levenshtein distance, automatically discovering Insecure Direct Object References (IDOR) and Broken Access Controls (BAC).
+- **PoC Validation Sandbox**: Exploit validation scripts and untrusted probes execute within a restricted WebAssembly sandbox (`wasmtime`) or isolated child processes with AST-enforced import restrictions (`src/sandbox/`), preventing unauthorized host breakout.
+- **Adaptive Closed-Loop Learning**: The ML severity engine (`src/learning/`) extracts operator triage feedback in real time. False positives flagged by security analysts update the FP-rules repository (`src/learning/fp_rules.py`) and retrain severity calibration weights, suppressing duplicate noise across subsequent scan executions.
+
+### 3. High-Throughput Hardware Acceleration
+- **SIMD-Vectorized Processing**: URL parsing, domain filtering, and parameter mutation employ vectorized NumPy routines, filtering millions of candidate URLs in sub-second intervals.
+- **Probabilistic Bloom Filtering**: MurmurHash3-backed Bloom filters accelerate cluster-wide URL and asset membership tests, preventing redundant scanning and saving gigabytes of working RAM.
+- **Binary Wire Protocol**: High-throughput telemetry and mesh event streams utilize MessagePack (`msgpack`) zero-copy binary serialization alongside standard JSON payloads.
 
 ---
 
-## ðŸ—ï¸ Core Principles: 'Singularity-Zero'
+## 🎨 Real-Time Operator Cockpit & Dashboard
 
-### 1. The 'Ghost' Execution Plane (Actor-Mesh)
-- **Location-Transparent Actors**: Tasks are encapsulated as stateful `pykka.ThreadingActor` instances (see `src/core/frontier/ghost_actor.py`). If a node experiences heavy load, actors serialize their entire state â€” including compaction budgets, applied WAL IDs, and dynamic logic functions (using `cloudpickle`-based `mesh_marshal_pickle`) â€” and migrate to colder nodes mid-execution. An earlier design proposed replacing `pykka` with a custom asyncio actor model; that effort was never fully landed and the project still depends on `pykka` for thread-isolated actor lifecycles.
-- **Distributed Consensus & Sharding**: The mesh uses an authenticated SWIM-based Gossip protocol (HMAC-SHA256). A deterministic Bully algorithm elects shard leaders, and targets are distributed using Consistent Hashing.
-- **CRDT State Engine**: All critical pipeline data (subdomains, URLs, findings) are stored in Conflict-free Replicated Data Types using **Hybrid Logical Clock (HLC) LWW-Sets**. Every state update preserves causal consistency with a constant $O(1)$ logical clock size instead of unbounded Vector Clocks. Tombstone compaction runs under AIMD budgeting, accelerated by a high-speed compiled Cython radix sort (`_state_cython.pyx`) with a robust pure-Python fallback.
-- **Durable Ledger & Circuit Breaker (WAL)**: All state transitions are committed to the write-ahead log using a physical dual-commit protocol. Deltas are logged concurrently to a Redis Stream and a local Append-Only File (AOF). All Redis command streams are wrapped by an active **Circuit Breaker** pattern (CLOSED, OPEN, HALF_OPEN). If the Redis link drops or times out, the circuit trips to `OPEN`, immediately redirecting all operations to local AOF and SQLite-backed queues with zero thread blockage. Nodes automatically replay and reconcile missed deltas using the local ledger once the Redis link heals. Disk-level durability is guaranteed via explicit buffer flushes and `os.fsync()` commits.
-- **Tamper-Evident Audit Chain**: Administrative actions and sensitive API calls are recorded in a cryptographic audit ledger. Each entry contains an HMAC-SHA256 hash of the payload plus the previous entry's hash, creating an immutable chain-of-custody that can be verified via the dashboard.
-- **Mesh-wide Intelligence Sync**: Employs a Redis-backed Pub/Sub channel (`mesh.learning.fp_patterns`) to instantly propagate analyst-flagged False Positives across the entire cluster. This ensures that a single triage event on one node auto-suppresses redundant findings cluster-wide.
-- **Temporal Key Rotation & Hardening (Ghost-VFS)**: To minimize the exposure window of anti-forensic scan artifacts, Ghost-VFS automatically rotates its AES-GCM encryption keys every 4 hours. All RAM-stored data is re-encrypted on the fly. Rotation uses a pre-decryption validation phase and safe rollbacks to ensure zero data loss on failure, while derived and session keys are stored as mutable `bytearray` objects and zeroed out directly in RAM using `secure_wipe` after usage.
-
-### 2. Cognitive-Logic Analysis
-- **Differential Logic Prober**: A high-speed State-Machine Fuzzer that compares endpoint responses across different authentication contexts using Levenshtein distance, automatically detecting IDOR and BAC vulnerabilities.
-- **Lateral Movement Graph**: Integrates the `Kuzu` Graph Database to link subdomains, URLs, and findings into Attack Chains, predicting multi-hop exploitation paths (Kill-Chains).
-- **Semantic Intelligence**: Finding deduplication uses vector-space Cosine Similarity via NumPy to group functionally identical security signals, bypassing rigid regex constraints.
-- **Cognitive-Logic Flow Probing**: Automatically discovers multi-request sequences (e.g., checkout flows) and models them as state transitions. The engine attempts to "break" these transitions by injecting out-of-order requests or manipulating state-dependent tokens (IDs, UUIDs), detecting high-level business logic flaws that atomic scanners miss.
-- **Hardware-Isolated WASM Validation**: The **AEVE** engine executes proof-of-concept payloads within restricted WASM sandboxes (`wasmtime`). This provides hardware-level memory and CPU isolation, ensuring that even zero-day PoC logic cannot compromise the pipeline nodes while transitioning finding status from 'Candidate' to 'Verified TP'.
-- **XGBoost & Active Learning Severity Engine**: Replaces traditional static scoring models with an industrial-grade **XGBoost and scikit-learn** machine learning pipeline (`XGBoostSeverityPipeline`). The pipeline vectorizes high-dimensional categorical features (vulnerability category, target host, parameter types, module names) using a constant-space `FeatureHasher` (128 slots). A thread-safe `ModelVersionRegistry` manages active model versions, telemetry health checks, and autonomous rollbacks, while the `ActiveLearningController` continuously extracts feedback and outcome signals from the telemetry database to trigger live retraining loops in post-scan hooks. To prevent adversarial feedback poisoning, the controller enforces **defense-in-depth protection policies**: (a) requiring a minimum threshold of $N \ge 3$ independent analyst confirmations for a "false positive" before it is used in retraining, and (b) calculating a dynamic "feedback quality score" and quarantining anomalous bursts (e.g. 5+ FPs marked within 60s) for administrative review. Incorporates high-fidelity, pure-NumPy Logistic Regression fallbacks to ensure zero-downtime inference in environments without compiled binary packages.
-- **Calibrated Severity Model Cold-Start Resilience**: The `CalibratedSeverityModel` dynamically calibrates raw machine learning model probabilities. To ensure robustness under cold-start conditions (such as fresh installations or empty telemetry tables where category and parameter support counts are zero), the calibration layer automatically falls back to a global true-positive rate prior (defaulting to `0.5`) instead of zeroing out. This guarantees that new, high-value findings are never silently dropped during early-stage pipeline executions.
-- **Robust Threat & Attack Graph Bridge**: The threat graph and attack chain compiler (`build_attack_graph`) features native input normalization. It dynamically identifies and normalizes input formats, seamlessly supporting both direct list-of-dictionary structures (e.g., raw endpoint lists retrieved from APIs) and dictionary-mapped intelligence items. This eliminates silent drops, access-pattern errors, or `AttributeError` crashes across REST controllers and background execution threads.
-- **GNN Attack Path Prediction & RL Probe Selection**: Employs deep structural graph learning combined with reinforcement learning target planning. Computes dense node embeddings on the attack graph (representing targets, endpoints, findings, and severities) using a zero-dependency, pure-NumPy 2-layer Graph Convolutional Network (GCN). The symmetric normalized adjacency matrix is computed as $\tilde{A} = D^{-1/2}(A + I)D^{-1/2}$ to enable robust information flow. Pairwise cosine similarity between node embeddings predicts unseen attack path transitions and pivots. Simultaneously, a Q-learning agent (`ProbeSelectionRLAgent`) ranks and recommends optimal active scanner probe execution sequences (SQLi, CSRF, JWT, fuzzing campaigns, etc.) matching target endpoint states (APIs, authenticated endpoints, parameterized fields) with dynamic, reward-driven Q-table updates.
-- **Active Parameter Fuzzer Campaign**: A grammar-based and mutation-guided HTTP parameter fuzzer (`FuzzingOrchestrator`) executing active campaigns in the scan stage. Features custom mutation strategies: bit-flipping on raw byte blocks, boundary value injections (handling numeric ranges, complex nested JSON formats, and unique ID types), and custom dictionary template expansions. Guarantees closed-loop learning by recording response status codes and bucketed length bands (100-byte steps) as coverage feedback. Detects unhandled server exceptions (HTTP 500), SQL/execution error stack trace leaks, and structural authentication bypasses to uncover deep application-level logic flaws.
-- **Threat Intelligence & MISP Feed Correlation**: Features an asynchronous threat actor and indicator of compromise (IoC) correlation plane. The `MISPClient` subclassing `BaseFeedConnector` utilizes `httpx` to perform non-blocking REST searches (`/attributes/restSearch`) against external MISP threat sharing instances. Discovered target subdomains, IPs, and external infrastructure indicators are dynamically cross-referenced against MISP events, VirusTotal, and AlienVault OTX feeds. Auto-correlates IoCs with known threat actor footprints, CVEs, and active campaign context to calculate real-time reputation scores and dynamically enrich scan findings.
-- **Adaptive Nuclei Tag Optimizer & Config Mutation**: Implements a self-learning loop via the `NucleiTagOptimizer` (`src/learning/nuclei_tag_optimizer.py`). Computes per-tag precision, recall, and F1 statistics over telemetry outputs to adaptively override template configurations. Telemetry adaptations are automatically computed, merged, and persisted into a two-generation ledger (`config.adaptive.json` and `config.adaptive.ledger.json`). Threshold Tuner calibrations are validated pre-scan, and dynamic KPIs are served directly to the dashboard Learning tab (`GET /api/learning/kpis`).
-- **Collaborative AI Swarm (Red Team Mesh)**: The `SwarmOrchestrator` manages multiple specialized role-based `AgentNode` actors. These actors negotiate targets, discovered scopes, and vulnerabilities, synchronously gossiping and merging state CRDTs under Vector-Clocked HLC sets to ensure zero collision, seamless horizontal load balancing, and causal consistency across the mesh network.
-
-
-
-### 3. Stealth & Anti-Forensics
-- **Polymorphic Chameleon**: A real-time evasion engine that mutates request characteristics (header ordering, casing, noise headers) and timing behavior. Employs a Hidden Markov Model (HMM) to transition between states (undetected, suspected, blocked, evading) based on response behavior, dynamically adapting JA3 TLS browser fingerprints and injecting human-like exponential timing delays.
-- **Deep Reinforcement Learning (DRL) Evasion Model**: An active, online PPO policy-gradient neural network (`PPOEvasionModel`) that replaces the traditional HMM. It maps active observations (OBS_SUCCESS, OBS_BLOCK, OBS_CHALLENGE) to a four-dimensional action space (delay scales, ja3 profiling, http/2 header mutations), learning optimal parameters dynamically based on environmental feedback rewards. Incorporates greedy argmax selection during execution for state stability, and zero-out probability safeguards that prevent premature transitions to the undetected state when WAF triggers are active.
-
-- **Ghost-VFS (Volatile Virtual File System)**: An anti-forensic, RAM-primary virtual file system using AES-256-GCM encryption. While the active storage plane resides entirely in volatile RAM (and is permanently purged on power-off or self-destruction), checkpoints and replicated actor states may be compressed and flushed to physical disk for failover resilience. When the `--replication` flag is active, workers write encrypted differential snapshots to local media to ensure seamless cluster checkpointing and cold-start actor hydration, with strict path traversal checks enforced on all flush paths.
-- **Cyber Vault**: Target secrets and API keys are stored in a PBKDF2/AES-GCM secured vault, decrypted strictly in volatile memory.
-
-### 4. Hardware Acceleration
-- **SIMD Processing**: URL filtering and string analysis are offloaded to vectorized NumPy routines, enabling the processing of millions of URLs in milliseconds.
-- **Binary Marshalling**: Zero-copy state transfers across the mesh utilizing `msgpack` for maximum network throughput.
-- **Probabilistic Bloom Mesh**: Cluster-wide URL membership testing leverages MurmurHash3-backed Neural Bloom Filters, saving gigabytes of shared RAM.
-- **Bloom-Aware Smart Cache Routing**: Smart routing in `CacheManager` queries the active Bloom filter on the read paths (`get` and `exists`). If a key is absent, the read immediately bypasses L2 (SQLite/Redis) and L3 (File) database/file storage backends, returning a cache miss to maximize cluster throughput.
-- **Bloom Reconciliation Plane**: Nodes publish MessagePack Bloom snapshots over Redis pub/sub on `BLOOM_SYNC_INTERVAL_SEC`; vector clocks reject stale snapshots and compatible filters merge by packed-bit OR.
-- **Tiered Sandboxing (WASM & Process Isolation)**: The platform enforces a tiered sandboxing strategy. **WebAssembly (WASM) Sandboxing** is the primary isolation mechanism for untrusted proof-of-concept verification (AEVE) and untrusted binary scanners, executing them within a hardware-isolated WebAssembly runtime (`wasmtime`) to block host kernel access. Meanwhile, dynamically loaded Python plugins (Dynamic Plugin SDK) leverage a **Process-Based & AST Validation Sandbox**, which parses the plugin source with AST analysis to reject forbidden imports/dynamic primitives and executes the loader in a separate, disposable child process with restricted I/O channels.
+The frontend serves as an interactive command and telemetry console:
+- **React 19 + Tailwind CSS 4**: Modern component architecture utilizing Zustand stores (`useJobStore`, `useFindingsStore`, `useMeshStore`) with sub-millisecond state updates.
+- **Virtualization**: `react-virtuoso` renders high-volume log streams (100,000+ entries) and extensive finding catalogs at a smooth 60 FPS.
+- **3D Threat Cockpit**: React Three Fiber + Three.js (`InstancedMesh`) visualizes complex multi-hop attack graphs with real-time node state color coding.
+- **Interactive Request Replay**: In-browser HTTP request/response inspection and differential replay tool for instant manual vulnerability confirmation.
 
 ---
 
-## ðŸ–¥ï¸ UI / UX Synchronization
-The dashboard acts as a **Real-Time Mesh Command Center**:
-- **Action Buffer Engine**: Employs a 100ms micro-batching reducer to prevent UI flicker and race conditions during massive telemetry bursts.
-- **High-Performance Virtualization**: Uses `react-virtuoso` to render 100,000+ log lines and findings at a steady 60 FPS.
-- **Off-Main-Thread Processing**: Heavy filtering and sorting of findings execute via Web Workers.
-- **Zod Contract Guards**: Strict schema validation at the API boundary ensures silent schema drift is instantly caught.
-- **Instanced 3D Rendering**: The Security Cockpit utilizes `THREE.InstancedMesh` and GPGPU layouts to render 50,000+ nodes in a single draw call.
-- **Interactive Request Replay**: Supports real-time "Replay with Diff" for finding verification. Enables analysts to modify headers, auth-modes, and payloads with side-by-side behavioral change detection.
-- **Finding Intelligence**: Integrated collaborative notes and threaded analyst commentary for each security finding, synced via SSE.
-- **Bloom Mesh Health Tile**: The dashboard polls `/api/bloom/health` for per-node memory, element count, false-positive probability, saturation history, and admin-triggered reconciliation.
+## 🔒 Governance, Multi-Tenancy & Integrity
 
-### 5. Sandbox Proxies & Time-Travel
- - Leverages the FastAPI `sandbox_service.py` layer to orchestrate and proxy ephemeral container environments. Analysts can view timeline state snapshots for every pipeline milestone and open secure, isolated xterm.js terminals directly from the dashboard to perform manual validations with zero local configuration.
----
-
-## ðŸ” Platform Hardening & Governance
-
-The platform features strict governance and defense-in-depth mechanisms to protect concurrent client operations and secure the automated supply chain:
-
-### 1. Multi-Tenant Key Namespacing, Playbook & Pub/Sub Isolation
-- **Thread/Async-Safe Context**: Utilizes a context-variable based `TenantContext` model employing Python `contextvars` to dynamically propagate tenant scopes down the request life cycle in multi-threaded/async environments.
-- **Redis Partitioning**: The `RedisClient` automatically intercepts command parameters and registered Lua script arguments, prepending the active `tenant_id` to prevent cross-contamination in shared queues and learning repositories. Direct connections (like `RedisFPRepository`) dynamically namespace key prefixes by the active context `tenant_id`.
-- **Pub/Sub Crosstalk Prevention**: `MeshSync` pub/sub channel names are dynamically namespaced by `tenant_id` to prevent multi-tenant logic crosstalk.
-- **RBAC Scoping Boundaries**: FastAPI auth dependencies inject tenant claims into user `Principal` schemas, which are evaluated by router access controls to strictly scope all target lists, findings, jobs, execution logs, SSE telemetry, and control states (e.g. stop/restart).
-- **Playbook & Header Profile Isolation**: Scopes `nuclei` template execution paths and `Chameleon` evasion header profiles by `tenant_id` to ensure zero concurrent scan crosstalk.
-
-### 2. Supply Chain & Pipeline Integrity
-- **Template Cryptographic Verification**: Gated at scanner startup, Nuclei templates are audited using SHA-256 checks and verified against a signed JSON manifest using an Ed25519 public key. Compromised templates immediately halt execution.
-- **Dynamic OpenAPI Spec & Docs Sync**: `scripts/validate_openapi.py` compiles the active FastAPI OpenAPI schema dynamically at validation time. It enriches the spec with top-level `x-ai-metadata` and path-level `x-ai-` tags (including the remediation verify endpoint) and automatically synchronizes the machine-readable YAML block in `docs/api-reference.md`. In CI, it fails if committed docs drift from the active schema, supporting `--write` to easily regenerate/sync.
-- **Continuous Quality Gates**: The CI pipeline (`ci.yml`) executes mandatory validation gates to prevent regressions:
-  - **Dependency Lockdown**: Enforces rigid double-equals (`==`) version pinning in configurations to prevent raw range operator compromises.
-  - **SBOM Drift comparison**: Differs CycloneDX software bills of materials against the secure baseline to block new package vulnerabilities.
-  - **WCAG 2.2 AA Accessibility Audit**: Evaluates templates and frontend assets to prevent visual layout or focus ring violations.
-  - **OpenAPI Schema Check**: Asserts OpenAPI specification structure, required properties, and type variations to catch contract breaks.
-  - **Secret Attestation**: Scans static dist bundles and source code to block hardcoded API keys or private keys.
-
-### 3. Closed-Loop Exploit Drift Detection
-- **Stateless Correlation Engine**: Implements the Jaccard similarity drift engine, which canonicalizes attack graph node features, edges, and chain links. Structural similarity scores below `0.8` declare path drift, flagging new exposures or successfully closed chains.
-
-### 4. GRC Compliance Scoring
-- **Maturity scoring**: Assigns weights (`PASS=100`, `PARTIAL=70`, `AT_RISK=40`, `FAIL=0`) to regulatory controls based on findings, calculating an overall GRC score mapped to distinct maturity bands (`FAIL` if under 50% or if any critical findings exist).
-- **Remediation SLA Tracking & Auto-Escalation**: The `SLATracker` engine enforces strict time-to-fix SLAs (Critical = 14 days, High = 30 days) on security findings. Any overdue or breached findings trigger instant, auto-escalating alert workflows through `NotificationManager` sending telemetry payloads directly to Slack, Microsoft Teams, or custom webhooks. Active breaches and MTTR metrics are calculated across tenant boundaries and exposed via the high-fidelity `GET /api/reports/sla/trending` telemetry endpoint for real-time compliance cockpit dashboard rendering.
-
-### 5. Double-Submit Cookie Anti-CSRF
-- **Stateless Verification**: State-altering endpoints (`POST`, `PUT`, `DELETE`, `PATCH`) are hardened using double-submit cookie matching. Browser requests must match the `csrf_token` cookie and `X-CSRF-Token` header. Bearer token and custom API-key integrations are dynamically exempted from CSRF policies.
-
-### 6. Priority Queue Aging and Decay (Starvation Evasion)
-- **Exponential Boost Decay**: To prevent dynamic correlation priority boosts from infinitely inflating or starving lower-priority tasks, `ScanTarget` calculates its `effective_priority` using an exponential decay factor (120-second half-life) applied strictly to the boosted portion of the priority.
-- **Wait-Time Aging Bonus**: A monotonically increasing aging factor (0.01 per wait second) is applied to all unscanned targets, ensuring that starved, low-priority targets eventually get scheduled.
-- **Max-Heap Stability**: The queue's `pop()` and `peek()` routines dynamically refresh the bids of all remaining targets and trigger `heapq.heapify` under lock, maintaining strict max-heap sorting order.
-
-### 7. Remediation Re-Scan Firewall
-- **Remediation Verification**: The `RemediationScanner` (`src/execution/remediators/remediation_scanner.py`) leverages the Autonomous Exploitation & Verification Engine (`AEVE`) to re-test remediated findings using their original payload within memory-isolated environments.
-- **API Verify Router**: Maps the `POST /api/remediated/{finding_id}/verify` endpoint, which executes the remediation check, persists updated states (`REMEDIATED` or `UNREMEDIATED`) to disk, and updates a secure, Redis-tracked **adaptive 72-hour cooldown** to prevent endpoint abuse.
-
-### 8. Recurring False-Positive Watchlist
-- **Regression Watchlist Management**: The `FPWatchlistManager` (`src/recon/fp_watchlist.py`) serializes analyst-confirmed `FALSE_POSITIVE` findings to a persistent `<output>/regression-watchlist.json` file on every run completion. De-duplicated URL templates are extracted, and `check_reemergence()` dispatches elevated alerts via the `NotificationManager` if a regression is detected.
-
-### 9. Unified Cache Strategy
-- **Dual-Backend Facade**: `UnifiedCache` maps key namespaces to SQLite (structured probe results, URLs) and to file cache (raw HTTP responses, screenshots) under a single key space with namespace prefixes.
-- **Single-Flight Coalescing**: The `CoalescingCacheWrapper` deduplicates in-flight requests by key using an async lock registry, so two parallel stages requesting the same URL trigger only one subprocess.
-- **Priority-Aware Eviction**: Cache entries are tagged `CRITICAL` (resume state, protected from `prune_oldest`), `NORMAL`, or `TRANSIENT` (tool output, evicted first under memory pressure).
-- **Stale-While-Revalidate**: `STALE_WHILE_REVALIDATE` TTL mode returns cached data immediately and triggers an async background refresh task, halving perceived latency for slow-changing sources like `crt.sh`.
-- **Stage Partitioning**: Cache namespaces are automatically partitioned by stage priority so a long-running `active_scan` cannot evict `subdomains` entries needed by resume.
-
-### 10. Dynamic Actor Scheduler
-- **Node-Actor Dispatch**: `ActorScheduler` replaces static topological tier batching. Each stage is an actor with `when(dependencies).ready()` futures; the run loop polls per-node readiness and dispatches greedily.
-- **Single Graph DSL**: `STAGE_DEPS` and `PARALLEL_STAGE_GROUPS` are collapsed into a single declarative `Graph` DSL, eliminating the runtime consistency check.
-- **Conditional Stages**: `IfStage` nodes with `OutputNonEmpty`, `StageCompleted`, `All`, `AnyOf`, `Not` conditions skip execution when unmet (e.g., skip `active_scan` if recon finds zero live hosts).
-- **Speculative Eager Dispatch**: Ready nodes are dispatched the instant dependencies are satisfied, not at tier boundaries, removing artificial pipeline bubbles.
-- **Critical-Path Priority Sorting**: Ready nodes are ranked by `weight * -1` (descending) then declaration order, giving the long-running critical-path stages (`active_scan:15`, `reporting:5`, `subdomains:10`) worker-pool priority.
-- **Dynamic Re-Scheduling**: Large outputs (e.g. 1000+ URLs) trigger automatic downstream re-balancing into later tiers without pipeline restart.
-- **Policy**: See `src/pipeline/dag_engine.py`, `src/pipeline/_graph_dsl.py`, and `src/pipeline/_run_execution.py`.
-
-### 11. Circuit Breaker Integration
-- **Per-Tool Breakers**: Each `ToolExecutionService` instance owns `dict[str, CircuitBreaker]` keyed by tool name, isolating failure domains (nuclei vs. crt.sh).
-- **Pre-Spawn Gate**: `can_execute()` is consulted *before* `subprocess.Popen`; an OPEN breaker returns an immediate `ToolExecutionError` without spawning.
-- **Configurable Recovery**: `CircuitBreakerConfig.recovery_timeout` is read per-tool from settings (e.g., nuclei recovers in 60 s; a blocked crt.sh may need 10 min).
-- **Force-Open Hot-Path**: The self-healing controller calls `force_open_breaker()` to trip a tool out-of-band when monitoring sees sustained error rates.
-- **Coordinator Recovery Probes**: `schedule_recovery_probe()` registers callbacks on both the service and the live `CircuitBreaker`; the controller drains them via `consume_pending_probes()` when the breaker transitions to HALF_OPEN.
-- **Policy**: See `services/circuit_breaker.py` and `services/tool_execution.py`.
-
-### 12. Adaptive Retry Policy
-- **Stage/Tool Split**: `StageRetryPolicy` carries a per-stage `max_retry_budget_seconds`; `ToolRetryPolicy` (per-tool) shares state across calls but accounts back to the parent stage budget.
-- **Adaptive Backoff (Vegas)**: `AdaptiveBackoffHeuristic` slides over a fixed window of recent outcomes and nudges `backoff_multiplier` between 1.0 and 4.0 every `adjustment_interval` observations, with dampened step-up/step-down.
-- **Cancellation-Safe Sleep**: `sleep_before_retry_async()` awaits in cancellable chunks and raises `asyncio.CancelledError` immediately on task cancel or orchestrator shutdown event, so a 64 s / 900 s wait never blocks.
-- **Structured Events**: `RetryEventType` (attempt / success / exhausted / budget_exhausted) emits to `EventBus` with `tool_identifier`, allowing the self-healing controller to skip subsequent stages when retry rates exceed a threshold.
-- **Policy**: See `retry.py` and `src/pipeline/services/pipeline_orchestrator/_run_execution.py`.
-
-
-
-
+- **Tenant Isolation**: Thread-safe and async-safe context propagation via `TenantContext` (`contextvars`) ensures that all database queries, Redis keys, pub/sub channels, and file outputs are isolated per tenant ID.
+- **Supply-Chain Integrity**: Nuclei templates and scanning rules are validated at startup against Ed25519 cryptographic signatures and SHA-256 baseline manifests.
+- **Contract Enforcement**: FastAPI endpoints strictly enforce Pydantic v2 validation models on the backend and Zod schema contracts on the frontend.

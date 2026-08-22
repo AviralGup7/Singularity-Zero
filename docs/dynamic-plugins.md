@@ -1,71 +1,83 @@
 # Dynamic Plugin SDK
 
-The pipeline can hot-load third-party security checks from a single Python file.
-Drop a file with a literal `PLUGIN_MANIFEST` and a JSON-callable entrypoint into
-one of the watched directories and the dashboard/pipeline will discover,
-validate, sandbox, register, and expose it without a restart.
+The Cyber Security Test Pipeline supports hot-loading custom security checks, collectors, and validation modules from standalone Python files without restarting the pipeline or dashboard.
 
-A ready-to-drop example lives at `docs/examples/dynamic_header_echo.py`.
+A ready-to-use plugin example is available at `docs/examples/dynamic_header_echo.py`.
 
-## Watched Directories
+---
 
-The default watched directories are:
+## 📁 Watched Plugin Directories
 
+The plugin runtime automatically scans and watches the following directory paths:
 - `.pipeline/plugins/`
-- `src/core/frontier/plugins/`
 - `src/analysis/plugins/`
-- `src/execution/validators/validators/`
+- `src/execution/validators/`
 - `src/core/plugins/`
 
-Set `CYBER_PLUGIN_DIRS` to an OS-path-separated list to add more directories.
+To add custom directories, set the `CYBER_PLUGIN_DIRS` environment variable to a path-separated list of directories.
 
-## Plugin Contract
+---
+
+## 📝 Plugin Manifest & Contract
+
+A dynamic plugin defines a literal `PLUGIN_MANIFEST` dictionary and a callable entrypoint:
 
 ```python
 PLUGIN_MANIFEST = {
-    "id": "acme.header_echo",
-    "name": "Header Echo Check",
+    "id": "custom.header_echo",
+    "name": "Header Echo Exposure Check",
     "version": "1.0.0",
     "kind": "analysis",
-    "description": "Flags responses with an unsafe X-Debug header.",
+    "description": "Flags responses exposing sensitive debug headers.",
     "group": "exposure",
     "entrypoint": "run",
     "sandbox": "process",
     "enabled_by_default": True,
     "capabilities": ["passive-http"],
-    "tags": ["headers"],
+    "tags": ["headers", "exposure"],
     "timeout_seconds": 10,
 }
 
 
-def run(payload):
+def run(payload: dict) -> list[dict]:
+    """Analyze HTTP response payload and return candidate findings."""
     response = payload.get("response", {})
-    headers = response.get("headers", {})
-    if "x-debug" not in {key.lower() for key in headers}:
-        return []
-    return [{"title": "Debug header exposed", "severity": "low"}]
+    headers = {k.lower(): v for k, v in response.get("headers", {}).items()}
+    if "x-debug-trace" in headers:
+        return [
+            {
+                "title": "Debug Trace Header Exposed",
+                "severity": "low",
+                "evidence": f"Found header X-Debug-Trace: {headers['x-debug-trace']}",
+            }
+        ]
+    return []
 ```
 
-`kind` may be `analysis`, `validator`, `scanner`, `enrichment`, `exporter`, or
-`recon`. Analysis plugins are registered as scan checks and appear in the
-dashboard registry and scan-presets dynamic plugin grid. Validator and pipeline
-stage plugins are registered as sandboxed callables in the live plugin registry.
+### Supported Plugin Kinds (`kind`):
+- `analysis`: Vulnerability detection logic evaluated during scan analysis stages.
+- `validator`: Exploit and finding validation checks.
+- `scanner`: Custom active probing routines.
+- `recon`: Custom asset and subdomain discovery collectors.
+- `exporter`: Custom report formatting and external sync sinks.
 
-## Validation And Sandboxing
+---
 
-The platform utilizes a **Tiered Sandboxing Architecture** to isolate dynamic executable checks:
+## 🔒 Tiered Sandboxing & Security Verification
 
-1. **Process-Based & AST validation (Python Plugins)**: 
-   The loader parses plugin source using the `ast` module before registration. It requires a literal manifest, verifies the entrypoint exists, restricts imports to safe standard-library modules, blocks dynamic execution helpers (such as `eval`, `exec`, `open`, and `__import__`), and records invalid manifests for the UI.
-   Once validated, loaded Python plugins execute in a separate, isolated child process through JSON stdin/stdout with a strict per-plugin timeout. This process boundary prevents untrusted plugin code from accessing orchestrator objects or sharing the primary memory pool.
+Dynamic plugins execute inside a multi-tier sandbox:
 
-2. **WebAssembly (WASM) Isolation (Binary / AEVE Verifiers)**:
-   For binary validators and untrusted proof-of-concept executables, the platform requires full hardware-level memory and CPU isolation. This is handled by WebAssembly sandboxing via `wasmtime` (implemented in `src/core/frontier/wasm.py`), completely locking out host kernel access. The plugin manifest schema reserves `sandbox: "wasm"` for native WebAssembly plugin entries.
+1. **AST Validation (Pre-Execution)**:
+   The plugin loader inspects the Python Abstract Syntax Tree (AST) before loading, blocking dangerous primitives (`eval`, `exec`, raw file writes, dynamic `__import__`).
+2. **Process Isolation (`sandbox: "process"`)**:
+   Plugins execute within isolated child processes communicating via JSON IPC over stdin/stdout with strict execution timeouts and memory quotas.
+3. **WebAssembly Isolation (`sandbox: "wasm"`)**:
+   Binary validators and untrusted WASM modules execute inside an isolated `wasmtime` runtime (`src/sandbox/`), preventing host filesystem or network access.
 
-## Runtime Surfaces
+---
 
-- `src.core.plugins.loader.refresh_dynamic_plugins()` rescans and registers.
-- `src.core.plugins.loader.start_dynamic_plugin_watcher()` starts hot reload.
-- `/api/registry/plugins` returns loaded and invalid dynamic plugin manifests.
-- `/api/registry/capabilities` returns the generated `CapabilityManifest`.
-- `/api/registry/analysis` includes dynamic analysis checks for the frontend.
+## 🌐 API & Runtime Integration
+
+- `POST /api/registry/plugins/reload`: Manually triggers hot-reload of all plugin directories.
+- `GET /api/registry/plugins`: Returns currently loaded, active, and rejected plugin manifests.
+- `GET /api/registry/capabilities`: Exposes active plugin capabilities to the frontend scan builder.

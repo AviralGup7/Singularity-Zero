@@ -1,73 +1,98 @@
 # Cyber Security Test Pipeline
 
-An automated API and web-application security testing pipeline with
-distributed orchestration, an active-learning severity model, and a
-real-time React dashboard.  Designed for authorized security testing.
+An enterprise-grade, distributed API and web application security testing pipeline featuring asynchronous DAG orchestration, an active-learning ML severity engine, resilient circuit-breaking, and a real-time React 19 operator cockpit. Built for authorized offensive security assessments, automated bug bounty reconnaissance, and continuous DevSecOps pipeline verification.
 
 ---
 
-## Highlights
+## 🌟 Key Architecture Highlights
 
-- **Distributed pipeline orchestrator** that runs reconnaissance, active
-  probing, exploitation, enrichment, and reporting as a DAG of stages
-  with retry, circuit-breaker, and resume support.
-- **Actor mesh** for elastic scan orchestration: tasks are encapsulated
-  in stateful actors (built on pykka) that can be checkpointed to a
-  Redis-backed write-ahead log and rehydrated on another node.
-- **Causal state engine**: cluster-wide state is stored in Hybrid
-  Logical Clock (HLC) LWW-Set CRDTs that give causal ordering in
-  **O(1) space per node**, with Redis pub/sub Bloom snapshots for
-  cross-node membership reconciliation.
-- **Closed-loop learning**: an XGBoost + scikit-learn classifier with a
-  pure-NumPy fallback is retrained on analyst triage signals, with
-  calibrated severity scores and false-positive suppression.
-- **In-process evasion controls** (HMM-driven header/JA3 mutation and
-  timing jitter) used in authorized red-team engagements.
-- **3D attack-chain cockpit**: React Three Fiber + Three.js instanced
-  rendering of the Kuzu attack-graph at 60 FPS, with a control deck
-  for target scoping, module toggles, and live stage polling.
-- **Sandboxed exploit validation**: PoCs run in a wasmtime WebAssembly
-  sandbox; dynamically loaded Python plugins are AST-validated and
-  executed in a separate process.
-
-For a non-marketing map of these subsystems to the modules that
-implement them, see docs/architecture-overview.md.
+- **Asynchronous DAG Orchestration**: Non-blocking stage lifecycle (`Recon` → `Probing` → `Exploitation` → `Learning` → `Reporting`) with speculative dispatch, wall-clock deadline budgeting, and dynamic checkpoint recovery (`src/pipeline/`).
+- **Resilient Circuit Breaking & Rate Limiting**: Built-in 3-state Circuit Breaker (`Closed`, `Open`, `Half-Open`) with Redis/SQLite persistence and automated HTTP 429 `Retry-After` header extraction (`src/resilience/`).
+- **Frontier CRDT State Engine**: Causally consistent LWW-Set CRDTs indexed by Hybrid Logical Clocks (HLCs), delivering $O(1)$ space per node and append-only state journal audits (`src/frontier/`).
+- **Closed-Loop Active Learning**: Continuous feedback loop utilizing XGBoost and Scikit-Learn (with pure NumPy fallback) to calibrate severity scores and suppress duplicate false positives based on operator triage (`src/learning/`).
+- **Hardware-Isolated Exploit Sandbox**: Validation PoCs run safely inside a `wasmtime` WebAssembly sandbox or AST-validated process isolation, preventing host machine contamination (`src/sandbox/`).
+- **Real-Time 3D Attack Cockpit**: React 19 + Three.js instanced rendering of attack graphs at 60 FPS, with interactive request/response replay, virtualized finding tables, and live WebSocket telemetry (`frontend/src/`).
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
-`ash
-# 1. Setup environment (Python 3.13 or newer required)
-python3.13 -m venv .venv
-source .venv/bin/activate           # Windows: .venv\Scripts\Activate.ps1
+### 1. Set Up Environment (Python 3.13+ Required)
+```bash
+# Clone the repository
+git clone https://github.com/AviralGup7/Singularity-Zero.git cyber-pipeline
+cd cyber-pipeline
+
+# Create and activate Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate       # On Windows: .venv\Scripts\Activate.ps1
+
+# Install package and development tools
 pip install -e ".[dev]"
+```
 
-# 2. Build the React frontend (React 19 + R3F + Tailwind 4)
+### 2. Build the React Dashboard
+```bash
 cd frontend && npm install && npm run build && cd ..
+```
 
-# 3. Start the dashboard (Redis recommended; falls back to in-memory)
-python -m src.dashboard.fastapi.main --host 0.0.0.0 --port 8000
-`
+### 3. Initialize Configuration & Scope
+```bash
+cp configs/config.example.json configs/config.json
+cp configs/api_keys.example.json configs/api_keys.json
+cp .env.example .env
+echo "example.com" > configs/scope.txt
+```
 
-Then open http://localhost:8000/ for the operator console.
+### 4. Launch the Unified Operator Console
+```bash
+# Starts both the FastAPI backend and background worker on port 8000
+cstp launch --host 127.0.0.1 --port 8000 --concurrency 2
+```
 
-## Documentation
+Navigate to **http://localhost:8000/** to access the operator command center.
 
-* docs/getting-started.md — walkthrough and first scan
-* docs/architecture-overview.md — non-marketing module map
-* docs/architecture.md — branded, capability-focused walkthrough
-* docs/FAILURE_MODES.md — interpreting "zero findings" reports
-* docs/environment-variables.md — every env var the system reads
-* docs/api-reference.md — full reference
-* CONTRIBUTING.md — development workflow and code style
+---
 
-## System control
+## 💻 CLI Usage
 
-- **Ops Command Center** — React 19 dashboard at http://localhost:8000/.
-- **Security Cockpit** — 3D instanced-rendered threat graphs.
-- **Mesh Health** — Bloom reconciliation and HLC state.
+Execute automated scans directly from your terminal:
 
-## License
+```bash
+# Validation dry-run (No outbound packets sent)
+cstp scan run --config configs/config.json --scope configs/scope.txt --dry-run
 
-Authorized security testing only.  See LICENSE.
+# Execute full security scan
+cstp scan run --config configs/config.json --scope configs/scope.txt
+
+# Run system doctor to verify environment & external tool dependencies
+cstp system doctor
+
+# Auto-download pre-compiled binaries (nuclei, httpx, subfinder, katana, gau)
+cstp system setup
+```
+
+---
+
+## 📚 Documentation Index
+
+- [Documentation Index](docs/index.md) — Master portal to all technical and architectural guides.
+- [Getting Started](docs/getting-started.md) — Step-by-step local setup, scoping, and scan execution.
+- [Codebase Map](docs/codebase.md) — Comprehensive guide to all 35 packages in `src/`, `frontend/`, `tests/`, and `configs/`.
+- [Architecture Overview](docs/architecture-overview.md) — Subsystem map and engineering design patterns.
+- [Architecture Deep Dive](docs/architecture.md) — Distributed DAG engine, actor mesh, and CRDT state engine.
+- [Commands Reference](docs/commands.md) — CLI flags, subcommands, and runtime arguments.
+- [Environment Variables](docs/environment-variables.md) — Catalog of configuration parameters.
+- [Testing & CI Guide](docs/testing.md) — Unit, integration, and architecture test suites.
+- [Frontend Handbook](docs/frontend.md) — React 19, Zustand stores, Tailwind 4, and 3D Cockpit.
+- [Observability Catalog](docs/OBSERVABILITY_CATALOG.md) — Prometheus metrics, tracing spans, and Grafana dashboards.
+- [Failure Modes & Diagnostics](docs/FAILURE_MODES.md) — Stage failure taxonomy and zero-finding troubleshooting.
+- [CI/CD Integration](docs/ci-cd-integration.md) — SARIF reports, GitHub Actions, and policy gates.
+
+---
+
+## 🛡️ Responsible Use & License
+
+This tool is designed exclusively for authorized security audits, penetration testing, and vulnerability research on systems where explicit permission has been granted.
+
+MIT License. See [LICENSE](LICENSE) for details.

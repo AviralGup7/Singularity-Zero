@@ -11,6 +11,6 @@
 - Use sentence case for status messages and alerts.
 
 ## Guardrail
-- The copy guard blocks a forbidden exact phrase in user-facing frontend sources.
-- Guarded files include `src/**/*.tsx`, `src/**/*.jsx`, and `src/i18n/**/*.json`.
+- The copy guard blocks forbidden exact phrases in user-facing frontend sources.
+- Guarded files include `frontend/src/**/*.tsx`, `frontend/src/**/*.jsx`, and `frontend/src/i18n/**/*.json`.
 - Run `npm run check:copy-guard` before opening a frontend PR.

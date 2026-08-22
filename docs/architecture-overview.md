@@ -1,121 +1,86 @@
 # Architecture Overview
 
-This document is a **non-marketing** map of the codebase.  It describes
-the standard engineering patterns we use and the modules that implement
-them.  For the branded, capability-focused description, see
-`architecture.md`.
+This document provides a **non-marketing, engineering-focused** map of the Cyber Security Test Pipeline. It details the structural design patterns, data flow mechanisms, and modules that implement them across the codebase.
 
 ---
 
-## High-level shape
+## High-Level Topology
 
-```
-┌───────────────┐    HTTP / WebSocket    ┌─────────────────────┐
-│  React UI     │ ◀─────────────────────▶│  FastAPI dashboard  │
-│  (frontend/)  │                        │  (src/dashboard/    │
-└───────────────┘                        │   fastapi/)         │
-                                        └──────────┬──────────┘
-                                                   │ enqueue / status
-                                                   ▼
-        ┌──────────────────────────────────────────────────┐
-        │  Pipeline orchestrator  (src/pipeline/)         │
-        │   ├── DAG engine                                │
-        │   ├── Stages: recon → active → enrich → report  │
-        │   └── Self-healing controller                   │
-        └────────┬─────────────────────┬──────────────────┘
-                 │                     │
-        ┌────────▼────────┐   ┌────────▼────────┐
-        │  Recon / scan   │   │  State stores   │
-        │  workers        │   │  (Redis / SQLite│
-        │  (asyncio +     │   │   + Bloom mesh) │
-        │   threadpool)   │   │                 │
-        └────────┬────────┘   └─────────────────┘
-                 │
-        ┌────────▼────────┐
-        │  Analysis       │
-        │  (active +      │
-        │   passive +     │
-        │   exploit)      │
-        └────────┬────────┘
-                 │
-        ┌────────▼────────┐
-        │  Reporting      │
-        │  (HTML / JSON / │
-        │   compliance)   │
-        └─────────────────┘
+```text
+┌─────────────────────────┐       HTTP REST / WebSocket        ┌───────────────────────────────────┐
+│   React 19 Dashboard    │ ◀────────────────────────────────▶ │  FastAPI Dashboard Backend        │
+│   (frontend/src/)       │                                    │  (src/dashboard/fastapi/)         │
+└─────────────────────────┘                                    └─────────────────┬─────────────────┘
+                                                                                 │ Enqueue / Control
+                                                                                 ▼
+                         ┌─────────────────────────────────────────────────────────────────────────┐
+                         │   Distributed Pipeline Orchestrator (src/pipeline/)                     │
+                         │   ├── DAG Graph Builder & Actor Scheduler                              │
+                         │   ├── Lifecycle: Recon → Probing → Exploitation → Learning → Reporting  │
+                         │   ├── Circuit Breaker & Retry-After Rate Limiting (src/resilience/)     │
+                         │   └── Self-Healing & Dynamic Correction Engine                          │
+                         └───────────────────┬─────────────────────────────────┬───────────────────┘
+                                             │                                 │
+                         ┌───────────────────▼───────────────────┐             │
+                         │   Recon & Analysis Engines            │             │ State & Sync
+                         │   ├── Recon Collectors (src/recon/)   │             │
+                         │   ├── Active Analyzers (src/analysis/)│             ▼
+                         │   ├── Fuzzing & Mutation (src/fuzzing)│ ┌───────────────────────────────┐
+                         │   └── Exploit Sandbox (src/sandbox/)  │ │ State & Persistence Planes    │
+                         └───────────────────┬───────────────────┘ │ ├── Frontier CRDTs (src/frontier)│
+                                             │                     │ ├── Unified Cache (src/cache/) │
+                                             ▼                     │ ├── Distributed WAL / Storage  │
+                         ┌───────────────────────────────────────┐ │ └── Actor Mesh (src/mesh/)    │
+                         │   Enrichment & Reporting Sinks        │ └───────────────────────────────┘
+                         │   ├── ML Severity & Learning Engine   │
+                         │   │   (src/learning/, src/intel/)     │
+                         │   └── Report Attestation (src/reporting/) │
+                         └───────────────────────────────────────┘
 ```
 
-## Subsystems and the standard patterns they implement
+---
 
-| Subsystem | Location | What it actually is |
+## Subsystems & Implementation Map
+
+| Subsystem | Location | Technical Implementation & Responsibilities |
 |---|---|---|
-| Recon collectors | `src/recon/`, `src/recon/collectors/` | Async / threaded URL discovery from archives (Wayback, CommonCrawl), passive DNS, and external services (VirusTotal, URLScan, OTX). |
-| Active analysis | `src/analysis/active/` | HTTP request mutation + response inspection to find SQLi, XSS, IDOR, JWT, SSRF, … |
-| Passive analysis | `src/analysis/passive/` | Static detectors that read existing responses / JS / spec files for known-bad fingerprints. |
-| Execution / exploitation | `src/execution/`, `src/exploitation/` | Validates candidate findings end-to-end.  All exploit PoCs run inside a WASM sandbox (`wasmtime`). |
-| Detection registry | `src/detection/`, `src/core/plugins/` | Plugin-based module loader with hot-reload support. |
-| Pipeline orchestrator | `src/pipeline/services/pipeline_orchestrator/` | DAG of stages with retry, circuit-breaker, resume support. |
-| Unified cache | `src/pipeline/unified_cache.py`, `src/pipeline/cache.py`, `src/pipeline/cache_backend.py` | SQLite + file facade with coalescing, priority queue, stale-while-revalidate, and stage partitioning. |
-| Dynamic DAG scheduler | `src/pipeline/dag_engine.py`, `src/pipeline/_graph_dsl.py`, `src/pipeline/_run_execution.py` | Actor-based per-node readiness futures replacing static tier batching; speculatively eager dispatch; conditional `IfStage` nodes; critical-path priority. |
-| Self-healing controller | `src/pipeline/self_healing/` | Event-driven via EventBus push subscription; `DampeningWindow` per-action cooldowns; `CorrectionHistoryStore` rolling success rates; `ESCALATE_ANALYST` wired to `NotificationManager`. |
-| Frontier state | `src/core/frontier/` | LWW-set CRDTs keyed by Hybrid Logical Clocks (HLCs).  HLCs were chosen over vector clocks because they give causal ordering in **O(1) space per node** rather than O(N). |
-| Mesh coordination | `src/infrastructure/mesh/` | Authenticated SWIM-style gossip for cluster membership and sharding.  Bullies algorithm picks shard leaders. |
-| Bloom filter plane | `src/core/frontier/bloom_mesh.py` | Redis pub/sub channel `cyber-pipeline:bloom:sync` ships packed Bloom snapshots between nodes; vector clocks reject stale snapshots and compatible filters merge via packed-bit OR. |
-| WebSocket server | `src/websocket_server/` | Per-job broadcast rooms, backpressure buffering, and a heartbeat. |
-| Dashboard API | `src/dashboard/fastapi/` | FastAPI app with rate limiting, RBAC, CSRF, and an OpenAPI surface. |
-| Reporting | `src/reporting/` | Jinja2 templates assembled into multi-page HTML reports with embedded charts. |
-| ML severity | `src/intelligence/ml/`, `src/learning/` | XGBoost + scikit-learn classifier with a pure-NumPy fallback.  Closed-loop retraining on analyst triage signals. |
-| Cryptographic secrets | `src/infrastructure/security/`, `src/core/security/` | Argon2-hashed API keys, JWT auth, and a `sensitive_names` allow-list that the entire stack imports. |
+| **Reconnaissance Engine** | `src/recon/` | Multi-source asynchronous OSINT collectors (Wayback, CommonCrawl, AlienVault, OTX, Shodan), DNS wildcard elimination, JS AST route extraction, and cloud asset mapping (AWS S3, Azure Blob, GCP). |
+| **Active & Passive Analysis** | `src/analysis/` | Heuristic vulnerability detectors (SQLi, XSS, IDOR/BAC, JWT forgery, HTTP/2 smuggling, CSP bypass) emitting structured `AnalyzerResult` events. |
+| **Exploitation & Sandboxing** | `src/exploitation/`, `src/sandbox/`, `src/execution/` | End-to-end exploit validation harnesses. PoCs run isolated within a `wasmtime` WebAssembly runtime or isolated sandboxed subprocesses with strict resource quotas. |
+| **Detection Catalog & Rules** | `src/detection/` | Centralized vulnerability signature registry, coverage mapping, mode matrix configuration (Safe, Aggressive, Stealth), and AST rule engines. |
+| **Pipeline DAG Orchestrator** | `src/pipeline/`, `src/pipeline/services/pipeline_orchestrator/` | Asynchronous DAG executor (`GraphBuilder`, `ActorScheduler`, `Orchestrator`) handling task dependency resolution, speculative dispatch, checkpoint persistence, and resume flows. |
+| **Resilience & Circuit Breaking** | `src/resilience/` | 3-state Circuit Breaker (`Closed`, `Open`, `Half-Open`) with persistent state, automatic rate-limit detection, and HTTP 429 `Retry-After` sleep overrides. |
+| **Unified Cache** | `src/pipeline/unified_cache/`, `src/cache/` | Tiered caching (in-memory LRU + persistent SQLite/Redis) featuring request coalescing, stale-while-revalidate, and stage result deduplication. |
+| **Frontier State & CRDTs** | `src/frontier/`, `src/core/frontier/` | Conflict-Free Replicated Data Types (LWW-Sets) indexed by Hybrid Logical Clocks (HLCs) providing causal state ordering with $O(1)$ node space complexity, backed by an append-only WAL. |
+| **Distributed Actor Mesh** | `src/mesh/`, `src/infrastructure/mesh/` | Peer-to-peer clustering via authenticated SWIM gossip, dynamic node capability tracking, and consistent-hashing shard balancing. |
+| **Real-Time Telemetry & WebSockets** | `src/websocket_server/`, `src/realtime/` | High-throughput WebSocket server with MessagePack/JSON serialization, heartbeats, channel-based event multiplexing, and backpressure shedding. |
+| **Dashboard & API Layer** | `src/dashboard/fastapi/`, `src/console/` | FastAPI REST services exposing OpenAPI 3.1 contracts, JWT RBAC security, audit logging, live stage metrics, and operator console handlers. |
+| **Closed-Loop Active Learning** | `src/learning/`, `src/intelligence/`, `src/intel/` | Adaptive ML severity classifier (XGBoost/Scikit-Learn with pure NumPy fallback), automated false-positive suppression, and Nuclei tag prioritization retrained from analyst triage signals. |
+| **Reporting & Compliance** | `src/reporting/` | Multi-format vulnerability report generator (SARIF 2.1.0, JSON, Markdown, CSV, cryptographically signed PDF) and compliance mappings (SOC 2, ISO 27001, PCI-DSS). |
 
-## Key invariants
+---
 
-1. **Single source of truth for connection defaults.**
-   * Redis timeouts/retries live in `src/infrastructure/queue/redis_config.py`.
-   * SQLite timeouts/retries live in `src/infrastructure/db/sqlite_utils.py`.
-   * Sensitive parameter / header / body-field names live in
-     `src/core/security/sensitive_names.py`.
-   * Domain validation regex lives in `src/recon/domain_validation.py`.
-   * IP validation lives in `src/core/utils/ip_validation.py`.
+## Core System Invariants
 
-   If you find yourself redefining one of these in a new module, that
-   is a bug — add the new case to the central module instead.
+1. **Immutable Stage Contracts & Deltas**:
+   - Pipeline stages accept immutable `StageInput` objects and must return `StageOutput` containing state deltas.
+   - Direct mutations of shared global state are strictly forbidden; all state transitions flow through the `Frontier` merge engine.
+2. **Centralized Security & Input Sanitization**:
+   - Hostname and target validation: `src/recon/domain_validation.py` and `src/core/utils/url_validation.py`.
+   - Sensitive credential scrubbing and header masking: `src/core/security/sensitive_names.py`.
+   - Cryptographic vaults and token verification: `src/core/security/` and `src/auth/`.
+3. **Resilience & Graceful Degradation**:
+   - All network-bound stages are governed by `src/resilience/circuit_breaker.py`.
+   - If an external dependency or tool fails, the orchestrator triggers self-healing strategies, logs structured diagnostics, and safely marks dependent stages without aborting unrelated scan branches.
+4. **Execution Sandboxing**:
+   - Potentially dangerous exploit verification scripts execute inside the WASM / subprocess sandbox (`src/sandbox/`), preventing breakout or lateral execution on the host runner.
 
-2. **CRDT mutations go through `NeuralState`.**  Direct writes to the
-   frontier state are not supported; everything funnels through the
-   `LWWset` API so the HLC ordering is preserved.
+---
 
-3. **All credential inputs are validated centrally.**  Any function
-   that accepts a domain, URL, IP, or query string must go through
-   the helpers above.  Ad-hoc regexes are forbidden by code review.
+## Further Reading
 
-4. **The pipeline orchestrator owns the lifecycle.**  Stages are
-   stateless w.r.t. the rest of the system; everything that needs
-   to survive a restart is persisted via `output_store.py` or the
-   Redis WAL in `src/core/frontier/wal.py`.
-
-5. **The Python actor layer still uses `pykka`.**  Earlier docs
-   described a "Pykka replacement" that was never fully landed; the
-   code still subclasses `pykka.ThreadingActor` for the thread-based
-   actor pool.  Don't add new Pykka-specific abstractions; new code
-   should use plain `asyncio` workers.
-
-## Threat model (short form)
-
-* **In scope**: the platform is treated as trusted.  Inputs from the
-  operator (CLI flags, YAML config, API keys) are trusted.  Target
-  traffic is **untrusted** and probed defensively.
-* **Out of scope**: We do not protect against an attacker who has
-  shell access on the operator's machine.  Secrets stored in `.env`
-  are trusted.
-* **Sandboxing**: Untrusted PoC code (exploiters) runs in a
-  `wasmtime` sandbox; Python plugins run in a separate process and
-  are AST-validated before execution.
-
-## Where to read next
-
-* `architecture.md` — branded, capability-focused walkthrough.
-* `docs/FAILURE_MODES.md` — how to distinguish a clean run from a
-  degraded one.
-* `docs/environment-variables.md` — every env var the system reads.
-* `CONTRIBUTING.md` — workflow and code style.
-
+- [System Architecture Deep Dive](architecture.md) — Detailed data flow, actor lifecycles, and state replication.
+- [Codebase Map](codebase.md) — Full package and file catalog.
+- [Failure Modes & Diagnostics](FAILURE_MODES.md) — Interpreting scan degradation and triage flows.
+- [Commands Reference](commands.md) — CLI and runtime command options.
+- [Environment Variables](environment-variables.md) — Full configuration catalog.
