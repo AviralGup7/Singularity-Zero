@@ -52,6 +52,6 @@ export function validateJobId(id: string | undefined): string | null {
 
 export function validateEvidenceId(id: string | undefined): string | null {
   if (!id) return null;
-  if (isValidUUID(id)) return id;
+  if (isValidUUID(id) || isValidNumericId(id)) return id;
   return null;
 }

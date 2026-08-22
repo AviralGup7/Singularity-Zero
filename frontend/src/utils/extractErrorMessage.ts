@@ -4,6 +4,19 @@ import { dispatchToast } from '../lib/toastDispatcher';
  * Extracts a specific, human-readable error message from any error type.
  * Never returns generic strings like "An error occurred".
  */
+export function formatErrorDetail(detail: unknown): string | undefined {
+  if (typeof detail === 'string' && detail.trim().length > 0) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail.map((item) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object' && 'msg' in item) return String((item as { msg: unknown }).msg ?? '');
+      return '';
+    }).filter(Boolean);
+    return parts.length > 0 ? parts.join('; ') : undefined;
+  }
+  return undefined;
+}
+
 export function extractErrorMessage(err: unknown, fallback?: string): string {
   if (err instanceof Error) {
     const msg = err.message;
@@ -22,9 +35,8 @@ export function extractErrorMessage(err: unknown, fallback?: string): string {
     if (typeof obj.message === 'string' && obj.message.trim().length > 0) {
       return obj.message;
     }
-    if (typeof obj.detail === 'string' && obj.detail.trim().length > 0) {
-      return obj.detail;
-    }
+    const detailText = formatErrorDetail(obj.detail);
+    if (detailText) return detailText;
     if (typeof obj.error === 'string' && obj.error.trim().length > 0) {
       return obj.error;
     }
@@ -36,7 +48,8 @@ export function extractErrorMessage(err: unknown, fallback?: string): string {
       const resp = obj.response as Record<string, unknown>;
       if (resp.data && typeof resp.data === 'object') {
         const data = resp.data as Record<string, unknown>;
-        if (typeof data.detail === 'string') return data.detail;
+        const nested = formatErrorDetail(data.detail);
+        if (nested) return nested;
         if (typeof data.message === 'string') return data.message;
         if (typeof data.error === 'string') return data.error;
       }

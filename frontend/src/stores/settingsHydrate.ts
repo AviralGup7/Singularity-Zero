@@ -3,6 +3,7 @@ export function deepMergeSettings<T extends Record<string, unknown>>(target: T, 
   for (const key of Object.keys(source)) {
     const sourceVal = source[key as keyof T];
     const targetVal = target[key as keyof T];
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     if (sourceVal === undefined) continue;
     if (
       sourceVal !== null &&

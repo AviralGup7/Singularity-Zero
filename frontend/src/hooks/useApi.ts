@@ -184,7 +184,7 @@ export function useApi<T>(
       const requestFn = (): Promise<T> =>
         api.get<T>(url, { signal: controller.signal, params: currentParams, schema: schemaRef.current } as AxiosRequestConfig).then((res) => res.data);
 
-      const result = await deduplicateRequest<T>(`${cacheKey}:${refetchKey}`, requestFn, controller.signal);
+      const result = await deduplicateRequest<T>(cacheKey, requestFn, controller.signal);
 
       if (mountedRef.current) {
         setData(result);

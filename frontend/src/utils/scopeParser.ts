@@ -220,7 +220,7 @@ export function classifyAgainstScope(
   scope: ParsedScope | null,
 ): { status: ScopeStatus; matchingEntry?: ScopeEntry } {
   if (!scope) return { status: 'unknown' };
-  const a = asset.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
+  const a = scopeHost(asset);
 
   for (const e of scope.out_of_scope) {
     if (matchesScope(a, e.pattern)) return { status: 'out_of_scope', matchingEntry: e };
@@ -231,19 +231,24 @@ export function classifyAgainstScope(
   return { status: 'unknown' };
 }
 
+export function scopeHost(value: string): string {
+  return value.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
+}
+
 function matchesScope(asset: string, pattern: string): boolean {
   if (!asset || !pattern) return false;
-  if (asset === pattern) return true;
-  if (pattern.startsWith('*.')) {
-    const suffix = pattern.slice(1);
-    return asset.endsWith(suffix) || asset === pattern.slice(2);
+  const hostPattern = scopeHost(pattern);
+  if (asset === pattern || asset === hostPattern) return true;
+  if (hostPattern.startsWith('*.')) {
+    const suffix = hostPattern.slice(1);
+    return asset.endsWith(suffix) || asset === hostPattern.slice(2);
   }
-  if (pattern.startsWith('*.') === false && pattern.includes('*')) {
-    const re = new RegExp('^' + pattern.split('*').map(escapeRe).join('.*') + '$');
+  if (!hostPattern.startsWith('*.') && hostPattern.includes('*')) {
+    const re = new RegExp('^' + hostPattern.split('*').map(escapeRe).join('.*') + '$');
     return re.test(asset);
   }
   // Subdomain match: scope `example.com` matches `api.example.com`.
-  if (asset.endsWith('.' + pattern)) return true;
+  if (asset.endsWith('.' + hostPattern)) return true;
   return false;
 }
 
