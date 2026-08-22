@@ -17,7 +17,8 @@ export function safeGet<V>(obj: Record<string, V>, key: string, fallback?: V): V
 
 export function classifyLogLine(line: string): string {
   const lower = line.toLowerCase();
-  if (lower.includes('error') || lower.includes('exception') || lower.includes('fatal') || lower.includes('traceback')) return 'log-line log-error';
+  const looksLikeUrl = /https?:\/\//i.test(line);
+  if (!looksLikeUrl && (lower.includes('error') || lower.includes('exception') || lower.includes('fatal') || lower.includes('traceback'))) return 'log-line log-error';
   if (lower.includes('warn')) return 'log-line log-warn';
   if (lower.includes('success') || lower.includes('complete') || lower.includes('done')) return 'log-line log-success';
   if (lower.includes('info') || lower.includes('starting') || lower.includes('loading')) return 'log-line log-info';

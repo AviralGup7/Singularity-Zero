@@ -13,6 +13,10 @@ interface GraphUpdateOptions {
   debounceMs?: number;
 }
 
+export function shouldCancelPendingGraphUpdate(unmounting: boolean): boolean {
+  return unmounting;
+}
+
 export function useCockpitGraph(
   applyGraph: (data: { nodes: CockpitNode[]; edges: CockpitEdge[] }) => void,
   _target: string,
@@ -74,9 +78,19 @@ export function useCockpitGraph(
     [performFetch, debounceMs]
   );
 
+  const cancelPendingGraphUpdate = useCallback(() => {
+    if (graphRequestTimerRef.current) {
+      clearTimeout(graphRequestTimerRef.current);
+      graphRequestTimerRef.current = null;
+    }
+    graphRequestAbortControllerRef.current?.abort();
+    pendingArgsRef.current = null;
+  }, []);
+
   return {
     graphRequestTimerRef,
     graphRequestAbortControllerRef,
     requestGraphUpdate,
+    cancelPendingGraphUpdate,
   };
 }

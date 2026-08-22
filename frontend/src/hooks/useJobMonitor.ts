@@ -26,6 +26,10 @@ export function shouldPollJob(status: string | undefined): boolean {
   return status === 'running';
 }
 
+export function sumFiniteDurations(values: Array<number | undefined>): number {
+  return values.reduce((sum, value) => sum + (typeof value === 'number' && Number.isFinite(value) ? value : 0), 0);
+}
+
 const POLL_INTERVAL_MS = 2000;
 const BUFFER_FLUSH_MS = 100;
 
@@ -151,6 +155,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           const perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }> = {};
           let totalMean = 0;
           for (const entry of data) {
+            if (!Number.isFinite(entry.avg_duration_sec)) continue;
             perStage[entry.module] = {
               mean: entry.avg_duration_sec,
               p50: entry.p50_duration_sec,

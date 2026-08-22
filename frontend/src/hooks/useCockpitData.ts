@@ -25,6 +25,10 @@ export function capMigrations<T>(items: T[], max = 50): T[] {
   return items.slice(-max);
 }
 
+export function asNoteList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 export function useCockpitData({
   target,
   run,
@@ -157,7 +161,7 @@ export function useCockpitData({
     const controller = new AbortController();
     getNotes(target)
       .then((res) => {
-        if (mountedRef.current) setNotes(res.notes);
+        if (mountedRef.current) setNotes(asNoteList(res.notes) as typeof res.notes);
       })
       .catch((err) => {
         showErrorToast(err, 'Failed to load notes');
@@ -165,7 +169,7 @@ export function useCockpitData({
     cockpitApi
       .listExchanges(target)
       .then((res) => {
-        if (mountedRef.current) setExchanges(res.data.exchanges);
+        if (mountedRef.current) setExchanges(asNoteList(res.data?.exchanges) as typeof res.data.exchanges);
       })
       .catch((err) => {
         showErrorToast(err, 'Failed to load forensic exchanges');
