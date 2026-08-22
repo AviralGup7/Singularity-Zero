@@ -44,6 +44,26 @@ export function targetIsActive(t: Target): boolean {
   return t.latest_run !== '' && t.latest_run !== '—';
 }
 
+export function targetMatchesScanWindow(
+  latest: string | undefined | null,
+  after: string,
+  before: string,
+): boolean {
+  if (!after && !before) return true;
+  if (!latest) return false;
+  const at = new Date(latest).getTime();
+  if (!Number.isFinite(at)) return false;
+  if (after) {
+    const start = new Date(after).getTime();
+    if (Number.isFinite(start) && at < start) return false;
+  }
+  if (before) {
+    const end = new Date(before).getTime();
+    if (Number.isFinite(end) && at > end) return false;
+  }
+  return true;
+}
+
 export function useTargetFilters() {
   const [filters, setFilters] = useState<TargetFilters>(emptyFilters());
   const [showFilters, setShowFilters] = useState(false);
@@ -135,11 +155,8 @@ export function useFilteredTargets(targets: Target[], filters: TargetFilters, se
       if ((t.finding_count ?? 0) < filters.minFindings) return false;
       if ((t.finding_count ?? 0) > filters.maxFindings) return false;
 
-      if (filters.lastScanAfter && t.latest_generated_at) {
-        if (new Date(t.latest_generated_at) < new Date(filters.lastScanAfter)) return false;
-      }
-      if (filters.lastScanBefore && t.latest_generated_at) {
-        if (new Date(t.latest_generated_at) > new Date(filters.lastScanBefore)) return false;
+      if (!targetMatchesScanWindow(t.latest_generated_at, filters.lastScanAfter, filters.lastScanBefore)) {
+        return false;
       }
 
       return true;

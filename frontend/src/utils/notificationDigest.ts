@@ -43,6 +43,7 @@ class NotificationDigest {
 
   add(item: NotificationItem): void {
     if (!this.enabled) {
+      this.onFlush([item]);
       return;
     }
 

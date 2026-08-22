@@ -9,7 +9,7 @@ import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
 import { PageHeader, EmptyState, Pagination, ErrorCard } from '../components/ui';
 import { useJobsContext } from '../context/JobsContext';
 import { usePersistedState } from '../hooks';
-import { JOB_STATUS_FILTERS, normalizeJobStatusFilter } from './jobsFilters';
+import { JOB_STATUS_FILTERS, jobsListIsFiltered, normalizeJobStatusFilter } from './jobsFilters';
 import { pickPreferredFilter } from '../stores/settingsHydrate';
 import { clampFindingsPage } from '../features/findings/findingsViewMode';
 
@@ -182,7 +182,7 @@ export function JobsPage() {
         {filtered.length === 0 ? (
           <EmptyState
             title="No jobs found"
-            description={safeStatusFilter !== 'all' || searchQuery 
+            description={jobsListIsFiltered(safeStatusFilter, safeSearchQuery)
               ? "No jobs match your current filters. Try adjusting the status filter or search query."
               : "No pipeline jobs have been run yet. Expand Start New Scan above, or launch from Targets / Cockpit."}
             icon="zap"

@@ -100,17 +100,30 @@ function storeInAppNotification(notification: AppNotification): void {
   }
 }
 
+export function parseInAppNotifications(raw: string | null): AppNotification[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed as AppNotification[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getInAppNotifications(): AppNotification[] {
   try {
-    const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return parseInAppNotifications(localStorage.getItem(NOTIFICATION_STORAGE_KEY));
   } catch {
     return [];
   }
 }
 
 export function clearInAppNotifications(): void {
-  localStorage.removeItem(NOTIFICATION_STORAGE_KEY);
+  try {
+    localStorage.removeItem(NOTIFICATION_STORAGE_KEY);
+  } catch {
+    /* private mode / blocked storage */
+  }
 }
 
 function dispatchInAppEvent(notification: AppNotification): void {
