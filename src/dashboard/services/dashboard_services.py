@@ -75,14 +75,19 @@ class DashboardServices:
             self.jobs.update(persisted)
 
         recovered_missing_count = 0
-        launcher_root = self.query.output_root / "_launcher"
-        if launcher_root.exists():
+        from src.dashboard.launcher_paths import LAUNCHER_DIRNAMES
+
+        recovered_ids: set[str] = set()
+        for dirname in LAUNCHER_DIRNAMES:
+            launcher_root = self.query.output_root / dirname
+            if not launcher_root.exists():
+                continue
             for launcher_dir in sorted(
                 (path for path in launcher_root.iterdir() if path.is_dir()),
                 key=lambda path: path.name,
             ):
                 job_id = launcher_dir.name
-                if not job_id or job_id in self.jobs:
+                if not job_id or job_id in self.jobs or job_id in recovered_ids:
                     continue
                 recovered_job = self.query._recover_job_from_launcher(job_id)
                 if not recovered_job:
@@ -90,6 +95,7 @@ class DashboardServices:
                 with self.lock:
                     self.jobs[job_id] = recovered_job
                 self._persist_job(recovered_job)
+                recovered_ids.add(job_id)
                 recovered_missing_count += 1
         if recovered_missing_count:
             logging.getLogger(__name__).warning(

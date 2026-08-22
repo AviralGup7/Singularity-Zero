@@ -11,6 +11,7 @@ from src.dashboard.configuration import (
     apply_runtime_overrides,
 )
 from src.dashboard.job_state import snapshot_job
+from src.dashboard.launcher_paths import launcher_href_prefix, launcher_write_dir
 from src.dashboard.pipeline_jobs import create_job_record, run_pipeline_job
 from src.dashboard.scope_utils import (
     build_scope_entries,
@@ -64,7 +65,7 @@ class DashboardLaunchService:
             raise ValueError("Enter a base URL or paste a bug bounty scope block.")
 
         job_id = new_job_id()
-        launcher_dir = self.output_root / "launcher" / job_id
+        launcher_dir = launcher_write_dir(self.output_root, job_id)
         launcher_dir.mkdir(parents=True, exist_ok=True)
 
         import logging as _logging
@@ -96,6 +97,10 @@ class DashboardLaunchService:
             config["target_name"] = target_name
             enabled_modules = selected_modules or []
             selected_mode = (mode_name or config.get("mode", "idor")).strip().lower()
+            if enabled_modules:
+                apply_module_selection(config, set(enabled_modules))
+            if runtime_overrides:
+                apply_runtime_overrides(config, runtime_overrides)
         else:
             config = self.query_service.load_template()
             selected_mode = (mode_name or self.query_service.default_mode_name()).strip().lower()
@@ -128,6 +133,9 @@ class DashboardLaunchService:
         stdout_path = launcher_dir / "stdout.txt"
         stderr_path = launcher_dir / "stderr.txt"
 
+        config["enabled_modules"] = list(enabled_modules)
+        if runtime_overrides:
+            config["runtime_overrides"] = dict(runtime_overrides)
         config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
         scope_path.write_text("\n".join(scope_entries) + "\n", encoding="utf-8")
 
@@ -144,6 +152,13 @@ class DashboardLaunchService:
         # Bug #38: Store config fingerprint for resume drift detection
         if config_fingerprint is not None:
             job["config_fingerprint"] = config_fingerprint
+        if runtime_overrides:
+            job["runtime_overrides"] = dict(runtime_overrides)
+        href_prefix = launcher_href_prefix(self.output_root, job_id)
+        job["config_href"] = f"{href_prefix}/config.json"
+        job["scope_href"] = f"{href_prefix}/scope.txt"
+        job["stdout_href"] = f"{href_prefix}/stdout.txt"
+        job["stderr_href"] = f"{href_prefix}/stderr.txt"
         with self.lock:
             self.jobs[job_id] = job
 

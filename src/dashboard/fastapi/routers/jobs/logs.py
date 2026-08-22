@@ -35,15 +35,17 @@ async def get_job_logs(
 
     from src.dashboard.fastapi.dependencies import get_config
 
+    from src.dashboard.launcher_paths import resolve_launcher_dir
+
     config = get_config()
     output_root = Path(config.output_root).resolve()
-    launcher_dir = (output_root / "launcher" / job_id).resolve()
-    if not launcher_dir.is_relative_to(output_root):
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not launcher_dir.exists() or not launcher_dir.is_dir():
-        fallback = (output_root / "_launcher" / job_id).resolve()
-        if fallback.is_relative_to(output_root):
-            launcher_dir = fallback
+    found = resolve_launcher_dir(output_root, job_id)
+    if found is None:
+        launcher_dir = output_root / "_launcher" / job_id
+    else:
+        launcher_dir = found.resolve()
+        if not launcher_dir.is_relative_to(output_root):
+            raise HTTPException(status_code=404, detail="Job not found")
     stdout_path = launcher_dir / "stdout.txt"
 
     total_logs = 0
