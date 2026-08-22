@@ -46,7 +46,7 @@ export function isExternalUrl(url: string): boolean {
 
 export function validateJobId(id: string | undefined): string | null {
   if (!id) return null;
-  if (isValidUUID(id) || isValidNumericId(id)) return id;
+  if (isValidUUID(id) || isValidNumericId(id) || isValidRouteParam(id)) return id;
   return null;
 }
 

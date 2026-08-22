@@ -38,6 +38,11 @@ export function useFocusManagement() {
 }
 
    
+export function ensureFocusable(el: HTMLElement): HTMLElement {
+  if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+  return el;
+}
+
 export function useFocusOnRouteChange(selector = '[data-focus-heading], h1, h2') {
   const location = useLocation();
   const hasFocusRef = useRef(false);
@@ -47,14 +52,13 @@ export function useFocusOnRouteChange(selector = '[data-focus-heading], h1, h2')
       const elements = document.querySelectorAll<HTMLElement>(selector);
       for (const el of elements) {
         if (!isFocusableHeading(el)) continue;
-        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
-        el.focus({ preventScroll: false });
+        ensureFocusable(el).focus({ preventScroll: false });
         hasFocusRef.current = true;
         return;
       }
       const main = document.getElementById('main-content');
       if (main) {
-        main.focus({ preventScroll: false });
+        ensureFocusable(main).focus({ preventScroll: false });
         hasFocusRef.current = true;
       }
     };

@@ -287,8 +287,8 @@ ${items}
   };
 };
 
-function escapeXml(s: string): string {
-  return s
+export function escapeXml(s: string | undefined | null): string {
+  return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
