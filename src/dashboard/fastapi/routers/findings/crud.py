@@ -1,30 +1,47 @@
 import json
 import logging
+import os
+import threading
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
-from src.dashboard.fastapi.routers.findings.field_map import map_update_payload
-from src.dashboard.fastapi.routers.targets import _normalize_finding_payload
+from src.dashboard.fastapi.routers.findings.field_map import coerce_bool, map_update_payload
+from src.dashboard.fastapi.routers.targets import _normalize_finding_payload, is_target_owned_by_tenant
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
 
+_WRITE_LOCKS: dict[str, threading.Lock] = {}
+_WRITE_LOCKS_GUARD = threading.Lock()
 
-# Field allow-list lives in field_map so bulk + single-item updates stay aligned.
+
+def _lock_for(path: Path) -> threading.Lock:
+    key = str(path)
+    with _WRITE_LOCKS_GUARD:
+        lock = _WRITE_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _WRITE_LOCKS[key] = lock
+        return lock
+
+
+def _atomic_write_json(path: Path, payload: Any) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _locate_finding_on_disk(
     output_root: Any, finding_id: str, tenant_id: str
-) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Any] | None:
+) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Path] | None:
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
             continue
-        from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
         if not is_target_owned_by_tenant(target_entry.name, tenant_id):
             continue
         for run_entry in target_entry.iterdir():
@@ -38,14 +55,18 @@ def _locate_finding_on_disk(
             except Exception:
                 logger.warning("Failed to read findings file %s", findings_path, exc_info=True)
                 continue
-            for idx, f in enumerate(findings):
+            if not isinstance(findings, list):
+                continue
+            for idx, finding in enumerate(findings):
+                if not isinstance(finding, dict):
+                    continue
                 fid = (
-                    f.get("id")
-                    or f.get("finding_id")
+                    finding.get("id")
+                    or finding.get("finding_id")
                     or f"{target_entry.name}-{run_entry.name}-{idx + 1}"
                 )
                 if fid == finding_id:
-                    return target_entry.name, run_entry.name, idx, f, findings, findings_path
+                    return target_entry.name, run_entry.name, idx, finding, findings, findings_path
     return None
 
 
@@ -76,50 +97,44 @@ async def update_finding(
         findings_file_path,
     ) = located
 
-    # Bulk already mapped the body (including tombstones). Remap, but keep
-    # ``_deleted`` when the caller already sent the persisted key.
     mapped = map_update_payload(update_data, bulk=bool(update_data.get("_deleted")))
     rejected = set(update_data) - set(mapped) - {"id", "finding_id", "ids"}
     if rejected:
         logger.warning("update_finding: ignoring disallowed fields %s", sorted(rejected))
-    delete_requested = bool(mapped.pop("_deleted", False) or update_data.get("_deleted"))
+    delete_requested = coerce_bool(mapped.pop("_deleted", False) or update_data.get("_deleted"))
+    updated = dict(finding_payload)
     for key, value in mapped.items():
-        finding_payload[key] = value
-    if mapped.get("false_positive") and not finding_payload.get("fp_status"):
-        finding_payload["fp_status"] = "approved"
-    if mapped.get("false_positive") and not finding_payload.get("decision"):
-        finding_payload["decision"] = "DROP"
+        updated[key] = value
+    if mapped.get("false_positive") and not updated.get("fp_status"):
+        updated["fp_status"] = "approved"
+    if mapped.get("false_positive") and not updated.get("decision"):
+        updated["decision"] = "DROP"
 
     try:
-        if not findings_file_path:
-            raise ValueError("Finding path not found")
-        if delete_requested:
-            del findings_list[target_finding_idx]
-            findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
-            return {"id": finding_id, "deleted": True}
-        findings_list[target_finding_idx] = finding_payload
-        findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
+        lock = _lock_for(findings_file_path)
+        with lock:
+            if delete_requested:
+                del findings_list[target_finding_idx]
+            else:
+                findings_list[target_finding_idx] = updated
+            _atomic_write_json(findings_file_path, findings_list)
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("Failed to save updated finding: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to persist finding update")
+    except Exception as exc:
+        logger.error("Failed to save updated finding: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to persist finding update") from exc
 
-    _propagate_false_positive(finding_payload)
+    if delete_requested:
+        return {"id": finding_id, "deleted": True}
 
+    _propagate_false_positive(updated)
     return _normalize_finding_payload(
-        finding_payload, target_name=target_name, run_name=run_name, index=target_finding_idx + 1
+        updated, target_name=target_name, run_name=run_name, index=target_finding_idx + 1
     )
 
 
 def _propagate_false_positive(finding_payload: dict[str, Any]) -> None:
-    """Propagate false-positive triage to the learning subsystem.
-
-    Bug #1: The background task for FP tracking is now created via the
-    TaskRegistry so it is properly tracked, cancelled on shutdown, and
-    its exceptions are logged.  Previously, ``loop.create_task()`` created
-    a fire-and-forget task that could silently fail or survive shutdown.
-    """
+    """Propagate false-positive triage to the learning subsystem."""
     is_fp_triage = (
         finding_payload.get("decision") == "DROP"
         or finding_payload.get("status") == "false_positive"
@@ -156,18 +171,18 @@ def _propagate_false_positive(finding_payload: dict[str, Any]) -> None:
 
         try:
             loop = asyncio.get_running_loop()
-            # Bug #1: Register with TaskRegistry for proper lifecycle tracking
-            try:
-                from src.core.task_registry import get_task_registry
-
-                get_task_registry().create_task(
-                    _tracked_fp_update(),
-                    owner="findings_crud",
-                    name="fp_propagation",
-                )
-            except ImportError:
-                loop.create_task(_tracked_fp_update())
         except RuntimeError:
-            asyncio.run(_tracked_fp_update())
-    except Exception as e:
-        logger.warning("Mesh FP Sync: Failed to propagate manual FP: %s", e)
+            logger.debug("No running loop for FP propagation; skipping")
+            return
+        try:
+            from src.core.task_registry import get_task_registry
+
+            get_task_registry().create_task(
+                _tracked_fp_update(),
+                owner="findings_crud",
+                name="fp_propagation",
+            )
+        except ImportError:
+            loop.create_task(_tracked_fp_update())
+    except Exception as exc:
+        logger.warning("Mesh FP Sync: Failed to propagate manual FP: %s", exc)

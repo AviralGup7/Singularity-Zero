@@ -79,6 +79,7 @@ def heartbeat_interval_seconds() -> float:
     return max(5.0, parsed)
 
 
+import os
 from pathlib import Path
 
 from src.dashboard.fastapi.validation import validate_target_name
@@ -108,6 +109,32 @@ def get_safe_target_dir(output_root: Path, target_name: str) -> Path:
         raise HTTPException(status_code=404, detail="Target not found")
 
     return target_dir
+
+
+def safe_remove_tree(path: Path, *, root: Path) -> None:
+    """Delete a directory without following symlinks out of ``root``."""
+    root_resolved = root.resolve()
+    if path.is_symlink() or not path.is_dir():
+        raise HTTPException(status_code=400, detail="Refusing to delete a symlink or non-directory")
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root_resolved):
+        raise HTTPException(status_code=403, detail="Target path out of bounds")
+    for dirpath, dirnames, filenames in os.walk(resolved, topdown=False, followlinks=False):
+        current = Path(dirpath)
+        if current.is_symlink():
+            current.unlink(missing_ok=True)
+            continue
+        for name in filenames:
+            child = current / name
+            if child.is_symlink() or child.is_file():
+                child.unlink(missing_ok=True)
+        for name in dirnames:
+            child = current / name
+            if child.is_symlink():
+                child.unlink(missing_ok=True)
+            elif child.is_dir():
+                child.rmdir()
+    resolved.rmdir()
 
 
 def get_safe_target_path(output_root: Path, target_name: str) -> Path:

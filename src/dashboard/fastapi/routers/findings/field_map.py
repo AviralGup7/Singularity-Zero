@@ -142,6 +142,20 @@ ALLOWED_BULK_FIELDS: frozenset[str] = frozenset(
 )
 
 
+def coerce_bool(value: Any) -> bool:
+    """Parse JSON/console booleans without treating ``\"false\"`` as True."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    if text in {"", "0", "false", "no", "off", "none", "null"}:
+        return False
+    return text in {"1", "true", "yes", "on"}
+
+
 def canonicalize_status(value: Any, *, for_api: bool = True) -> str:
     raw = str(value or "").strip().lower()
     if not raw:
@@ -174,9 +188,12 @@ def map_update_payload(raw: dict[str, Any], *, bulk: bool = False) -> dict[str, 
         if snake == "status":
             mapped[snake] = canonicalize_status(value, for_api=False)
         elif snake == "false_positive":
-            mapped[snake] = bool(value)
-            if value and "fp_status" not in mapped:
+            flag = coerce_bool(value)
+            mapped[snake] = flag
+            if flag and "fp_status" not in mapped:
                 mapped["fp_status"] = "approved"
+        elif snake == "_deleted":
+            mapped[snake] = coerce_bool(value)
         else:
             mapped[snake] = value
     return mapped
@@ -190,9 +207,9 @@ def project_finding_aliases(finding: dict[str, Any]) -> dict[str, Any]:
     if projected.get("assignedTo") and not projected.get("assignee"):
         projected["assignee"] = projected["assignedTo"]
     if "false_positive" in projected and "falsePositive" not in projected:
-        projected["falsePositive"] = bool(projected.get("false_positive"))
+        projected["falsePositive"] = coerce_bool(projected.get("false_positive"))
     if "falsePositive" in projected and "false_positive" not in projected:
-        projected["false_positive"] = bool(projected.get("falsePositive"))
+        projected["false_positive"] = coerce_bool(projected.get("falsePositive"))
     if "fp_status" in projected and "fpStatus" not in projected:
         projected["fpStatus"] = projected.get("fp_status")
     if "fp_justification" in projected and "fpJustification" not in projected:
@@ -203,7 +220,7 @@ def project_finding_aliases(finding: dict[str, Any]) -> dict[str, Any]:
     status = canonicalize_status(stored_status, for_api=True)
     # Only infer false_positive when the caller left status empty/open.
     # An explicit accepted/closed/custom status must win over the FP flag.
-    if projected.get("false_positive") or projected.get("falsePositive"):
+    if coerce_bool(projected.get("false_positive")) or coerce_bool(projected.get("falsePositive")):
         if not stored_status or status == "open":
             status = "false_positive"
     projected["status"] = status

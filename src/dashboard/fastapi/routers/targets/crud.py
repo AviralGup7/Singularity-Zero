@@ -2,7 +2,6 @@
 
 import json
 import logging
-import shutil
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -13,7 +12,7 @@ from src.dashboard.fastapi.routers.targets.validation import (
     _normalize_finding_payload,
     is_target_owned_by_tenant,
 )
-from src.dashboard.fastapi.routers.utils import get_safe_target_dir
+from src.dashboard.fastapi.routers.utils import get_safe_target_dir, safe_remove_tree
 from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     TargetInfo,
@@ -82,7 +81,7 @@ async def delete_target(
     if not target_dir.is_dir() or target_dir.name.startswith("_"):
         raise HTTPException(status_code=400, detail="Target cannot be deleted")
 
-    shutil.rmtree(target_dir)
+    safe_remove_tree(target_dir, root=output_root)
     logger.info("Deleted target output directory: %s", target_dir)
     return {"deleted": True, "target": target_dir.name}
 
@@ -203,7 +202,7 @@ async def get_target_compliance(
             for child in target_dir.iterdir()
             if child.is_dir() and (child / "run_summary.json").exists()
         ),
-        key=lambda d: d.name,
+        key=lambda d: d.stat().st_mtime,
         default=None,
     )
     if not latest_run:

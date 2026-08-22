@@ -41,7 +41,9 @@ async def bulk_update_findings(
         try:
             res = await update_finding(str(fid), updates, _auth=_auth, services=services)
             results.append(res)
-        except HTTPException:
-            continue
+        except HTTPException as exc:
+            logger.warning("Bulk update skipped %s: %s", fid, exc.detail)
+        except Exception:
+            logger.exception("Bulk update failed for %s", fid)
 
     return results

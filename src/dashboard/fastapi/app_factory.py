@@ -7,7 +7,7 @@ import sys
 import time
 from typing import Any, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -30,6 +30,18 @@ from src.dashboard.fastapi.spa import setup_spa_routes
 
 _dashboard_stats_lock = asyncio.Lock()
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_log_detail(detail: Any, *, limit: int = 500) -> str:
+    text = detail if isinstance(detail, str) else str(detail)
+    cleaned = "".join(ch if ch.isprintable() or ch in "\t " else " " for ch in text)
+    return cleaned[:limit]
+
+
+def _public_error_detail(exc: Exception, *, debug: bool) -> Any:
+    if debug:
+        return str(exc)
+    return "Service unavailable"
 
 
 def _apply_local_demo_defaults() -> None:
@@ -166,7 +178,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             status_code=503,
             content=_error_payload(
                 "Tool Not Installed",
-                {"message": str(exc), "tool": exc.tool, "code": exc.error_code},
+                {"message": _public_error_detail(exc, debug=config.debug), "code": exc.error_code},
                 exc.error_code,
             ),
         )
@@ -180,12 +192,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             status_code=503,
             content=_error_payload(
                 "Circuit Breaker Open",
-                {
-                    "message": str(exc),
-                    "tool": exc.tool,
-                    "breaker_state": exc.breaker_state,
-                    "code": exc.error_code,
-                },
+                {"message": _public_error_detail(exc, debug=config.debug), "code": exc.error_code},
                 exc.error_code,
             ),
         )
@@ -223,7 +230,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             status_code=500,
             content=_error_payload(
                 "Pipeline Error",
-                {"message": exc.message, "details": exc.details},
+                {"message": _public_error_detail(exc, debug=config.debug)},
                 "pipeline_error",
             ),
         )
@@ -336,7 +343,6 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "version": "3.1.0",
             "build": os.getenv("BUILD_SHA", "dev"),
             "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-            "boot_time": _START_TIME,
             "uptime_seconds": round(
                 time.time() - (_START_TIME if _START_TIME is not None else time.time()), 1
             ),
@@ -378,7 +384,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             )
 
     @app.websocket("/ws/triage/{run_id}")
-    async def ws_triage(websocket: Any, run_id: str) -> None:
+    async def ws_triage(websocket: WebSocket, run_id: str) -> None:
+        # Auth happens inside handle_triage_websocket via authenticate_websocket
+        # (query token / subprotocol) before the socket is accepted.
         from src.dashboard.fastapi.collaboration import TriageCollaborationService
         from src.dashboard.fastapi.routers.triage import handle_triage_websocket
 

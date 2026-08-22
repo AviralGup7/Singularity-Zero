@@ -36,6 +36,14 @@ class FieldMapTests(unittest.TestCase):
         open_fp = project_finding_aliases({"status": "open", "false_positive": True})
         self.assertEqual(open_fp["status"], "false_positive")
 
+    def test_coerce_bool_does_not_treat_false_string_as_true(self) -> None:
+        self.assertFalse(coerce_bool("false"))
+        self.assertFalse(coerce_bool("0"))
+        self.assertTrue(coerce_bool("true"))
+        mapped = map_update_payload({"falsePositive": "false"})
+        self.assertEqual(mapped.get("false_positive"), False)
+        self.assertNotIn("fp_status", mapped)
+
 
 if __name__ == "__main__":
     unittest.main()
