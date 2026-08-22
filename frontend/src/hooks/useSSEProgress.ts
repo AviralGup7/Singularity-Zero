@@ -9,6 +9,7 @@ import {
   useHeartbeat,
 } from './realtime/shared';
 import type { ConnectionState } from './realtime/shared';
+import { isTerminalSseEvent, shouldEnqueueSseEvent } from './realtime/ssePolicy';
 
 export interface SseEventData {
   [key: string]: unknown;
@@ -206,24 +207,19 @@ export function useSSEProgress<T = SseEventData>({
             : toServerTime(Date.now()),
         };
 
-        if (corrected.event_type === 'completed') {
-          streamCompletedRef.current = true;
-          es.close();
-          esRef.current = null;
-          setConnectionState('closed');
-          disarmHeartbeat();
-          return;
-        }
-        if (corrected.event_type === 'error' && corrected.data && !(corrected.data as Record<string, unknown>).recoverable) {
-          streamCompletedRef.current = true;
-          es.close();
-          esRef.current = null;
-          setConnectionState('closed');
-          disarmHeartbeat();
-          return;
+        if (shouldEnqueueSseEvent(corrected.event_type)) {
+          enqueueEvent(corrected);
         }
 
-        enqueueEvent(corrected);
+        if (isTerminalSseEvent(corrected.event_type, corrected.data as Record<string, unknown> | undefined)) {
+          streamCompletedRef.current = true;
+          es.close();
+          esRef.current = null;
+          setConnectionState('closed');
+          disarmHeartbeat();
+          flushBuffer();
+          return;
+        }
       } catch (err) {
         captureException(err as Error, { component: 'useSSEProgress', action: 'parse' });
         console.warn('[SSE] parse error', err);

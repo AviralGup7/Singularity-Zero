@@ -124,20 +124,25 @@ export function autoResolveDependencies(
   selectedModules: Set<string>,
   _moduleOptions: ModuleOption[],
 ): Set<string> {
-  // NOTE: _moduleOptions is currently unused.
-  // This function only adds required modules, never removes incompatible ones.
-  // To fully resolve dependencies, also check incompatibleWith.
   const resolved = new Set(selectedModules);
   let changed = true;
 
   while (changed) {
     changed = false;
-    for (const mod of resolved) {
-      const dep = Reflect.get(MODULE_DEPENDENCIES, mod);
+    for (const mod of Array.from(resolved)) {
+      const dep = Reflect.get(MODULE_DEPENDENCIES, mod) as ModuleDependency | undefined;
       if (dep?.requires) {
         for (const req of dep.requires) {
           if (!resolved.has(req)) {
             resolved.add(req);
+            changed = true;
+          }
+        }
+      }
+      if (dep?.incompatibleWith) {
+        for (const inc of dep.incompatibleWith) {
+          if (resolved.has(inc)) {
+            resolved.delete(inc);
             changed = true;
           }
         }

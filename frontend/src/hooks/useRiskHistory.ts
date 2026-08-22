@@ -9,8 +9,18 @@ export interface RiskHistoryFilters {
   endDate?: string;
 }
 
-function toDay(value: string): string {
-  return value.slice(0, 10);
+export function toDay(value: string | number | undefined | null): string {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '';
+    const ms = value > 9_999_999_999 ? value : value * 1000;
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const parsed = Date.parse(text);
+  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+  return text.slice(0, 10);
 }
 
 export function useRiskHistory(filters: RiskHistoryFilters) {

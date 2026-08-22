@@ -1,6 +1,15 @@
 import { useMemo } from 'react';
 import type { Target } from '@/types/api';
 
+export function averageFindingCount(targets: Array<{ finding_count?: number }>): number {
+  if (!targets.length) return 0;
+  const total = targets.reduce((acc, target) => {
+    const count = Number(target.finding_count);
+    return acc + (Number.isFinite(count) ? Math.max(0, count) : 0);
+  }, 0);
+  return Math.round(total / targets.length);
+}
+
 export function useTargetsKPIs(data: { targets: Target[] } | undefined) {
   const targetsCount = data?.targets?.length ?? 0;
   const criticalFindings = useMemo(() => {
@@ -10,9 +19,7 @@ export function useTargetsKPIs(data: { targets: Target[] } | undefined) {
   }, [data?.targets]);
   const avgFindings = useMemo(() => {
     const targets = data?.targets ?? [];
-    if (!targets.length) return 0;
-    const totalFindings = targets.reduce((acc, t) => acc + (t.finding_count ?? 0), 0);
-    return Math.round(totalFindings / targets.length);
+    return averageFindingCount(targets);
   }, [data?.targets]);
 
   return { targetsCount, criticalFindings, avgFindings };

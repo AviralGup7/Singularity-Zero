@@ -5,6 +5,15 @@ import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export type StatusFilter = 'all' | 'complete' | 'partial' | 'missing';
 
+export function sanitizeTargetNames(names: Array<string | undefined | null>): string[] {
+  const next: string[] = [];
+  for (const name of names) {
+    const trimmed = String(name ?? '').trim();
+    if (trimmed && !next.includes(trimmed)) next.push(trimmed);
+  }
+  return next;
+}
+
 export function useGapAnalysis() {
   const [selectedTarget, setSelectedTarget] = useState<string>('all');
   const [data, setData] = useState<DetectionGapResponse | null>(null);
@@ -18,7 +27,7 @@ export function useGapAnalysis() {
     setError(null);
     try {
       const targetsRes = await getTargets();
-      const targetNames = (targetsRes.targets || []).map(t => t.name || '');
+      const targetNames = sanitizeTargetNames((targetsRes.targets || []).map(t => t.name));
       setTargets(targetNames);
 
       const targetToFetch = targetVal !== undefined ? targetVal : selectedTarget;
