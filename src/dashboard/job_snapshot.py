@@ -122,17 +122,24 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
             "startup",
             "subdomains",
             "live_hosts",
+            "waf",
             "urls",
+            "recon_validation",
+            "git_diff_crawl",
             "parameters",
             "ranking",
             "priority",
             "passive_scan",
             "active_scan",
+            "semgrep",
             "nuclei",
+            "subdomain_takeover",
             "access_control",
             "validation",
             "intelligence",
+            "threat_modeling",
             "reporting",
+            "sarif_export",
             "completed",
         ]
         seen_stages: set[str] = set()
@@ -256,6 +263,11 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         "progress_telemetry": _snapshot_progress_telemetry(job, now=now),
         "telemetry_events": telemetry_events[-_MAX_TELEMETRY_EVENTS:],
         "concurrent_stage_count": running_count,
+        "running_stages": [
+            str(entry.get("stage") or "")
+            for entry in stage_progress_list
+            if _normalize_stage_status(entry.get("status")) == "running"
+        ],
         "state_version": int(job.get("state_version", 0) or 0),
         "_cache_key": cache_key,
     }

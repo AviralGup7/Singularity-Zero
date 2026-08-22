@@ -552,6 +552,10 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
     incoming_message = str(payload.get("message", "")).strip()
     if incoming_message:
         sp["last_event"] = incoming_message
+    if payload.get("injected") is True:
+        sp["injected"] = True
+    if stage_status in {"completed", "skipped", "error"}:
+        sp["finished_at"] = now
 
     if stage_status == "running":
         _mark_stage_running(job, stage)

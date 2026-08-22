@@ -57,6 +57,8 @@ def _normalize_stage_status(value: object) -> str:
         return "completed"
     if status == "pending":
         return "pending"
+    if status == "ready":
+        return "pending"
     return "running"
 
 

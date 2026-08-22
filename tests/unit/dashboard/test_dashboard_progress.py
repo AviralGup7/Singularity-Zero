@@ -188,6 +188,31 @@ class DashboardProgressTests(unittest.TestCase):
         telemetry = job.get("progress_telemetry", {})
         skipped = telemetry.get("skipped_stages", [])
         self.assertIn({"stage": "nuclei", "reason": "nuclei_not_on_path"}, skipped)
+        snap = snapshot_job(job)
+        nuclei = next(item for item in snap["stage_progress"] if item["stage"] == "nuclei")
+        self.assertEqual(nuclei["status"], "skipped")
+        self.assertEqual(nuclei["reason"], "nuclei_not_on_path")
+
+    def test_apply_progress_preserves_injected_flag(self) -> None:
+        job = self._job()
+        apply_progress(
+            job,
+            {
+                "stage": "threat_modeling",
+                "status": "pending",
+                "injected": True,
+                "message": "Planner injected stage",
+            },
+        )
+        apply_progress(
+            job,
+            {
+                "stage": "threat_modeling",
+                "status": "running",
+                "message": "Threat modeling",
+            },
+        )
+        self.assertTrue(job["stage_progress"]["threat_modeling"]["injected"])
 
     def test_apply_progress_tracks_telemetry_fields(self) -> None:
         job = self._job()

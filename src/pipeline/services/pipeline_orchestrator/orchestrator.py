@@ -298,9 +298,7 @@ class PipelineOrchestrator:
         self, event_type: EventType, source: str, data: dict[str, Any], trace_id: str | None = None
     ) -> None:
         """Emit a pipeline domain event while keeping orchestration failure-safe."""
-        print(
-            f"[INSTRUMENT] _emit_event: START event_type={event_type} source={source}", flush=True
-        )
+        logger.debug("_emit_event start event_type=%s source=%s", event_type, source)
         try:
             _result = self.observability_bus.emit_event(
                 event_type,
@@ -310,11 +308,9 @@ class PipelineOrchestrator:
                 correlation_id=self.ctx.pipeline_correlation_id,
                 trace_id=trace_id,
             )
-            print(f"[INSTRUMENT] _emit_event: SUCCESS event_type={event_type}", flush=True)
+            logger.debug("_emit_event success event_type=%s", event_type)
         except Exception as exc:
-            print(
-                f"[INSTRUMENT] _emit_event: EXCEPTION event_type={event_type} exc={exc}", flush=True
-            )
+            logger.debug("_emit_event failed event_type=%s exc=%s", event_type, exc)
             raise
 
     def _emit_pipeline_error(self, reason: str, details: dict[str, Any] | None = None) -> None:

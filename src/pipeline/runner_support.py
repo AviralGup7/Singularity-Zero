@@ -36,6 +36,21 @@ def emit_progress(stage: str, message: str, percent: int, **fields: object) -> N
     emit_progress_event(stage, message, percent, **fields)
 
 
+def emit_stage_skipped(stage: str, reason: str, **fields: object) -> None:
+    """Publish an explicit skip so the dashboard can store the real outcome."""
+    emit_progress(
+        stage,
+        f"Stage skipped: {reason}",
+        100,
+        status="skipped",
+        stage_status="skipped",
+        reason=reason,
+        event_trigger="stage_skipped",
+        stage_percent=0,
+        **fields,
+    )
+
+
 def emit_stage_summary(stage: str, summary: dict[str, Any]) -> None:
     """Emit a machine-readable stage summary for observability."""
     emit_progress(

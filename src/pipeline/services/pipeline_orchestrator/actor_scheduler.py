@@ -30,6 +30,7 @@ from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
+from src.pipeline.runner_support import emit_stage_skipped
 
 from ._graph_dsl import Graph, StageNode
 
@@ -169,6 +170,7 @@ class ActorScheduler:
         self._in_flight: dict[asyncio.Task[Any], _ScheduledTask] = {}
         self._launched: set[str] = set()
         self._skipped: set[str] = set()
+        self._injected: set[str] = set()
         self._failed_critical: str | None = None
         self._outcome = SchedulerOutcome()
         self._deferral_count: dict[str, int] = {}
@@ -229,8 +231,24 @@ class ActorScheduler:
                 break
 
             # Dynamically plan remaining stages and calibrate resources/timeouts
+            previous_remaining = set(self._remaining)
             planned_remaining, resources = planner.plan_stages(list(self._remaining))
-            self._remaining = set(planned_remaining)
+            planned_set = set(planned_remaining)
+            for name in previous_remaining - planned_set:
+                reason = self._planner_skip_reason(name)
+                self._mark_skipped_by_name(name, reason=reason)
+            for name in planned_set - previous_remaining:
+                self._injected.add(name)
+                self._progress_emitter(
+                    name,
+                    "Planner injected stage",
+                    0,
+                    status="pending",
+                    stage_status="pending",
+                    injected=True,
+                    event_trigger="stage_injected",
+                )
+            self._remaining = planned_set
             if resources:
                 # Merge dynamically planned stage timeouts or other adjustments
                 for k, v in resources.items():
