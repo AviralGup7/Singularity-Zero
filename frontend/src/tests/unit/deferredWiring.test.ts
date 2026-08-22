@@ -103,5 +103,6 @@ describe('optional features schema', () => {
     const settings = AppSettingsSchema.parse({});
     expect(settings.features.clientPerformance).toBe(false);
     expect(settings.features.reconDetails).toBe(false);
+    expect(settings.features.livePipelineStatus).toBe(false);
   });
 });

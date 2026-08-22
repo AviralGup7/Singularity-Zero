@@ -12,6 +12,8 @@ import { usePersistedState } from '../hooks';
 import { JOB_STATUS_FILTERS, jobsListIsFiltered, normalizeJobStatusFilter } from './jobsFilters';
 import { pickPreferredFilter } from '../stores/settingsHydrate';
 import { clampFindingsPage } from '../features/findings/findingsViewMode';
+import { LivePipelineStatus } from '../components/LivePipelineStatus';
+import { useOptionalFeatures } from '../hooks/useOptionalFeatures';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 const PAGE_SIZE = 20;
@@ -20,6 +22,7 @@ const STATUS_FILTERS = JOB_STATUS_FILTERS;
 export function JobsPage() {
   const navigate = useNavigate();
   const { jobs, loading, error, refetch } = useJobsContext();
+  const features = useOptionalFeatures();
   const [searchParams, setSearchParams] = useSearchParams();
    
   const [statusFilter, setStatusFilter] = usePersistedState<string>('jobs-status-filter', searchParams.get('status') || 'all');
@@ -103,6 +106,8 @@ export function JobsPage() {
           )
         }
       />
+
+      {features.livePipelineStatus && <LivePipelineStatus />}
 
       <StartJobForm
         onJobStarted={(jobId) => {

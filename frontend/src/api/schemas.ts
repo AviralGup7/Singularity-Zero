@@ -254,6 +254,7 @@ export const AppSettingsSchema = z.object({
     cinematicIntro: z.boolean().default(false),
     clientPerformance: z.boolean().default(false),
     reconDetails: z.boolean().default(false),
+    livePipelineStatus: z.boolean().default(false),
   }).default({
     threatIntel: true,
     cvssDetails: true,
@@ -263,6 +264,7 @@ export const AppSettingsSchema = z.object({
     cinematicIntro: false,
     clientPerformance: false,
     reconDetails: false,
+    livePipelineStatus: false,
   }),
   performance: z.object({
     enableCaching: z.boolean().default(true),

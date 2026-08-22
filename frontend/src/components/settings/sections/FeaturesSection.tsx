@@ -60,6 +60,12 @@ export function FeaturesSection({ features, onChange }: FeaturesSectionProps) {
         onChange={(v) => onChange({ reconDetails: v })}
         description="Show discovered host and scope URLs on completed job detail"
       />
+      <SettingToggle
+        label="Live Pipeline Status"
+        checked={features.livePipelineStatus}
+        onChange={(v) => onChange({ livePipelineStatus: v })}
+        description="Show running-stage chips and connection state on the Jobs page (ScanStatusBar stays available either way)"
+      />
     </SettingsSectionCard>
   );
 }
