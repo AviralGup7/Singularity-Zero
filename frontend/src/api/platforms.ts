@@ -28,7 +28,11 @@ export async function listPlatformClients(signal?: AbortSignal): Promise<Platfor
     '/api/reports/platforms',
     { signal },
   );
-  return data.clients || [];
+  return asPlatformClients(data.clients);
+}
+
+export function asPlatformClients(value: unknown): PlatformClientSummary[] {
+  return Array.isArray(value) ? value as PlatformClientSummary[] : [];
 }
 
 export async function pushFindingToPlatform(
@@ -38,6 +42,9 @@ export async function pushFindingToPlatform(
   options: { draft?: boolean; additionalNotes?: string } = {},
   signal?: AbortSignal,
 ): Promise<SubmissionResult> {
+  if (!String(runId ?? '').trim() || !String(findingId ?? '').trim()) {
+    return { platform, submitted: false, error: 'Run and finding ids are required' };
+  }
   const { data } = await apiClient.post<SubmissionResult>(
     `/api/reports/runs/${encodeURIComponent(runId)}/findings/${encodeURIComponent(findingId)}/submit`,
     { platform, draft: options.draft ?? true, additional_notes: options.additionalNotes ?? '' },

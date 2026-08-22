@@ -18,6 +18,11 @@ export async function getCacheStatus(signal?: AbortSignal): Promise<CacheStatusR
   return cachedGet<CacheStatusResponse>('/api/cache/status', { signal, bypassCache: true });
 }
 
+export function sanitizeCacheKeyLimit(limit: number): number {
+  if (!Number.isFinite(limit) || limit <= 0) return 100;
+  return Math.min(Math.floor(limit), 1000);
+}
+
 export async function getCacheKeys(
   pattern = '*',
   limit = 100,
@@ -26,11 +31,14 @@ export async function getCacheKeys(
   return cachedGet<CacheKeysResponse>('/api/cache/keys', {
     signal,
     bypassCache: true,
-    params: { pattern, limit },
+    params: { pattern, limit: sanitizeCacheKeyLimit(limit) },
   });
 }
 
 export async function deleteCacheKeys(pattern: string, signal?: AbortSignal): Promise<CacheKeyDeleteResponse> {
+  if (!String(pattern ?? '').trim()) {
+    throw new Error('Cache key pattern is required');
+  }
   const { data } = await apiClient.delete<CacheKeyDeleteResponse>('/api/cache/keys', {
     data: { pattern },
     signal,
