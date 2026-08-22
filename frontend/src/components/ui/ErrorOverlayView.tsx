@@ -12,7 +12,7 @@ function ensureOverlayRoot() {
   if (!existing) {
     existing = document.createElement('div');
     existing.id = 'error-overlay-root';
-    existing.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;';
+    existing.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:auto;';
     document.body.appendChild(existing);
   }
   if (!errorRoot) {

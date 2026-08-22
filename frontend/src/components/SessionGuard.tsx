@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { SessionLockScreen, SessionWarningModal } from '@/components/SessionLock';
+import { normalizeAutoLogoutMinutes } from '@/hooks/sessionUnlock';
 
 function TokenSessionLock({ timeoutMs, requirePassword }: { timeoutMs: number; requirePassword: boolean }) {
   const { verifyUnlockPassword } = useAuth();
@@ -54,7 +55,7 @@ export function shouldEnableSessionLock(
  */
 export function SessionGuard() {
   const { user } = useAuth();
-  const minutes = useSettingsStore((state) => state.settings.security.autoLogoutMinutes);
+  const minutes = normalizeAutoLogoutMinutes(useSettingsStore((state) => state.settings.security.autoLogoutMinutes));
   const token = getStreamToken();
   const enabled = shouldEnableSessionLock(Boolean(user), token, minutes);
   const requirePassword = Boolean((user as { unlockPassword?: string } | null)?.unlockPassword);

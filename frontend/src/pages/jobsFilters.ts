@@ -2,5 +2,6 @@ export const JOB_STATUS_FILTERS = ['all', 'running', 'completed', 'failed', 'sto
 export type JobStatusFilter = (typeof JOB_STATUS_FILTERS)[number];
 
 export function normalizeJobStatusFilter(value: unknown): JobStatusFilter {
-  return JOB_STATUS_FILTERS.includes(value as JobStatusFilter) ? (value as JobStatusFilter) : 'all';
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return JOB_STATUS_FILTERS.includes(normalized as JobStatusFilter) ? (normalized as JobStatusFilter) : 'all';
 }

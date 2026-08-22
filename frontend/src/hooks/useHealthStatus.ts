@@ -59,10 +59,13 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-     
-    checkHealth(controller.signal);
-    const interval = setInterval(() => checkHealth(controller.signal), pollInterval);
+    let controller = new AbortController();
+    void checkHealth(controller.signal);
+    const interval = setInterval(() => {
+      controller.abort();
+      controller = new AbortController();
+      void checkHealth(controller.signal);
+    }, pollInterval);
     return () => {
       controller.abort();
       clearInterval(interval);
