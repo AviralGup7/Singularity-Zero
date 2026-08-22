@@ -10,7 +10,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { emitRefresh } from '../../lib/events';
 import { useCommandPaletteItems, useCommandItems } from '../../hooks/useCommandPaletteItems';
-import { useWebSocket } from '../../hooks/useWebSocket';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
 import { useDisplayStore } from '@/stores/displayStore';
 import type { SearchableItem } from './CommandPalette';
@@ -42,7 +41,6 @@ interface NavSection {
 
 function useNavSections(): NavSection[] {
   const { t } = useTranslation();
-  const workflowMode = useDisplayStore((state) => state.workflowMode);
 
   return useMemo(() => {
     const main = [
@@ -74,7 +72,7 @@ function useNavSections(): NavSection[] {
     ];
 
     return sections;
-  }, [t, workflowMode]);
+  }, [t]);
 }
 
 function buildDefaultNavItems(sections: NavSection[]): SearchableItem[] {
@@ -272,12 +270,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     prevNotifCountRef.current = notifications.length;
   }, [notifications, toast]);
 
-  const { connectionState: liveConnectionState } = useWebSocket({
-    jobId: undefined,
-    enabled: false,
-    onMessage: () => {},
-    onFallback: () => {},
-  });
+  const liveConnectionState = !isOnline
+    ? 'disconnected'
+    : healthStatus.error
+      ? 'reconnecting'
+      : healthStatus.ready
+        ? 'connected'
+        : 'reconnecting';
 
   // Items are now managed reactively via useCommandItems() above.
   // The old search:items-update event dance has been removed in favor of
@@ -294,6 +293,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [commandPaletteOpen]);
 
+  const overlayOpenRef = useRef({ showShortcuts, commandPaletteOpen, sidebarOpen });
+  overlayOpenRef.current = { showShortcuts, commandPaletteOpen, sidebarOpen };
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
@@ -306,7 +308,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     // skipped editable targets — so Escape did nothing while the palette
     // (or any overlay search field) was focused.
     if (e.key === 'Escape') {
-      if (showShortcuts || commandPaletteOpen || sidebarOpen) {
+      const overlay = overlayOpenRef.current;
+      if (overlay.showShortcuts || overlay.commandPaletteOpen || overlay.sidebarOpen) {
         e.preventDefault();
         setShowShortcuts(false);
         setCommandPaletteOpen(false);
@@ -357,7 +360,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       e.preventDefault();
       emitRefresh();
     }
-  }, [navigate, theme.mode, themeUpdater, toggleSidebarCollapsed, showShortcuts, commandPaletteOpen, sidebarOpen]);
+  }, [navigate, theme.mode, themeUpdater, toggleSidebarCollapsed]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

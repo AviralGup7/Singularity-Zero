@@ -195,7 +195,7 @@ const JobCard = memo(function JobCard({ job, onRefresh, shortcut }: { job: Job; 
       {card}
     </motion.div>
   );
-}, (prev, next) => prev.job?.id === next.job?.id && prev.onRefresh === next.onRefresh);
+});
 
 export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { jobs?: Job[]; onRefresh?: () => void }) {
    
@@ -236,13 +236,21 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
     }
 
     const controller = new AbortController();
-    void fetchJobs(controller.signal);
-    const interval = setInterval(() => void fetchJobs(controller.signal), 5000);
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void fetchJobs(controller.signal);
+    };
+    tick();
+    const interval = setInterval(tick, 5000);
+    const onVisibility = () => {
+      if (!document.hidden) void fetchJobs(controller.signal);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       controller.abort();
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
-   
   }, [propJobs, fetchJobs]);
 
   if (loading) {
@@ -257,7 +265,18 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
     );
   }
 
-  if (error) return <div className="banner error">{error}</div>;
+  if (error && jobs.length === 0) {
+    return (
+      <div className="section">
+        <div className="banner error flex items-center justify-between gap-3" role="alert">
+          <span>{error}</span>
+          <button type="button" className="btn btn-secondary btn-small" onClick={() => void fetchJobs()}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const filteredJobs = propJobs
     ? jobs
@@ -268,6 +287,14 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
 
   return (
     <div className="section section-jobs">
+      {error && jobs.length > 0 && (
+        <div className="banner error mb-4 flex items-center justify-between gap-3" role="alert">
+          <span>{error}</span>
+          <button type="button" className="btn btn-secondary btn-small" onClick={() => void fetchJobs()}>
+            Retry
+          </button>
+        </div>
+      )}
       {!embedded && (
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="section-title !mb-0">

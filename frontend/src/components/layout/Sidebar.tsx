@@ -70,8 +70,8 @@ export function Sidebar({
       {sidebarOpen && (
         <div
           className="sidebar-overlay animate-fade-in"
-          onKeyDown={(e) => e.key === 'Escape' && setSidebarOpen(false)}
-          onClick={() => setSidebarOpen(false)}
+          onKeyDown={(e) => e.key === 'Escape' && closeSidebar()}
+          onClick={closeSidebar}
           role="presentation"
           aria-hidden="true"
         />

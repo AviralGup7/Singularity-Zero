@@ -22,7 +22,7 @@ import { visibleFindingIds } from '@/features/notifications/unread';
 import { acknowledgeNewFindings, detectFreshFindingIds, withoutFindingParam } from './newFindingsFeed';
 import { sanitizeSeverityFilters } from './severityFilter';
 import { applyFilterPreset } from './filterPreset';
-import { pruneSelection } from './selection';
+import { pairFromSelection, pruneSelection } from './selection';
 import { toggleIdInSet } from './hooks/useBulkActions';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
@@ -75,12 +75,21 @@ export function FindingsPage() {
     };
     void load();
     const unbind = onRefresh(() => { void load(); });
-    const interval = detailFinding ? undefined : window.setInterval(() => { void load(); }, 5000);
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void load();
+    };
+    const interval = detailFinding ? undefined : window.setInterval(tick, 8000);
+    const onVisibility = () => {
+      if (!document.hidden && !detailFinding) void load();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       cancelled = true;
       controllers.forEach((controller) => controller.abort());
       unbind();
       if (interval) window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [listParams, detailFinding]);
 
@@ -90,7 +99,7 @@ export function FindingsPage() {
 
   const [viewMode, setViewMode] = usePersistedState<FindingsViewMode>('findings-view-mode', 'grid');
   const safeViewMode = normalizeFindingsViewMode(viewMode);
-  const [compareDismissed, setCompareDismissed] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(true);
 
   const [selectedFindingIds, setSelectedFindingIds] = useState<Set<string>>(new Set());
   const [bulkActionMode, setBulkActionMode] = useState<string | null>(null);
@@ -151,7 +160,6 @@ export function FindingsPage() {
       clearSelection();
       emitRefresh();
     } catch {
-      setFailedBulkAction(buildFailedBulkAction(ids, data, successMsg, actionLabel));
       if (!navigator.onLine) {
         offlineQueue.enqueue({
           execute: () => bulkUpdateFindings(ids, data),
@@ -159,9 +167,10 @@ export function FindingsPage() {
           description: actionLabel,
         });
         toast.info(`${actionLabel} queued — will sync when back online`);
-      } else {
-        toast.error(`${actionLabel} failed`);
+        return;
       }
+      setFailedBulkAction(buildFailedBulkAction(ids, data, successMsg, actionLabel));
+      toast.error(`${actionLabel} failed`);
     }
   }, [clearSelection, toast]);
 
@@ -234,14 +243,14 @@ export function FindingsPage() {
             if (mounted && finding) setDetailFinding(finding);
           })
           .catch(() => {
-            console.error('Failed to deep-link to finding:', fid);
+            toast.error(`Could not open finding ${fid}`);
           });
       }
     }
 
     return () => { mounted = false; };
 
-  }, [searchParams, rawList]);
+  }, [searchParams, rawList, toast]);
 
   // --- Overhaul: Off-Main-Thread Processing ---
    
@@ -273,17 +282,14 @@ export function FindingsPage() {
     });
   }, [visibleIds]);
 
-  const comparePair = useMemo(() => {
-    if (selectedFindingIds.size !== 2) return null;
-    const [idA, idB] = Array.from(selectedFindingIds);
-    const findingA = findings.find((finding) => finding.id === idA);
-    const findingB = findings.find((finding) => finding.id === idB);
-    return findingA && findingB ? { findingA, findingB } : null;
-  }, [selectedFindingIds, findings]);
+  const comparePair = useMemo(
+    () => pairFromSelection(selectedFindingIds, findings),
+    [selectedFindingIds, findings],
+  );
 
   const selectionKey = compareSelectionKey(selectedFindingIds);
   useEffect(() => {
-    setCompareDismissed(false);
+    setCompareOpen(true);
   }, [selectionKey]);
 
   const selectAllFindings = useCallback(() => {
@@ -291,30 +297,25 @@ export function FindingsPage() {
   }, [findings]);
 
   const handleExport = useCallback(async (format: 'csv' | 'json') => {
+    let url = '';
     try {
       const blob = await exportFindings({ format });
-      const url = window.URL.createObjectURL(blob);
+      url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `findings-${Date.now()}.${format}`;
       link.click();
-      window.URL.revokeObjectURL(url);
     } catch {
       toast.error('Export sequence failed');
+    } finally {
+      if (url) window.URL.revokeObjectURL(url);
     }
-
   }, [toast]);
 
   const handleSortToggle = useCallback((key: keyof Finding | 'bounty_value' | 'remediation_priority') => {
-    setSortKey((prev) => {
-      if (prev === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return prev;
-      }
-      setSortDir('desc');
-      return key;
-    });
-  }, []);
+    setSortDir((direction) => (sortKey === key ? (direction === 'asc' ? 'desc' : 'asc') : 'desc'));
+    setSortKey(key);
+  }, [sortKey]);
 
   const currentFilters = useMemo(() => ({
     search: searchQuery,
@@ -328,17 +329,17 @@ export function FindingsPage() {
   }, [searchQuery, severityFilter, setSearchQuery, setSeverityFilter]);
 
   const toggleSeverity = useCallback((sev: string) => {
-    setSeverityFilter((prev) => {
-      const next = prev.includes(sev) ? prev.filter((item) => item !== sev) : [...prev, sev];
-      setSearchParams((current) => {
-        const params = new URLSearchParams(current);
-        if (next.length > 0) params.set('severity', next.join(','));
-        else params.delete('severity');
-        return params;
-      }, { replace: true });
-      return next;
-    });
-  }, [setSearchParams]);
+    const next = severityFilter.includes(sev)
+      ? severityFilter.filter((item) => item !== sev)
+      : [...severityFilter, sev];
+    setSeverityFilter(next);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (next.length > 0) params.set('severity', next.join(','));
+      else params.delete('severity');
+      return params;
+    }, { replace: true });
+  }, [severityFilter, setSearchParams]);
 
   const clearFindingFilters = useCallback(() => {
     setSearchQuery('');
@@ -421,19 +422,20 @@ export function FindingsPage() {
                 <Columns3 size={16} />
              </button>
           </div>
-          {comparePair && (
+          {comparePair && !compareOpen && (
             <button
               type="button"
-              onClick={() => setCompareDismissed(false)}
+              onClick={() => setCompareOpen(true)}
               className="btn-secondary btn-small flex items-center gap-1.5"
+              aria-label="Compare the two selected findings"
             >
               <ArrowUpDown size={12} />
               Compare
             </button>
           )}
           <div className="flex gap-2">
-            <button type="button" onClick={() => handleExport('json')} className="btn-secondary btn-small">Export JSON</button>
-            <button type="button" onClick={() => handleExport('csv')} className="btn-secondary btn-small">Export CSV</button>
+            <button type="button" onClick={() => handleExport('json')} className="btn-secondary btn-small" aria-label="Export findings as JSON">Export JSON</button>
+            <button type="button" onClick={() => handleExport('csv')} className="btn-secondary btn-small" aria-label="Export findings as CSV">Export CSV</button>
           </div>
         </div>
       </div>
@@ -492,6 +494,8 @@ export function FindingsPage() {
               animate={{ opacity: 1, y: 0, height: 'auto' }}
               exit={{ opacity: 0, y: -12, height: 0 }}
               className="w-full flex items-center justify-between gap-4 px-6 py-3 border border-warn/30 bg-warn/10 rounded-xl"
+              role="alert"
+              aria-live="assertive"
             >
               <div className="flex items-center gap-3 text-xs font-mono text-text">
                 <RefreshCw size={14} className="text-warn" />
@@ -537,7 +541,8 @@ export function FindingsPage() {
           />
         </div>
       ) : (
-      <div className="px-8 py-4 card mx-4 mt-4 flex items-center gap-6 flex-wrap">
+      <div className="px-8 pt-4">
+      <div className="px-0 py-4 card flex items-center gap-6 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input 
@@ -564,6 +569,8 @@ export function FindingsPage() {
                    type="button"
                    key={sev}
                    onClick={() => toggleSeverity(sev)}
+                   aria-pressed={severityFilter.includes(sev)}
+                   aria-label={`Filter severity ${sev}`}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all flex items-center gap-2 cursor-pointer ${
                     severityFilter.includes(sev) 
                       ? 'bg-surface-2 border-line text-text-primary' 
@@ -582,6 +589,7 @@ export function FindingsPage() {
           currentFilters={currentFilters}
           onLoadPreset={handleLoadPreset}
         />
+      </div>
       </div>
       )}
 
@@ -727,11 +735,11 @@ export function FindingsPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {comparePair && !compareDismissed && (
+        {comparePair && compareOpen && (
           <FindingComparisonPanel
             findingA={comparePair.findingA}
             findingB={comparePair.findingB}
-            onClose={() => setCompareDismissed(true)}
+            onClose={() => setCompareOpen(false)}
           />
         )}
       </AnimatePresence>
