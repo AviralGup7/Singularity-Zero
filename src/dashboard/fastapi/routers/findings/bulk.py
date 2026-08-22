@@ -26,25 +26,20 @@ async def bulk_update_findings(
 ) -> list[dict[str, Any]]:
     """Apply updates to multiple findings."""
     ids = payload.get("ids", [])
-    ALLOWED_BULK_UPDATE_FIELDS = {
-        "status",
-        "severity",
-        "decision",
-        "notes",
-        "lifecycle_state",
-        "assignee",
-        "tags",
-    }
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(status_code=400, detail="ids must be a non-empty list")
     raw_updates = {k: v for k, v in payload.items() if k != "ids"}
-    updates = {k: v for k, v in raw_updates.items() if k in ALLOWED_BULK_UPDATE_FIELDS}
-    if len(updates) != len(raw_updates):
-        rejected = set(raw_updates) - ALLOWED_BULK_UPDATE_FIELDS
+    updates = map_update_payload(raw_updates, bulk=True)
+    rejected = set(raw_updates) - set(updates)
+    if rejected:
         logger.warning("Bulk update: rejecting disallowed fields: %s", sorted(rejected))
+    if not updates:
+        raise HTTPException(status_code=400, detail="No permitted fields to update")
     results = []
 
     for fid in ids:
         try:
-            res = await update_finding(fid, updates, _auth=_auth, services=services)
+            res = await update_finding(str(fid), updates, _auth=_auth, services=services)
             results.append(res)
         except HTTPException:
             continue

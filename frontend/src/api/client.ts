@@ -6,6 +6,8 @@ import { apiClient, cachedGet } from './core';
 export { apiClient, cachedGet } from './core';
 export {
   canonicalizeFindingStatus,
+  canonicalizeJobStatus,
+  collectAllPages,
   mapFindingUpdate,
   normalizeFindingRecord,
   readPageEnvelope,

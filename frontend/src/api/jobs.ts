@@ -3,7 +3,7 @@ import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
 import { appendStreamToken } from './streamAuth';
 
-import { asNumber, asRecord, asString, readPageEnvelope, toJobListParams, type JobListQuery, type PageEnvelope } from './contract';
+import { asNumber, asRecord, asString, canonicalizeJobStatus, collectAllPages, readPageEnvelope, toJobListParams, type JobListQuery, type PageEnvelope } from './contract';
 
 export interface JobsListParams {
   page?: number;
@@ -19,7 +19,7 @@ export function normalizeJobRecord(raw: unknown): Job | null {
   if (!rec) return null;
   const id = asString(rec.id);
   if (!id) return null;
-  const status = asString(rec.status || 'queued') as Job['status'];
+  const status = canonicalizeJobStatus(rec.status);
   return {
     ...(rec as unknown as Job),
     id,
@@ -62,15 +62,11 @@ export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl
     sort_by: params?.sort_by,
     sort_dir: params?.sort_dir,
   };
-  const first = await getJobsPage(query, signal, ttl);
-  if (first.total <= first.items.length) return first.items;
-  const pages = Math.min(8, Math.ceil(first.total / first.pageSize));
-  const rest = await Promise.all(
-    Array.from({ length: pages - 1 }, (_, index) =>
-      getJobsPage({ ...query, page: index + 2, page_size: first.pageSize }, signal, ttl),
-    ),
+  return collectAllPages(
+    (pageQuery, pageSignal) => getJobsPage(pageQuery, pageSignal, ttl),
+    query,
+    signal,
   );
-  return rest.reduce((acc, page) => acc.concat(page.items), first.items);
 }
 
 export async function getJob(jobId: string, signal?: AbortSignal, ttl?: number): Promise<Job | null> {

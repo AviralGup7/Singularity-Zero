@@ -3,6 +3,7 @@ import type { FindingTimelineEvent } from '@/types/extended';
 import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
 import {
+  collectAllPages,
   mapFindingUpdate,
   normalizeFindingRecord,
   readPageEnvelope,
@@ -53,21 +54,15 @@ export async function getFindingsPage(
 }
 
 export async function getFindings(params?: FindingsListParams, signal?: AbortSignal): Promise<Finding[]> {
-  const first = await getFindingsPage(
-    { page: 1, page_size: Math.min(200, params?.page_size ?? 200), severity: params?.severity, search: params?.search },
+  return collectAllPages(
+    getFindingsPage,
+    {
+      page_size: Math.min(200, params?.page_size ?? 200),
+      severity: params?.severity,
+      search: params?.search,
+    },
     signal,
   );
-  if (first.total <= first.items.length) return first.items;
-  const pages = Math.min(5, Math.ceil(first.total / first.pageSize));
-  const rest = await Promise.all(
-    Array.from({ length: pages - 1 }, (_, index) =>
-      getFindingsPage(
-        { page: index + 2, page_size: first.pageSize, severity: params?.severity, search: params?.search },
-        signal,
-      ),
-    ),
-  );
-  return rest.reduce((acc, page) => acc.concat(page.items), first.items);
 }
 
 export async function getFindingRemediation(
@@ -98,15 +93,16 @@ export async function deleteFinding(id: string, signal?: AbortSignal): Promise<v
 }
 
 export async function updateFinding(id: string, data: Partial<Finding>, signal?: AbortSignal): Promise<Finding> {
-  const { data: result } = await apiClient.put<Finding>(`/api/findings/${id}`, data, { signal });
+  const body = mapFindingUpdate(data as Record<string, unknown>);
+  const { data: result } = await apiClient.put<unknown>(`/api/findings/${id}`, body, { signal });
   apiCache.invalidatePrefix('/api/findings');
   apiCache.invalidatePrefix('/api/targets/findings');
-  return result;
+  return toFinding(result) ?? ({ id, ...data } as Finding);
 }
 
-   
 export async function bulkUpdateFindings(ids: string[], data: Partial<Finding>, signal?: AbortSignal): Promise<Finding[]> {
-  const { data: result } = await apiClient.put<Finding[]>('/api/findings/bulk', { ids, ...data }, { signal });
+  const body = { ids, ...mapFindingUpdate(data as Record<string, unknown>) };
+  const { data: result } = await apiClient.put<unknown>('/api/findings/bulk', body, { signal });
   apiCache.invalidatePrefix('/api/findings');
   apiCache.invalidatePrefix('/api/targets/findings');
   return asFindingList(result);

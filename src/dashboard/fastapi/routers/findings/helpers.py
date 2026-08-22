@@ -134,9 +134,6 @@ def _collect_timeline_events(
                 continue
             if not isinstance(findings, list):
                 continue
-            if job_id and run_entry.name != job_id and tname != job_target:
-                # A job id may be stored as run folder or as finding.job_id
-                pass
             for idx, finding in enumerate(findings, 1):
                 if not isinstance(finding, dict):
                     continue

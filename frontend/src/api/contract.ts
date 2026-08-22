@@ -36,7 +36,9 @@ export const FINDING_FIELD_TO_API: Record<string, string> = {
   bounty_value: 'bounty_value',
   bountyValue: 'bounty_value',
   bounty_currency: 'bounty_currency',
+  bountyCurrency: 'bounty_currency',
   bounty_source: 'bounty_source',
+  bountySource: 'bounty_source',
   already_reported: 'already_reported',
   alreadyReported: 'already_reported',
   duplicates: 'duplicates',
@@ -44,9 +46,27 @@ export const FINDING_FIELD_TO_API: Record<string, string> = {
   severity: 'severity',
   notes: 'notes',
   tags: 'tags',
+  decision: 'decision',
+  title: 'title',
+  description: 'description',
   lifecycle_state: 'lifecycle_state',
+  lifecycleState: 'lifecycle_state',
+  scope_match: 'scope_match',
+  scopeMatch: 'scope_match',
+  remediation_status: 'remediation_status',
+  remediationStatus: 'remediation_status',
+  remediation_notes: 'remediation_notes',
+  remediationNotes: 'remediation_notes',
   _deleted: '_deleted',
 };
+
+export const JOB_STATUSES = ['running', 'completed', 'failed', 'stopped', 'paused', 'queued'] as const;
+export type JobStatusApi = (typeof JOB_STATUSES)[number];
+
+export function canonicalizeJobStatus(value: unknown): JobStatusApi {
+  const raw = asString(value || 'queued').trim().toLowerCase();
+  return (JOB_STATUSES as readonly string[]).includes(raw) ? (raw as JobStatusApi) : 'queued';
+}
 
 export interface PageEnvelope<T> {
   items: T[];
@@ -246,4 +266,29 @@ export function toFindingListParams(query: FindingListQuery = {}): Record<string
   if (query.search?.trim()) params.search = query.search.trim();
   if (query.target?.trim()) params.target = query.target.trim();
   return params;
+}
+
+/**
+ * Walk every remaining page until the envelope says there is no next page.
+ * A high circuit-breaker only exists to stop a broken API from looping;
+ * it is not a silent data cap — if it trips we throw instead of dropping rows.
+ */
+export async function collectAllPages<T, Q extends { page_size?: number }>(
+  fetchPage: (query: Q & { page: number; page_size: number }, signal?: AbortSignal) => Promise<PageEnvelope<T>>,
+  query: Q,
+  signal?: AbortSignal,
+  maxPages = 500,
+): Promise<T[]> {
+  const pageSize = Math.max(1, query.page_size ?? 100);
+  const items: T[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const envelope = await fetchPage({ ...query, page, page_size: pageSize }, signal);
+    items.push(...envelope.items);
+    const exhausted =
+      !envelope.hasNext ||
+      envelope.items.length === 0 ||
+      items.length >= envelope.total;
+    if (exhausted) return items;
+  }
+  throw new Error(`List pagination exceeded ${maxPages} pages without completing`);
 }
