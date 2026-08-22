@@ -1,9 +1,20 @@
 import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+MAX_FINDINGS_JSON_BYTES = 8 * 1024 * 1024
+
+
+def read_json_file(path: Path, *, max_bytes: int = MAX_FINDINGS_JSON_BYTES) -> Any:
+    """Read JSON with a hard size cap so a huge file cannot OOM the process."""
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise ValueError(f"{path.name} exceeds {max_bytes} bytes")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _find_finding_by_id(
@@ -16,7 +27,7 @@ def _find_finding_by_id(
     index_path = Path(output_root) / "findings_index.json"
     if index_path.exists():
         try:
-            index_data = json.loads(index_path.read_text(encoding="utf-8"))
+            index_data = read_json_file(index_path)
             if finding_id in index_data:
                 entry = index_data[finding_id]
                 target_name = entry.get("target_name")
@@ -26,7 +37,7 @@ def _find_finding_by_id(
                 if is_target_owned_by_tenant(target_name, tenant_id):
                     finding_path = Path(output_root) / target_name / run_name / "findings.json"
                     if finding_path.exists():
-                        findings = json.loads(finding_path.read_text(encoding="utf-8"))
+                        findings = read_json_file(finding_path)
                         if isinstance(findings, list) and 0 < idx <= len(findings):
                             finding = findings[idx - 1]
                             from src.dashboard.fastapi.routers.targets import (
@@ -54,7 +65,7 @@ def _find_finding_by_id(
                 if not findings_path.exists():
                     continue
                 try:
-                    findings = json.loads(findings_path.read_text(encoding="utf-8"))
+                    findings = read_json_file(findings_path)
                 except Exception:
                     logger.warning("Failed to parse findings at %s", findings_path, exc_info=True)
                     continue
@@ -128,7 +139,7 @@ def _collect_timeline_events(
             if not findings_path.exists():
                 continue
             try:
-                findings = json.loads(findings_path.read_text(encoding="utf-8"))
+                findings = read_json_file(findings_path)
             except Exception:
                 logger.warning("Failed to parse findings at %s", findings_path, exc_info=True)
                 continue

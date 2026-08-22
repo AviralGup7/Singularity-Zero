@@ -23,7 +23,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/jobs")
 
-CONFIGS_DIR = Path(__file__).resolve().parents[5] / "configs"
+
+def _resolve_configs_dir() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "configs"
+        if candidate.is_dir():
+            return candidate
+    return here.parents[5] / "configs"
+
+
+CONFIGS_DIR = _resolve_configs_dir()
+MAX_PROJECT_CONFIG_BYTES = 2 * 1024 * 1024
 
 # Bug #37: Known config keys that project presets are allowed to set.
 # Any key not in this set is stripped and logged to prevent project presets from
@@ -100,6 +111,8 @@ def _load_project_config(project_id: str) -> tuple[dict[str, Any], str]:
 
     if not cfg_path.is_file():
         raise ValueError(f"Project '{project_id}' not found")
+    if cfg_path.stat().st_size > MAX_PROJECT_CONFIG_BYTES:
+        raise ValueError(f"Project '{project_id}' config is too large")
 
     config = json.loads(cfg_path.read_text(encoding="utf-8"))
     # Strip _project metadata before passing to pipeline
@@ -134,6 +147,7 @@ def _config_fingerprint(config: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
+# POST /api/jobs is the REST create alias; POST /api/jobs/start is what the console uses.
 @router.post(
     "",
     response_model=JobResponse,
@@ -170,14 +184,11 @@ async def start_job(
     Bug #38: Attaches a config fingerprint to the job metadata so
     resume logic can detect if the config changed between runs.
     """
-    import logging as _logging
-
-    _logging.getLogger(__name__).info(
-        "AUTH start_job user=%r role=%s tenant=%s auth_method=%s",
+    logger.debug(
+        "start_job user=%r role=%s tenant=%s",
         _auth.get("user") if isinstance(_auth, dict) else None,
         _auth.get("role") if isinstance(_auth, dict) else None,
         _auth.get("tenant_id") if isinstance(_auth, dict) else None,
-        _auth.get("auth_method") if isinstance(_auth, dict) else None,
     )
     try:
         # If project_id is provided, load the project config
@@ -204,13 +215,7 @@ async def start_job(
             project_config=project_config,
             config_fingerprint=config_fingerprint,
         )
-        import logging as _logging
-
-        _logging.getLogger(__name__).info(
-            "START_JOB_RESPONSE job_id=%s services_instance_id=%d",
-            result.get("id"),
-            id(services),
-        )
+        logger.debug("start_job created job_id=%s", result.get("id"))
         return JobResponse(**result)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

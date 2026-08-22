@@ -5,6 +5,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.routers.findings.helpers import read_json_file
+from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 from src.dashboard.fastapi.schemas import ErrorResponse, FindingsSummaryResponse
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,7 @@ async def get_findings_summary(
         return FindingsSummaryResponse(
             total_findings=0,
             severity_totals=severity_totals,
-            by_severity=severity_totals,
+            by_severity=dict(severity_totals),
             by_module={},
             findings=[],
             targets=[],
@@ -46,7 +48,6 @@ async def get_findings_summary(
         )
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     for entry in sorted(output_root.iterdir()):
         if not entry.is_dir() or entry.name.startswith("_"):
@@ -69,9 +70,11 @@ async def get_findings_summary(
             findings_path = run_dir / "findings.json"
             if findings_path.exists():
                 try:
-                    findings = json.loads(findings_path.read_text(encoding="utf-8"))
+                    findings = read_json_file(findings_path)
                     if isinstance(findings, list):
                         for f in findings:
+                            if not isinstance(f, dict):
+                                continue
                             sev = str(f.get("severity", "info")).lower()
                             if sev in severity_totals:
                                 severity_totals[sev] += 1
@@ -85,7 +88,7 @@ async def get_findings_summary(
 
                             if len(all_findings_list) < 50:
                                 all_findings_list.append(f)
-                except Exception:
+                except (OSError, ValueError, json.JSONDecodeError):
                     logger.warning("Failed to parse findings at %s", findings_path, exc_info=True)
                     continue
 

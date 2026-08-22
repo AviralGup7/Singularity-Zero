@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.routers.findings.field_map import coerce_bool, map_update_payload
+from src.dashboard.fastapi.routers.findings.helpers import read_json_file
 from src.dashboard.fastapi.routers.targets import _normalize_finding_payload, is_target_owned_by_tenant
 from src.dashboard.fastapi.schemas import ErrorResponse
 
@@ -40,19 +41,19 @@ def _locate_finding_on_disk(
     output_root: Any, finding_id: str, tenant_id: str
 ) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Path] | None:
     for target_entry in output_root.iterdir():
-        if not target_entry.is_dir():
+        if not target_entry.is_dir() or target_entry.name.startswith("_"):
             continue
         if not is_target_owned_by_tenant(target_entry.name, tenant_id):
             continue
         for run_entry in target_entry.iterdir():
-            if not run_entry.is_dir():
+            if not run_entry.is_dir() or run_entry.name.startswith("_"):
                 continue
             findings_path = run_entry / "findings.json"
             if not findings_path.exists():
                 continue
             try:
-                findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:
+                findings = read_json_file(findings_path)
+            except (OSError, ValueError, json.JSONDecodeError):
                 logger.warning("Failed to read findings file %s", findings_path, exc_info=True)
                 continue
             if not isinstance(findings, list):

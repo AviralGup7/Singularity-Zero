@@ -16,7 +16,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src.dashboard.fastapi.dependencies import require_auth
 
@@ -26,6 +26,7 @@ router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 
 class NotificationResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
     id: str
     event: str
     priority: str
@@ -42,7 +43,7 @@ class NotificationResponse(BaseModel):
 
 
 class NotificationListResponse(BaseModel):
-    notifications: list[dict[str, Any]]
+    notifications: list[NotificationResponse]
     total: int
     unread_count: int
     limit: int

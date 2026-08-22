@@ -1,47 +1,15 @@
-import json
 import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_admin
+from src.dashboard.fastapi.routers.findings.crud import _atomic_write_json, _locate_finding_on_disk, _lock_for
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
-
-
-def _locate_finding_on_disk(
-    output_root: Any, finding_id: str, tenant_id: str
-) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Any] | None:
-    for target_entry in output_root.iterdir():
-        if not target_entry.is_dir():
-            continue
-        from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
-        if not is_target_owned_by_tenant(target_entry.name, tenant_id):
-            continue
-        for run_entry in target_entry.iterdir():
-            if not run_entry.is_dir():
-                continue
-            findings_path = run_entry / "findings.json"
-            if not findings_path.exists():
-                continue
-            try:
-                findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:
-                logger.warning("Failed to read findings file %s", findings_path, exc_info=True)
-                continue
-            for idx, f in enumerate(findings):
-                fid = (
-                    f.get("id")
-                    or f.get("finding_id")
-                    or f"{target_entry.name}-{run_entry.name}-{idx + 1}"
-                )
-                if fid == finding_id:
-                    return target_entry.name, run_entry.name, idx, f, findings, findings_path
-    return None
 
 
 @router.delete(
@@ -63,13 +31,17 @@ async def delete_finding(
     _, _, target_finding_idx, _, findings_list, findings_file_path = located
 
     try:
-        if findings_file_path:
+        lock = _lock_for(findings_file_path)
+        with lock:
             findings_list.pop(target_finding_idx)
-            findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
-        else:
-            raise ValueError("Finding path not found")
-    except Exception as e:
-        logger.error("Failed to delete finding: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to delete finding from disk")
+            _atomic_write_json(findings_file_path, findings_list)
+    except PermissionError as exc:
+        logger.error("Permission denied deleting finding %s: %s", finding_id, exc)
+        raise HTTPException(status_code=409, detail="Finding file is not writable") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Finding file disappeared") from exc
+    except OSError as exc:
+        logger.error("Failed to delete finding: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to delete finding from disk") from exc
 
     return {"success": True}
