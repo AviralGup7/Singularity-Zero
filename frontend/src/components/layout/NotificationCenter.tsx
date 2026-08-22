@@ -130,14 +130,22 @@ export function NotificationCenter({
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const onPointer = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    if (open) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    if (open) {
+      document.addEventListener('mousedown', onPointer);
+      document.addEventListener('keydown', onKey);
+    }
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   const filtered = filter === 'all' ? notifications : notifications.filter(n => n.type === filter);

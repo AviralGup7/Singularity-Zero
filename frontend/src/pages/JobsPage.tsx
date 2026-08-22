@@ -191,6 +191,13 @@ export function JobsPage() {
               ? "No jobs match your current filters. Try adjusting the status filter or search query."
               : "No pipeline jobs have been run yet. Expand Start New Scan above, or launch from Targets / Cockpit."}
             icon="zap"
+            ctaLabel={jobsListIsFiltered(safeStatusFilter, safeSearchQuery) ? 'Clear filters' : undefined}
+            onCtaClick={jobsListIsFiltered(safeStatusFilter, safeSearchQuery)
+              ? () => {
+                  handleStatusChange('all');
+                  handleSearchChange('');
+                }
+              : undefined}
           />
         ) : (
           <>

@@ -242,6 +242,14 @@
   animation: none;
 }
 
+.app-main-wrapper:has(.scan-status-bar) .app-main-content {
+  padding-bottom: 64px;
+}
+
+.header-live-pill {
+  text-decoration: none;
+}
+
 /* ── Light Mode Header ───────────────────────────────────────── */
 [data-theme="light"] .app-command-header {
   background: rgba(255, 255, 255, 0.75);

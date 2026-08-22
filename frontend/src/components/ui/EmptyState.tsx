@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Inbox, AlertTriangle, AlertOctagon, CheckCircle2 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Icon } from './Icon';
 
 type EmptyStateVariant = 'default' | 'error' | 'warning' | 'success';
 
@@ -61,7 +62,7 @@ export function EmptyState({
       role="status"
     >
       <div className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border', styles.iconBg, styles.iconColor)} aria-hidden="true">
-        {icon ?? variantIcons[variant]}
+        {typeof icon === 'string' ? <Icon name={icon} size={24} strokeWidth={1.5} /> : (icon ?? variantIcons[variant])}
       </div>
       <div className="space-y-1.5">
         <h3 className="text-base font-semibold text-text-primary">{title}</h3>

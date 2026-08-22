@@ -60,9 +60,34 @@
     flex-wrap: wrap;
   }
 
-  .header-command-row,
-  .header-right-actions {
+  .header-command-row {
+    display: flex;
+    order: 3;
+    flex: 1 1 100%;
+    max-width: none;
+    padding: 0;
+    margin-top: var(--space-2);
+    justify-content: stretch;
+  }
+
+  .header-quick-actions,
+  .header-online-chip,
+  .header-live-indicator {
     display: none;
+  }
+
+  .header-right-actions {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .command-search {
+    width: 100%;
+    max-width: none;
+  }
+
+  .scan-status-bar {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 
   .mobile-dock {
@@ -133,6 +158,10 @@
   .app-main-content {
     padding: var(--space-4);
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-main-wrapper:has(.scan-status-bar) .app-main-content {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-footer {

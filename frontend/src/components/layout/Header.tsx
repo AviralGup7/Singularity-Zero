@@ -4,6 +4,7 @@ import { Icon } from '../ui/Icon';
 import { NotificationCenter } from './NotificationCenter';
 import type { AppNotification } from '@/types/notifications';
 import { shortcutGlyph, userInitials } from '@/utils/userChrome';
+import { ROUTES } from '@/config/paths';
 
 interface HeaderProps {
   sidebarOpen: boolean;
@@ -167,13 +168,14 @@ export function Header({
               </span>
             </div>
           )}
-          <div
-            className="header-live-pill w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-sm font-semibold border border-line hover:scale-105 transition-transform cursor-pointer"
-            role="img"
-            aria-label={user?.name ? `User avatar for ${user.name}` : 'User avatar'}
+          <Link
+            to={ROUTES.SETTINGS}
+            className="header-live-pill w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-sm font-semibold border border-line hover:scale-105 transition-transform"
+            aria-label={user?.name ? `Open settings for ${user.name}` : 'Open settings'}
+            title={user?.name ? `${user.name} · Settings` : 'Settings'}
           >
             {userInitials(user?.name)}
-          </div>
+          </Link>
         </div>
       </motion.header>
 

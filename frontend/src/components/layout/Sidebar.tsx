@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ROUTES } from '@/config/paths';
 import { Icon } from '../ui/Icon';
 import { prefetchRoute } from '@/PrefetchRegistry';
+import { isNavPathActive } from '@/utils/navActive';
 import { useState } from 'react';
 
 interface SidebarProps {
@@ -145,7 +146,7 @@ export function Sidebar({
                   {!isCollapsed && (
                     <div className="space-y-1">
                       {section.items.map((item) => {
-                        const isActive = location.pathname === item.path;
+                        const isActive = isNavPathActive(location.pathname, item.path);
                         return (
                           <Link
                             key={item.path}

@@ -28,6 +28,7 @@ import { VisibilityIndicator } from '@/hooks/useVisibilityAPI';
 import { SessionGuard } from '@/components/SessionGuard';
 import { useEscapeToClose } from '@/hooks/useKeyboardShortcuts';
 import { shouldIgnoreGlobalShortcut } from '@/utils/findingTime';
+import { isNavPathActive } from '@/utils/navActive';
 
 const CommandPalette = lazy(() => import('./CommandPalette').then(m => ({ default: m.CommandPalette })));
 const NightCityHud = lazy(() => import('./NightCityHud').then(m => ({ default: m.NightCityHud })));
@@ -500,7 +501,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       <nav className="mobile-dock" aria-label="Primary navigation">
         {mobilePrimary.map(item => {
-          const isActive = location.pathname === item.path;
+          const isActive = isNavPathActive(location.pathname, item.path);
           return (
             <Link
               key={`mobile-${item.path}`}

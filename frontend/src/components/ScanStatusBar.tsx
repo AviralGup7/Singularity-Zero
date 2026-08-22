@@ -104,7 +104,7 @@ export function ScanStatusBar() {
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 50, opacity: 0 }}
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-accent/20 bg-panel backdrop-blur-xl"
+        className="scan-status-bar fixed bottom-0 left-0 right-0 z-40 border-t border-accent/20 bg-panel backdrop-blur-xl"
         role="region"
         aria-label={`Active scan: ${activeScan.targetName}`}
         aria-live="polite"

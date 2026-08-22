@@ -506,7 +506,7 @@ export function FindingsPage() {
             type="text"
             placeholder="FILTER BY CVE, CWE, URL, TYPE..."
             aria-label="Filter findings by CVE, CWE, URL or type"
-            className="w-full bg-surface-hover border border-line rounded-lg py-2 pl-10 pr-4 text-xs font-mono text-text focus:border-accent/50 outline-none transition-all uppercase"
+            className="w-full bg-surface-hover border border-line rounded-lg py-2 pl-10 pr-4 text-xs font-mono text-text focus:border-accent/50 outline-none transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

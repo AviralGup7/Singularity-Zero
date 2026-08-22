@@ -280,6 +280,9 @@ export function TargetsPage() {
             ? "No targets match the active filters. Try adjusting your filter criteria."
             : "No scan targets have been added yet. Import targets or add them manually to begin scanning."}
           variant="default"
+          icon="target"
+          ctaLabel={hasActiveFilters(filters) ? 'Clear filters' : undefined}
+          onCtaClick={hasActiveFilters(filters) ? clearAllFilters : undefined}
         />
       ) : (
         <>

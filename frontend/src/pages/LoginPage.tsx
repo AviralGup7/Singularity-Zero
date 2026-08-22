@@ -28,7 +28,13 @@ export function LoginPage() {
   const enableGuestLogin = useSettingsStore((state) => state.settings.api.enableGuestLogin);
   const cinematicIntro = useSettingsStore((state) => state.settings.features.cinematicIntro);
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => {
+    try {
+      return sessionStorage.getItem('console.demoName') ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [role, setRole] = useState<UserRole>('analyst');
   const [apiKey, setApiKey] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
@@ -49,6 +55,11 @@ export function LoginPage() {
   };
 
   const enterConsole = (displayName: string, nextRole: UserRole) => {
+    try {
+      if (displayName) sessionStorage.setItem('console.demoName', displayName);
+    } catch {
+      /* private mode */
+    }
     login(displayName, nextRole);
     navigate(from, { replace: true });
   };
@@ -118,6 +129,9 @@ export function LoginPage() {
               />
             </div>
             <label htmlFor="login-role">Role</label>
+            <p className="auth-demo" style={{ marginTop: 0, marginBottom: 8 }}>
+              Analyst can triage findings. Viewer is read-only.
+            </p>
             <div className={`auth-field auth-select-wrap ${inputFocusClass}`}>
               <Shield size={24} strokeWidth={1.7} aria-hidden="true" />
               <select
