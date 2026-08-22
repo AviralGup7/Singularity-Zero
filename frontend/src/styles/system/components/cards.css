@@ -89,3 +89,23 @@
   transform: translateY(-1px);
   background: var(--glass-bg-elevated);
 }
+
+
+.card--compact {
+  padding: var(--space-3);
+}
+
+.card-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-small);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card:hover,
+  .job-card:hover,
+  .ops-card:hover {
+    transform: none;
+  }
+}

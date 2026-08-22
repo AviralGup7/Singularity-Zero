@@ -187,6 +187,13 @@ export function FindingsTableView({
                   key={finding.id}
                   className={`finding-row ${isFP ? 'finding-row-fp' : ''}`}
                   onClick={() => handleOpenDetail(finding)}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleOpenDetail(finding);
+                    }
+                  }}
                 >
                   <td className="col-checkbox" onClick={e => e.stopPropagation()}>
                     <input

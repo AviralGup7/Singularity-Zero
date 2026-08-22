@@ -167,3 +167,63 @@ select.form-input {
   border: 2px solid var(--bg);
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
 }
+
+
+.form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.form-label,
+.form-field > label {
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.form-help {
+  font-size: var(--text-micro);
+  color: var(--text-tertiary);
+}
+
+.form-error-text {
+  font-size: var(--text-micro);
+  color: var(--bad);
+}
+
+.form-switch {
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  position: relative;
+  cursor: pointer;
+}
+
+.form-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform 140ms ease;
+}
+
+.form-switch:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.form-switch:checked::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.search-input[type='search']::-webkit-search-cancel-button {
+  cursor: pointer;
+}

@@ -28,7 +28,7 @@ function connectionColor(state: string): string {
 export function Footer({ appVersion, isOnline, onRefresh, liveConnectionState }: FooterProps) {
   return (
     <footer
-      className="flex items-center justify-between px-6 py-3 text-xs text-text-tertiary border-t border-line bg-surface/40 backdrop-blur-sm"
+      className="flex flex-wrap items-center justify-between gap-2 px-6 py-3 text-xs text-text-tertiary border-t border-line bg-surface/40 backdrop-blur-sm"
       role="contentinfo"
     >
       <div className="flex items-center gap-4">

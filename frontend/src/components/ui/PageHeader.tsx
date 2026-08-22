@@ -24,7 +24,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          'flex items-center justify-between gap-4 pb-5 mb-1',
+          'flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 mb-1',
           'border-b border-line-muted relative',
           className
         )}
@@ -60,7 +60,7 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
               <div
                 className={cn(
                   'text-[length:var(--text-page-subtitle)] text-text-secondary',
-                  'mt-0.5 truncate'
+                  'mt-0.5 sm:truncate'
                 )}
               >
                 {subtitle}

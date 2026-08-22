@@ -110,3 +110,43 @@ tbody tr:hover td:first-child {
 tbody tr[aria-selected="true"] td:first-child {
   border-left-color: var(--accent);
 }
+
+
+.table-container--compact th,
+.table-container--compact td {
+  padding: 8px 10px;
+}
+
+.table-empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.table-caption {
+  caption-side: top;
+  padding: 0 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  text-align: left;
+}
+
+td.numeric,
+th.numeric {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.table-sticky-first th:first-child,
+.table-sticky-first td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: inherit;
+}
+
+@media (max-width: 768px) {
+  th, td {
+    padding: 8px 10px;
+  }
+}

@@ -41,3 +41,32 @@
   color: var(--text-secondary);
   font-size: var(--text-small);
 }
+
+.progress-bar.danger .progress-fill,
+.progress-fill.danger {
+  background: var(--bad);
+}
+
+.progress-bar.success .progress-fill {
+  background: var(--ok);
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 6px;
+  color: var(--text-tertiary);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-indeterminate .progress-fill {
+  width: 36% !important;
+  animation: progress-indet 1.1s ease-in-out infinite;
+}
+
+@keyframes progress-indet {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(280%); }
+}

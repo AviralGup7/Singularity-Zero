@@ -103,7 +103,7 @@ const JobCard = memo(function JobCard({ job, onRefresh, shortcut }: { job: Job; 
           {job.id}
         </Link>
         <CopyButton text={job.id} />
-        <span className={`job-status ${statusClass}`}>{job.status}</span>
+        <span className={`job-status ${statusClass}`} aria-label={`Status ${job.status}`}>{job.status}</span>
       </div>
 
       <div className="job-url flex items-center gap-1" title={job.base_url}>

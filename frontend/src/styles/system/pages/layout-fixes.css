@@ -150,3 +150,49 @@
 .header-title-block h1 {
   font-size: 0.95rem;
 }
+
+
+.bg-card.border.border-border.rounded-xl {
+  /* compact findings filter chrome */
+}
+
+.findings-filter-compact {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.data-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.page-header .status-pill + .status-pill {
+  margin-left: 0;
+}
+
+kbd.shortcut-key,
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.app-footer,
+footer[role='contentinfo'] {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  footer[role='contentinfo'] {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+}
