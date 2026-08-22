@@ -258,6 +258,12 @@ async def stream_job_progress(
                     "telemetry_events": telemetry_events[-25:]
                     if isinstance(telemetry_events, list)
                     else None,
+                    "running_stages": job_snapshot.get("running_stages")
+                    if isinstance(job_snapshot.get("running_stages"), list)
+                    else None,
+                    "stage_graph": job_snapshot.get("stage_graph")
+                    if isinstance(job_snapshot.get("stage_graph"), dict)
+                    else None,
                 }
 
                 if current_data != last_progress_data:

@@ -24,6 +24,27 @@ _SNAPSHOT_CACHE_TTL = 1.0  # seconds
 _STAGE_GRAPH_CACHE: dict[str, Any] | None = None
 
 
+def _serialize_stage_progress_entry(skey: str, sp: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "stage": sp.get("stage", skey),
+        "stage_label": sp.get(
+            "stage_label", STAGE_LABELS.get(skey, skey.replace("_", " ").title())
+        ),
+        "status": _normalize_stage_status(sp.get("status", "running")),
+        "processed": sp.get("processed", 0),
+        "total": sp.get("total"),
+        "percent": sp.get("percent", 0),
+        "reason": sp.get("reason", ""),
+        "error": sp.get("error", ""),
+        "retry_count": sp.get("retry_count", 0),
+        "last_event": sp.get("last_event", ""),
+        "started_at": sp.get("started_at"),
+        "updated_at": sp.get("updated_at"),
+        "finished_at": sp.get("finished_at"),
+        "injected": bool(sp.get("injected")),
+    }
+
+
 def _stage_graph_payload() -> dict[str, Any]:
     global _STAGE_GRAPH_CACHE
     if _STAGE_GRAPH_CACHE is not None:
@@ -161,48 +182,14 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         for skey in stage_order_list:
             if skey in raw_stage_progress:
                 sp = raw_stage_progress[skey]
-                stage_progress_list.append(
-                    {
-                        "stage": sp.get("stage", skey),
-                        "stage_label": sp.get(
-                            "stage_label", STAGE_LABELS.get(skey, skey.replace("_", " ").title())
-                        ),
-                        "status": _normalize_stage_status(sp.get("status", "running")),
-                        "processed": sp.get("processed", 0),
-                        "total": sp.get("total"),
-                        "percent": sp.get("percent", 0),
-                        "reason": sp.get("reason", ""),
-                        "error": sp.get("error", ""),
-                        "retry_count": sp.get("retry_count", 0),
-                        "last_event": sp.get("last_event", ""),
-                        "started_at": sp.get("started_at"),
-                        "updated_at": sp.get("updated_at"),
-                    }
-                )
+                stage_progress_list.append(_serialize_stage_progress_entry(skey, sp))
                 seen_stages.add(skey)
         # Include any stages not in the predefined order, up to the cap
         for skey, sp in raw_stage_progress.items():
             if skey not in seen_stages:
                 if len(stage_progress_list) >= _MAX_STAGE_PROGRESS_ENTRIES:
                     break
-                stage_progress_list.append(
-                    {
-                        "stage": sp.get("stage", skey),
-                        "stage_label": sp.get(
-                            "stage_label", STAGE_LABELS.get(skey, skey.replace("_", " ").title())
-                        ),
-                        "status": _normalize_stage_status(sp.get("status", "running")),
-                        "processed": sp.get("processed", 0),
-                        "total": sp.get("total"),
-                        "percent": sp.get("percent", 0),
-                        "reason": sp.get("reason", ""),
-                        "error": sp.get("error", ""),
-                        "retry_count": sp.get("retry_count", 0),
-                        "last_event": sp.get("last_event", ""),
-                        "started_at": sp.get("started_at"),
-                        "updated_at": sp.get("updated_at"),
-                    }
-                )
+                stage_progress_list.append(_serialize_stage_progress_entry(skey, sp))
                 seen_stages.add(skey)
 
     telemetry_events = job.get("telemetry_events")

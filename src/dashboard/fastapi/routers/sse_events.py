@@ -152,6 +152,8 @@ class SSEEventEmitter:
         stage_progress: list[dict[str, Any]] | None = None,
         progress_telemetry: dict[str, Any] | None = None,
         telemetry_events: list[dict[str, Any]] | None = None,
+        running_stages: list[str] | None = None,
+        stage_graph: dict[str, Any] | None = None,
         state_version: int | None = None,
     ) -> str:
         data: dict[str, Any] = {
@@ -204,6 +206,10 @@ class SSEEventEmitter:
             data["progress_telemetry"] = progress_telemetry
         if telemetry_events is not None:
             data["telemetry_events"] = telemetry_events
+        if running_stages is not None:
+            data["running_stages"] = running_stages
+        if stage_graph is not None:
+            data["stage_graph"] = stage_graph
         return self.emit("progress_update", data, state_version=state_version)
 
     def iteration_change(

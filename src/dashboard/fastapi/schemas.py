@@ -254,6 +254,10 @@ class JobResponse(BaseModel):
     progress_telemetry: ProgressTelemetry = Field(default_factory=ProgressTelemetry)
     telemetry_events: list[PipelineTelemetryEvent] = Field(default_factory=list)
     concurrent_stage_count: int = 0
+    running_stages: list[str] = Field(default_factory=list)
+    stage_graph: dict[str, Any] = Field(default_factory=dict)
+    force_fresh: bool = True
+    resume_supported: bool = False
 
 
 class JobListResponse(BaseModel):
