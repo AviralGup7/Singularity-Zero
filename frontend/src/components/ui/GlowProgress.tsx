@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ProgressBar } from '@/components/common/ProgressBar';
+import { clampPercent } from '@/utils/findingTime';
 
 export type GlowProgressVariant = 'default' | 'success' | 'warning' | 'danger' | 'cyber';
 export type GlowProgressSize = 'sm' | 'md' | 'lg';
@@ -27,7 +28,7 @@ export const GlowProgress = forwardRef<HTMLDivElement, GlowProgressProps>(
     return (
       <div ref={ref} className={cn('flex items-center gap-3', className)}>
         <ProgressBar
-          value={value}
+          value={clampPercent(value)}
           variant={variantToProgress[variant]}
           size={size}
           showPercentage={showLabel}

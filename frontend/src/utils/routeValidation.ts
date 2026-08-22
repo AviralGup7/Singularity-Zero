@@ -17,7 +17,12 @@ export function isValidRouteParam(value: string): boolean {
 
 export function sanitizeRedirectPath(path: string): string {
   if (!path) return '/';
-  const decoded = decodeURIComponent(path);
+  let decoded = path;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    return '/';
+  }
   if (decoded.startsWith('//') || decoded.includes('://') || decoded.includes('\\')) {
     return '/';
   }

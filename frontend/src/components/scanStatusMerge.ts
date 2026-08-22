@@ -35,7 +35,7 @@ export function applyLiveScanEvent(
   if (jobId && prev.jobId !== jobId) return prev;
   return {
     ...prev,
-    progress: patch.progress === undefined ? prev.progress : patch.progress,
+    progress: patch.progress === undefined ? prev.progress : normalizeProgressPercent(patch.progress, 'auto'),
     status: patch.status || prev.status,
     findingsCount: patch.findingsCount ?? prev.findingsCount,
     urlsFound: patch.urlsFound ?? prev.urlsFound,

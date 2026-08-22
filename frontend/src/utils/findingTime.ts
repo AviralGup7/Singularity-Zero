@@ -13,11 +13,15 @@ export function clampPercent(value: number | undefined | null): number {
   return Math.min(100, Math.max(0, value));
 }
 
-export function shouldIgnoreGlobalShortcut(target: EventTarget | null): boolean {
+export function isEditableShortcutTarget(target: EventTarget | null): boolean {
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
     return true;
   }
-  if (target instanceof HTMLElement && target.isContentEditable) return true;
+  return Boolean(target instanceof HTMLElement && target.isContentEditable);
+}
+
+export function shouldIgnoreGlobalShortcut(target: EventTarget | null): boolean {
+  if (isEditableShortcutTarget(target)) return true;
   if (typeof document !== 'undefined' && document.querySelector('[role="dialog"][aria-modal="true"]')) {
     return true;
   }
