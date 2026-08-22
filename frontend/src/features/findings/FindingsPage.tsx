@@ -20,6 +20,7 @@ import { visibleFindingIds } from '@/features/notifications/unread';
 import { acknowledgeNewFindings, detectFreshFindingIds } from './newFindingsFeed';
 import { sanitizeSeverityFilters } from './severityFilter';
 import { applyFilterPreset } from './filterPreset';
+import { pruneSelection } from './selection';
 import { unreadAfterDismiss } from '@/features/notifications/unread';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
@@ -236,6 +237,15 @@ export function FindingsPage() {
     const allowed = new Set(visibleFindingIds(allFindings.map((item) => item.id), newFindingIds));
     return allFindings.filter((item) => allowed.has(item.id));
   }, [allFindings, newFindingIds]);
+
+  const visibleIds = useMemo(() => findings.map((item) => item.id), [findings]);
+  useEffect(() => {
+    setSelectedFindingIds((prev) => {
+      const next = pruneSelection(prev, visibleIds);
+      if (next.length === prev.size && next.every((id) => prev.has(id))) return prev;
+      return new Set(next);
+    });
+  }, [visibleIds]);
 
   const comparePair = useMemo(() => {
     if (selectedFindingIds.size !== 2) return null;

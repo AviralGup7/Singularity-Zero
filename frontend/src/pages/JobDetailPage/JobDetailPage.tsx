@@ -10,6 +10,7 @@ import { ScanSummaryCard } from '@/components/targets/ScanSummaryCard';
 import { ReconResults } from '@/components/targets/ReconResults';
 import { useOptionalFeatures } from '@/hooks/useOptionalFeatures';
 import { normalizeProgressPercent } from '@/utils/normalizeScale';
+import { shouldShowIterationBar } from '@/features/findings/selection';
 import { IterationProgressBar } from '@/components/IterationProgressBar';
 import { PluginProgressGrid } from '@/components/PluginProgressGrid';
 import { LiveTerminalFeed } from '@/components/LiveTerminalFeed';
@@ -213,8 +214,8 @@ export function JobDetailPage() {
               </div>
             </div>
             <StageProgressBars stages={job.stage_progress ?? []} />
-            {job.stage === 'analysis' && job.iteration_current && (
-              <IterationProgressBar currentIteration={job.iteration_current} maxIterations={job.iteration_total || 3} stagePercent={job.stage_percent || 0} />
+            {shouldShowIterationBar(job.stage, job.iteration_current) && (
+              <IterationProgressBar currentIteration={job.iteration_current ?? 0} maxIterations={job.iteration_total || 3} stagePercent={job.stage_percent || 0} />
             )}
             <div className="mt-4">
               <PluginProgressGrid plugins={[]} loading={loading && job.status === 'running'} />

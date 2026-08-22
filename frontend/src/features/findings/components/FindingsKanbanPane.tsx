@@ -92,6 +92,7 @@ export function FindingsKanbanPane({ findings, onOpenDetail }: FindingsKanbanPan
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
   }, []);
 
   const handleDrop = useCallback(async (column: KanbanColumn) => {
