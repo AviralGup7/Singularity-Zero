@@ -43,6 +43,20 @@ def test_cli_runtime_and_dashboard_lifespan_use_the_same_helper() -> None:
     assert "register_all_implementations()" not in lifespan_src
 
 
+def test_lifespan_resets_protocol_registry_and_event_bus() -> None:
+    from pathlib import Path
+
+    lifespan_src = (
+        Path(__file__).resolve().parents[3]
+        / "src"
+        / "dashboard"
+        / "fastapi"
+        / "lifespan.py"
+    ).read_text(encoding="utf-8")
+    assert "reset_startup_registration" in lifespan_src
+    assert "reset_event_bus" in lifespan_src
+
+
 def test_cli_and_dashboard_binding_snapshots_match() -> None:
     register_process_bindings()
     first = _critical_bindings()
