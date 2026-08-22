@@ -23,7 +23,7 @@ import { useJobStore } from '../stores/jobStore';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 
 export function shouldPollJob(status: string | undefined): boolean {
-  return status === 'running';
+  return status === 'running' || status === 'starting' || status === 'stopping';
 }
 
 export function sumFiniteDurations(values: Array<number | undefined>): number {
@@ -195,7 +195,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
 
   const { connectionState } = useWebSocket({
     jobId,
-    enabled: state?.job?.status === 'running' && !state?.wsFailed,
+    enabled: shouldPollJob(state?.job?.status) && !state?.wsFailed,
     onMessage: handleWsMessage,
     onFallback: () => bufferDispatch({ type: 'SET_WS_FAILED', payload: true }),
   });

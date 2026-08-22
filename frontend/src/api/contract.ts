@@ -60,7 +60,7 @@ export const FINDING_FIELD_TO_API: Record<string, string> = {
   _deleted: '_deleted',
 };
 
-export const JOB_STATUSES = ['running', 'completed', 'failed', 'stopped', 'paused', 'queued'] as const;
+export const JOB_STATUSES = ['starting', 'running', 'stopping', 'completed', 'failed', 'stopped', 'paused', 'queued'] as const;
 export type JobStatusApi = (typeof JOB_STATUSES)[number];
 
 export function canonicalizeJobStatus(value: unknown): JobStatusApi {
