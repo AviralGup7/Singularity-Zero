@@ -266,8 +266,8 @@ export function useApi<T>(
   }, [fetchData, refetchInterval, enabled, url]);
 
   const refetch = useCallback(async (): Promise<void> => {
-    setRefetchKey((k) => k + 1);
-  }, []);
+    await fetchData(true);
+  }, [fetchData]);
 
   const isStale = url ? apiCache.isStale(apiCache.generateKey(url, paramsRef.current)) : false;
 

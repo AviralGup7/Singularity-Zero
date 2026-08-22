@@ -15,6 +15,7 @@ import { RunDiffViewer } from '@/components/RunDiffViewer';
 
 import { computeDiff, nextScanDiffSearch } from './scanDiffModel';
 import { clampFindingsPage } from '@/features/findings/findingsViewMode';
+import { collectFindingIds, normalizeScanDiffFilter } from './scanDiffFilters';
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const PAGE_SIZE = 50;
@@ -41,7 +42,7 @@ export function ScanDiffPage() {
   const targets = targetsData?.targets ?? [];
   const toast = useToast();
 
-  const [filter, setFilter] = useState<string>(searchParams.get('filter') ?? 'all');
+  const [filter, setFilter] = useState(normalizeScanDiffFilter(searchParams.get('filter')));
   const [page, setPage] = useState(1);
   const [bulkBusy, setBulkBusy] = useState(false);
 
@@ -49,6 +50,9 @@ export function ScanDiffPage() {
   const initialRunB = searchParams.get('runB') ?? '';
   const [runA, setRunA] = useState<string>(initialRunA);
   const [runB, setRunB] = useState<string>(initialRunB);
+
+  const selectRunA = (value: string) => { setRunA(value); setPage(1); };
+  const selectRunB = (value: string) => { setRunB(value); setPage(1); };
 
   const acceptAllNew = async () => {
     if (diff.newFindings.length === 0 || bulkBusy) return;
@@ -58,7 +62,8 @@ export function ScanDiffPage() {
     if (!ok) return;
     setBulkBusy(true);
     try {
-      const ids = diff.newFindings.map(f => f.id).filter(Boolean) as string[];
+      const ids = collectFindingIds(diff.newFindings);
+      if (ids.length === 0) return;
       await bulkUpdateFindings(ids, { status: 'accepted' });
       toast.success(`Accepted ${ids.length} new finding(s)`);
     } catch (e) {
@@ -76,7 +81,8 @@ export function ScanDiffPage() {
     if (!ok) return;
     setBulkBusy(true);
     try {
-      const ids = diff.removedFindings.map(f => f.id).filter(Boolean) as string[];
+      const ids = collectFindingIds(diff.removedFindings);
+      if (ids.length === 0) return;
       await bulkUpdateFindings(ids, { falsePositive: true, fpStatus: 'approved', fpJustification: 'No longer present in latest run' });
       toast.success(`Dismissed ${ids.length} removed finding(s) as false-positive`);
     } catch (e) {
@@ -185,7 +191,7 @@ export function ScanDiffPage() {
           <select
             id="scan-diff-runa"
             value={runA}
-            onChange={(e) => setRunA(e.target.value)}
+            onChange={(e) => selectRunA(e.target.value)}
             className="w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm"
           >
             <option value="">Select a target...</option>
@@ -199,7 +205,7 @@ export function ScanDiffPage() {
           <select
             id="scan-diff-runb"
             value={runB}
-            onChange={(e) => setRunB(e.target.value)}
+            onChange={(e) => selectRunB(e.target.value)}
             className="w-full bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm"
           >
             <option value="">Select a target...</option>
