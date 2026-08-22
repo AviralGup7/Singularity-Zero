@@ -173,6 +173,11 @@
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-all;
+  transition: background var(--motion-fast) var(--easing-out);
+}
+
+.log-line:hover {
+  background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
 }
 
 .log-line-error {

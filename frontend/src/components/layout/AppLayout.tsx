@@ -300,6 +300,20 @@ export function AppLayout({ children }: AppLayoutProps) {
       return;
     }
 
+    // Escape must dismiss overlays even when focus is in the palette search
+    // input. The previous prune left this only in useEscapeToClose, which
+    // skipped editable targets — so Escape did nothing while the palette
+    // (or any overlay search field) was focused.
+    if (e.key === 'Escape') {
+      if (showShortcuts || commandPaletteOpen || sidebarOpen) {
+        e.preventDefault();
+        setShowShortcuts(false);
+        setCommandPaletteOpen(false);
+        setSidebarOpen(false);
+      }
+      return;
+    }
+
     if (shouldIgnoreGlobalShortcut(e.target)) return;
 
     if (e.key === '?' || (e.shiftKey && e.key === '/')) {
@@ -342,7 +356,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       e.preventDefault();
       emitRefresh();
     }
-  }, [navigate, theme.mode, themeUpdater, toggleSidebarCollapsed]);
+  }, [navigate, theme.mode, themeUpdater, toggleSidebarCollapsed, showShortcuts, commandPaletteOpen, sidebarOpen]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

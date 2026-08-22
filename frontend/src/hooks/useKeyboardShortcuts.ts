@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { isEditableShortcutTarget, shouldIgnoreGlobalShortcut } from '@/utils/findingTime';
+import { shouldIgnoreGlobalShortcut } from '@/utils/findingTime';
 
 type ShortcutHandler = () => void;
 
@@ -78,8 +78,7 @@ export function useEscapeToClose(onClose: () => void, enabled = true) {
     if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // Escape must still close the open dialog; only skip editable fields.
-      if (isEditableShortcutTarget(e.target)) return;
+      // Dialogs and overlays must close from search fields too.
       e.preventDefault();
       onClose();
     };
