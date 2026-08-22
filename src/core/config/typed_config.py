@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import MISSING, dataclass, field, fields
+import types
+from dataclasses import MISSING, dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin, get_type_hints
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from src.core.models.config import Config
@@ -89,10 +90,49 @@ def _resolve_storage_config(raw_storage: dict[str, Any]) -> dict[str, Any]:
     return storage
 
 
-def _coerce_value(value: Any, target_type: type) -> Any:
-    """Coerce value to target type."""
-    if value is None:
-        return None
+def _union_args(target_type: Any) -> tuple[Any, ...] | None:
+    origin = get_origin(target_type)
+    if origin is Union or origin is getattr(types, "UnionType", None):
+        return get_args(target_type)
+    return None
+
+
+def _is_nested_config_type(target_type: Any) -> bool:
+    return (
+        isinstance(target_type, type)
+        and is_dataclass(target_type)
+        and callable(getattr(target_type, "_from_dict", None))
+    )
+
+
+def _coerce_value(value: Any, target_type: Any) -> Any:
+    """Coerce value to target type, including nested TypedConfig sections."""
+    if value is None or target_type is Any:
+        return value
+
+    union_args = _union_args(target_type)
+    if union_args is not None:
+        last_error: Exception | None = None
+        for alt in union_args:
+            if alt is type(None):
+                continue
+            try:
+                return _coerce_value(value, alt)
+            except (TypeError, ValueError) as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        return value
+
+    if _is_nested_config_type(target_type):
+        if isinstance(value, target_type):
+            return value
+        if isinstance(value, dict):
+            return target_type._from_dict(value)
+        raise ValueError(
+            f"Expected mapping for {getattr(target_type, '__name__', target_type)}, "
+            f"got {type(value).__name__}"
+        )
 
     origin = get_origin(target_type)
     args = get_args(target_type)
@@ -105,7 +145,14 @@ def _coerce_value(value: Any, target_type: type) -> Any:
     if target_type is dict or origin is dict:
         if not isinstance(value, dict):
             raise ValueError(f"Expected dict value, got {type(value).__name__}")
-        key_type, val_type = args if len(args) == 2 else (str, str)
+        if len(args) != 2:
+            return dict(value)
+        key_type, val_type = args
+        if val_type is Any or val_type is dict:
+            return {
+                _coerce_value(k, key_type): dict(v) if isinstance(v, dict) else v
+                for k, v in value.items()
+            }
         return {_coerce_value(k, key_type): _coerce_value(v, val_type) for k, v in value.items()}
     if origin is type(None) or target_type is type(None):
         return value
@@ -121,6 +168,10 @@ def _coerce_value(value: Any, target_type: type) -> Any:
 class TypedConfig:
     """Base class for type-safe, validated configuration."""
 
+    def __post_init__(self) -> None:
+        if not hasattr(self, "_extra"):
+            object.__setattr__(self, "_extra", {})
+
     @classmethod
     def load(cls, path: Path | str) -> TypedConfig:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -128,8 +179,12 @@ class TypedConfig:
 
     @classmethod
     def _from_dict(cls, data: dict[str, Any]) -> TypedConfig:
-        kwargs = {}
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected mapping for {cls.__name__}, got {type(data).__name__}")
+        kwargs: dict[str, Any] = {}
+        extras: dict[str, Any] = {}
         hints = get_type_hints(cls)
+        known = {f.name for f in fields(cls)}
 
         for f in fields(cls):
             if f.name not in data:
@@ -142,10 +197,47 @@ class TypedConfig:
             else:
                 kwargs[f.name] = _coerce_value(data[f.name], hints.get(f.name, Any))
 
-        return cls(**kwargs)
+        for key, value in data.items():
+            if key not in known:
+                extras[key] = value
+
+        obj = cls(**kwargs)
+        object.__setattr__(obj, "_extra", extras)
+        return obj
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Dict-compatible lookup used by pipeline/recon consumers."""
+        names = {f.name for f in fields(self)}
+        if key in names:
+            return getattr(self, key)
+        return getattr(self, "_extra", {}).get(key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        names = {f.name for f in fields(self)}
+        if key in names:
+            return getattr(self, key)
+        extra = getattr(self, "_extra", {})
+        if key in extra:
+            return extra[key]
+        raise KeyError(key)
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        if key in {f.name for f in fields(self)}:
+            return True
+        return key in getattr(self, "_extra", {})
 
     def to_dict(self) -> dict:
-        return {f.name: getattr(self, f.name) for f in fields(self)}
+        payload: dict[str, Any] = {}
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if isinstance(value, TypedConfig):
+                payload[f.name] = value.to_dict()
+            else:
+                payload[f.name] = value
+        payload.update(getattr(self, "_extra", {}))
+        return payload
 
     def save(self, path: Path) -> None:
         path.write_text(json.dumps(self.to_dict(), indent=2, default=str), encoding="utf-8")
@@ -433,15 +525,37 @@ def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return {**base, **override}
 
 
+def _merge_into_typed(current: TypedConfig, override: dict[str, Any]) -> None:
+    """Merge override keys into a TypedConfig instance without replacing it."""
+    hints = get_type_hints(type(current))
+    known = {f.name for f in fields(current)}
+    extra = dict(getattr(current, "_extra", {}))
+    for key, value in override.items():
+        if key in known:
+            existing = getattr(current, key)
+            if isinstance(existing, TypedConfig) and isinstance(value, dict):
+                _merge_into_typed(existing, value)
+            elif isinstance(existing, dict) and isinstance(value, dict):
+                object.__setattr__(current, key, _merge_dict(existing, value))
+            else:
+                object.__setattr__(current, key, _coerce_value(value, hints.get(key, Any)))
+        elif isinstance(extra.get(key), dict) and isinstance(value, dict):
+            extra[key] = _merge_dict(extra[key], value)
+        else:
+            extra[key] = value
+    object.__setattr__(current, "_extra", extra)
+
+
 def apply_adaptive_overrides(
     config: ValidatedPipelineConfig, adaptive_dict: dict[str, Any]
 ) -> ValidatedPipelineConfig:
     """Shallow-merge adaptive-learning overrides into an existing *config*.
 
-    For the three nested-section fields ``scoring``, ``analysis``, and
-    ``nuclei`` the adaptive dict values are merged on a per-key basis
-    so individual sub-settings can be adjusted without wiping the rest
-    of the section.  All other fields are replaced directly.
+    Nested ``TypedConfig`` sections (cache/httpx/nuclei/scoring/filters)
+    keep their type: known fields are updated in place and unknown keys
+    are stored on ``_extra`` so ``.get()`` still works. Dict sections
+    listed in ``_NESTED_MERGE_FIELDS`` (and legacy ``Config`` dict
+    sections) are shallow-merged. All other fields are replaced directly.
 
     The original *config* object is modified **in place** and also
     returned for convenience.
@@ -449,15 +563,16 @@ def apply_adaptive_overrides(
     if not adaptive_dict:
         return config
 
-    for field_name in adaptive_dict:
-        value = adaptive_dict[field_name]
+    for field_name, value in adaptive_dict.items():
+        current = getattr(config, field_name, None) if hasattr(config, field_name) else None
+        if isinstance(current, TypedConfig) and isinstance(value, dict):
+            _merge_into_typed(current, value)
+            continue
         if field_name in _NESTED_MERGE_FIELDS:
-            current = getattr(config, field_name, {})
             if not isinstance(current, dict):
                 current = {}
             if isinstance(value, dict):
-                merged = _merge_dict(current, value)
-                object.__setattr__(config, field_name, merged)
+                object.__setattr__(config, field_name, _merge_dict(current, value))
             else:
                 object.__setattr__(config, field_name, value)
         elif hasattr(config, field_name):
