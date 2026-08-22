@@ -22,7 +22,7 @@ export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl
     params: params as Record<string, unknown>,
     schema: z.object({ jobs: z.array(JobSchema) })
   });
-  return res.jobs ?? [];
+  return asJobList(res.jobs);
 }
 
 export async function getJob(jobId: string, signal?: AbortSignal, ttl?: number): Promise<Job | null> {
@@ -137,7 +137,7 @@ export interface HistoricalDurationEntry {
 
 export async function getHistoricalDurations(signal?: AbortSignal): Promise<HistoricalDurationEntry[] | null> {
   try {
-    return await cachedGet<HistoricalDurationEntry[]>('/api/jobs/historical-durations', { signal });
+    return asDurationEntries(await cachedGet<unknown>('/api/jobs/historical-durations', { signal }));
   } catch (error) {
     if ((error as { status?: number })?.status === 501) {
       return null;
@@ -147,5 +147,19 @@ export async function getHistoricalDurations(signal?: AbortSignal): Promise<Hist
 }
 
 export function jobProgressStreamUrl(jobId: string): string {
-  return appendStreamToken(`/api/jobs/${encodeURIComponent(jobId)}/progress/stream`);
+  const id = String(jobId ?? '').trim();
+  if (!id) return '';
+  return appendStreamToken(`/api/jobs/${encodeURIComponent(id)}/progress/stream`);
+}
+
+export function asJobList(value: unknown): Job[] {
+  return Array.isArray(value) ? value as Job[] : [];
+}
+
+export function asDurationEntries(value: unknown): HistoricalDurationEntry[] {
+  if (Array.isArray(value)) return value as HistoricalDurationEntry[];
+  if (value && typeof value === 'object' && Array.isArray((value as { entries?: unknown }).entries)) {
+    return (value as { entries: HistoricalDurationEntry[] }).entries;
+  }
+  return [];
 }

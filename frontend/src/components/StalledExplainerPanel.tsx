@@ -1,6 +1,18 @@
 import { cn } from '@/lib/utils';
 import type { StalledContext } from '@/types/api';
 
+export function asSuggestedActions(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+export function formatStalledSeconds(s: number): string {
+  if (!Number.isFinite(s) || s < 0) return '0s';
+  if (s < 60) return `${Math.round(s)}s`;
+  const m = Math.floor(s / 60);
+  const rem = Math.round(s % 60);
+  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+}
+
 export interface StalledExplainerPanelProps {
   stalled: boolean;
   stage: string;
@@ -20,18 +32,11 @@ export function StalledExplainerPanel({
 }: StalledExplainerPanelProps) {
   if (!stalled) return null;
 
-  const formatSeconds = (s: number): string => {
-    if (s < 60) return `${s}s`;
-    const m = Math.floor(s / 60);
-    const rem = s % 60;
-    return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
-  };
-
   const probableCause = stalledContext?.probable_cause ?? 'Waiting for external responses or cooldown periods';
   const expectedDuration = stalledContext?.expected_duration_seconds
-    ? formatSeconds(Math.round(stalledContext.expected_duration_seconds))
+    ? formatStalledSeconds(Math.round(stalledContext.expected_duration_seconds))
     : null;
-  const suggestedActions = stalledContext?.suggested_actions ?? [];
+  const suggestedActions = asSuggestedActions(stalledContext?.suggested_actions);
 
   return (
     <div
@@ -61,7 +66,7 @@ export function StalledExplainerPanel({
             </span>
             <span>
               Last update:{' '}
-              <span className="text-warn">{formatSeconds(secondsSinceUpdate)} ago</span>
+              <span className="text-warn">{formatStalledSeconds(secondsSinceUpdate)} ago</span>
             </span>
             {elapsedLabel && (
               <span>
