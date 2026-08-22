@@ -15,7 +15,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-import re
 import time
 from collections import defaultdict
 from typing import Any
@@ -25,14 +24,17 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Match
 
+from src.dashboard.fastapi.http_metrics_policy import (
+    normalize_http_metrics_path,
+    should_enable_http_metrics,
+)
+
 logger = logging.getLogger(__name__)
 
-# Path normalization patterns: replace high-cardinality segments with placeholders
-_PATH_NORMALIZERS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I), "{uuid}"),
-    (re.compile(r"\d+"), "{id}"),
-    (re.compile(r"[0-9a-f]{40}", re.I), "{sha}"),
-    (re.compile(r"[0-9a-f]{64}", re.I), "{sha256}"),
+__all__ = [
+    "HTTPMetricsMiddleware",
+    "should_enable_http_metrics",
+    "normalize_http_metrics_path",
 ]
 
 # Maximum unique route templates to prevent unbounded cardinality
@@ -43,21 +45,7 @@ _HTTP_LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0
 
 
 def _normalize_path(path: str) -> str:
-    """Normalize a URL path to a template string.
-
-    Replaces UUIDs, numeric IDs, and hex hashes with placeholders
-    to bound label cardinality.
-
-    Args:
-        path: Raw URL path.
-
-    Returns:
-        Normalized path template.
-    """
-    normalized = path
-    for pattern, replacement in _PATH_NORMALIZERS:
-        normalized = pattern.sub(replacement, normalized)
-    return normalized
+    return normalize_http_metrics_path(path)
 
 
 class HTTPMetricsMiddleware(BaseHTTPMiddleware):

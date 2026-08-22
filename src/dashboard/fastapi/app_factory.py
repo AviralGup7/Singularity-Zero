@@ -96,6 +96,12 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     set_app_ref(app)
     setup_security_store(app, config)
     setup_middleware(app, config)
+    from src.dashboard.fastapi.http_metrics_policy import should_enable_http_metrics
+    from src.dashboard.fastapi.http_metrics import HTTPMetricsMiddleware
+
+    if should_enable_http_metrics(os.getenv("ENABLE_HTTP_METRICS")):
+        app.add_middleware(HTTPMetricsMiddleware)
+        logger.info("HTTP metrics middleware enabled via ENABLE_HTTP_METRICS")
     setup_routers(app, config)
 
     def _error_payload(error: str, detail: Any = None, code: str | None = None) -> dict[str, Any]:
