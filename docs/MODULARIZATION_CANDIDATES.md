@@ -252,11 +252,11 @@ wrong layer.
 
 ## P2 — shells, dumps, unwired catalogs
 
-### 14. `src/kernel` + `src/core_domain`  — Shell
+### 14. `src/kernel` + `src/core_domain`  — Deleted
 
-~108 lines total. Easy to import instead of `src.core.config`.
-Either delete and alias, or make `kernel` the *only* configuration
-entry (typed config + feature flags) and stop growing `core/config`.
+Removed after a post-fix audit: zero production importers, one
+`is not None` smoke test, and no migration into a new kernel.
+Canonical config is `src.core.config.typed_config`.
 
 ### 15. `src/analysis/checks` vs `src/analysis/active|passive`  — Split
 
@@ -369,6 +369,6 @@ Each step: public `__init__` + import-linter contract + tests in
 ## What this is not
 
 - Not a rewrite.
-- Not “add empty packages” (`kernel` / `core_domain` already failed that).
+- Not “add empty packages” (`kernel` / `core_domain` were deleted after failing that).
 - Not mixing Night City, fuzzing, or WASM into `core` because a test
   needed an import.

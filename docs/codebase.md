@@ -81,8 +81,6 @@ src/
 │   ├── concurrency_governor.py # Dynamic thread and task concurrency throttler
 │   └── tenant_context.py # contextvars-based multi-tenant isolation
 │
-├── core_domain/          # 📐 Domain contract definitions and clean architecture models
-│
 ├── dashboard/            # 📊 FastAPI REST API and WebSocket dashboard service
 │   ├── fastapi/          # REST route handlers, dependencies, and FastAPI application entrypoint
 │   ├── config/           # Dashboard configuration and feature flag descriptors
@@ -174,7 +172,6 @@ src/
 │   ├── eta.py            # Real-time job ETA and progress computation
 │   └── history.py        # Historic scan execution retrieval and filtering
 │
-├── kernel/               # ⚡ Microkernel abstraction for plugin and core subsystem execution
 ├── learning/             # 🎓 Closed-loop feedback, false-positive suppression, and ML tuning
 │   ├── config/           # ML model hyperparameters and feature configuration
 │   ├── models/           # Scikit-Learn/XGBoost classifier definitions and weights

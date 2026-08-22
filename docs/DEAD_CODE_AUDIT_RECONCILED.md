@@ -54,7 +54,7 @@ Classification key: **A** already resolved · **B** still present/suspicious · 
 
 ### Backend test-only / small packages (audit §2)
 
-All **E / KEEP**: `sandbox`, `console`, `checkpoint`, `mesh`, `realtime`, `kernel`, `exploitation/capabilities`. Tests and/or public package APIs exist. “Only tests import it” is not obsolescence.
+All **E / KEEP**: `sandbox`, `console`, `checkpoint`, `mesh`, `realtime`, `exploitation/capabilities`. Tests and/or public package APIs exist. “Only tests import it” is not obsolescence. `src/kernel` + `src/core_domain` were later deleted (unused hexagonal shell).
 
 ### Backend “dead symbols” files (audit §3)
 
