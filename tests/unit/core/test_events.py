@@ -1,4 +1,8 @@
-"""Unit tests for core.events module."""
+"""Unit tests for the retired src/core/events.py module.
+
+The live EventBus is ``src.core.events.event_bus``. Fan-out / critical
+finding guarantees are covered by ``test_eventbus_guarantees.py``.
+"""
 
 # Explicitly import root file module src/core/events.py
 import importlib.util
@@ -10,9 +14,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+_EVENTS_PY = Path(__file__).resolve().parent.parent.parent.parent / "src" / "core" / "events.py"
+if not _EVENTS_PY.is_file():
+    pytest.skip(
+        "shadowed src/core/events.py removed; see test_eventbus_guarantees.py",
+        allow_module_level=True,
+    )
+
 spec = importlib.util.spec_from_file_location(
     "root_events",
-    Path(__file__).resolve().parent.parent.parent.parent / "src" / "core" / "events.py",
+    _EVENTS_PY,
 )
 root_events = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(root_events)

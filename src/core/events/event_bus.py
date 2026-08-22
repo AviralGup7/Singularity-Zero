@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import json
 import logging
+import threading
 import uuid
-
-logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable
@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, TypeVar
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -110,7 +112,22 @@ class Subscription:
 
 
 class EventBus:
-    """Async event bus with priority dispatch and dead letter queue."""
+    """Async event bus with priority dispatch and dead letter queue.
+
+    Guarantees ported from the shadowed ``src/core/events.py`` module:
+    recursive ``emit``/``publish_sync`` depth is capped, and finding /
+    pipeline-terminal events are never dropped by that cap.
+    """
+
+    _FANOUT_MAX_DEPTH = 5
+    _CRITICAL_EVENT_TYPES: frozenset[str] = frozenset(
+        {
+            EventType.FINDING_CREATED.value,
+            EventType.FINDING_DISCOVERED.value,
+            EventType.PIPELINE_COMPLETE.value,
+            EventType.PIPELINE_ERROR.value,
+        }
+    )
 
     def __init__(self, max_queue_size: int = 10000):
         self._subscriptions: dict[str, list[Subscription]] = defaultdict(list)
@@ -124,7 +141,11 @@ class EventBus:
             "delivered": 0,
             "failed": 0,
             "dlq_size": 0,
+            "dropped_fanout": 0,
         }
+        self._depth: contextvars.ContextVar[int] = contextvars.ContextVar(
+            "event_bus_depth", default=0
+        )
 
     def subscribe(self, arg1: Any, arg2: Any = None) -> None:
         """Register a handler for event types."""
@@ -183,12 +204,40 @@ class EventBus:
         self.publish_sync(event)
         return event
 
+    def _event_type_value(self, event: Any) -> str:
+        return str(
+            getattr(getattr(event, "event_type", None), "value", None)
+            or getattr(event, "type", "")
+            or ""
+        )
+
+    def _is_critical(self, event: Any) -> bool:
+        return self._event_type_value(event) in self._CRITICAL_EVENT_TYPES
+
+    def dropped_status(self) -> dict[str, int]:
+        """Counters for events dropped by the live emit path."""
+        return {"dropped_fanout": int(self._metrics.get("dropped_fanout", 0))}
+
     def publish_sync(self, event: Any) -> list[Any]:
         """Synchronous publish fallback."""
+        depth = int(self._depth.get(0))
+        if depth >= self._FANOUT_MAX_DEPTH and not self._is_critical(event):
+            self._metrics["dropped_fanout"] = int(self._metrics.get("dropped_fanout", 0)) + 1
+            logger.warning(
+                "Event fan-out depth %d exceeded; dropping non-critical %s",
+                depth,
+                self._event_type_value(event),
+            )
+            return []
+        token = self._depth.set(depth + 1)
+        try:
+            return self._dispatch_sync(event)
+        finally:
+            self._depth.reset(token)
+
+    def _dispatch_sync(self, event: Any) -> list[Any]:
         results = []
-        et_str = getattr(
-            getattr(event, "event_type", None), "value", str(getattr(event, "type", ""))
-        )
+        et_str = self._event_type_value(event)
         subs = list(self._subscriptions.get(et_str, []))
         for sub in subs:
             try:
@@ -337,15 +386,18 @@ class EventBus:
 # ---------------------------------------------------------------------------
 
 _event_bus: EventBus | None = None
+_event_bus_lock = threading.Lock()
 
 
 def get_event_bus() -> EventBus:
     global _event_bus
-    if _event_bus is None:
-        _event_bus = EventBus()
-    return _event_bus
+    with _event_bus_lock:
+        if _event_bus is None:
+            _event_bus = EventBus()
+        return _event_bus
 
 
 def reset_event_bus() -> None:
     global _event_bus
-    _event_bus = None
+    with _event_bus_lock:
+        _event_bus = None
