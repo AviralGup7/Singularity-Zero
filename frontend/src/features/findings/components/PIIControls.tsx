@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { isPIIVisible, setPIIVisible, getPIIAuditLog  } from '@/utils/piiRedactor';
 import type {PIIMatch} from '@/utils/piiRedactor';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +12,8 @@ export function PIIControls({ className, onChange }: PIIControlsProps) {
    
   const [visible, setVisible] = useState(isPIIVisible());
   const { user } = useAuth();
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     let mounted = true;
@@ -19,10 +21,10 @@ export function PIIControls({ className, onChange }: PIIControlsProps) {
       if (!mounted) return;
       const current = isPIIVisible();
       setVisible(current);
-      onChange?.(current);
+      onChangeRef.current?.(current);
     });
     return () => { mounted = false; };
-  }, [onChange]);
+  }, []);
 
   const toggle = () => {
     const next = !visible;

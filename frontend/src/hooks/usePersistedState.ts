@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef   } from 'react';
 import type {Dispatch, SetStateAction} from 'react';
 import type {ZodSchema} from 'zod';
+import { parsePersistedValue } from './persistedValue';
 
 /**
  * A hook that syncs state to localStorage with debounced writes.
@@ -32,20 +33,17 @@ export function usePersistedState<T>(
   const [value, setValue] = useState<T>(() => {
     try {
       const stored = localStorage.getItem(key);
-      if (stored !== null) {
-        const parsed = deserialize(stored);
-        if (options?.schema) {
-          const result = options.schema.safeParse(parsed);
-          if (result.success) return result.data;
-          console.warn(`[usePersistedState] Schema validation failed for key "${key}", using default`);
-          return defaultValue;
-        }
-        return parsed;
+      const parsed = parsePersistedValue(stored, defaultValue, deserialize);
+      if (stored !== null && options?.schema) {
+        const result = options.schema.safeParse(parsed);
+        if (result.success) return result.data;
+        console.warn(`[usePersistedState] Schema validation failed for key "${key}", using default`);
+        return defaultValue;
       }
+      return parsed;
     } catch {
-      /* ignore parse errors, use default */
+      return defaultValue;
     }
-    return defaultValue;
   });
 
   const pendingWriteRef = useRef<ReturnType<typeof setTimeout> | null>(null);

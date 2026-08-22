@@ -19,6 +19,7 @@ import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
 import { visibleFindingIds } from '@/features/notifications/unread';
 import { acknowledgeNewFindings, detectFreshFindingIds } from './newFindingsFeed';
 import { sanitizeSeverityFilters } from './severityFilter';
+import { applyFilterPreset } from './filterPreset';
 import { unreadAfterDismiss } from '@/features/notifications/unread';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
@@ -285,9 +286,10 @@ export function FindingsPage() {
   }), [searchQuery, severityFilter]);
 
   const handleLoadPreset = useCallback((filters: Record<string, string>) => {
-    if (filters.search) setSearchQuery(filters.search);
-    if (filters.severity) setSeverityFilter(sanitizeSeverityFilters(filters.severity.split(',')));
-  }, [setSearchQuery, setSeverityFilter]);
+    const next = applyFilterPreset({ search: searchQuery, severity: sanitizeSeverityFilters(severityFilter) }, filters);
+    setSearchQuery(next.search);
+    setSeverityFilter(next.severity);
+  }, [searchQuery, severityFilter, setSearchQuery, setSeverityFilter]);
 
   if (loading && !findingsData) return (
     <div className="p-10 space-y-4">

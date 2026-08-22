@@ -32,7 +32,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useSSEProgress  } from './useSSEProgress';
 import type {SseEvent} from './useSSEProgress';
 import { useWebSocket } from './useWebSocket';
-import { shouldEnableSse, shouldEnableWs } from './realtimeTransport';
+import { resolveEffectiveTransport, shouldEnableSse, shouldEnableWs } from './realtimeTransport';
 
 export type RealtimeTransport = 'sse' | 'ws' | 'auto';
 
@@ -185,6 +185,6 @@ export function useRealtimeStream<T = unknown>({
     isPollingFallback: sse.isPollingFallback,
     reconnect,
     disconnect,
-    effectiveTransport: useSse ? 'sse' : 'ws',
+    effectiveTransport: resolveEffectiveTransport(transport, sse.connectionState),
   };
 }

@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useApi } from '@/hooks/useApi';
 import { useRealtimeStream } from '@/hooks/useRealtimeStream';
 import { applyLiveScanEvent, mergePolledScanState } from '@/components/scanStatusMerge';
+import { sanitizeLiveStatus } from '@/hooks/realtimeTransport';
+import { ROUTES } from '@/config/paths';
 import type { Job } from '@/types/api';
 
 interface ActiveScanState {
@@ -40,11 +42,13 @@ export function ScanStatusBar() {
         : typeof data.progress_percent === 'number'
           ? data.progress_percent
           : undefined;
-      const status = typeof data.message === 'string'
-        ? data.message
-        : typeof data.stage === 'string'
-          ? data.stage
-          : event.type;
+      const status = sanitizeLiveStatus(
+        typeof data.message === 'string'
+          ? data.message
+          : typeof data.stage === 'string'
+            ? data.stage
+            : undefined,
+      );
       const findingsCount = typeof data.finding_count === 'number'
         ? data.finding_count
         : typeof data.findings_count === 'number'
@@ -82,7 +86,7 @@ export function ScanStatusBar() {
     }
   }, [jobsResponse]);
 
-  const isOnCockpit = location.pathname === '/cockpit';
+  const isOnCockpit = location.pathname === ROUTES.COCKPIT || location.pathname.startsWith(`${ROUTES.COCKPIT}/`);
 
   const handleClick = useCallback(() => {
     if (!isOnCockpit && activeScan) {
