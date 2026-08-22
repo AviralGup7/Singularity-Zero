@@ -6,36 +6,30 @@ import { RouteConfig } from '@/RouteConfig';
 import { BootEffects } from '@/BootEffects';
 import { useAuth } from '@/hooks/useAuth';
 
-function AuthenticatedApp() {
+function Shell() {
+  const { user } = useAuth();
+  const tree = (
+    <AppLayout>
+      <RouteConfig />
+    </AppLayout>
+  );
+
+  if (!user) return tree;
+
   return (
     <JobsProvider>
       <TargetsProvider>
-        <BootEffects />
-        <AppLayout>
-          <RouteConfig />
-        </AppLayout>
+        {tree}
       </TargetsProvider>
     </JobsProvider>
   );
 }
 
-function UnauthApp() {
-  return (
-    <>
-      <BootEffects />
-      <AppLayout>
-        <RouteConfig />
-      </AppLayout>
-    </>
-  );
-}
-
 export default function App() {
-  const { user } = useAuth();
-
   return (
     <CoreProviders>
-      {user ? <AuthenticatedApp /> : <UnauthApp />}
+      <BootEffects />
+      <Shell />
     </CoreProviders>
   );
 }

@@ -15,15 +15,33 @@ export function BootEffects() {
         errorTracker.track(err, { component: 'App', action: 'telemetry-sync' });
         console.warn('[SYSTEM] Initial telemetry sync failed. Backend may be offline.');
       });
-  }, []);
 
-  useEffect(() => {
-    useAuthStore.getState().hydrateAuth();
-  }, []);
+    try {
+      const result = useAuthStore.getState().hydrateAuth() as unknown;
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        void (result as Promise<unknown>).catch((err: unknown) => {
+          errorTracker.track(err instanceof Error ? err : new Error(String(err)), {
+            component: 'BootEffects',
+            action: 'hydrateAuth',
+          });
+        });
+      }
+    } catch (err) {
+      errorTracker.track(err instanceof Error ? err : new Error(String(err)), {
+        component: 'BootEffects',
+        action: 'hydrateAuth',
+      });
+    }
 
-  useEffect(() => {
     const interval = setInterval(() => {
-      useEventLogStore.getState().prune();
+      try {
+        useEventLogStore.getState().prune();
+      } catch (err) {
+        errorTracker.track(err instanceof Error ? err : new Error(String(err)), {
+          component: 'BootEffects',
+          action: 'pruneEventLog',
+        });
+      }
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);

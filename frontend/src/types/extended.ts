@@ -18,9 +18,16 @@ export interface HistoricalScoreEntry {
   findings: Record<string, unknown>[];
 }
 
+export interface HistoricalEndpointSeries {
+  scores: number[];
+  timestamps: string[];
+  avg_score: number;
+  trend: 'improving' | 'worsening' | 'stable';
+}
+
 export interface HistoricalScoreResponse {
   target: string;
-  endpoints: Record<string, Record<string, unknown>>;
+  endpoints: Record<string, HistoricalEndpointSeries>;
   runs_analyzed: number;
 }
 
@@ -241,11 +248,6 @@ export interface FindingTimelineEvent {
 
 export interface TargetHistoricalScores {
   target: string;
-  endpoints: Record<string, {
-    scores: number[];
-    timestamps: string[];
-    avg_score: number;
-    trend: 'improving' | 'worsening' | 'stable';
-  }>;
+  endpoints: Record<string, HistoricalEndpointSeries>;
   runs_analyzed: number;
 }

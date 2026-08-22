@@ -40,7 +40,7 @@ window.addEventListener('error', (e) => {
   showErrorOverlay(
     'JavaScript Error',
     error.message || 'Unknown error',
-    error.stack
+    import.meta.env.DEV ? error.stack : undefined,
   );
 });
 
@@ -60,7 +60,7 @@ window.addEventListener('unhandledrejection', (e) => {
   showErrorOverlay(
     'Async Error',
     msg,
-    stack
+    import.meta.env.DEV ? stack : undefined,
   );
 });
 
@@ -100,7 +100,7 @@ window.addEventListener('error', (e) => {
 async function bootstrap() {
   const bootTimeout = setTimeout(() => {
     const root = document.getElementById('root');
-    if (root && root.innerHTML === '') {
+    if (root && !root.hasChildNodes()) {
       showErrorOverlay(
         'Boot Timeout',
         'The application script loaded but failed to mount within 5 seconds. This often indicates a silent crash in a Provider or a blocked dependency. Check the browser console for details.'
@@ -178,9 +178,16 @@ async function bootstrap() {
     showErrorOverlay(
       'Fatal Bootstrap Error',
       err instanceof Error ? err.message : String(err),
-      err instanceof Error ? err.stack : undefined
+      import.meta.env.DEV && err instanceof Error ? err.stack : undefined,
     );
   }
 }
 
-void bootstrap();
+void bootstrap().catch((err) => {
+  console.error('Fatal Bootstrap Error:', err);
+  showErrorOverlay(
+    'Fatal Bootstrap Error',
+    err instanceof Error ? err.message : String(err),
+    import.meta.env.DEV && err instanceof Error ? err.stack : undefined,
+  );
+});
