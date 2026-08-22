@@ -9,19 +9,37 @@ interface SavedFilterPreset {
 
 const STORAGE_KEY = 'cyber-pipeline-saved-filters';
 
+export function parseSavedFilterPresets(raw: string | null): SavedFilterPreset[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SavedFilterPreset => {
+      return Boolean(item && typeof item === 'object' && typeof (item as SavedFilterPreset).id === 'string');
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function normalizePresetName(name: string): string | null {
+  const trimmed = name.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function getSavedFilterPresets(): SavedFilterPreset[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return parseSavedFilterPresets(localStorage.getItem(STORAGE_KEY));
   } catch {
     return [];
   }
 }
 
 export function saveFilterPreset(name: string, filters: Record<string, string>): SavedFilterPreset {
+  const label = normalizePresetName(name) ?? 'Untitled filter';
   const preset: SavedFilterPreset = {
     id: `preset-${crypto.randomUUID()}`,
-    name,
+    name: label,
     filters,
     createdAt: new Date().toISOString(),
   };

@@ -1,4 +1,5 @@
 import type { Finding } from '@/types/api';
+import { confidencePercent } from '@/utils/normalizeScale';
 
 export type ReportFormat = 'markdown' | 'html' | 'json';
 
@@ -62,7 +63,7 @@ export function buildMarkdownReport(finding: Finding): string {
   lines.push(`**Type:** ${safe(finding.type)}`);
   lines.push(`**CVSS:** ${safe(cvss)}`);
   lines.push(`**CSI Score:** ${safe(finding.csi_score)} (${csiLevel(finding)})`);
-  lines.push(`**Confidence:** ${Math.round((finding.confidence ?? 0) * 100)}%`);
+  lines.push(`**Confidence:** ${confidencePercent(finding.confidence)}%`);
   lines.push(`**Status:** ${safe(finding.status)}`);
   if (finding.bounty_value) {
     lines.push(`**Bounty:** ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finding.bounty_value)}${finding.bounty_currency ? ' ' + finding.bounty_currency : ''}`);
@@ -114,7 +115,7 @@ export function buildHtmlReport(finding: Finding): string {
     ['Type', safe(finding.type)],
     ['CVSS', safe(cvss)],
     ['CSI Score', `${safe(finding.csi_score)} (${csiLevel(finding)})`],
-    ['Confidence', `${Math.round((finding.confidence ?? 0) * 100)}%`],
+    ['Confidence', `${confidencePercent(finding.confidence)}%`],
     ['Status', safe(finding.status)],
     ['Discovered', safe(finding.timestamp)],
     ['Finding ID', safe(finding.id)],
@@ -248,7 +249,7 @@ export function buildMarkdownReportBundle(findings: Finding[], meta: ReportMeta 
     lines.push(`**Type:** ${safe(f.type)}`);
     lines.push(`**CVSS:** ${safe(f.cvss ?? f.cvss_score)}`);
     lines.push(`**CSI Score:** ${safe(f.csi_score)} (${csiLevel(f)})`);
-    lines.push(`**Confidence:** ${Math.round((f.confidence ?? 0) * 100)}%`);
+    lines.push(`**Confidence:** ${confidencePercent(f.confidence)}%`);
     lines.push(`**Status:** ${safe(f.status)}`);
     lines.push(`**Finding ID:** ${safe(f.id)}`);
     lines.push('');
@@ -290,7 +291,7 @@ export function buildHtmlReportBundle(findings: Finding[], meta: ReportMeta = {}
         &middot; CSI ${escapeHtml(safe(f.csi_score))} (${escapeHtml(csiLevel(f))})
       </p>
       <table class="facts"><tbody>
-        <tr><th>Confidence</th><td>${Math.round((f.confidence ?? 0) * 100)}%</td></tr>
+        <tr><th>Confidence</th><td>${confidencePercent(f.confidence)}%</td></tr>
         <tr><th>Status</th><td>${escapeHtml(safe(f.status))}</td></tr>
         <tr><th>Finding ID</th><td><code>${escapeHtml(safe(f.id))}</code></td></tr>
         ${f.bounty_value ? `<tr><th>Bounty</th><td>$${f.bounty_value.toLocaleString()}${f.bounty_currency ? ' ' + escapeHtml(f.bounty_currency) : ''}</td></tr>` : ''}

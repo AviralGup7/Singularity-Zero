@@ -13,6 +13,10 @@ export interface AppNotification {
 
 const NOTIFICATION_STORAGE_KEY = 'cyber-pipeline-notifications';
 
+export function notificationDelivery(permission: string | undefined): { inApp: boolean; push: boolean } {
+  return { inApp: true, push: permission === 'granted' };
+}
+
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   if (!('Notification' in window)) {
     console.warn('Browser does not support notifications');
@@ -37,8 +41,12 @@ export function sendPushNotification(
   };
 
   storeInAppNotification(notification);
+  const delivery = notificationDelivery(
+    typeof Notification !== 'undefined' ? Notification.permission : undefined,
+  );
+  if (delivery.inApp) dispatchInAppEvent(notification);
 
-  if ('Notification' in window && Notification.permission === 'granted') {
+  if (delivery.push && 'Notification' in window) {
     try {
       new Notification(title, {
         body,
@@ -49,9 +57,6 @@ export function sendPushNotification(
     } catch (e) {
       console.warn('Failed to send push notification:', e);
     }
-  } else {
-    // FIX: Uncommented dispatchInAppEvent so in-app listeners receive notifications
-    dispatchInAppEvent(notification);
   }
 }
 

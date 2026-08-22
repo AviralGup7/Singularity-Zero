@@ -8,15 +8,21 @@ import DOMPurify from 'dompurify';
 const MAX_INPUT_LENGTH = 5 * 1024 * 1024;
 
 function validateInputLength(html: string): string {
+  if (typeof html !== 'string') return '';
   if (html.length > MAX_INPUT_LENGTH) {
     throw new Error(`Input too large: ${html.length} bytes exceeds ${MAX_INPUT_LENGTH} limit`);
   }
   return html;
 }
 
+export function asSanitizableHtml(html: unknown): string {
+  return typeof html === 'string' ? html : '';
+}
+
 export function sanitizeContent(html: string): string {
-  validateInputLength(html);
-  return DOMPurify.sanitize(html, {
+  const input = asSanitizableHtml(html);
+  validateInputLength(input);
+  return DOMPurify.sanitize(input, {
     ALLOWED_TAGS: [],
     ALLOWED_ATTR: [],
     ALLOW_DATA_ATTR: false,
