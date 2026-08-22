@@ -57,7 +57,18 @@ class SessionProvisioningStage:
         auth_method = str(getattr(auth_config, "method", "session_cookie"))
 
         if auth_method == "oauth":
-            provisioned = await _provision_oauth(auth_config, scan_session, scan_id)
+            try:
+                provisioned = await _provision_oauth(auth_config, scan_session, scan_id)
+            except OAuthBindingMissing as exc:
+                logger.error("%s", exc)
+                return StageOutput(
+                    stage_name="session_provisioning",
+                    outcome=StageOutcome.FAILED,
+                    duration_seconds=0.0,
+                    error=str(exc),
+                    state_delta={"session_provisioned": False, "oauth_binding_missing": True},
+                    reason="oauth_binding_missing",
+                )
         elif auth_method == "auth_flow":
             provisioned = await _provision_auth_flow(auth_config, scan_session, scan_id)
         else:
@@ -106,14 +117,17 @@ def _provision_static_credentials(auth_config: Any, scan_session: ScanSession) -
 
 async def _provision_oauth(auth_config: Any, scan_session: ScanSession, scan_id: str) -> list[str]:
     """Provision OAuth credentials via OAuthAuthenticator."""
-    try:
-        from src.core.contracts.protocol_registry import get_oauth_authenticator_cls
-        from src.execution.auth.oauth_authenticator import OAuthConfig
+    from src.core.contracts.protocol_registry import get_oauth_authenticator_cls
 
-        _oauth_cls = get_oauth_authenticator_cls()
-        if _oauth_cls is None:
-            logger.warning("OAuthAuthenticator not registered in protocol registry")
-            return []
+    _oauth_cls = get_oauth_authenticator_cls()
+    if _oauth_cls is None:
+        raise OAuthBindingMissing(
+            "OAuth authentication requested but OAuthAuthenticator is not registered. "
+            "Refusing to continue an unauthenticated scan."
+        )
+
+    try:
+        from src.execution.auth.oauth_authenticator import OAuthConfig
 
         oauth_config_raw = getattr(auth_config, "oauth_config", None) or {}
         if not oauth_config_raw:
