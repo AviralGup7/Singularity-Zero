@@ -4,6 +4,13 @@ import type { ReadinessResponse } from '@/types/extended';
 
 const HEALTH_POLL_INTERVAL = 30_000;
 
+export function isCanceledHealthError(err: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  const name = err instanceof Error ? err.name : undefined;
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  return name === 'CanceledError' || name === 'AbortError' || message.toLowerCase() === 'canceled' || message.toLowerCase() === 'abort';
+}
+
 export interface HealthStatusState {
   ready: boolean;
   status: string;
@@ -40,12 +47,7 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
         lastChecked: new Date(),
       });
     } catch (_err) {
-      const isCanceled = (() => {
-        const name = _err instanceof Error ? _err.name : undefined;
-        const message = _err instanceof Error ? _err.message : String(_err ?? '');
-        return name === 'CanceledError' || name === 'AbortError' || message.toLowerCase() === 'canceled' || message.toLowerCase() === 'abort';
-      })();
-      if (isCanceled || signal?.aborted) return;
+      if (isCanceledHealthError(_err, signal)) return;
       setState(prev => ({
         ...prev,
         ready: false,
@@ -72,5 +74,5 @@ export function useHealthStatus(pollInterval: number = HEALTH_POLL_INTERVAL) {
     };
   }, [checkHealth, pollInterval]);
 
-  return { ...state, refetch: () => checkHealth() };
+  return { ...state, refetch: () => checkHealth(new AbortController().signal) };
 }

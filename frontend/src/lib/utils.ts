@@ -47,11 +47,11 @@ export function calculateHealthScore(
   severityTotals: Record<string, number>
 ): { score: number; label: string; tone: string } {
     
-  const critical = severityTotals['critical'] || 0;
+  const critical = Math.max(0, severityTotals['critical'] || 0);
     
-  const high = severityTotals['high'] || 0;
+  const high = Math.max(0, severityTotals['high'] || 0);
     
-  const medium = severityTotals['medium'] || 0;
+  const medium = Math.max(0, severityTotals['medium'] || 0);
   const score = Math.max(0, 100 - Math.min(100, critical * 15 + high * 8 + medium * 3));
   const label =
     score >= 70 ? 'Healthy' :

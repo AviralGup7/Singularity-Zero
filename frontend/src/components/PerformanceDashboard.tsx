@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
-import { appendClientMetrics, clampUnitInterval, type MetricRecord } from './performanceMetrics';
+import { appendClientMetrics, clampUnitInterval, formatDurationMs, type MetricRecord } from './performanceMetrics';
 
 function getNavMetrics(): MetricRecord[] {
   const navEntries = performance.getEntriesByType('navigation');

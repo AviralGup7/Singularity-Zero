@@ -34,7 +34,8 @@ function getThresholds(metric: string): { good: number; needsImprovement: number
   }
 }
 
-function getRating(metric: string, value: number): 'good' | 'needs-improvement' | 'poor' {
+export function rateWebVital(metric: string, value: number): 'good' | 'needs-improvement' | 'poor' {
+  if (!Number.isFinite(value)) return 'needs-improvement';
   const thresholds = getThresholds(metric);
   if (value <= thresholds.good) return 'good';
   if (value <= thresholds.needsImprovement) return 'needs-improvement';
@@ -62,7 +63,7 @@ function storeMetric(metric: Metric): void {
 
     data[metric.name] = {
       value: metric.value,
-      rating: getRating(metric.name, metric.value),
+      rating: rateWebVital(metric.name, metric.value),
       timestamp: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -93,7 +94,7 @@ export function initWebVitals(): void {
    
     console.info(`[WebVitals] ${metric.name}:`, {
       value: metric.value,
-      rating: getRating(metric.name, metric.value),
+      rating: rateWebVital(metric.name, metric.value),
       delta: metric.delta,
     });
     storeMetric(metric);

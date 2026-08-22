@@ -32,5 +32,5 @@ export function statusForCode(code: string): number {
 }
 
 export function isRetryable(code: string): boolean {
-  return code === 'rate_limited' || code === 'unavailable' || code === 'internal';
+  return code === 'rate_limited' || code === 'unavailable' || code === 'internal' || code === 'timeout' || code === 'bad_gateway';
 }
