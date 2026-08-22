@@ -195,6 +195,42 @@ __all__ = [
 
 logger = get_pipeline_logger(__name__)
 
+_FAILED_STAGE_MARKERS = frozenset(
+    {"FAILED", "ERROR", "TIMEOUT", "failed", "error", "timeout"}
+)
+_SKIPPED_STAGE_MARKERS = frozenset(
+    {
+        "SKIPPED",
+        "SKIPPED_DISABLED",
+        "SKIPPED_FAILED",
+        "skipped",
+        "skip",
+        "cancelled",
+        "canceled",
+    }
+)
+
+
+def stage_progress_kind(
+    ctx: PipelineContext,
+    stage_name: str,
+    stage_output: StageOutput | None,
+) -> str:
+    """Classify the real stage outcome so we do not emit a fake completed event."""
+    recorded = str(ctx.result.stage_status.get(stage_name, "") or "").strip()
+    metrics = ctx.result.module_metrics.get(stage_name, {})
+    metric_status = ""
+    if isinstance(metrics, dict):
+        metric_status = str(metrics.get("status") or "").strip()
+    outcome = getattr(stage_output, "outcome", None)
+    outcome_value = str(getattr(outcome, "value", outcome) or "").strip()
+    tokens = {recorded, recorded.upper(), metric_status, metric_status.lower(), outcome_value, outcome_value.lower()}
+    if tokens & _FAILED_STAGE_MARKERS:
+        return "failed"
+    if tokens & _SKIPPED_STAGE_MARKERS:
+        return "skipped"
+    return "completed"
+
 
 class PipelineOrchestrator:
     """Orchestrates the security testing pipeline execution."""
@@ -853,6 +889,15 @@ class PipelineOrchestrator:
 
         with stage_checkpoint_guard(checkpoint_mgr, stage_name):
             if getattr(ctx.result, "cancel_requested", False):
+                progress_emitter(
+                    stage_name,
+                    f"Skipped stage {stage_name}: cancel requested",
+                    self._stage_baseline(stage_name),
+                    status="skipped",
+                    stage_status="skipped",
+                    reason="cancel_requested",
+                    event_trigger="stage_skipped",
+                )
                 return None
 
             try:
@@ -916,20 +961,32 @@ class PipelineOrchestrator:
 
             except Exception as exc:
                 logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
-                if "WAL durability layer failed" in str(exc):
-                    ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
-                    ctx.result.module_metrics[stage_name] = {
-                        "status": "error",
-                        "error": str(exc),
-                        "failure_reason": "WAL durability layer failed",
-                        "fatal": critical,
-                    }
-                    return 1
+                error_text = str(exc) or exc.__class__.__name__
+                reason = (
+                    "WAL durability layer failed"
+                    if "WAL durability layer failed" in str(exc)
+                    else error_text
+                )
                 ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
                 ctx.result.module_metrics[stage_name] = {
                     "status": "error",
-                    "error": str(exc) or exc.__class__.__name__,
-                    "failure_reason": str(exc) or exc.__class__.__name__,
+                    "error": error_text,
+                    "failure_reason": reason,
                     "fatal": critical,
                 }
+                try:
+                    progress_emitter(
+                        stage_name,
+                        f"Stage failed ({stage_name}): {reason}",
+                        self._stage_baseline(stage_name),
+                        status="error",
+                        stage_status="error",
+                        failed_stage=stage_name,
+                        failure_reason=reason,
+                        error=error_text,
+                        event_trigger="stage_failed",
+                        fatal=critical,
+                    )
+                except Exception:
+                    logger.debug("Failed to emit error progress for %s", stage_name, exc_info=True)
                 return 1
