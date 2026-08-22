@@ -1,6 +1,7 @@
 import type { Job } from '@/types/api';
 import { clamp01, DEFAULT_VISUAL_STATE  } from './visualState';
 import type {VisualState} from './visualState';
+import { normalizeProgressPercent } from '@/utils/normalizeScale';
 
 interface MapVisualStateOptions {
   sseError?: string | null;
@@ -25,8 +26,8 @@ export function mapToVisualState(
     num(telemetry?.requests_per_second),
     num(telemetry?.throughput_per_second)
   );
-  const stageProgress = num(job.stage_percent) / 100;
-  const globalProgress = num(job.progress_percent) / 100;
+  const stageProgress = normalizeProgressPercent(num(job.stage_percent, Number.NaN), 'auto') / 100;
+  const globalProgress = normalizeProgressPercent(num(job.progress_percent, Number.NaN), 'auto') / 100;
   const likelihood = clamp01(num(telemetry?.vulnerability_likelihood_score));
   const telemetryConfidence = clamp01(
     typeof telemetry?.confidence_score === 'number' ? telemetry.confidence_score : 0.85

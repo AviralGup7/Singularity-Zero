@@ -216,6 +216,7 @@ export function mergeTelemetry(
   if (!incoming) return Object.fromEntries(merged) as ProgressTelemetry;
    
   for (const [key, value] of Object.entries(incoming)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
       merged.set(key, value.slice());

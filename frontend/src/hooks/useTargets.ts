@@ -8,14 +8,22 @@ export interface TargetsResponse {
   targets: Target[];
 }
 
+export function pageAfterSearchChange(): number {
+  return 1;
+}
+
 export function useTargets() {
   const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets', {
     autoToast: true,
     errorContext: 'Failed to load targets',
   });
 
-  const [filter, setFilter] = useState('');
+  const [filter, setFilterState] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const setFilter = useCallback((value: string) => {
+    setFilterState(value);
+    setCurrentPage(1);
+  }, []);
   const [filters, setFilters] = useState<TargetFilters>(emptyFilters());
   const [selectedTargets, setSelectedTargets] = useState(new Set<string>());
   const [isScanning, setIsScanning] = useState(false);

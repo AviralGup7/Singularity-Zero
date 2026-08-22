@@ -5,6 +5,13 @@ import { getJob } from '@/api/client';
 import type { BreadcrumbItem } from '@/components/ui/Breadcrumbs';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 
+export function extractJobIdFromPath(pathname: string, jobsRoot = '/jobs'): string | undefined {
+  if (!pathname.startsWith(`${jobsRoot}/`)) return undefined;
+  const rest = pathname.slice(jobsRoot.length + 1).split('/')[0] ?? '';
+  const id = rest.trim();
+  return id || undefined;
+}
+
 function useJobName(jobId: string | undefined) {
    
   const [jobName, setJobName] = useState<string | null>(null);
@@ -32,7 +39,7 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
   const location = useLocation();
   const pathname = location.pathname;
 
-  const jobId = pathname.startsWith(ROUTES.JOBS + '/') ? pathname.replace(ROUTES.JOBS + '/', '') : undefined;
+  const jobId = extractJobIdFromPath(pathname);
   const jobName = useJobName(jobId);
 
   const crumbs = useMemo((): BreadcrumbItem[] => {

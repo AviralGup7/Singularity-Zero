@@ -150,10 +150,19 @@ export async function recordEvidenceTransfer(
   saveEvidenceRecord(record);
 }
 
+export function parseCustodyRecords(raw: string | null): EvidenceRecord[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed as EvidenceRecord[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getAllEvidenceRecords(): EvidenceRecord[] {
   try {
-    const raw = sessionStorage.getItem(CUSTODY_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return parseCustodyRecords(sessionStorage.getItem(CUSTODY_STORAGE_KEY));
   } catch {
     return [];
   }
@@ -194,25 +203,36 @@ export async function verifyEvidenceIntegrity(
   return computedHash === record.hash;
 }
 
-export function deleteEvidenceRecord(evidenceId: string, user = 'anonymous'): void {
-  const records = getAllEvidenceRecords();
-  const record = records.find((r) => r.id === evidenceId);
-  if (record) {
-   
+export function nextCustodyRecordsAfterDelete(
+  records: EvidenceRecord[],
+  evidenceId: string,
+  user = 'anonymous',
+  now = new Date().toISOString(),
+): EvidenceRecord[] {
+  return records.map((record) => {
+    if (record.id !== evidenceId) return record;
     const lastEntry = record.custodyChain[record.custodyChain.length - 1];
-    record.custodyChain.push({
-      id: `custody-${crypto.randomUUID()}`,
-      evidenceId,
-      action: 'deleted',
-      user,
-      timestamp: new Date().toISOString(),
-      hash: record.hash,
-      previousHash: lastEntry?.hash,
-      details: {},
-    });
-  }
-  sessionStorage.setItem(
-    CUSTODY_STORAGE_KEY,
-    JSON.stringify(records.filter((r) => r.id !== evidenceId))
-  );
+    return {
+      ...record,
+      metadata: { ...record.metadata, deleted: true },
+      custodyChain: [
+        ...record.custodyChain,
+        {
+          id: `custody-deleted-${record.id}`,
+          evidenceId,
+          action: 'deleted' as const,
+          user,
+          timestamp: now,
+          hash: record.hash,
+          previousHash: lastEntry?.hash,
+          details: {},
+        },
+      ],
+    };
+  });
+}
+
+export function deleteEvidenceRecord(evidenceId: string, user = 'anonymous'): void {
+  const records = nextCustodyRecordsAfterDelete(getAllEvidenceRecords(), evidenceId, user);
+  sessionStorage.setItem(CUSTODY_STORAGE_KEY, JSON.stringify(records));
 }
