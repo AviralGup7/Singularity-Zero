@@ -185,6 +185,7 @@ __all__ = [
     "create_checkpoint_manager",
     "attempt_recovery",
     "emit_progress",
+    "stage_progress_kind",
     "resolve_stage_timeout",
     "run_stage_with_retry",
     "PIPELINE_STAGES",
@@ -913,7 +914,8 @@ class PipelineOrchestrator:
                     critical=critical,
                 )
 
-                if stage_output is not None:
+                terminal = stage_progress_kind(ctx, stage_name, stage_output)
+                if stage_output is not None and terminal != "failed":
                     self._merge_stage_output(ctx, stage_name, stage_output)
                     ctx.compact_state()
                     from src.pipeline.validation import validate_stage_artifact
@@ -925,6 +927,25 @@ class PipelineOrchestrator:
                 elapsed = time.time() - stage_started
 
                 await self._record_stage_post_run(stage_name, ctx, checkpoint_mgr)
+
+                if terminal == "failed":
+                    return 1
+                if terminal == "skipped":
+                    return None
+
+                if stage_name in {"subdomains", "live_hosts", "urls"}:
+                    stage_metrics = ctx.result.module_metrics.get(stage_name, {})
+                    if metrics_indicate_fatal_failure(stage_metrics):
+                        progress_emitter(
+                            stage_name,
+                            f"Stage failed: {PIPELINE_STAGES.get(stage_name, stage_name)}",
+                            self._stage_baseline(stage_name),
+                            status="failed",
+                            stage_status="failed",
+                            event_trigger="stage_failed",
+                            error=stage_metrics.get("error", "Fatal recon failure"),
+                        )
+                        return 1
 
                 progress_emitter(
                     stage_name,
@@ -942,20 +963,6 @@ class PipelineOrchestrator:
                     source=f"stage.{stage_name}",
                     data={"contract": self._build_stage_output_contract(stage_name, elapsed, ctx)},
                 )
-
-                if stage_name in {"subdomains", "live_hosts", "urls"}:
-                    stage_metrics = ctx.result.module_metrics.get(stage_name, {})
-                    if metrics_indicate_fatal_failure(stage_metrics):
-                        progress_emitter(
-                            stage_name,
-                            f"Stage failed: {PIPELINE_STAGES.get(stage_name, stage_name)}",
-                            self._stage_baseline(stage_name),
-                            status="failed",
-                            stage_status="failed",
-                            event_trigger="stage_failed",
-                            error=stage_metrics.get("error", "Fatal recon failure"),
-                        )
-                        return 1
 
                 return None
 
