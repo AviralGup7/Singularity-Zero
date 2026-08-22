@@ -111,17 +111,6 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
       return { ...prev, stage: data.new_stage as string, stage_label: data.stage_label as string };
     });
     ctx.resetPluginProgress();
-
-    ctx.setStageProgress((prev) =>
-      prev.map((stage) => {
-        if (stage.stage === (data.new_stage as string)) {
-          return stage;
-        }
-        return stage.status === 'running'
-          ? { ...stage, status: 'completed' as const, percent: 100 }
-          : stage;
-      })
-    );
   }
 
   if (event.event_type === 'iteration_change') {

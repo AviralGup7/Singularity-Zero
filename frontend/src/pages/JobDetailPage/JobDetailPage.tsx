@@ -251,7 +251,7 @@ export function JobDetailPage() {
               ))}
             </div>
           )}
-          <StageTheater nodes={stageTheaterNodes} />
+          <StageTheater nodes={stageTheaterNodes} graph={stageGraph} />
           <ThroughputStrip
             className="throughput-strip--embedded"
             jobsPerSecond={throughput.jobsPerSecond}

@@ -45,35 +45,11 @@ export function estimateStagePercent(stage: string | undefined, progressPercent:
 
 export function normalizeActiveTimeline(
   entries: StageProgressEntry[],
-  currentStage: string | undefined,
-   
-  status: Job['status'] | undefined
+  _currentStage?: string,
+  _status?: Job['status']
 ): StageProgressEntry[] {
-  if (!entries.length) return entries;
-  const activeIndex = stageIndex(currentStage);
-  return entries.map((entry) => {
-    if (activeIndex < 0) {
-      return entry;
-    }
-    const idx = stageIndex(entry.stage);
-    if (idx >= 0 && idx < activeIndex && status === 'running' && entry.status === 'running') {
-      return { ...entry, status: 'completed', percent: 100 };
-    }
-    if (
-      status === 'running' &&
-      idx > activeIndex &&
-      (entry.status === 'completed' || entry.status === 'running' || entry.status === 'error')
-    ) {
-      return {
-        ...entry,
-        status: 'pending',
-        percent: 0,
-        reason: '',
-        error: '',
-      };
-    }
-    return entry;
-  });
+  // job.stage is compatibility-only. Do not rewrite DAG siblings into a linear baton.
+  return entries;
 }
 
 export function compactPipelineError(raw: unknown): string {
@@ -188,9 +164,11 @@ export function normalizeStageEntry(input: Partial<StageProgressEntry> & { stage
         ? 'completed'
         : rawStatus === 'pending'
           ? 'pending'
-          : rawStatus === 'skipped' || rawStatus === 'skip'
-            ? 'skipped'
-            : 'running';
+          : rawStatus === 'ready'
+            ? 'ready'
+            : rawStatus === 'skipped' || rawStatus === 'skip'
+              ? 'skipped'
+              : 'running';
 
   return {
     stage: input.stage,
