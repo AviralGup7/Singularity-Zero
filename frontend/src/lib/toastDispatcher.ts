@@ -13,14 +13,19 @@ export function setToastDispatcher(fn: (message: string, type: ToastType) => voi
 }
 
 export function dispatchToast(message: string, type: ToastType) {
+  const text = String(message ?? '');
   if (toastFn) {
-    toastFn(message, type);
+    try {
+      toastFn(text, type);
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[Toast] dispatcher threw', err);
+    }
   } else {
     // Fallback to console if ToastProvider is not mounted yet
     // Security: in production, do not expose error details to console
     if (import.meta.env.DEV) {
    
-      console.warn('[Toast] ToastProvider not mounted. Toast:', message);
+      console.warn('[Toast] ToastProvider not mounted. Toast:', text);
     }
   }
 }

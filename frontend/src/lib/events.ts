@@ -10,7 +10,11 @@ export type AppEventMap = {
 };
 
 export function emitNotification(payload: NotificationPayload) {
-  window.dispatchEvent(new CustomEvent<NotificationPayload>('notification:add', { detail: payload }));
+  const message = typeof payload?.message === 'string' ? payload.message : '';
+  const type = typeof payload?.type === 'string' ? payload.type : 'info';
+  window.dispatchEvent(new CustomEvent<NotificationPayload>('notification:add', {
+    detail: { message, type },
+  }));
 }
 
 export function emitRefresh() {

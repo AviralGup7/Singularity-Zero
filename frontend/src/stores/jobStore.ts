@@ -30,12 +30,19 @@ import {
 } from '../hooks/useJobMonitorUtils';
 import type { DurationForecastData } from '../hooks/useJobMonitorReducer';
 
-function getMaxLogLines(): number {
-  return useDisplayStore.getState().display.constrainedDevice ? 5_000 : 10_000;
+export function jobBufferCaps(constrainedDevice: boolean): { maxLogs: number; maxFindings: number } {
+  return constrainedDevice
+    ? { maxLogs: 5_000, maxFindings: 2_500 }
+    : { maxLogs: 10_000, maxFindings: 5_000 };
 }
 
-function getMaxStreamingFindings(): number {
-  return useDisplayStore.getState().display.constrainedDevice ? 2_500 : 5_000;
+export function capTail<T>(items: T[] | null | undefined, max: number): T[] {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  return items.length > max ? items.slice(-max) : items;
+}
+
+function currentBufferCaps(): { maxLogs: number; maxFindings: number } {
+  return jobBufferCaps(Boolean(useDisplayStore.getState().display.constrainedDevice));
 }
 
 const MAX_CACHED_JOBS = 10;
@@ -117,7 +124,11 @@ function shouldAcceptUpdate(state: JobMonitorState, source: ActionSource | undef
   return true;
 }
 
-function reduceJobState(state: JobMonitorState, action: JobMonitorAction): JobMonitorState {
+function reduceJobState(
+  state: JobMonitorState,
+  action: JobMonitorAction,
+  caps: { maxLogs: number; maxFindings: number } = currentBufferCaps(),
+): JobMonitorState {
   const now = Date.now();
 
   switch (action.type) {
@@ -137,7 +148,7 @@ function reduceJobState(state: JobMonitorState, action: JobMonitorAction): JobMo
         loading: false,
         error: null,
         allLogLines: logs.length > 0
-          ? [...state.allLogLines, ...logs].slice(-getMaxLogLines())
+          ? capTail([...state.allLogLines, ...logs], caps.maxLogs)
           : state.allLogLines,
         lastUpdateTs: now,
       };
@@ -154,7 +165,7 @@ function reduceJobState(state: JobMonitorState, action: JobMonitorAction): JobMo
     case 'ADD_LOG_LINE':
       return {
         ...state,
-        allLogLines: [...state.allLogLines, action.payload].slice(-getMaxLogLines()),
+        allLogLines: capTail([...state.allLogLines, action.payload], caps.maxLogs),
         lastUpdateTs: now,
       };
 
@@ -207,7 +218,7 @@ function reduceJobState(state: JobMonitorState, action: JobMonitorAction): JobMo
     case 'ADD_FINDINGS':
       return {
         ...state,
-        streamingFindings: action.payload.slice(-getMaxStreamingFindings()),
+        streamingFindings: capTail(action.payload, caps.maxFindings),
         lastUpdateTs: now,
       };
 
@@ -282,7 +293,7 @@ export const useJobStore = create<JobMonitorStore>((set, get) => ({
   dispatch: (jobId: string, action: JobMonitorAction) => {
     set((s) => {
       const current = s.jobs.get(jobId) ?? { ...initialPerJobState };
-      const next = reduceJobState(current, action);
+      const next = reduceJobState(current, action, currentBufferCaps());
       const nextJobs = new Map(s.jobs);
       nextJobs.set(jobId, next);
 

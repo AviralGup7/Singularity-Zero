@@ -21,10 +21,20 @@ const defaultSidebar = { collapsed: false };
 
 export type WorkflowMode = 'pentest' | 'appsec';
 
+export function parseWorkflowMode(raw: string | null): WorkflowMode | null {
+  if (raw === 'pentest' || raw === 'appsec') return raw;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === 'pentest' || parsed === 'appsec') return parsed;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function getInitialWorkflowMode(): WorkflowMode {
-  const stored = safeStorage.get(WORKFLOW_MODE_STORAGE_KEY);
-  if (stored === 'pentest' || stored === 'appsec') return stored;
-  return 'appsec';
+  return parseWorkflowMode(safeStorage.get(WORKFLOW_MODE_STORAGE_KEY)) ?? 'appsec';
 }
 
 function getInitialSidebar(): { collapsed: boolean } {
@@ -35,8 +45,8 @@ function getInitialSidebar(): { collapsed: boolean } {
       if (typeof parsed === 'object' && parsed !== null && typeof parsed.collapsed === 'boolean') {
         return { collapsed: parsed.collapsed };
       }
-    } catch {
-      /* ignore corrupt storage */
+    } catch (err) {
+      console.warn('[display] ignored corrupt sidebar storage', err);
     }
   }
   return defaultSidebar;
@@ -74,8 +84,8 @@ function getInitialDisplay(): DisplayState {
         systemReducedMotion: detectSystemReducedMotion(),
         constrainedDevice: detectConstrainedDevice(),
       };
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn('[display] ignored corrupt display storage', err);
     }
   }
   return {
@@ -183,7 +193,7 @@ export const useDisplayStore = create<DisplayStore>((set, get) => {
     workflowMode: getInitialWorkflowMode(),
     /** Switch between pentest and appsec workflow mode. Persisted across reloads. */
     setWorkflowMode: (mode: WorkflowMode) => {
-      safeStorage.set(WORKFLOW_MODE_STORAGE_KEY, mode);
+      safeStorage.set(WORKFLOW_MODE_STORAGE_KEY, JSON.stringify(mode));
       set({ workflowMode: mode });
     },
   };

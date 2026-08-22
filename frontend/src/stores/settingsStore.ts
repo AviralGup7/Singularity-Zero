@@ -19,8 +19,11 @@ let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 const persistSettingsDebounced = (settings: AppSettings) => {
   if (debounceTimeout) clearTimeout(debounceTimeout);
   debounceTimeout = setTimeout(() => {
-    tenantSafeStorage.set(STORAGE_KEY, JSON.stringify(settings));
-    // Also persist to backend (fire-and-forget, non-blocking)
+    try {
+      tenantSafeStorage.set(STORAGE_KEY, JSON.stringify(settings));
+    } catch (err) {
+      console.warn('[settings] local persist failed', err);
+    }
     apiClient.post('/api/settings', settings).catch(() => {
       // Backend persistence is best-effort; local storage is the source of truth
     });
@@ -40,8 +43,8 @@ function getInitialSettings(): AppSettings {
     try {
       const parsed = JSON.parse(stored);
       return AppSettingsSchema.parse(deepMerge(defaultSettings as Record<string, unknown>, parsed));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn('[settings] ignored corrupt stored settings', err);
     }
   }
   return defaultSettings;
@@ -167,15 +170,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
   };
 });
 
-let currentTenantId = useAuthStore.getState().user?.tenantId;
+export function settingsScopeKey(user: { tenantId?: string; id?: string } | null | undefined): string {
+  if (!user) return 'anon';
+  return String(user.tenantId || user.id || 'session');
+}
+
+let currentScope = settingsScopeKey(useAuthStore.getState().user);
 let tenantDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 useAuthStore.subscribe((state) => {
-  const nextTenantId = state.user?.tenantId;
-  if (nextTenantId !== currentTenantId) {
-    currentTenantId = nextTenantId;
-    if (tenantDebounceTimer) clearTimeout(tenantDebounceTimer);
-    tenantDebounceTimer = setTimeout(() => {
-      useSettingsStore.setState({ settings: getInitialSettings() });
-    }, 100);
-  }
+  const nextScope = settingsScopeKey(state.user);
+  if (nextScope === currentScope) return;
+  currentScope = nextScope;
+  if (tenantDebounceTimer) clearTimeout(tenantDebounceTimer);
+  tenantDebounceTimer = setTimeout(() => {
+    useSettingsStore.setState({ settings: getInitialSettings() });
+  }, 100);
 });
