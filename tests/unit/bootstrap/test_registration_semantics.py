@@ -67,10 +67,25 @@ def test_second_register_retries_failed_critical_bind() -> None:
 
 
 def test_oauth_method_fails_stage_when_unbound() -> None:
+    import importlib.util
+    from pathlib import Path
+
     from src.core.contracts.pipeline_runtime import StageOutcome
-    from src.pipeline.services.pipeline_orchestrator.stages.session_provisioning import (
-        SessionProvisioningStage,
+
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "src"
+        / "pipeline"
+        / "services"
+        / "pipeline_orchestrator"
+        / "stages"
+        / "session_provisioning.py"
     )
+    spec = importlib.util.spec_from_file_location("session_provisioning_isolated", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    SessionProvisioningStage = module.SessionProvisioningStage
 
     pipeline = SimpleNamespace(
         auth=SimpleNamespace(method="oauth", base_url="https://example.com", username="u"),
