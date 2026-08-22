@@ -23,6 +23,8 @@ import { PIIControls } from './PIIControls';
 import { isPIIVisible } from '@/utils/piiRedactor';
 import { sanitizePiiFromVisibility } from '@/utils/piiVisibility';
 import { confidencePercent } from '@/utils/normalizeScale';
+import { displayNumericOrNA } from '@/utils/displayValue';
+import { parseFindingTimestamp } from '@/utils/findingTime';
 import { RemediationTracker } from './RemediationTracker';
 import { BountyPanel } from './FindingDetailPanel/BountyPanel';
 import { RiskPanel } from './FindingDetailPanel/RiskPanel';
@@ -284,10 +286,7 @@ export function FindingDetailPanel({
     ? [
         {
           id: `ev-${finding.id}`,
-          timestamp:
-            typeof finding.timestamp === 'number'
-              ? new Date(finding.timestamp * 1000).toISOString()
-              : String(finding.timestamp),
+          timestamp: new Date(parseFindingTimestamp(finding.timestamp) || Date.now()).toISOString(),
           source: 'System Correlation Scanner',
           description: finding.title,
           raw_data: JSON.stringify(finding.evidence, null, 2),
@@ -382,7 +381,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-panel backdrop-blur-md p-4"
+      className="fixed inset-0 z-[8500] flex items-center justify-center bg-panel backdrop-blur-md p-4"
       onClick={onClose}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
       role="presentation"
@@ -408,7 +407,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
         <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-cyber">
           <div className="grid grid-cols-4 gap-4">
             {[
-              { label: 'CSI Index', value: finding.csi_score || 'N/A', cls: 'text-accent' },
+              { label: 'CSI Index', value: displayNumericOrNA(finding.csi_score), cls: 'text-accent' },
               { label: 'Confidence', value: `${confidencePercent(finding.confidence)}%`, cls: 'text-text-primary' },
               { label: 'State', value: triageStatus, cls: 'text-text uppercase' },
               {

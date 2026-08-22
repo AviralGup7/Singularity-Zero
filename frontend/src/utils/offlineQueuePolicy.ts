@@ -5,6 +5,10 @@ export function nextOfflineRetryCount(current: number, max = MAX_OFFLINE_RETRIES
   return next > max ? null : next;
 }
 
+export function offlineRetryDelayMs(retries: number): number {
+  return Math.min(8_000, 500 * (2 ** Math.max(0, retries - 1)));
+}
+
 export function createMutationId(now = Date.now()): string {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

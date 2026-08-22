@@ -1,4 +1,4 @@
-import { createMutationId, nextOfflineRetryCount } from './offlineQueuePolicy';
+import { createMutationId, nextOfflineRetryCount, offlineRetryDelayMs } from './offlineQueuePolicy';
 
 interface QueuedMutation<T = unknown> {
   id: string;
