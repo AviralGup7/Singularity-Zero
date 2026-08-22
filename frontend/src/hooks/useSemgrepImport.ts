@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { importSemgrepReport } from '@/api/imports';
 import { showErrorToast } from '@/utils/extractErrorMessage';
+import { sanitizeImportTargetName } from '@/hooks/useJobDetails';
 
 export function useSemgrepImport() {
   const [showImportModal, setShowImportModal] = useState(false);
@@ -12,7 +13,7 @@ export function useSemgrepImport() {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportFile(file);
-    const defaultName = file.name.replace(/\.[^/.]+$/, '');
+    const defaultName = sanitizeImportTargetName(file.name);
     setImportTargetName(defaultName);
     setShowImportModal(true);
     e.target.value = '';

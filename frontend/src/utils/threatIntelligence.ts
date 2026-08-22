@@ -106,6 +106,10 @@ export function shouldCacheCveLookup(ok: boolean): boolean {
   return ok;
 }
 
+export function shouldCacheEpssLookup(ok: boolean): boolean {
+  return ok;
+}
+
 export function normalizeCweId(cweId: string): string | null {
   const match = String(cweId || '').trim().toUpperCase().match(/^CWE-(\d{1,6})$/);
   return match ? `CWE-${match[1]}` : null;
@@ -183,7 +187,6 @@ export async function lookupEPSS(cveId: string): Promise<EPSSInfo | null> {
     percentile: -1,
   };
 
-  setCached(`epss:${cveId}`, epssInfo);
   return epssInfo;
 }
 

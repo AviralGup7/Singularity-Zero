@@ -2,10 +2,20 @@ import { useMemo } from 'react';
 import type { Job } from '@/types/api';
 import { buildStageTheaterNodesFromJob } from '@/lib/stageTheaterUtils';
 
+export function finiteCount(value: unknown, fallback = 0): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+export function sanitizeImportTargetName(filename: string): string {
+  const base = filename.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').trim();
+  return base || 'imported-target';
+}
+
 export function useJobDetails(job: Job | null) {
   const displayLines = job?.latest_logs ?? [];
-  const warningCount = typeof job?.warning_count === 'number' ? job.warning_count : job?.warnings?.length ?? 0;
-  const fatalSignalCount = typeof job?.fatal_signal_count === 'number' ? job.fatal_signal_count : 0;
+  const warningCount = finiteCount(job?.warning_count, Array.isArray(job?.warnings) ? job.warnings.length : 0);
+  const fatalSignalCount = finiteCount(job?.fatal_signal_count, 0);
   const degradedProviders = job?.degraded_providers ?? [];
   const timeoutEvents = job?.timeout_events ?? [];
 
@@ -38,8 +48,8 @@ export function useJobStageTheater(job: Job | null) {
 export function useJobThroughput(job: Job | null) {
   const throughput = useMemo(() => {
     const telemetry = job?.progress_telemetry;
-    const jobsPerSecond = Number(telemetry?.requests_per_second ?? 0);
-    const findingsPerSecond = Number(telemetry?.throughput_per_second ?? 0);
+    const jobsPerSecond = finiteCount(telemetry?.requests_per_second, 0);
+    const findingsPerSecond = finiteCount(telemetry?.throughput_per_second, 0);
     const stageRatio =
       typeof job?.stage_percent === 'number'
         ? Math.max(0, Math.min(100, job.stage_percent)) / 100
@@ -49,7 +59,7 @@ export function useJobThroughput(job: Job | null) {
       jobsPerSecond,
       findingsPerSecond,
       scanVelocity,
-      activeTasks: Number(telemetry?.active_task_count ?? 0),
+      activeTasks: finiteCount(telemetry?.active_task_count, 0),
     };
   }, [job]);
 

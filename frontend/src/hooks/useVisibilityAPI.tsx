@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 // eslint-disable-next-line react-refresh/only-export-components
 export function useVisibilityAPI() {
    
-  const [isVisible, setIsVisible] = useState(!document.hidden);
+  const [isVisible, setIsVisible] = useState(() => typeof document === 'undefined' ? true : !document.hidden);
    
   const [lastHiddenAt, setLastHiddenAt] = useState<Date | null>(null);
    

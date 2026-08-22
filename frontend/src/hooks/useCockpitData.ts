@@ -17,6 +17,10 @@ const COCKPIT_MIN_DELAY = 1000;
 const COCKPIT_MAX_DELAY = 30000;
 const COCKPIT_BACKOFF_FACTOR = 1.5;
 
+export function shouldResetMountedOnStreamCleanup(): boolean {
+  return false;
+}
+
 export function useCockpitData({
   target,
   run,
@@ -140,7 +144,6 @@ export function useCockpitData({
     connectStream();
 
     return () => {
-      mountedRef.current = false;
       cleanupStream();
     };
   }, [target, run, jobId, applyGraph, mountedRef]);
@@ -179,7 +182,7 @@ export function useCockpitData({
       target_node: String(data.target_node || 'unknown'),
       ...data,
     };
-    setMigrations((prev) => [...prev, migration]);
+    setMigrations((prev) => [...prev, migration].slice(-50));
     return migration;
   }, []);
 
