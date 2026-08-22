@@ -73,6 +73,13 @@ from src.core.utils.shared import register_module_meta  # noqa: E402
 
 register_module_meta(MODULE_META)
 
-from src.dashboard.fastapi.main import main
+
+def __getattr__(name: str) -> Any:
+    if name == "main":
+        from src.dashboard.fastapi.main import main as _main
+
+        return _main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["main"]

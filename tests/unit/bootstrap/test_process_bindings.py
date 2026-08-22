@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
-
 from src.bootstrap.startup_registration import register_process_bindings
 from src.core.contracts.protocol_registry import (
     get_active_manifest_registry,
@@ -33,11 +31,13 @@ def test_register_process_bindings_fills_critical_protocols() -> None:
 
 
 def test_cli_runtime_and_dashboard_lifespan_use_the_same_helper() -> None:
-    from src.dashboard.fastapi import lifespan as dashboard_lifespan
-    from src.pipeline import runtime as pipeline_runtime
+    from pathlib import Path
 
-    runtime_src = inspect.getsource(pipeline_runtime.main)
-    lifespan_src = inspect.getsource(dashboard_lifespan.lifespan)
+    root = Path(__file__).resolve().parents[3]
+    runtime_src = (root / "src" / "pipeline" / "runtime.py").read_text(encoding="utf-8")
+    lifespan_src = (root / "src" / "dashboard" / "fastapi" / "lifespan.py").read_text(
+        encoding="utf-8"
+    )
     assert "register_process_bindings" in runtime_src
     assert "register_process_bindings" in lifespan_src
     assert "register_all_implementations()" not in lifespan_src
