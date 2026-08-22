@@ -39,10 +39,14 @@ export function getRetryAfterMs(error: unknown): number | null {
    
   const retryAfter = response?.headers?.['retry-after'] ?? response?.headers?.['Retry-After'];
   if (retryAfter) {
-    const seconds = parseInt(retryAfter, 10);
-    if (!isNaN(seconds)) return seconds * 1000;
-    const date = new Date(retryAfter);
-    if (!isNaN(date.getTime())) return Math.max(0, date.getTime() - Date.now());
+    const trimmed = String(retryAfter).trim();
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const seconds = Number(trimmed);
+      if (!Number.isFinite(seconds) || seconds < 0) return null;
+      return Math.min(seconds * 1000, MAX_DELAY_MS);
+    }
+    const date = Date.parse(trimmed);
+    if (!Number.isNaN(date)) return Math.min(Math.max(0, date - Date.now()), MAX_DELAY_MS);
   }
   return null;
 }

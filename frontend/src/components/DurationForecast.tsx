@@ -55,7 +55,7 @@ export const DurationForecast = memo(function DurationForecast({ durations, load
 
   const stageEntries = Object.entries(durations.per_stage);
    
-  const maxMean = Math.max(...stageEntries.map(([, v]) => v.mean), 1);
+  const maxMean = Math.max(...stageEntries.map(([, v]) => finiteStageSeconds(v.mean)), 1);
 
   return (
     <div
@@ -146,20 +146,25 @@ function ForecastStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function computeTotalP50(perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>): number {
-  return Object.values(perStage).reduce((sum, s) => sum + s.p50, 0);
+export function finiteStageSeconds(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function computeTotalP90(perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>): number {
-  return Object.values(perStage).reduce((sum, s) => sum + s.p90, 0);
+export function computeTotalP50(perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>): number {
+  return Object.values(perStage).reduce((sum, s) => sum + finiteStageSeconds(s.p50), 0);
 }
 
-function computeTotalP99(perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>): number {
-  return Object.values(perStage).reduce((sum, s) => sum + s.p99, 0);
+export function computeTotalP90(perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>): number {
+  return Object.values(perStage).reduce((sum, s) => sum + finiteStageSeconds(s.p90), 0);
 }
 
-function formatDuration(totalSeconds: number): string {
-  if (totalSeconds <= 0) return '0s';
+export function computeTotalP99(perStage: Record<string, { mean: number; p50: number; p90: number; p99: number; count: number }>): number {
+  return Object.values(perStage).reduce((sum, s) => sum + finiteStageSeconds(s.p99), 0);
+}
+
+export function formatDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '0s';
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = Math.round(totalSeconds % 60);

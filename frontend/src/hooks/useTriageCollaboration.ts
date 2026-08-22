@@ -13,21 +13,40 @@ import {
 import type {AnalystPresence, TriageFindingState, TriageLockConflict} from '@/api/triage';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 
+export function parseTriageAnalyst(raw: string | null): { analyst_id: string; analyst_name: string } | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { analyst_id?: unknown; analyst_name?: unknown };
+    if (typeof parsed?.analyst_id === 'string' && parsed.analyst_id.trim() && typeof parsed.analyst_name === 'string' && parsed.analyst_name.trim()) {
+      return { analyst_id: parsed.analyst_id, analyst_name: parsed.analyst_name };
+    }
+  } catch {
+    /* corrupt */
+  }
+  return null;
+}
+
+export function asAnalystPresenceList(value: unknown): AnalystPresence[] {
+  return Array.isArray(value) ? value as AnalystPresence[] : [];
+}
+
 export function getTriageAnalyst() {
   const key = 'triage_analyst_identity';
-  const existing = localStorage.getItem(key);
-  if (existing) {
-    try {
-      return JSON.parse(existing) as { analyst_id: string; analyst_name: string };
-    } catch {
-      localStorage.removeItem(key);
-    }
+  try {
+    const existing = parseTriageAnalyst(localStorage.getItem(key));
+    if (existing) return existing;
+  } catch {
+    /* private mode */
   }
   const analyst = {
     analyst_id: `analyst-${crypto.randomUUID()}`,
     analyst_name: `Analyst ${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
   };
-  localStorage.setItem(key, JSON.stringify(analyst));
+  try {
+    localStorage.setItem(key, JSON.stringify(analyst));
+  } catch {
+    /* private mode */
+  }
   return analyst;
 }
 
@@ -62,6 +81,7 @@ export function useTriageCollaboration(runId: string, findingId: string) {
     getTriageState(runId, findingId, controller.signal)
       .then(setState)
       .catch((err) => {
+        if ((err as Error)?.name === 'AbortError' || controller.signal.aborted) return;
         showErrorToast(err, 'Failed to load triage state');
       });
     return () => controller.abort();
@@ -134,7 +154,7 @@ export function useTriageCollaboration(runId: string, findingId: string) {
       }
 
       if (message.type === 'presence' && message.analysts) {
-        setPresence(message.analysts);
+        setPresence(asAnalystPresenceList(message.analysts));
       }
 
       if (message.type === 'cursor' && message.user_id !== analyst.analyst_id) {
