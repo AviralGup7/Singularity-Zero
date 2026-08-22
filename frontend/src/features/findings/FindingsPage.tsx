@@ -17,7 +17,9 @@ import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsView
 import { offlineQueue } from '../../utils/offlineQueue';
 import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
 import { visibleFindingIds } from '@/features/notifications/unread';
-import { acknowledgeNewFindings } from './newFindingsFeed';
+import { acknowledgeNewFindings, detectFreshFindingIds } from './newFindingsFeed';
+import { sanitizeSeverityFilters } from './severityFilter';
+import { unreadAfterDismiss } from '@/features/notifications/unread';
 import { compareSelectionKey } from '@/utils/normalizeScale';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
@@ -75,15 +77,11 @@ export function FindingsPage() {
       initializedRef.current = true;
       return;
     }
-    const fresh: string[] = [];
-    currentIds.forEach(id => {
-      if (!lastSeenIdsRef.current.has(id)) fresh.push(id);
-    });
+    const fresh = detectFreshFindingIds(lastSeenIdsRef.current, currentIds);
     if (fresh.length > 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setNewFindingIds(prev => Array.from(new Set([...prev, ...fresh])));
     }
-    lastSeenIdsRef.current = currentIds;
   }, [findingsData?.findings]);
 
   const loadNewFindings = useCallback(() => {
@@ -92,8 +90,9 @@ export function FindingsPage() {
   }, [newFindingIds]);
 
   const dismissNewFindings = useCallback(() => {
+    lastSeenIdsRef.current = new Set(acknowledgeNewFindings(lastSeenIdsRef.current, newFindingIds));
     setNewFindingIds([]);
-  }, []);
+  }, [newFindingIds]);
 
   const toggleFindingSelection = useCallback((findingId: string) => {
     setSelectedFindingIds(prev => {
@@ -190,7 +189,7 @@ export function FindingsPage() {
       // Defer state update to avoid cascading render warning
       Promise.resolve().then(() => {
         if (mounted) {
-          setSeverityFilter(severity.split(','));
+          setSeverityFilter(sanitizeSeverityFilters(severity.split(',')));
         }
       });
     }
@@ -287,7 +286,7 @@ export function FindingsPage() {
 
   const handleLoadPreset = useCallback((filters: Record<string, string>) => {
     if (filters.search) setSearchQuery(filters.search);
-    if (filters.severity) setSeverityFilter(filters.severity.split(',').filter(Boolean));
+    if (filters.severity) setSeverityFilter(sanitizeSeverityFilters(filters.severity.split(',')));
   }, [setSearchQuery, setSeverityFilter]);
 
   if (loading && !findingsData) return (
@@ -580,7 +579,7 @@ export function FindingsPage() {
       {/* ── Bulk Action Bar (Grid View) ───────────────────────────── */}
       <div aria-live="polite" aria-atomic="true">
       <AnimatePresence>
-        {selectedFindingIds.size > 0 && viewMode === 'grid' && (
+        {selectedFindingIds.size > 0 && safeViewMode === 'grid' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

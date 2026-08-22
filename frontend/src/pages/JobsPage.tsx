@@ -26,6 +26,7 @@ export function JobsPage() {
   const safeStatusFilter = normalizeJobStatusFilter(pickPreferredFilter(searchParams.get('status'), statusFilter));
    
   const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', searchParams.get('q') || '');
+  const safeSearchQuery = pickPreferredFilter(searchParams.get('q'), searchQuery);
   const [currentPage, setCurrentPage] = useState(1);
 
   const updateUrlParams = useCallback((status: string, q: string) => {
@@ -48,8 +49,8 @@ export function JobsPage() {
   const handleStatusChange = useCallback((status: string) => {
     setStatusFilter(status);
     setCurrentPage(1);
-    updateUrlParams(normalizeJobStatusFilter(status), searchQuery);
-  }, [setStatusFilter, searchQuery, updateUrlParams]);
+    updateUrlParams(normalizeJobStatusFilter(status), safeSearchQuery);
+  }, [setStatusFilter, safeSearchQuery, updateUrlParams]);
 
   const handleSearchChange = useCallback((q: string) => {
     setSearchQuery(q);
@@ -58,7 +59,7 @@ export function JobsPage() {
   }, [setSearchQuery, safeStatusFilter, updateUrlParams]);
 
   const filtered = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = safeSearchQuery.trim().toLowerCase();
     return (jobs ?? [])
       .filter(j => safeStatusFilter === 'all' || j?.status === safeStatusFilter)
       .filter(j => !query || [
@@ -68,11 +69,10 @@ export function JobsPage() {
         j?.failed_stage,
         j?.failure_reason_code,
       ].some(value => value?.toLowerCase().includes(query)));
-  }, [jobs, searchQuery, statusFilter]);
+  }, [jobs, safeSearchQuery, safeStatusFilter]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-
-  const safePage = Math.min(currentPage, Math.max(1, totalPages));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = clampFindingsPage(currentPage, filtered.length === 0 ? 1 : totalPages);
   const paginatedJobs = useMemo(() => {
     const start = (safePage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
@@ -150,7 +150,7 @@ export function JobsPage() {
             type="search"
             id="jobs-search"
             placeholder="Search URL, status, mode, stage, reason code"
-            value={searchQuery}
+            value={safeSearchQuery}
             onChange={e => handleSearchChange(e.target.value)}
             className="search-input pl-9"
             aria-label="Search jobs by URL, status, mode, stage, or reason"

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { resolveSessionTimeoutMs, resolveSessionWarningAt } from './sessionTimeoutPolicy';
+import { canUnlockSession } from './sessionUnlock';
 
 interface SessionState {
   isLocked: boolean;
@@ -30,12 +31,13 @@ export function useSessionTimeout(onTimeout?: () => void, timeoutMs?: number) {
    
   }, [state.isLocked]);
 
-  const resetTimer = useCallback(() => {
-    if (pendingResetRef.current) return;
+  const resetTimer = useCallback((force = false) => {
+    if (pendingResetRef.current && !force) return;
     pendingResetRef.current = true;
     requestAnimationFrame(() => {
       pendingResetRef.current = false;
-      if (isLockedRef.current) return;
+      if (!canUnlockSession(isLockedRef.current, force)) return;
+      isLockedRef.current = false;
       setState(prev => ({
         ...prev,
         isLocked: false,
@@ -53,6 +55,7 @@ export function useSessionTimeout(onTimeout?: () => void, timeoutMs?: number) {
     }, warningAt);
 
     timeoutRef.current = setTimeout(() => {
+      isLockedRef.current = true;
       setState(prev => ({ ...prev, isLocked: true, showWarning: false }));
       onTimeout?.();
     }, timeout);
@@ -99,7 +102,8 @@ export function useSessionTimeout(onTimeout?: () => void, timeoutMs?: number) {
   }, [resetTimer]);
 
   const unlock = useCallback(() => {
-    resetTimer();
+    isLockedRef.current = false;
+    resetTimer(true);
   }, [resetTimer]);
 
   const lock = useCallback(() => {

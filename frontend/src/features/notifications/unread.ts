@@ -3,6 +3,10 @@ export function unreadAfterMarkRead(wasUnread: boolean, current: number): number
   return Math.max(0, current - 1);
 }
 
+export function unreadAfterDismiss(wasUnread: boolean, current: number): number {
+  return unreadAfterMarkRead(wasUnread, current);
+}
+
 export function visibleFindingIds(allIds: string[], pendingNewIds: string[]): string[] {
   if (pendingNewIds.length === 0) return allIds;
   const hide = new Set(pendingNewIds);

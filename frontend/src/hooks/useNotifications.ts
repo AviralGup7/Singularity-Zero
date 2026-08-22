@@ -25,6 +25,7 @@ import {
 import { shouldFetchNotifications, shouldOpenNotificationStream } from '@/features/notifications/policy';
 import { useAuthStore } from '@/stores/authStore';
 import { showErrorToast } from '@/utils/extractErrorMessage';
+import { unreadAfterDismiss } from '@/features/notifications/unread';
 
 function consoleGate() {
   const token = getStreamToken();
@@ -237,7 +238,13 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   }, [fetchNotifications]);
 
   const dismiss = useCallback(async (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => {
+      const target = prev.find((n) => n.id === id);
+      if (target && !target.read) {
+        setUnreadCount((count) => unreadAfterDismiss(true, count));
+      }
+      return prev.filter((n) => n.id !== id);
+    });
 
     try {
       const { token, session } = consoleGate();
