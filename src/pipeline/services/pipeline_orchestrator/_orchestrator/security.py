@@ -455,6 +455,13 @@ async def run_secured(
 
     stage_methods = orchestrator._build_stage_methods()
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
+    from src.pipeline.stage_plan import constrain_remaining_stages
+
+    remaining_stages = constrain_remaining_stages(
+        remaining_stages,
+        config=config,
+        selected_modules=getattr(config, "enabled_modules", None),
+    )
 
     if getattr(args, "dry_run", False) or not reconstructed.execute_stages:
         logger.info(

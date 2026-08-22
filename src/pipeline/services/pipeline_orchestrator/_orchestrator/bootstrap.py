@@ -33,6 +33,9 @@ def bootstrap_pipeline(args: argparse.Namespace) -> tuple[Any, list[str], dict[s
 
     screenshot_cfg = config.screenshots if isinstance(config.screenshots, dict) else {}
     tool_status = build_tool_status(screenshot_cfg.get("browser_paths", []))
+    from src.pipeline.stage_plan import merge_tool_status
+
+    tool_status = merge_tool_status(tool_status, config)
     emit_progress("startup", f"Loaded config for {config.target_name}", 8)
 
     # Perform capability resource validation check
