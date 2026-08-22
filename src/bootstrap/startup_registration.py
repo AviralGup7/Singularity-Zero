@@ -274,6 +274,18 @@ def register_analysis_plugin_hooks() -> None:
         logger.debug("Analysis plugin registration not available")
 
 
+def register_process_bindings() -> None:
+    """Register protocol implementations and plugin hooks for this process.
+
+    Dashboard lifespan and ``src.pipeline.runtime:main`` must call this
+    same function so CLI scans and UI-launched scans see identical
+    protocol bindings.
+    """
+    register_all_implementations()
+    register_analysis_plugin_hooks()
+    register_detection_plugin_hooks()
+
+
 def register_detection_plugin_hooks() -> None:
     """Register detection plugin system hooks.
 
