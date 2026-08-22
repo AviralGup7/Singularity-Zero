@@ -44,14 +44,14 @@ async def run_learning_update(
     fp_updated = await integration._fp_tracker.update_from_run(run_id)
     result["fp_patterns_updated"] = fp_updated
 
-    # Phase 4: Calibrate thresholds
-    if run_id:
+    # Phase 4: Calibrate thresholds (opt-in — can drop real findings)
+    if run_id and integration.threshold_tuning_enabled:
         new_thresholds = integration._threshold_tuner.calibrate(run_id)
         result["thresholds"] = new_thresholds
         result["thresholds_converged"] = integration._threshold_tuner.is_converged
 
     # Phase 4.5: Active Learning Weight Update
-    if run_id:
+    if run_id and integration.threshold_tuning_enabled:
         try:
             db_findings = integration.store.get_findings_for_run(run_id)
             ctx_findings = ctx.get("reportable_findings", [])

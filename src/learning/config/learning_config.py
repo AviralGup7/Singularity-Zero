@@ -43,8 +43,14 @@ class FPTrackingConfig:
 
 @dataclass
 class ThresholdTuningConfig:
-    """Configuration for the threshold auto-tuner."""
+    """Configuration for the threshold auto-tuner.
 
+    Disabled by default: the PI loop can raise confidence floors on
+    small samples and drop real findings. Set ``enabled=true`` or
+    ``ENABLE_THRESHOLD_TUNING=true`` to opt in.
+    """
+
+    enabled: bool = False
     learning_rate: float = 0.05
     integral_gain: float = 0.005
     max_adjustment_per_run: float = 0.05
@@ -164,6 +170,7 @@ class LearningConfig:
         if "threshold_tuning" in data and isinstance(data["threshold_tuning"], dict):
             tt = data["threshold_tuning"]
             config.threshold_tuning = ThresholdTuningConfig(
+                enabled=bool(tt.get("enabled", False)),
                 learning_rate=float(tt.get("learning_rate", 0.05)),
                 integral_gain=float(tt.get("integral_gain", 0.005)),
                 max_adjustment_per_run=float(tt.get("max_adjustment_per_run", 0.05)),

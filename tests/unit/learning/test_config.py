@@ -44,6 +44,7 @@ class TestFPTrackingConfig:
 class TestThresholdTuningConfig:
     def test_defaults(self):
         cfg = ThresholdTuningConfig()
+        assert cfg.enabled is False
         assert cfg.learning_rate == 0.05
         assert cfg.integral_gain == 0.005
         assert cfg.max_adjustment_per_run == 0.05

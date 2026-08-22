@@ -34,6 +34,7 @@ class BaseRepo:
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA foreign_keys=ON")
+                conn.execute("PRAGMA busy_timeout=5000")
             except Exception:
                 logger.debug("PRAGMA setup failed", exc_info=True)
                 try:

@@ -252,6 +252,15 @@ class LearningIntegration:
         _integration_instance = None
         _integration_config_hash = None
 
+    @property
+    def threshold_tuning_enabled(self) -> bool:
+        env = os.getenv("ENABLE_THRESHOLD_TUNING", "").strip().lower()
+        if env in {"1", "true", "yes"}:
+            return True
+        if env in {"0", "false", "no"}:
+            return False
+        return bool(getattr(self.config.threshold_tuning, "enabled", False))
+
     def get_kpis(self, target: str | None = None) -> PipelineKPIs:
         """Get current pipeline KPIs."""
         return self._metrics.compute_kpis(target=target)

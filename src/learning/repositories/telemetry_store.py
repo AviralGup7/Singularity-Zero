@@ -191,6 +191,17 @@ class TelemetryStore:
         """
         if self._initialized:
             return
+        try:
+            self._initialize_unlocked()
+        except Exception:
+            logger.warning(
+                "Telemetry store initialize failed; continuing fail-open at %s",
+                self.db_path,
+                exc_info=True,
+            )
+        self._initialized = True
+
+    def _initialize_unlocked(self) -> None:
         conn = self._get_conn()
         # 1. Bring tables up to the modern shape (no-op on new DBs).
         try:
@@ -219,7 +230,6 @@ class TelemetryStore:
                     raw_stmt.splitlines()[0][:80],
                 )
         conn.commit()
-        self._initialized = True
         logger.info("Telemetry store initialized at %s", self.db_path)
 
     def close(self) -> None:
@@ -496,10 +506,14 @@ class TelemetryStore:
         This is a public method that avoids exposing the raw connection
         to external callers like routers.
         """
-        conn = self._get_conn()
-        cur = conn.execute(query, params or [])
-        conn.commit()
-        return int(cur.rowcount or 0)
+        try:
+            conn = self._get_conn()
+            cur = conn.execute(query, params or [])
+            conn.commit()
+            return int(cur.rowcount or 0)
+        except Exception:
+            logger.warning("Telemetry store write failed; scan continues", exc_info=True)
+            return 0
 
     def execute_write_many(self, query: str, params_list: list[list[Any]]) -> int:
         """Execute a write query with multiple parameter sets in one transaction.

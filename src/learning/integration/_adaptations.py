@@ -83,8 +83,8 @@ def apply_adaptations(
         analysis = ctx.setdefault("analysis", {})
         analysis["plugin_intensity"] = adaptations["plugin_intensity_overrides"]
 
-    # Apply threshold adjustments with safe clamping to prevent exceeding valid bounds
-    if "threshold_adjustments" in adaptations:
+    # Apply threshold adjustments only when the PI tuner is explicitly enabled.
+    if "threshold_adjustments" in adaptations and integration.threshold_tuning_enabled:
         decision = ctx.setdefault("decision", {})
         decision["threshold_deltas"] = {
             cat: max(-0.15, min(0.15, float(val)))
