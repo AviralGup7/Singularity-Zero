@@ -3,13 +3,18 @@ import { apiClient } from './core';
 import { apiCache } from './cache';
 export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest, NoteDeleteResponse };
 
+export function normalizeNotes(value: unknown): Note[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((n) => {
+    const rec = (n && typeof n === 'object' ? n : {}) as Record<string, unknown>;
+    return { ...rec, id: String(rec.id || rec.note_id || '') } as Note;
+  });
+}
+
 export async function getNotes(targetName: string, signal?: AbortSignal): Promise<NoteListResponse> {
-  const res = await apiClient.get<NoteListResponse>(`/api/notes/${targetName}`, { signal });
-  res.data.notes = (res.data.notes as unknown as Record<string, unknown>[]).map((n) => ({ 
-    ...n, 
-    id: String(n.id || n.note_id || '')
-  } as Note));
-  return res.data;
+  const name = String(targetName ?? '').trim();
+  const res = await apiClient.get<NoteListResponse>(`/api/notes/${encodeURIComponent(name)}`, { signal });
+  return { ...res.data, notes: normalizeNotes(res.data?.notes) };
 }
 
 export async function createNote(targetName: string, payload: NoteCreateRequest, signal?: AbortSignal): Promise<Note> {
