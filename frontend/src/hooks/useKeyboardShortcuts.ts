@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { shouldIgnoreGlobalShortcut } from '@/utils/findingTime';
 
 type ShortcutHandler = () => void;
 
@@ -46,12 +47,7 @@ export function useKeyboardShortcuts({ enabled = true, shortcuts }: UseKeyboardS
     if (!enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
-        return;
-      }
-      if (e.target instanceof HTMLElement && e.target.isContentEditable) {
-        return;
-      }
+      if (shouldIgnoreGlobalShortcut(e.target)) return;
 
       const key = e.key.toLowerCase();
       const ctrlOrMeta = e.ctrlKey || e.metaKey;
@@ -82,9 +78,7 @@ export function useEscapeToClose(onClose: () => void, enabled = true) {
     if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
-        return;
-      }
+      if (shouldIgnoreGlobalShortcut(e.target)) return;
       e.preventDefault();
       onClose();
     };

@@ -96,7 +96,7 @@ export function PerformanceDashboard() {
             value = entry.startTime;
           }
           return {
-            name: entry.entryType === 'largest-contentful-paint' ? 'LCP' : entry.name,
+            name: entry.entryType === 'largest-contentful-paint' ? 'LCP' : entry.entryType === 'layout-shift' ? 'CLS' : entry.name,
             value,
             timestamp: new Date().toISOString(),
           };

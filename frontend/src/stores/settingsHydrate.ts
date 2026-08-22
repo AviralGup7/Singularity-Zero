@@ -24,5 +24,6 @@ export function deepMergeSettings<T extends Record<string, unknown>>(target: T, 
 }
 
 export function pickPreferredFilter(urlValue: string | null, storedValue: string): string {
-  return urlValue && urlValue.trim() ? urlValue : storedValue;
+  if (urlValue === null) return storedValue;
+  return urlValue;
 }

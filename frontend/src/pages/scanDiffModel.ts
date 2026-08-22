@@ -7,7 +7,8 @@ export interface DiffBucket {
 }
 
 export function keyForFinding(f: Finding): string {
-  return `${f.id || ''}::${f.type}::${f.target}::${f.severity}::${f.url ?? ''}`;
+  if (f.id) return `id:${f.id}`;
+  return `anon:${f.type}::${f.target}::${f.severity}::${f.url ?? ''}::${f.title ?? ''}`;
 }
 
 export function computeDiff(runA: Finding[], runB: Finding[]): DiffBucket {
