@@ -19,6 +19,24 @@ const TOOL_REGEX = /(nuclei|nmap|masscan|sqlmap|nikto|gobuster|ffuf|dirb|subfind
 /**
  * High-performance log classifier.
  */
+export function classifyNucleiSeverity(sev: string): LiveTerminalLine['level'] {
+  const normalized = sev.toLowerCase();
+  if (normalized === 'critical') return 'critical';
+  if (normalized === 'high') return 'error';
+  if (normalized === 'medium') return 'warn';
+  if (normalized === 'low' || normalized === 'info') return 'info';
+  return 'debug';
+}
+
+export function telemetryEventLevel(event: { status?: string; severity?: string; event_type?: string }): LiveTerminalLine['level'] {
+  const eventType = event.event_type || 'telemetry';
+  if (event.status === 'error' || event.severity === 'high') return 'error';
+  if (event.severity === 'critical') return 'critical';
+  if (eventType.includes('completed')) return 'success';
+  if (eventType.includes('artifact')) return 'system';
+  return 'info';
+}
+
 function classifyLogLine(line: string): Omit<LiveTerminalLine, 'id'> {
   const ts = new Date().toLocaleTimeString('en-GB', { hour12: false }) + '.' + String(Date.now() % 1000).padStart(3, '0');
   const trimmed = line.trim();
@@ -38,11 +56,7 @@ function classifyLogLine(line: string): Omit<LiveTerminalLine, 'id'> {
     const sev = (nucleiMatch.groups.sev || '').toLowerCase();
     source = nucleiMatch.groups.id;
     message = nucleiMatch.groups.msg || '';
-    if (sev === 'critical') level = 'critical';
-    else if (sev === 'high') level = 'error';
-    else if (sev === 'medium') level = 'warn';
-    else if (sev === 'info') level = 'info';
-    else level = 'debug';
+    level = classifyNucleiSeverity(sev);
   } else {
     // Dynamic Tool detection
     const toolMatch = trimmed.match(TOOL_REGEX);
@@ -68,12 +82,7 @@ function classifyTelemetryEvent(event: PipelineTelemetryEvent): Omit<LiveTermina
   const parsedTime = Number.isFinite(event.epoch) ? new Date(event.epoch * 1000) : new Date(event.timestamp);
   const timestamp = parsedTime.toLocaleTimeString('en-GB', { hour12: false }) + '.' + String(parsedTime.getMilliseconds()).padStart(3, '0');
   const eventType = event.event_type || 'telemetry';
-  const level: LiveTerminalLine['level'] =
-    event.status === 'error' || event.severity === 'high' ? 'error' :
-    event.severity === 'critical' ? 'critical' :
-    event.event_type.includes('completed') ? 'success' :
-    event.event_type.includes('artifact') ? 'system' :
-    'info';
+  const level = telemetryEventLevel(event);
   const artifact = event.artifact_id ? ` ${event.artifact_type || 'artifact'}=${event.artifact_id}` : '';
   const finding = event.finding_id ? ` finding=${event.finding_id}` : '';
   return {

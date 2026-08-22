@@ -73,6 +73,10 @@ export function useGapAnalysis() {
   };
 }
 
+export function flushDebouncedSearch(pending: string): string {
+  return pending;
+}
+
 export type SortKey = 'module' | 'coverage_percent' | 'status';
 export type SortDir = 'asc' | 'desc';
 
@@ -132,6 +136,12 @@ export function useGapAnalysisFiltering({ filtered }: UseGapAnalysisFilteringPro
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, [searchQuery]);
+
+  const searchRef = useRef(searchQuery);
+  searchRef.current = searchQuery;
+  useEffect(() => () => {
+    setDebouncedSearchQuery(searchRef.current);
+  }, []);
 
   const filteredAndSearched = useMemo(() => {
     let result = [...filtered];

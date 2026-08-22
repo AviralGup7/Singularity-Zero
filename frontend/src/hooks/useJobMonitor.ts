@@ -22,6 +22,10 @@ import type { JobMonitorAction } from './useJobMonitorReducer';
 import { useJobStore } from '../stores/jobStore';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 
+export function shouldPollJob(status: string | undefined): boolean {
+  return status === 'running';
+}
+
 const POLL_INTERVAL_MS = 2000;
 const BUFFER_FLUSH_MS = 100;
 
@@ -122,10 +126,12 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   }, [jobId, bufferDispatch, dispatch]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let controller = new AbortController();
     loadData(controller.signal);
     const interval = setInterval(() => {
-      if (jobStatusRef.current === 'running') loadData(controller.signal);
+      controller.abort();
+      controller = new AbortController();
+      if (shouldPollJob(jobStatusRef.current)) loadData(controller.signal);
     }, POLL_INTERVAL_MS);
     return () => {
       controller.abort();

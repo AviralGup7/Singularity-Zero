@@ -39,17 +39,30 @@ export function logAuditAction(
   }
 }
 
+export function parseAuditLog(raw: string | null): AuditEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed as AuditEntry[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getAuditLog(): AuditEntry[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return parseAuditLog(localStorage.getItem(STORAGE_KEY));
   } catch {
     return [];
   }
 }
 
 export function clearAuditLog(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* private mode / blocked storage */
+  }
 }
 
 export function useAuditLogger(user = 'anonymous') {
