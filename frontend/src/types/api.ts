@@ -173,6 +173,7 @@ export interface Job {
   progress_telemetry?: ProgressTelemetry;
   telemetry_events?: PipelineTelemetryEvent[];
   concurrent_stage_count?: number;
+  running_stages?: string[];
   can_stop?: boolean;
   returncode?: number | null;
   duration_forecast?: DurationForecast;
@@ -214,6 +215,8 @@ export interface StageProgressEntry {
   last_event?: string;
   started_at?: number;
   updated_at?: number;
+  finished_at?: number;
+  injected?: boolean;
 }
 
 export interface StageTransitionEntry {

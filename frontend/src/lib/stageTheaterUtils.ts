@@ -35,16 +35,21 @@ const STAGE_LABELS: Record<string, string> = {
   live_hosts: 'Live Hosts',
   urls: 'URLs',
   recon_validation: 'Recon Validation',
+  waf: 'WAF',
+  git_diff_crawl: 'Diff Crawl',
   parameters: 'Parameters',
   ranking: 'Ranking',
   passive_scan: 'Passive',
   active_scan: 'Active Scan',
   semgrep: 'Semgrep',
   nuclei: 'Nuclei',
+  subdomain_takeover: 'Takeover',
   access_control: 'Access',
   validation: 'Validation',
   intelligence: 'Intel',
+  threat_modeling: 'Threat Model',
   reporting: 'Report',
+  sarif_export: 'SARIF',
 };
 
 const STAGE_ALIASES: Record<string, string> = {
@@ -136,10 +141,9 @@ function resolveSingleStageStatus(
   if (existing?.status === 'skipped') return 'skipped';
   if (existing?.status === 'completed') return 'completed';
   if (existing?.status === 'running') return 'running';
+  if (existing?.status === 'pending') return 'pending';
 
   if (job.status === 'failed' && normalizeStageName(job.failed_stage) === stageName) return 'error';
-  if (job.status === 'completed') return 'completed';
-  if (index < currentIndex) return 'completed';
   if (index === currentIndex && job.status === 'running') return 'running';
   return 'pending';
 }

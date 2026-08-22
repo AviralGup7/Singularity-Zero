@@ -12,12 +12,18 @@ const STAGE_ICONS: Record<string, string> = {
   ranking: 'RANK',
   passive_scan: 'PASS',
   active_scan: 'ACT',
+  recon_validation: 'RECON',
+  waf: 'WAF',
+  git_diff_crawl: 'DIFF',
   semgrep: 'SAST',
   nuclei: 'VULN',
+  subdomain_takeover: 'TAKE',
   access_control: 'AUTH',
   validation: 'VAL',
   intelligence: 'INTEL',
+  threat_modeling: 'THRT',
   reporting: 'RPT',
+  sarif_export: 'SARIF',
   completed: 'DONE',
 };
 

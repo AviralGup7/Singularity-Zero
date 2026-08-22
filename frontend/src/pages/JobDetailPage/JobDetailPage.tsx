@@ -203,9 +203,10 @@ export function JobDetailPage() {
           </motion.div>
         )}
 
-        {job.status === 'running' && (
+        {(job.status === 'running' || (job.stage_progress && job.stage_progress.length > 0)) && (
           <motion.div variants={itemVariants} className="card" role="region" aria-label="Scan progress">
-            <h3>Progress</h3>
+            <h3>{job.status === 'running' ? 'Progress' : 'Stage history'}</h3>
+            {job.status === 'running' && (
             <div className="progress-section space-y-3">
               <GlowProgress value={normalizeProgressPercent(job.progress_percent, 'percent')} variant="cyber" animated size="lg" />
               <div className="progress-details flex justify-between text-xs text-text-secondary font-mono tabular-nums">
@@ -213,6 +214,17 @@ export function JobDetailPage() {
                 {job.has_eta && <span>ETA: {job.eta_label ?? '--'}</span>}
               </div>
             </div>
+            )}
+            {(() => {
+              const runningNow = (job.stage_progress ?? []).filter((stage) => stage.status === 'running');
+              if (runningNow.length === 0) return null;
+              return (
+                <div className="mb-3 text-xs font-mono text-text-secondary" role="status">
+                  Running now: {runningNow.length} stage{runningNow.length === 1 ? '' : 's'}
+                  <span className="ml-2">{runningNow.map((stage) => stage.stage_label || stage.stage).join(' · ')}</span>
+                </div>
+              );
+            })()}
             <StageProgressBars stages={job.stage_progress ?? []} />
             {shouldShowIterationBar(job.stage, job.iteration_current) && (
               <IterationProgressBar currentIteration={job.iteration_current ?? 0} maxIterations={job.iteration_total || 3} stagePercent={job.stage_percent || 0} />

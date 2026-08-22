@@ -160,4 +160,42 @@ describe('StageTheater stage contract', () => {
       activeCount: 1,
     });
   });
+
+  it('keeps skipped stages skipped after the job completes', () => {
+    const job = makeJob({
+      status: 'completed',
+      stage: 'reporting',
+      stage_label: 'Building report',
+      stage_progress: [
+        makeStageEntry('subdomains', 'completed', 100),
+        makeStageEntry('live_hosts', 'completed', 100),
+        makeStageEntry('urls', 'completed', 100),
+        makeStageEntry('waf', 'skipped', 0, 'Fingerprinting WAF'),
+        makeStageEntry('semgrep', 'skipped', 0, 'Semgrep'),
+        makeStageEntry('nuclei', 'completed', 100),
+        makeStageEntry('reporting', 'completed', 100),
+      ],
+    });
+
+    const nodes = buildStageTheaterNodesFromJob(job);
+    expect(getNode(nodes, 'waf')).toMatchObject({ status: 'skipped' });
+    expect(getNode(nodes, 'semgrep')).toMatchObject({ status: 'skipped' });
+    expect(getNode(nodes, 'nuclei')).toMatchObject({ status: 'completed' });
+    expect(getNode(nodes, 'access_control')?.status).toBe('pending');
+  });
+
+  it('shows concurrent running stages independently', () => {
+    const job = makeJob({
+      stage: 'nuclei',
+      stage_progress: [
+        makeStageEntry('active_scan', 'running', 40),
+        makeStageEntry('semgrep', 'running', 20),
+        makeStageEntry('nuclei', 'running', 55),
+      ],
+    });
+    const nodes = buildStageTheaterNodesFromJob(job);
+    expect(getNode(nodes, 'active_scan')?.status).toBe('running');
+    expect(getNode(nodes, 'semgrep')?.status).toBe('running');
+    expect(getNode(nodes, 'nuclei')?.status).toBe('running');
+  });
 });
