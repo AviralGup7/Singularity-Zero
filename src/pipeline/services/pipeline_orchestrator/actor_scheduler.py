@@ -795,6 +795,39 @@ class ActorScheduler:
             if not self._condition_holds(node):
                 self._mark_skipped(node, reason="condition_never_satisfied")
 
+    def _planner_skip_reason(self, name: str) -> str:
+        metrics = {}
+        try:
+            metrics = self._ctx.result.module_metrics.get(name, {}) or {}
+        except Exception:
+            metrics = {}
+        if isinstance(metrics, dict):
+            reason = str(metrics.get("reason") or "").strip()
+            if reason:
+                return reason
+        return "planner_dropped"
+
+    def _mark_skipped_by_name(self, name: str, *, reason: str) -> None:
+        for node in self._graph.nodes:
+            if node.name == name:
+                self._mark_skipped(node, reason=reason)
+                return
+        self._skipped.add(name)
+        self._outcome.skipped.add(name)
+        try:
+            self._ctx.result.stage_status[name] = StageStatus.SKIPPED.value
+            self._ctx.result.module_metrics[name] = {
+                "status": "skipped",
+                "reason": reason,
+            }
+        except Exception:
+            logger.debug("Failed to record planner skip for %s", name, exc_info=True)
+        logger.info("Stage '%s' skipped: %s", name, reason)
+        try:
+            emit_stage_skipped(name, reason)
+        except Exception:
+            logger.debug("Failed to emit skip progress for %s", name, exc_info=True)
+
     def _mark_skipped(self, node: StageNode, *, reason: str) -> None:
         self._skipped.add(node.name)
         self._outcome.skipped.add(node.name)
@@ -804,6 +837,10 @@ class ActorScheduler:
             "reason": reason,
         }
         logger.info("Stage '%s' skipped: %s", node.name, reason)
+        try:
+            emit_stage_skipped(node.name, reason)
+        except Exception:
+            logger.debug("Failed to emit skip progress for %s", node.name, exc_info=True)
 
     # ------------------------------------------------------------------
     # Cancellation / shutdown helpers
