@@ -57,14 +57,26 @@ export interface RemediationCandidate {
   metadata?: Record<string, unknown>;
 }
 
+export function asRemediationUnits(value: unknown): RemediationUnit[] {
+  return Array.isArray(value) ? value as RemediationUnit[] : [];
+}
+
+export function asRemediationCandidates(value: unknown): RemediationCandidate[] {
+  return Array.isArray(value) ? value as RemediationCandidate[] : [];
+}
+
 export const remediationApi = {
-  getPlan: (signal?: AbortSignal) =>
-    apiClient.get<RemediationPlanResponse>('/api/remediation/planner', { signal }),
-  getCandidates: (params: { runId?: string; fingerprint?: string }, signal?: AbortSignal) =>
-    apiClient.get<{ candidates: RemediationCandidate[] }>('/api/remediation/candidates', {
+  getPlan: async (signal?: AbortSignal) => {
+    const res = await apiClient.get<RemediationPlanResponse>('/api/remediation/planner', { signal });
+    return { ...res, data: { ...res.data, units: asRemediationUnits(res.data?.units) } };
+  },
+  getCandidates: async (params: { runId?: string; fingerprint?: string }, signal?: AbortSignal) => {
+    const res = await apiClient.get<{ candidates: RemediationCandidate[] }>('/api/remediation/candidates', {
       params: { run_id: params.runId, fingerprint: params.fingerprint },
       signal,
-    }),
+    });
+    return { ...res, data: { ...res.data, candidates: asRemediationCandidates(res.data?.candidates) } };
+  },
   getCweCatalog: (signal?: AbortSignal) =>
     apiClient.get<{ entries: { cwe_id: string; name: string; description: string; url: string }[] }>(
       '/api/remediation/cwe-catalog',
