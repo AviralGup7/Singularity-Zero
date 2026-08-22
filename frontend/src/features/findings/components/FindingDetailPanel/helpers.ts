@@ -43,6 +43,10 @@ export function prefetchRemediation(id: string) {
     .catch(() => {});
 }
 
+export function shouldCloseFindingDetail(key: string, nestedDialogOpen: boolean): boolean {
+  return key === 'Escape' && !nestedDialogOpen;
+}
+
 export type DetailTab =
   | 'cvss'
   | 'csi'

@@ -58,19 +58,20 @@ export function normalizeTimestamp(timestamp: string | number): number {
  * Returns a human-readable relative time string (e.g. "2 min ago", "about 1 hour ago").
  * Falls back to the locale time string if the date is more than 24 hours old.
  */
-export function formatDistanceToNow(date: Date): string {
-  const now = Date.now();
-  const diffMs = now - date.getTime();
+export function formatRelativeDistance(diffMs: number): string | null {
+  if (!Number.isFinite(diffMs)) return 'just now';
+  if (diffMs < 0) return Math.abs(diffMs) < 5000 ? 'just now' : 'in a moment';
   const diffSec = Math.round(diffMs / 1000);
-
   if (diffSec < 5) return 'just now';
   if (diffSec < 60) return `${diffSec} sec ago`;
-
   const diffMin = Math.round(diffSec / 60);
   if (diffMin < 60) return `${diffMin} min ago`;
-
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) return `about ${diffHr} hr ago`;
+  return null;
+}
 
-  return date.toLocaleTimeString();
+export function formatDistanceToNow(date: Date): string {
+  const label = formatRelativeDistance(Date.now() - date.getTime());
+  return label ?? date.toLocaleTimeString();
 }

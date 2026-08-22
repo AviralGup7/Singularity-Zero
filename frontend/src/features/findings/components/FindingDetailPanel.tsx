@@ -28,7 +28,7 @@ import { parseFindingTimestamp } from '@/utils/findingTime';
 import { RemediationTracker } from './RemediationTracker';
 import { BountyPanel } from './FindingDetailPanel/BountyPanel';
 import { RiskPanel } from './FindingDetailPanel/RiskPanel';
-import { remediationCache, prefetchRemediation } from './FindingDetailPanel/helpers';
+import { remediationCache, prefetchRemediation, shouldCloseFindingDetail } from './FindingDetailPanel/helpers';
 import type {DetailTab, ExtendedEvidence} from './FindingDetailPanel/helpers';
 
 export { remediationCache, prefetchRemediation };
@@ -43,6 +43,7 @@ export function FindingDetailPanel({
   onClose,
 }: FindingDetailPanelProps) {
   const [finding, setFinding] = useState<Finding>(initialFinding);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -73,7 +74,7 @@ export function FindingDetailPanel({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (shouldCloseFindingDetail(e.key, submitDialogOpen)) onClose();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -97,7 +98,7 @@ export function FindingDetailPanel({
         }
       }
     },
-    [onClose],
+    [onClose, submitDialogOpen],
   );
 
   const [detailTab, setDetailTab] = useState<DetailTab>('csi');
@@ -109,7 +110,6 @@ export function FindingDetailPanel({
   const [sanitizePII, setSanitizePII] = useState(() => sanitizePiiFromVisibility(isPIIVisible()));
   const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
   const [loadingRemediation, setLoadingRemediation] = useState(false);
-  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const toast = useToast();
   const features = useOptionalFeatures();
 
@@ -140,11 +140,11 @@ export function FindingDetailPanel({
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (shouldCloseFindingDetail(e.key, submitDialogOpen)) onClose();
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [onClose]);
+  }, [onClose, submitDialogOpen]);
 
   useEffect(() => {
     if (!finding.id) return;

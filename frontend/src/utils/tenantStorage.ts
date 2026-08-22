@@ -50,15 +50,15 @@ export function scopedKey(baseKey: string): string {
 export const tenantStorageAdapter = {
   getItem: (name: string): string | null => {
     const tenantId = getCurrentTenantId();
-    return localStorage.getItem(`${name}:${tenantId}`) || localStorage.getItem(name);
+    return safeStorage.get(`${name}:${tenantId}`) || safeStorage.get(name);
   },
   setItem: (name: string, value: string): void => {
     const tenantId = getCurrentTenantId();
-    localStorage.setItem(`${name}:${tenantId}`, value);
+    safeStorage.set(`${name}:${tenantId}`, value);
   },
   removeItem: (name: string): void => {
     const tenantId = getCurrentTenantId();
-    localStorage.removeItem(`${name}:${tenantId}`);
+    safeStorage.remove(`${name}:${tenantId}`);
   },
 };
 
