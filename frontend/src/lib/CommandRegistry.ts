@@ -2,6 +2,10 @@ import type { SearchableItem } from '@/components/layout/CommandPalette';
 
 type Listener = (items: SearchableItem[]) => void;
 
+export function canRegisterCommandItem(item: { id?: string }): boolean {
+  return Boolean(item.id && String(item.id).trim());
+}
+
 class CommandRegistry {
   private items = new Map<string, SearchableItem>();
   private listeners = new Set<Listener>();
@@ -9,6 +13,7 @@ class CommandRegistry {
   private dirty = true;
 
   register(item: SearchableItem) {
+    if (!canRegisterCommandItem(item)) return;
     this.items.set(item.id, item);
     this.invalidateCache();
     this.notify();
@@ -16,6 +21,7 @@ class CommandRegistry {
 
   registerMany(items: SearchableItem[]) {
     for (const item of items) {
+      if (!canRegisterCommandItem(item)) continue;
       this.items.set(item.id, item);
     }
     this.invalidateCache();

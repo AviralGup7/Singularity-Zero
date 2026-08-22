@@ -119,6 +119,11 @@ export function epssDisplayValue(epss: number): number {
   return typeof epss === 'number' && Number.isFinite(epss) ? epss : -1;
 }
 
+export function finiteEpssNumber(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : -1;
+}
+
 export async function lookupCWE(cweId: string): Promise<CWEInfo | null> {
   const normalized = normalizeCweId(cweId);
   if (!normalized) return null;
@@ -169,8 +174,8 @@ export async function lookupEPSS(cveId: string): Promise<EPSSInfo | null> {
         const epssData = json.data[0];
         const epssInfo: EPSSInfo = {
           cve: cveId,
-          epss: parseFloat(epssData.epss || '0'),
-          percentile: parseFloat(epssData.percentile || '0') * 100,
+          epss: finiteEpssNumber(epssData.epss),
+          percentile: finiteEpssNumber(epssData.percentile) < 0 ? -1 : finiteEpssNumber(epssData.percentile) * 100,
         };
         setCached(`epss:${cveId}`, epssInfo);
         return epssInfo;

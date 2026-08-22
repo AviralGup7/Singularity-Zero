@@ -235,7 +235,9 @@ export function useActiveJob(jobId?: string) {
       }
     };
     fetchJobStatus();
-    const interval = setInterval(fetchJobStatus, 3000);
+    const interval = setInterval(() => {
+      if (isMounted) void fetchJobStatus();
+    }, 3000);
     return () => {
       isMounted = false;
       clearInterval(interval);

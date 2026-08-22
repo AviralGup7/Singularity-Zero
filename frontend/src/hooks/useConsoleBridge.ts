@@ -22,6 +22,10 @@ export function isUsableScanUrl(url: string): boolean {
   return url.trim().length > 0;
 }
 
+export function asCardList<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
 const empty: BridgeState = {
   session: null,
   connectionId: null,
@@ -72,7 +76,7 @@ export function useConsoleBridge() {
   const refreshJobs = useCallback(async () => {
     const response = await client.call<{ jobs?: JobCard[] }>('jobs.list');
     if (response.ok) {
-      setState((prev) => ({ ...prev, jobs: response.data.jobs ?? [] }));
+      setState((prev) => ({ ...prev, jobs: asCardList(response.data.jobs) }));
     } else {
       setState((prev) => ({ ...prev, error: response.error?.message ?? 'jobs.list failed' }));
     }
@@ -90,7 +94,9 @@ export function useConsoleBridge() {
     if (!url) return;
     const response = await client.call<{ notifications?: NotificationCard[] }>('notifications.list');
     if (response.ok) {
-      setState((prev) => ({ ...prev, notifications: response.data.notifications ?? [] }));
+      setState((prev) => ({ ...prev, notifications: asCardList(response.data.notifications) }));
+    } else {
+      setState((prev) => ({ ...prev, error: response.error?.message ?? 'notifications.list failed' }));
     }
   }, [client]);
 
