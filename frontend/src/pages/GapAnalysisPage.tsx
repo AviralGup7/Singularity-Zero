@@ -5,6 +5,8 @@ import { EmptyState } from '../components/ui';
 import { useGapAnalysis, useGapAnalysisSorting, useGapAnalysisFiltering } from '../hooks/useGapAnalysis';
 import { GapDeficiencies } from '../components/gap-analysis/GapAnalysisComponents';
 import { GapAnalysisStats } from '../components/gap-analysis/GapAnalysisStats';
+import { isNoTelemetryState as detectNoTelemetry } from '../components/gap-analysis/gapTelemetry';
+import { clampPercent } from '@/utils/findingTime';
 import { MitigationModal } from '../components/gap-analysis/MitigationModal';
 import { ROUTES } from '@/config/paths';
 
@@ -27,9 +29,12 @@ export function GapAnalysisPage() {
   const [copied, setCopied] = useState(false);
 
   const handleCopyPatch = useCallback((patchText: string) => {
-    navigator.clipboard.writeText(patchText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void navigator.clipboard.writeText(patchText).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      setCopied(false);
+    });
   }, []);
 
   if (loading && !data) {
@@ -46,11 +51,7 @@ export function GapAnalysisPage() {
     );
   }
 
-  const isNoTelemetryState =
-    data &&
-    data.results.length > 0 &&
-    data.overall_coverage === 0 &&
-    data.modules_with_gaps === data.total_modules;
+  const isNoTelemetryState = detectNoTelemetry(data);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -237,7 +238,7 @@ export function GapAnalysisPage() {
                           className={`h-full rounded-full ${
                             row.coverage_percent === 100 ? 'bg-ok' : row.coverage_percent > 0 ? 'bg-warn' : 'bg-bad'
                           }`}
-                          style={{ width: `${row.coverage_percent}%` }}
+                          style={{ width: `${clampPercent(row.coverage_percent)}%` }}
                         />
                       </div>
                       <span className="text-[9px] font-mono text-muted tabular-nums">

@@ -98,7 +98,10 @@ export function FindingsKanbanView({
           key={col.key}
           className="kanban-column"
           onDragOver={handleDragOver}
-          onDrop={() => handleDrop(col.key)}
+          onDrop={(event) => {
+            event.preventDefault();
+            handleDrop(col.key);
+          }}
         >
           <div className="kanban-column-header">
             <span className="kanban-column-title">{col.label}</span>
