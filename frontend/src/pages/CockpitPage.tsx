@@ -51,7 +51,7 @@ export function CockpitPage() {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>([
-    'subdomain_enum', 'url_discovery', 'port_scan', 'httpx',
+    'subfinder', 'httpx', 'gau',
   ]);
   const [launchingScan, setLaunchingScan] = useState(false);
   const [stoppingScan, setStoppingScan] = useState(false);

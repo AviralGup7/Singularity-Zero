@@ -101,7 +101,7 @@ export function TargetsPage() {
             showErrorToast(validation.error || 'Invalid target URL', `Cannot rescan ${name}`);
             continue;
           }
-          const job = await startJob({ base_url: name, mode: 'safe', modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx'] });
+          const job = await startJob({ base_url: name, mode: 'safe', modules: ['subfinder', 'httpx', 'gau'] });
           updateProgress(name, { jobId: job.id, status: 'running', progress: 10 });
         } catch (err) {
           updateProgress(name, { status: 'failed', progress: 0 });

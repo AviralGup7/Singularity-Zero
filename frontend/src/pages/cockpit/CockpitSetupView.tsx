@@ -129,7 +129,7 @@ function CockpitSetupViewBase({
                     type="button"
                     onClick={() => {
                       setScanMode('safe');
-                      setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx']);
+                      setSelectedModules(['subfinder', 'httpx', 'gau']);
                     }}
                     role="radio"
                     aria-checked={scanMode === 'safe'}
@@ -148,7 +148,7 @@ function CockpitSetupViewBase({
                     type="button"
                     onClick={() => {
                       setScanMode('aggressive');
-                      setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx', 'nuclei']);
+                      setSelectedModules(['subfinder', 'httpx', 'gau', 'katana', 'nuclei']);
                     }}
                     role="radio"
                     aria-checked={scanMode === 'aggressive'}

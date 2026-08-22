@@ -118,10 +118,10 @@ export function ScanControlDeck({
     getProjects().then(setProjects).catch(() => {});
   }, []);
   const modules = [
-    { id: 'subdomain_enum', label: 'Subdomain Recon' },
-    { id: 'url_discovery', label: 'URL Discovery' },
-    { id: 'port_scan', label: 'Port Scanning' },
+    { id: 'subfinder', label: 'Subdomain Recon (subfinder)' },
     { id: 'httpx', label: 'HTTP Prober' },
+    { id: 'gau', label: 'URL Discovery (gau)' },
+    { id: 'katana', label: 'Crawler (katana)' },
     { id: 'nuclei', label: 'Vulnerability (Nuclei)' },
   ];
 
@@ -253,7 +253,7 @@ export function ScanControlDeck({
                     type="button"
                     onClick={() => {
                       setScanMode('safe');
-                      setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx']);
+                      setSelectedModules(['subfinder', 'httpx', 'gau']);
                     }}
                     role="radio"
                     aria-checked={scanMode === 'safe'}
@@ -274,10 +274,10 @@ export function ScanControlDeck({
                     onClick={() => {
                       setScanMode('aggressive');
                       setSelectedModules([
-                        'subdomain_enum',
-                        'url_discovery',
-                        'port_scan',
+                        'subfinder',
                         'httpx',
+                        'gau',
+                        'katana',
                         'nuclei',
                       ]);
                     }}
