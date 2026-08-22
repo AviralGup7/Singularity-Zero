@@ -8,14 +8,21 @@ export interface IterationProgressBarProps {
   previousFindings?: number;
 }
 
+export function clampIterationProgress(current: number, max: number, percent: number): { current: number; max: number; percent: number } {
+  const safeMax = Number.isFinite(max) && max > 0 ? Math.min(Math.floor(max), 64) : 1;
+  const safeCurrent = Number.isFinite(current) ? Math.min(Math.max(0, Math.floor(current)), safeMax) : 0;
+  const safePercent = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
+  return { current: safeCurrent, max: safeMax, percent: safePercent };
+}
+
 export const IterationProgressBar = memo(function IterationProgressBar({
   currentIteration,
   maxIterations,
   stagePercent,
   previousFindings,
 }: IterationProgressBarProps) {
-  const isComplete = currentIteration >= maxIterations;
-  const clampedPercent = Math.min(100, Math.max(0, stagePercent));
+  const { current, max, percent: clampedPercent } = clampIterationProgress(currentIteration, maxIterations, stagePercent);
+  const isComplete = current >= max;
 
   return (
     <div
@@ -27,7 +34,7 @@ export const IterationProgressBar = memo(function IterationProgressBar({
       )}
       style={{ boxShadow: 'var(--shadow)' }}
       role="region"
-      aria-label={`Passive analysis iteration ${currentIteration} of ${maxIterations}`}
+      aria-label={`Passive analysis iteration ${current} of ${max}`}
       aria-live="polite"
     >
       <div className="flex items-center justify-between mb-3">
@@ -45,9 +52,9 @@ export const IterationProgressBar = memo(function IterationProgressBar({
               : 'bg-accent/20 text-accent border-accent/40'
           )}
           role="status"
-          aria-label={`Iteration ${currentIteration} of ${maxIterations}`}
+          aria-label={`Iteration ${current} of ${max}`}
         >
-          Iteration {currentIteration}/{maxIterations}
+          Iteration {current}/{max}
         </span>
       </div>
 
@@ -58,7 +65,7 @@ export const IterationProgressBar = memo(function IterationProgressBar({
           aria-valuenow={clampedPercent}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Iteration ${currentIteration} progress: ${Math.round(clampedPercent)}%`}
+          aria-label={`Iteration ${current} progress: ${Math.round(clampedPercent)}%`}
         >
           <div
             className={cn(
@@ -78,12 +85,12 @@ export const IterationProgressBar = memo(function IterationProgressBar({
         </div>
       </div>
 
-      {maxIterations > 1 && (
+      {max > 1 && (
         <div className="flex gap-1 mt-3" aria-label="Iteration progress indicators">
-          {Array.from({ length: maxIterations }, (_, i) => {
+          {Array.from({ length: max }, (_, i) => {
             const iteration = i + 1;
-            const isPast = iteration < currentIteration;
-            const isCurrent = iteration === currentIteration;
+            const isPast = iteration < current;
+            const isCurrent = iteration === current;
             return (
               <div
                 key={iteration}

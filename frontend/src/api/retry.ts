@@ -6,9 +6,10 @@ export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function calculateBackoff(attempt: number): number {
-  const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-  const jitter = Math.random() * 500;
+export function calculateBackoff(attempt: number, random = Math.random): number {
+  const n = Number.isFinite(attempt) && attempt > 0 ? attempt : 1;
+  const delay = BASE_DELAY_MS * Math.pow(2, n - 1);
+  const jitter = random() * 500;
   return Math.min(delay + jitter, MAX_DELAY_MS);
 }
 

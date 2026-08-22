@@ -17,6 +17,11 @@ const DEFAULT_CONFIG: CacheConfig = {
   staleWhileRevalidate: true,
 };
 
+export function isCacheEntryStale(entry: { stale?: boolean; timestamp: number; ttl: number }, now = Date.now()): boolean {
+  if (entry.stale) return true;
+  return now - entry.timestamp >= entry.ttl;
+}
+
 function _matchesPathPrefix(candidate: string, prefix: string): boolean {
   const candidatePath = candidate.split('?')[0];
   const prefixPath = prefix.split('?')[0];
@@ -112,7 +117,8 @@ class ApiCache {
 
   isStale(key: string): boolean {
     const entry = this.cache.get(key);
-    return entry?.stale ?? false;
+    if (!entry) return false;
+    return isCacheEntryStale(entry);
   }
 
   markMutationStart(url: string): void {

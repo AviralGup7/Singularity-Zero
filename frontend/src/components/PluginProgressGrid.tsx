@@ -1,6 +1,16 @@
 import { useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
+export function finitePluginCount(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function clampPluginPercent(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+}
+
 export interface PluginProgressEntry {
   group: string;
   label: string;
@@ -59,8 +69,8 @@ export function PluginProgressGrid({
   }, [plugins]);
 
   const overallProgress = useMemo(() => {
-    const totalProcessed = plugins.reduce((s, p) => s + p.processed, 0);
-    const totalAll = plugins.reduce((s, p) => s + p.total, 0);
+    const totalProcessed = plugins.reduce((s, p) => s + finitePluginCount(p.processed), 0);
+    const totalAll = plugins.reduce((s, p) => s + finitePluginCount(p.total), 0);
     return totalAll > 0 ? Math.round((totalProcessed / totalAll) * 100) : 0;
    
   }, [plugins]);
@@ -165,8 +175,8 @@ export function PluginProgressGrid({
       <div className="space-y-3" role="list" aria-label="Plugin groups">
         {grouped.map(([group, entries]) => {
           const isCollapsed = collapsed.has(group);
-          const groupProcessed = entries.reduce((s, e) => s + e.processed, 0);
-          const groupTotal = entries.reduce((s, e) => s + e.total, 0);
+          const groupProcessed = entries.reduce((s, e) => s + finitePluginCount(e.processed), 0);
+          const groupTotal = entries.reduce((s, e) => s + finitePluginCount(e.total), 0);
           const groupPercent = groupTotal > 0 ? Math.round((groupProcessed / groupTotal) * 100) : 0;
           const runningEntry = entries.find((e) => e.status === 'running');
           const errorEntry = entries.find((e) => e.status === 'error');
@@ -277,7 +287,7 @@ function PluginProgressItem({ entry }: { entry: PluginProgressEntry }) {
           {entry.label}
         </span>
         <span className="font-mono text-[length:var(--text-xs)] text-muted tabular-nums">
-          {entry.percent}%
+          {clampPluginPercent(entry.percent)}%
         </span>
       </div>
       <div className="h-1 bg-muted/20 rounded-sm overflow-hidden">
