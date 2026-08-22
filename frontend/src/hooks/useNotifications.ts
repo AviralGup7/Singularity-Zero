@@ -25,7 +25,7 @@ import {
 import { shouldFetchNotifications, shouldOpenNotificationStream } from '@/features/notifications/policy';
 import { useAuthStore } from '@/stores/authStore';
 import { showErrorToast } from '@/utils/extractErrorMessage';
-import { unreadAfterDismiss } from '@/features/notifications/unread';
+import { applyDismiss, applyMarkRead, unreadAfterDismiss, unreadAfterMarkRead } from '@/features/notifications/unread';
 
 function consoleGate() {
   const token = getStreamToken();
@@ -71,6 +71,8 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   const eventSourceRef = useRef<EventSource | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notificationsRef = useRef<AppNotification[]>([]);
+  notificationsRef.current = notifications;
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -108,6 +110,7 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
       if (!Array.isArray(data.notifications)) return;
 
       const appNotifs = data.notifications.map(apiNotificationToAppNotification);
+      notificationsRef.current = appNotifs;
       setNotifications(appNotifs);
       setUnreadCount(data.unread_count);
 
@@ -161,7 +164,11 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
 
         const notif = sseEventToAppNotification(data);
 
-        setNotifications((prev) => [notif, ...prev].slice(0, 200));
+        setNotifications((prev) => {
+          const next = [notif, ...prev].slice(0, 200);
+          notificationsRef.current = next;
+          return next;
+        });
         if (!notif.read) {
           setUnreadCount((c) => c + 1);
         }
@@ -179,14 +186,10 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   }, [mountedRef, startPolling]);
 
   const markRead = useCallback(async (id: string) => {
-    // Optimistic update
-    setNotifications((prev) => {
-      const current = prev.find((n) => n.id === id);
-      if (current && !current.read) {
-        setUnreadCount((c) => Math.max(0, c - 1));
-      }
-      return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
-    });
+    const next = applyMarkRead(notificationsRef.current, id);
+    notificationsRef.current = next.items;
+    setNotifications(next.items);
+    setUnreadCount((c) => unreadAfterMarkRead(next.wasUnread, c));
 
     try {
       const { token, session } = consoleGate();
@@ -212,7 +215,11 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
 
   const markAllRead = useCallback(async () => {
     // Optimistic update
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, read: true }));
+      notificationsRef.current = next;
+      return next;
+    });
     setUnreadCount(0);
 
     try {
@@ -238,13 +245,10 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
   }, [fetchNotifications]);
 
   const dismiss = useCallback(async (id: string) => {
-    setNotifications((prev) => {
-      const target = prev.find((n) => n.id === id);
-      if (target && !target.read) {
-        setUnreadCount((count) => unreadAfterDismiss(true, count));
-      }
-      return prev.filter((n) => n.id !== id);
-    });
+    const next = applyDismiss(notificationsRef.current, id);
+    notificationsRef.current = next.items;
+    setNotifications(next.items);
+    setUnreadCount((count) => unreadAfterDismiss(next.wasUnread, count));
 
     try {
       const { token, session } = consoleGate();
@@ -255,11 +259,8 @@ export function useNotifications(enabled = true): UseNotificationsReturn {
       if (session?.subject) headers['X-Console-Subject'] = session.subject;
 
       await fetch(`${base}/${id}`, { method: 'DELETE', headers });
-      // Update unread count
-      setNotifications((prev) => {
-        setUnreadCount(prev.filter((n) => !n.read).length);
-        return prev;
-      });
+      const remaining = notificationsRef.current;
+      setUnreadCount(remaining.filter((n) => !n.read).length);
     } catch (err) {
       showErrorToast(err, 'Failed to dismiss notification');
       fetchNotifications();

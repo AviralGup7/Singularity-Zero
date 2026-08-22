@@ -8,6 +8,12 @@
 const memoryStorage = new Map<string, string>();
 const memorySession = new Map<string, string>();
 
+/** Prefer the durable store, then the in-memory fallback written after quota failures. */
+export function coalesceStoredValue(primary: string | null, fallback: string | undefined | null): string | null {
+  if (primary !== null && primary !== undefined) return primary;
+  return fallback ?? null;
+}
+
 const MAX_STORAGE_ITEM_BYTES = 512 * 1024; // 512 KB per item
 const MAX_STORAGE_TOTAL_BYTES = 5 * 1024 * 1024; // 5 MB total
 
@@ -28,7 +34,7 @@ function estimateStorageSize(): number {
 export const safeStorage = {
   get: (key: string): string | null => {
     try {
-      return localStorage.getItem(key);
+      return coalesceStoredValue(localStorage.getItem(key), memoryStorage.get(key));
     } catch (e) {
       console.warn(`[SafeStorage] Failed to read ${key} from localStorage, using memory fallback:`, e);
       return memoryStorage.get(key) || null;
@@ -86,7 +92,7 @@ export const safeStorage = {
 export const safeSession = {
   get: (key: string): string | null => {
     try {
-      return sessionStorage.getItem(key);
+      return coalesceStoredValue(sessionStorage.getItem(key), memorySession.get(key));
     } catch (e) {
    
       console.warn(`[SafeSession] Failed to read ${key} from sessionStorage, using memory fallback:`, e);

@@ -16,6 +16,7 @@ class OfflineMutationQueue {
   private processing = false;
   private listeners = new Set<QueueListener>();
   private onlineHandler: (() => void) | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   private notify() {
     this.listeners.forEach((fn) => fn([...this.queue]));
@@ -87,6 +88,11 @@ class OfflineMutationQueue {
         this.queue[0] = { ...mutation, retries };
         this.processing = false;
         this.ensureOnlineHandler();
+        if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null;
+          void this.process();
+        }, offlineRetryDelayMs(retries));
         return;
       }
     }
@@ -97,6 +103,10 @@ class OfflineMutationQueue {
   }
 
   clear(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     this.queue = [];
     this.processing = false;
     this.notify();

@@ -1,4 +1,5 @@
 import { pingLivenessForTimeSync } from '@/api/health';
+import { parseFindingTimestamp } from '@/utils/findingTime';
 
 let serverTimeOffset = 0; // offset in milliseconds: serverTime - clientTime
 
@@ -49,7 +50,7 @@ export function getNormalizedTime(clientTime = Date.now()): number {
  * Sanitizes and normalizes any epoch or ISO timestamp to the corrected server epoch milliseconds.
  */
 export function normalizeTimestamp(timestamp: string | number): number {
-  const tsMs = typeof timestamp === 'number' ? timestamp * 1000 : Date.parse(timestamp);
+  const tsMs = parseFindingTimestamp(timestamp);
   return tsMs + serverTimeOffset;
 }
 

@@ -17,7 +17,7 @@ import { normalizeFindingsViewMode, type FindingsViewMode } from './findingsView
 import { offlineQueue } from '../../utils/offlineQueue';
 import { buildFailedBulkAction, type FailedBulkAction } from './bulkRetry';
 import { visibleFindingIds } from '@/features/notifications/unread';
-import { acknowledgeNewFindings, detectFreshFindingIds } from './newFindingsFeed';
+import { acknowledgeNewFindings, detectFreshFindingIds, withoutFindingParam } from './newFindingsFeed';
 import { sanitizeSeverityFilters } from './severityFilter';
 import { applyFilterPreset } from './filterPreset';
 import { pruneSelection } from './selection';
@@ -665,7 +665,10 @@ export function FindingsPage() {
         {detailFinding && (
           <FindingDetailPanel
             finding={detailFinding}
-            onClose={() => setDetailFinding(null)}
+            onClose={() => {
+              setDetailFinding(null);
+              setSearchParams((prev) => withoutFindingParam(prev), { replace: true });
+            }}
           />
         )}
       </AnimatePresence>
