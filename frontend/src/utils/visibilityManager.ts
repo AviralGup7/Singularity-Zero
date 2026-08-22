@@ -1,3 +1,7 @@
+export function shouldRestartPausedPoll(ms: number): boolean {
+  return Number.isFinite(ms) && ms > 0;
+}
+
 type VisibilityState = 'visible' | 'hidden' | 'prerender';
 
 interface VisibilityCallbacks {
@@ -18,7 +22,7 @@ class VisibilityManager {
     onStateChange: [],
   };
   private isPaused = false;
-  private pollIntervals: Set<ReturnType<typeof setInterval>> = new Set();
+  private pollIntervals = new Map<ReturnType<typeof setInterval>, { fn: () => void; ms: number }>();
 
   constructor() {
     this.bindVisibilityChange();
@@ -85,8 +89,8 @@ class VisibilityManager {
     return this.isPaused;
   }
 
-  registerPolling(interval: ReturnType<typeof setInterval>): void {
-    this.pollIntervals.add(interval);
+  registerPolling(interval: ReturnType<typeof setInterval>, fn?: () => void, ms?: number): void {
+    this.pollIntervals.set(interval, { fn: fn ?? (() => {}), ms: ms ?? 0 });
   }
 
   unregisterPolling(interval: ReturnType<typeof setInterval>): void {
@@ -94,13 +98,19 @@ class VisibilityManager {
   }
 
   private pauseAllPolling(): void {
-    this.pollIntervals.forEach((interval) => {
+    this.pollIntervals.forEach((_meta, interval) => {
       clearInterval(interval);
     });
   }
 
   private resumeAllPolling(): void {
-    this.pollIntervals.clear();
+    const next = new Map<ReturnType<typeof setInterval>, { fn: () => void; ms: number }>();
+    this.pollIntervals.forEach((meta) => {
+      if (meta.ms > 0) {
+        next.set(setInterval(meta.fn, meta.ms), meta);
+      }
+    });
+    this.pollIntervals = next;
   }
 
   destroy(): void {

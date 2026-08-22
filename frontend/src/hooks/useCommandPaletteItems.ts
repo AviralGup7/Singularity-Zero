@@ -14,8 +14,8 @@ export function getAllItems(): SearchableItem[] {
   return commandRegistry.getAll();
 }
 
-function itemsKey(items: SearchableItem[]): string {
-  return items.map(i => i.id).join(',');
+export function itemsKey(items: Array<{ id?: string }>): string {
+  return items.map((item) => String(item.id ?? '').trim()).filter(Boolean).join(',');
 }
 
 export function useCommandPaletteItems(items: SearchableItem[]) {

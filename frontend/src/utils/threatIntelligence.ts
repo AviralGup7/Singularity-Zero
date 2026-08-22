@@ -99,11 +99,26 @@ export async function lookupCVE(cveId: string): Promise<CVEInfo | null> {
     url: `https://nvd.nist.gov/vuln/detail/${cveId}`,
   };
 
-  setCached(`cve:${cveId}`, cveInfo);
   return cveInfo;
 }
 
+export function shouldCacheCveLookup(ok: boolean): boolean {
+  return ok;
+}
+
+export function normalizeCweId(cweId: string): string | null {
+  const match = String(cweId || '').trim().toUpperCase().match(/^CWE-(\d{1,6})$/);
+  return match ? `CWE-${match[1]}` : null;
+}
+
+export function epssDisplayValue(epss: number): number {
+  return typeof epss === 'number' && Number.isFinite(epss) ? epss : -1;
+}
+
 export async function lookupCWE(cweId: string): Promise<CWEInfo | null> {
+  const normalized = normalizeCweId(cweId);
+  if (!normalized) return null;
+  cweId = normalized;
   const cached = getCached<CWEInfo>(`cwe:${cweId}`);
   if (cached) return cached;
 
@@ -193,19 +208,21 @@ export async function getThreatIntel(cveId?: string, cweId?: string): Promise<Th
 }
 
 export function getEPSSLabel(epss: number): string {
-  if (epss < 0) return 'N/A'; // FIX: Handle unavailable EPSS
-  if (epss >= 0.5) return 'Very High';
-  if (epss >= 0.2) return 'High';
-  if (epss >= 0.1) return 'Medium';
-  if (epss >= 0.05) return 'Low';
+  const value = epssDisplayValue(epss);
+  if (value < 0) return 'N/A';
+  if (value >= 0.5) return 'Very High';
+  if (value >= 0.2) return 'High';
+  if (value >= 0.1) return 'Medium';
+  if (value >= 0.05) return 'Low';
   return 'Very Low';
 }
 
 export function getEPSSColor(epss: number): string {
-  if (epss < 0) return 'var(--muted)'; // FIX: Handle unavailable EPSS
-  if (epss >= 0.5) return 'var(--severity-critical)';
-  if (epss >= 0.2) return 'var(--severity-high)';
-  if (epss >= 0.1) return 'var(--severity-medium)';
-  if (epss >= 0.05) return 'var(--severity-low)';
+  const value = epssDisplayValue(epss);
+  if (value < 0) return 'var(--muted)';
+  if (value >= 0.5) return 'var(--severity-critical)';
+  if (value >= 0.2) return 'var(--severity-high)';
+  if (value >= 0.1) return 'var(--severity-medium)';
+  if (value >= 0.05) return 'var(--severity-low)';
   return 'var(--muted)';
 }
