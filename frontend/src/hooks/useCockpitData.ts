@@ -21,6 +21,10 @@ export function shouldResetMountedOnStreamCleanup(): boolean {
   return false;
 }
 
+export function capMigrations<T>(items: T[], max = 50): T[] {
+  return items.slice(-max);
+}
+
 export function useCockpitData({
   target,
   run,
@@ -182,7 +186,7 @@ export function useCockpitData({
       target_node: String(data.target_node || 'unknown'),
       ...data,
     };
-    setMigrations((prev) => [...prev, migration].slice(-50));
+    setMigrations((prev) => capMigrations([...prev, migration]));
     return migration;
   }, []);
 

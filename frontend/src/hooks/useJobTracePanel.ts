@@ -3,6 +3,10 @@ import type { RemediationSuggestion, TraceLink } from '@/types/api';
 import { getJobRemediation, getJobTraceLink } from '@/api/jobs';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 
+export function asSuggestionList<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
 export function useJobRemediation(jobId: string | undefined, isFailedJob: boolean) {
   const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
   const [remediationLoading, setRemediationLoading] = useState(false);
@@ -16,8 +20,9 @@ export function useJobRemediation(jobId: string | undefined, isFailedJob: boolea
     const controller = new AbortController();
     const tid = setTimeout(() => setRemediationLoading(true), 0);
     getJobRemediation(jobId, controller.signal)
-      .then((response) => setRemediation(response.suggestions ?? []))
-      .catch((_err) => {
+      .then((response) => setRemediation(asSuggestionList(response.suggestions)))
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError' || controller.signal.aborted) return;
         setRemediation([]);
       })
       .finally(() => {

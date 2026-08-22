@@ -14,6 +14,14 @@ interface BridgeState {
   error: string | null;
 }
 
+export function isUsableOperatorName(name: string): boolean {
+  return name.trim().length > 0;
+}
+
+export function isUsableScanUrl(url: string): boolean {
+  return url.trim().length > 0;
+}
+
 const empty: BridgeState = {
   session: null,
   connectionId: null,
@@ -42,6 +50,10 @@ export function useConsoleBridge() {
 
   const demoSignIn = useCallback(
     async (name: string, role = 'analyst') => {
+      if (!isUsableOperatorName(name)) {
+        setState((prev) => ({ ...prev, error: 'Name is required' }));
+        throw new Error('Name is required');
+      }
       const result = await connection.open(name, role);
       sessionRef.current = result.session;
       connectionRef.current = result.connectionId;
@@ -84,6 +96,10 @@ export function useConsoleBridge() {
 
   const startScan = useCallback(
     async (baseUrl: string) => {
+      if (!isUsableScanUrl(baseUrl)) {
+        setState((prev) => ({ ...prev, error: 'Target URL is required' }));
+        return null;
+      }
       const response = await client.call<{ job?: JobCard }>('jobs.start', { base_url: baseUrl });
       if (!response.ok) {
         setState((prev) => ({ ...prev, error: response.error?.message ?? 'jobs.start failed' }));
