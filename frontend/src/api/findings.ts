@@ -6,6 +6,14 @@ import { apiCache } from './cache';
 import { z } from 'zod';
 import { FindingsListSchema } from './schemas';
 
+export function asFindingList(value: unknown): Finding[] {
+  return Array.isArray(value) ? value as Finding[] : [];
+}
+
+export function asTimelineEvents(value: unknown): FindingTimelineEvent[] {
+  return Array.isArray(value) ? value as FindingTimelineEvent[] : [];
+}
+
 export async function getFindingsSummary(signal?: AbortSignal, ttl?: number): Promise<FindingsSummary> {
   return cachedGet<FindingsSummary>('/api/findings', { signal, ttl });
 }
@@ -28,7 +36,7 @@ export async function getFindings(params?: FindingsListParams, signal?: AbortSig
       schema: z.object({ findings: FindingsListSchema })
     }
   );
-  return res.findings ?? [];
+  return asFindingList(res.findings);
 }
 
 export async function getFindingRemediation(
@@ -42,7 +50,11 @@ export async function getFindingRemediation(
 }
 
 export async function getFindingById(findingId: string, signal?: AbortSignal): Promise<Finding> {
-  const { data } = await apiClient.get<Finding>(`/api/findings/${findingId}`, { signal });
+  const id = String(findingId ?? '').trim();
+  if (!id) {
+    throw new Error('Finding id is required');
+  }
+  const { data } = await apiClient.get<Finding>(`/api/findings/${encodeURIComponent(id)}`, { signal });
   return data;
 }
 
@@ -64,7 +76,7 @@ export async function bulkUpdateFindings(ids: string[], data: Partial<Finding>, 
   const { data: result } = await apiClient.put<Finding[]>('/api/findings/bulk', { ids, ...data }, { signal });
   apiCache.invalidatePrefix('/api/findings');
   apiCache.invalidatePrefix('/api/targets/findings');
-  return result;
+  return asFindingList(result);
 }
 
 export interface FindingsTimelineParams {
@@ -81,10 +93,14 @@ export async function getFindingsTimeline(
   params?: FindingsTimelineParams,
   signal?: AbortSignal,
 ): Promise<{ events: FindingTimelineEvent[]; total: number }> {
-  return cachedGet<{ events: FindingTimelineEvent[]; total: number }>(
+  const res = await cachedGet<{ events: FindingTimelineEvent[]; total: number }>(
     '/api/findings/timeline',
     { signal, params: params as Record<string, unknown>, ttl: 5000 },
   );
+  return {
+    events: asTimelineEvents(res.events),
+    total: Number.isFinite(Number(res.total)) ? Number(res.total) : asTimelineEvents(res.events).length,
+  };
 }
 
 export interface FindingExplainResponse {

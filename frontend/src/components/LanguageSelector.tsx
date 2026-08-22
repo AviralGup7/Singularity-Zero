@@ -4,6 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { supportedLanguages, languageNames  } from '@/i18n';
 import type {SupportedLanguage} from '@/i18n';
 
+export function normalizeLanguage(lang: string | undefined, fallback = 'en'): string {
+  const base = String(lang ?? '').split('-')[0]?.toLowerCase() || fallback;
+  return (supportedLanguages as readonly string[]).includes(base) ? base : fallback;
+}
+
 interface LanguageSelectorProps {
   value?: string;
   onChange?: (lang: string) => void;
@@ -12,7 +17,7 @@ interface LanguageSelectorProps {
 export function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
   const { i18n } = useTranslation();
 
-  const currentLang = value || i18n.language;
+  const currentLang = normalizeLanguage(value || i18n.language);
 
   const handleLanguageChange = (lang: string) => {
     void i18n.changeLanguage(lang);
