@@ -48,19 +48,26 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   sigint_or_sigterm: 'Interrupted (SIGINT/SIGTERM)',
 };
 
-function getClassificationLabel(classification: string | undefined): string {
+export function getClassificationLabel(classification: string | undefined): string {
   if (!classification) return '';
-  return CLASSIFICATION_LABELS[classification] || classification;
+  return Reflect.get(CLASSIFICATION_LABELS, classification) || classification;
 }
 
-function formatCount(processed: number, total: number | null): string {
-  if (total && total > 0) {
-    return `${processed}/${total}`;
+export function formatCount(processed: number, total: number | null): string {
+  const safeProcessed = Number.isFinite(processed) ? Math.max(0, processed) : 0;
+  const safeTotal = typeof total === 'number' && Number.isFinite(total) ? total : null;
+  if (safeTotal && safeTotal > 0) {
+    return `${safeProcessed}/${safeTotal}`;
   }
-  if (processed > 0) {
-    return `${processed}`;
+  if (safeProcessed > 0) {
+    return `${safeProcessed}`;
   }
   return '';
+}
+
+export function clampStagePercent(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
 }
 
 interface StageProgressBarsProps {
@@ -115,10 +122,11 @@ export function StageProgressBars({ stages }: StageProgressBarsProps) {
         {safeStages.map((stage) => {
           const icon = getStageIcon(stage.stage);
           const statusClass = getStatusClass(stage.status);
+          const percent = clampStagePercent(stage.percent);
           const countLabel = formatCount(stage.processed, stage.total);
 
           const card = (
-            <div className={`stage-progress-item ${statusClass}`} role="listitem" aria-label={`${stage.stage_label}: ${stage.status}, ${stage.percent}%`}>
+            <div className={`stage-progress-item ${statusClass}`} role="listitem" aria-label={`${stage.stage_label}: ${stage.status}, ${percent}%`}>
               <div className="stage-progress-item-header">
                 <span className="stage-icon" aria-hidden="true">{icon}</span>
                 <span className="stage-name">{stage.stage_label}</span>
@@ -127,18 +135,18 @@ export function StageProgressBars({ stages }: StageProgressBarsProps) {
               <div
                 className="stage-progress-bar-track"
                 role="progressbar"
-                aria-valuenow={stage.percent}
+                aria-valuenow={percent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label={`${stage.stage_label} progress: ${stage.percent}%`}
+                aria-label={`${stage.stage_label} progress: ${percent}%`}
               >
                 <div
                   className="stage-progress-bar-fill"
-                  style={{ width: `${Math.min(100, stage.percent)}%` }}
+                  style={{ width: `${percent}%` }}
                 />
               </div>
               <div className="stage-progress-item-footer">
-                <span className="stage-percent tabular-nums">{stage.percent}%</span>
+                <span className="stage-percent tabular-nums">{percent}%</span>
                 {countLabel && <span className="stage-count tabular-nums">{countLabel}</span>}
               </div>
               {(stage.reason || stage.error || stage.last_event || stage.classification || (stage.retry_count || 0) > 0) && (

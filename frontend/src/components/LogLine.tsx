@@ -8,7 +8,7 @@ export interface LogLineProps {
 }
 
 export const LogLine = memo(function LogLine({ line, index, style }: LogLineProps) {
-  const cssClass = useMemo(() => classifyLogLine(line), [line]);
+  const cssClass = useMemo(() => classifyInlineLogLine(line), [line]);
 
   return (
     <div
@@ -27,14 +27,17 @@ export const LogLine = memo(function LogLine({ line, index, style }: LogLineProp
   );
 });
 
-function classifyLogLine(line: string): string {
+export function classifyInlineLogLine(line: string): string {
   if (typeof line !== 'string') return 'text-text';
   const lower = line.toLowerCase();
+  const looksLikeUrl = /https?:\/\//i.test(line);
   if (
+    !looksLikeUrl && (
     lower.includes('error') ||
     lower.includes('exception') ||
     lower.includes('fatal') ||
     lower.includes('traceback')
+    )
   ) {
     return 'text-rose-400 bg-rose-500/5';
   }

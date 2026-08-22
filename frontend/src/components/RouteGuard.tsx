@@ -4,6 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import type { UserRole } from '@/context/AuthContext';
 import type { ReactNode } from 'react';
 
+export function tenantsMatch(requested: string, current: string): boolean {
+  return requested.trim().toLowerCase() === current.trim().toLowerCase();
+}
+
 interface RouteGuardProps {
   children: ReactNode;
   requiredRole?: UserRole;
@@ -25,7 +29,7 @@ export function RouteGuard({ children, requiredRole, requiredPermission }: Route
   const queryParams = new URLSearchParams(location.search);
   const requestedTenant = params.tenantId || queryParams.get('tenantId') || queryParams.get('tenant') || queryParams.get('orgId');
 
-  if (requestedTenant && user.tenantId && requestedTenant !== user.tenantId) {
+  if (requestedTenant && user.tenantId && !tenantsMatch(requestedTenant, user.tenantId)) {
     return (
       <div className="p-8 text-center text-muted max-w-md mx-auto" role="alert">
         <div className="mb-4 text-4xl" aria-hidden="true">🚫</div>
