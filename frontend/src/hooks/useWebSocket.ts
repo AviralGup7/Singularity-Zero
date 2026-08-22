@@ -143,6 +143,10 @@ interface UseWebSocketReturn {
   disconnect: () => void;
 }
 
+export function shouldFallbackFromWs(neverConnected: boolean, retryCount = 0, maxRetries = 4): boolean {
+  return neverConnected || retryCount >= maxRetries;
+}
+
 const MIN_DELAY = 1000;
 const MAX_DELAY = 30000;
 const BACKOFF_FACTOR = 2;
@@ -174,6 +178,7 @@ export function useWebSocket({
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasConnectedRef = useRef(false);
   const lastSequenceRef = useRef(0);
+  const retryCountRef = useRef(0);
 
   // R6: shared primitives.
   const { mountedRef } = useMountedRef();
@@ -221,6 +226,7 @@ export function useWebSocket({
       ws.onopen = () => {
         if (!mountedRef.current) return;
         hasConnectedRef.current = true;
+        retryCountRef.current = 0;
         backoff.reset();
         setConnectionState('connected');
 
@@ -291,8 +297,9 @@ export function useWebSocket({
           return;
         }
 
+        retryCountRef.current += 1;
         setConnectionState('reconnecting');
-        if (!fallbackCalled) {
+        if (shouldFallbackFromWs(false, retryCountRef.current) && !fallbackCalled) {
           fallbackCalled = true;
           onFallbackRef.current?.();
         }

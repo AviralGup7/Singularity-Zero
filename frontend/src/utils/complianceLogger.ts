@@ -10,6 +10,11 @@ export interface ComplianceLogEntry {
 }
 
 const COMPLIANCE_STORAGE_KEY = 'cyber-pipeline-compliance-log';
+export const MAX_COMPLIANCE_ENTRIES = 1000;
+
+export function capComplianceLogs<T>(entries: T[], max = MAX_COMPLIANCE_ENTRIES): T[] {
+  return entries.length > max ? entries.slice(0, max) : entries;
+}
 
 export function logComplianceAction(
   action: string,
@@ -34,6 +39,7 @@ export function logComplianceAction(
   try {
     const existing = getComplianceLogs();
     existing.unshift(entry);
+    if (existing.length > MAX_COMPLIANCE_ENTRIES) existing.length = MAX_COMPLIANCE_ENTRIES;
     sessionStorage.setItem(COMPLIANCE_STORAGE_KEY, JSON.stringify(existing));
   } catch (e) {
     console.warn('Failed to write compliance log:', e);
@@ -42,10 +48,19 @@ export function logComplianceAction(
   return entry;
 }
 
+export function parseComplianceLogs(raw: string | null): ComplianceLogEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed as ComplianceLogEntry[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getComplianceLogs(): ComplianceLogEntry[] {
   try {
-    const raw = sessionStorage.getItem(COMPLIANCE_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return parseComplianceLogs(sessionStorage.getItem(COMPLIANCE_STORAGE_KEY));
   } catch {
     return [];
   }
@@ -66,12 +81,10 @@ export function getComplianceLogsByDateRange(start: Date, end: Date): Compliance
   });
 }
 
-function escapeCSVValue(val: string): string {
-   
-  if (/[=+\-@]/.test(val.charAt(0))) {
-    return "'" + val;
-  }
-  return val;
+export function escapeCSVValue(val: string): string {
+  let next = val;
+  if (/^[=+\-@\t\r]/.test(next)) next = `'${next}`;
+  return next.replace(/"/g, '""');
 }
 
 export function exportComplianceReport(format: 'json' | 'csv' = 'json'): string {
@@ -105,7 +118,11 @@ export function exportComplianceReport(format: 'json' | 'csv' = 'json'): string 
 }
 
 export function clearComplianceLogs(): void {
-  sessionStorage.removeItem(COMPLIANCE_STORAGE_KEY);
+  try {
+    sessionStorage.removeItem(COMPLIANCE_STORAGE_KEY);
+  } catch {
+    /* blocked storage */
+  }
 }
 
 export function useComplianceLogger(user = 'anonymous') {

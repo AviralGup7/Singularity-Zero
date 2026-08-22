@@ -166,6 +166,10 @@ export class ErrorTracker {
       const raw = sessionStorage.getItem(ERROR_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+          this.errors = [];
+          return;
+        }
         this.errors = parsed.map((e: Record<string, unknown>) => {
           const err = new Error(e.message as string);
           err.name = (e.name as string) || 'Error';
@@ -201,6 +205,16 @@ export class ErrorTracker {
         console.warn('Failed to persist errors');
       }
     }
+  }
+}
+
+export function parseTrackedErrorBlob(raw: string | null): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
