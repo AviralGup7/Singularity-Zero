@@ -76,9 +76,13 @@ export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl
   );
 }
 
+function jobPath(jobId: string, suffix = ''): string {
+  return `/api/jobs/${encodeURIComponent(String(jobId ?? '').trim())}${suffix}`;
+}
+
 export async function getJob(jobId: string, signal?: AbortSignal, ttl?: number): Promise<Job | null> {
   try {
-    const raw = await cachedGet<unknown>(`/api/jobs/${jobId}`, { signal, ttl });
+    const raw = await cachedGet<unknown>(jobPath(jobId), { signal, ttl });
     return normalizeJobRecord(raw);
   } catch (error) {
     const status = (error as { status?: number } | undefined)?.status;
@@ -90,16 +94,16 @@ export async function getJob(jobId: string, signal?: AbortSignal, ttl?: number):
 }
 
 export async function getJobLogs(jobId: string, signal?: AbortSignal): Promise<JobLogs> {
-  const res = await cachedGet<JobLogs>(`/api/jobs/${jobId}/logs`, { signal });
+  const res = await cachedGet<JobLogs>(jobPath(jobId, '/logs'), { signal });
   return res;
 }
 
 export async function getJobTraceLink(jobId: string, signal?: AbortSignal): Promise<TraceLink> {
-  return cachedGet<TraceLink>(`/api/jobs/${jobId}/trace`, { signal, ttl: 5000 });
+  return cachedGet<TraceLink>(jobPath(jobId, '/trace'), { signal, ttl: 5000 });
 }
 
 export async function getJobRemediation(jobId: string, signal?: AbortSignal): Promise<RemediationResponse> {
-  return cachedGet<RemediationResponse>(`/api/jobs/${jobId}/remediation`, { signal, ttl: 5000 });
+  return cachedGet<RemediationResponse>(jobPath(jobId, '/remediation'), { signal, ttl: 5000 });
 }
 
 export interface StartJobPayload {
@@ -124,7 +128,7 @@ export interface StartJobPayload {
 }
 
 export async function startJob(payload: StartJobPayload, signal?: AbortSignal): Promise<Job> {
-  const { depth, concurrency, rate_limit_rps, excluded_paths: _excluded_paths, ...rest } = payload;
+  const { depth, concurrency, rate_limit_rps, excluded_paths, ...rest } = payload;
 
   const runtime_overrides = { ...(rest.runtime_overrides ?? {}) };
   if (concurrency !== undefined) {
@@ -134,8 +138,10 @@ export async function startJob(payload: StartJobPayload, signal?: AbortSignal): 
     runtime_overrides['request_rate_per_second'] = String(rate_limit_rps);
   }
   if (depth !== undefined) {
-    // If the backend template supports depth settings, pass it here
     runtime_overrides['depth'] = String(depth);
+  }
+  if (excluded_paths !== undefined) {
+    runtime_overrides['excluded_paths'] = excluded_paths;
   }
 
   const finalPayload = {
@@ -152,25 +158,25 @@ export async function startJob(payload: StartJobPayload, signal?: AbortSignal): 
 }
 
 export async function stopJob(jobId: string, signal?: AbortSignal): Promise<Job> {
-  const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/stop`, undefined, { signal });
+  const { data } = await apiClient.post<Job>(jobPath(jobId, '/stop'), undefined, { signal });
   apiCache.invalidatePrefix('/api/jobs');
   return data;
 }
 
 export async function restartJob(jobId: string, signal?: AbortSignal): Promise<Job> {
-  const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/restart-safe`, undefined, { signal });
+  const { data } = await apiClient.post<Job>(jobPath(jobId, '/restart-safe'), undefined, { signal });
   apiCache.invalidatePrefix('/api/jobs');
   return data;
 }
 
 export async function pauseJob(jobId: string, signal?: AbortSignal): Promise<Job> {
-  const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/pause`, undefined, { signal });
+  const { data } = await apiClient.post<Job>(jobPath(jobId, '/pause'), undefined, { signal });
   apiCache.invalidatePrefix('/api/jobs');
   return data;
 }
 
 export async function resumeJob(jobId: string, signal?: AbortSignal): Promise<Job> {
-  const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/resume`, undefined, { signal });
+  const { data } = await apiClient.post<Job>(jobPath(jobId, '/resume'), undefined, { signal });
   apiCache.invalidatePrefix('/api/jobs');
   return data;
 }

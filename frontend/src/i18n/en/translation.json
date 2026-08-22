@@ -264,6 +264,7 @@
     "responseTooLarge": "Response too large",
     "schemaViolation": "API response does not match expected schema",
     "invalidRequestUrl": "Invalid request URL",
+    "csrfUnavailable": "Could not obtain a CSRF token. Reload and try again.",
     "sessionExpired": "Session expired.",
     "rateLimitReached": "Rate limit reached."
   },

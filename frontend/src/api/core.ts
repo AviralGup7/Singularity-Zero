@@ -31,8 +31,33 @@ if (!import.meta.env.DEV && !import.meta.env.VITE_API_BASE) {
   );
 }
 
-const MAX_RESPONSE_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_RESPONSE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_PROTOCOLS = ['http:', 'https:'];
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0']);
+
+export function isLoopbackHostname(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  return LOOPBACK_HOSTS.has(host) || host.endsWith('.localhost');
+}
+
+export function measureResponseBytes(data: unknown, contentLengthHeader?: string): number {
+  if (contentLengthHeader) {
+    const listed = Number.parseInt(String(contentLengthHeader), 10);
+    if (Number.isFinite(listed) && listed >= 0) return listed;
+  }
+  if (data == null) return 0;
+  if (typeof data === 'string') {
+    return typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(data).length : data.length;
+  }
+  if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer) return data.byteLength;
+  if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(data)) return data.byteLength;
+  if (typeof Blob !== 'undefined' && data instanceof Blob) return data.size;
+  try {
+    return JSON.stringify(data).length;
+  } catch {
+    return MAX_RESPONSE_SIZE_BYTES + 1;
+  }
+}
 
 // Request deduplication: prevent duplicate concurrent GET requests for the same URL
 const pendingRequests = new Map<string, Promise<unknown>>();
@@ -48,7 +73,7 @@ function _deduplicateKey(url: string, options?: CachedRequestOptions): string {
   });
 }
 
-function validateUrl(url: string, baseURL?: string): boolean {
+export function validateRequestUrl(url: string, baseURL?: string): boolean {
   try {
     const base = baseURL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
     const resolved = new URL(url, base);
@@ -58,9 +83,9 @@ function validateUrl(url: string, baseURL?: string): boolean {
       return true;
     }
     if (import.meta.env.DEV) {
-      return resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1';
+      return isLoopbackHostname(resolved.hostname);
     }
-    if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return false;
+    if (isLoopbackHostname(resolved.hostname)) return false;
     return true;
   } catch {
     return false;
@@ -71,21 +96,17 @@ let csrfToken: string | null = null;
 let csrfPending: Promise<string | null> | null = null;
 
 async function fetchCsrfToken(): Promise<string | null> {
-  // Deduplicate concurrent CSRF token fetches
+  if (csrfToken) return csrfToken;
   if (csrfPending) return csrfPending;
   csrfPending = (async () => {
     try {
-      const headers: Record<string, string> = {};
-      const authToken = getStreamToken();
-      if (authToken) {
-        headers.Authorization = `Bearer ${authToken}`;
-      }
-      const response = await axios.get<{ csrf_token: string }>(`${API_BASE}/api/csrf-token`, {
+      // GET is CSRF-safe, so this cannot recurse into fetchCsrfToken.
+      const response = await apiClient.get<{ csrf_token: string }>('/api/csrf-token', {
         withCredentials: true,
         timeout: 5000,
-        headers,
       });
-      csrfToken = response.data.csrf_token;
+      const token = response.data?.csrf_token;
+      csrfToken = typeof token === 'string' && token.trim() ? token : null;
       return csrfToken;
     } catch {
       return null;
@@ -136,7 +157,7 @@ apiClient.interceptors.request.use(
     config.headers['X-Request-ID'] = generateRequestId();
     config.metadata = { startTime: Date.now() };
 
-    if (config.url && !validateUrl(config.url, config.baseURL)) {
+    if (config.url && !validateRequestUrl(config.url, config.baseURL)) {
       return Promise.reject(new Error(i18n.t('errors.invalidRequestUrl')));
     }
 
@@ -153,13 +174,13 @@ apiClient.interceptors.request.use(
     }
 
     if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method)) {
-      if (csrfToken) {
-        config.headers['X-CSRF-Token'] = csrfToken;
-      } else {
-        const token = await fetchCsrfToken();
-        if (token) {
-          config.headers['X-CSRF-Token'] = token;
-        }
+      const token = csrfToken ?? await fetchCsrfToken();
+      if (token) {
+        config.headers['X-CSRF-Token'] = token;
+      } else if (!String(config.headers.Authorization ?? '').toLowerCase().startsWith('bearer ')) {
+        // Cookie/demo sessions are CSRF-vulnerable. Bearer-only calls are
+        // exempt on the server when no csrf cookie is present.
+        return Promise.reject(new ApiError(i18n.t('errors.csrfUnavailable'), 403));
       }
     }
 
@@ -198,21 +219,22 @@ apiClient.interceptors.response.use(
     if (schema) {
       const result = schema.safeParse(response.data);
       if (!result.success) {
+        const issues = result.error.issues.slice(0, 8).map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        }));
         if (import.meta.env.DEV) {
           console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
-            errors: result.error.format(),
-            received: response.data
+            errors: issues,
+            received: response.data,
           });
           dispatchToast('API Contract Violation Detected (check console)', 'warning');
-        } else {
-          // In production, track the violation and still reject the invalid response
-          captureException(
-            new Error(`API contract violation: ${response.config.method?.toUpperCase()} ${response.config.url}`),
-            { component: 'apiClient', action: 'schema_validation', metadata: { errors: result.error.format() } }
-          );
-          return Promise.reject(new Error(i18n.t('errors.schemaViolation')));
         }
-        return response;
+        captureException(
+          new Error(`API contract violation: ${response.config.method?.toUpperCase()} ${response.config.url}`),
+          { component: 'apiClient', action: 'schema_validation', metadata: { errors: issues } }
+        );
+        return Promise.reject(new Error(i18n.t('errors.schemaViolation')));
       }
     }
 

@@ -64,7 +64,8 @@ export const JOB_STATUSES = ['running', 'completed', 'failed', 'stopped', 'pause
 export type JobStatusApi = (typeof JOB_STATUSES)[number];
 
 export function canonicalizeJobStatus(value: unknown): JobStatusApi {
-  const raw = asString(value || 'queued').trim().toLowerCase();
+  const raw = asString(value).trim().toLowerCase();
+  if (!raw) return 'queued';
   return (JOB_STATUSES as readonly string[]).includes(raw) ? (raw as JobStatusApi) : 'queued';
 }
 
@@ -79,6 +80,8 @@ export interface PageEnvelope<T> {
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return null;
   return value as Record<string, unknown>;
 }
 
@@ -123,10 +126,12 @@ export function mapFindingUpdate(input: Record<string, unknown>): Record<string,
     }
     if (apiKey === 'false_positive') {
       body.false_positive = asBoolean(value);
-      if (asBoolean(value) && body.fp_status == null) body.fp_status = 'approved';
       continue;
     }
     body[apiKey] = value;
+  }
+  if (body.false_positive === true && body.fp_status == null) {
+    body.fp_status = 'approved';
   }
   return body;
 }
@@ -274,6 +279,8 @@ export function toFindingListParams(query: FindingListQuery = {}): Record<string
  * A high circuit-breaker only exists to stop a broken API from looping;
  * it is not a silent data cap — if it trips we throw instead of dropping rows.
  */
+const PAGE_FETCH_CONCURRENCY = 4;
+
 export async function collectAllPages<T, Q extends { page_size?: number }>(
   fetchPage: (query: Q & { page: number; page_size: number }, signal?: AbortSignal) => Promise<PageEnvelope<T>>,
   query: Q,
@@ -281,8 +288,32 @@ export async function collectAllPages<T, Q extends { page_size?: number }>(
   maxPages = 500,
 ): Promise<T[]> {
   const pageSize = Math.max(1, query.page_size ?? 100);
-  const items: T[] = [];
-  for (let page = 1; page <= maxPages; page += 1) {
+  const first = await fetchPage({ ...query, page: 1, page_size: pageSize }, signal);
+  const items = [...first.items];
+  if (!first.hasNext || first.items.length === 0 || items.length >= first.total) {
+    return items;
+  }
+
+  const knownPages = first.pageSize > 0 ? Math.ceil(first.total / first.pageSize) : 0;
+  if (knownPages > maxPages) {
+    throw new Error(`List pagination exceeded ${maxPages} pages without completing`);
+  }
+
+  if (knownPages >= 2 && first.total > items.length) {
+    const remaining: number[] = [];
+    for (let page = 2; page <= knownPages; page += 1) remaining.push(page);
+    for (let i = 0; i < remaining.length; i += PAGE_FETCH_CONCURRENCY) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const chunk = remaining.slice(i, i + PAGE_FETCH_CONCURRENCY);
+      const envelopes = await Promise.all(
+        chunk.map((page) => fetchPage({ ...query, page, page_size: pageSize }, signal)),
+      );
+      for (const envelope of envelopes) items.push(...envelope.items);
+    }
+    return items;
+  }
+
+  for (let page = 2; page <= maxPages; page += 1) {
     const envelope = await fetchPage({ ...query, page, page_size: pageSize }, signal);
     items.push(...envelope.items);
     const exhausted =

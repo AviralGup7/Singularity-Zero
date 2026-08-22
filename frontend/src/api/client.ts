@@ -22,7 +22,7 @@ export async function getDashboardStats(signal?: AbortSignal, ttl?: number): Pro
   const raw = await cachedGet<DashboardStats>('/api/dashboard', { signal, ttl });
   const summary = raw.findings_summary ?? {
     total_findings: raw.total_findings ?? 0,
-    severity_totals: (raw as { severity_counts?: Record<string, number> }).severity_counts ?? {},
+    severity_totals: raw.severity_counts ?? {},
     by_module: {},
     targets: [],
     targets_with_findings: 0,

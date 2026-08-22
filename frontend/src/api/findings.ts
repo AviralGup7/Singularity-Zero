@@ -13,6 +13,11 @@ import {
   type PageEnvelope,
 } from './contract';
 
+function findingPath(id: string, suffix = ''): string {
+  const safe = encodeURIComponent(String(id ?? '').trim());
+  return `/api/findings/${safe}${suffix}`;
+}
+
 function toFinding(value: unknown): Finding | null {
   const rec = normalizeFindingRecord(value);
   if (!rec) return null;
@@ -56,7 +61,7 @@ export async function getFindingsPage(
   const res = await cachedGet<unknown>('/api/targets/findings/list', {
     signal,
     params: toFindingListParams(params),
-    ttl: 4000,
+    ttl: 8000,
   });
   return readPageEnvelope(res, 'findings', toFinding);
 }
@@ -77,7 +82,7 @@ export async function getFindingRemediation(
   findingId: string,
   signal?: AbortSignal
 ): Promise<RemediationResponse> {
-  return cachedGet<RemediationResponse>(`/api/findings/${findingId}/remediation`, {
+  return cachedGet<RemediationResponse>(findingPath(findingId, '/remediation'), {
     signal,
     ttl: 5000,
   });
@@ -88,24 +93,30 @@ export async function getFindingById(findingId: string, signal?: AbortSignal): P
   if (!id) {
     throw new Error('Finding id is required');
   }
-  const { data } = await apiClient.get<unknown>(`/api/findings/${encodeURIComponent(id)}`, { signal });
+  const { data } = await apiClient.get<unknown>(findingPath(id), { signal });
   const normalized = normalizeFindingRecord(data);
   if (!normalized) throw new Error('Finding payload was empty');
-  return normalized as unknown as Finding;
+  return toFinding(normalized) ?? (normalized as unknown as Finding);
 }
 
 export async function deleteFinding(id: string, signal?: AbortSignal): Promise<void> {
-  await apiClient.delete(`/api/findings/${id}`, { signal });
+  const safe = String(id ?? '').trim();
+  if (!safe) throw new Error('Finding id is required');
+  await apiClient.delete(findingPath(safe), { signal });
   apiCache.invalidatePrefix('/api/findings');
   apiCache.invalidatePrefix('/api/targets/findings');
 }
 
 export async function updateFinding(id: string, data: Partial<Finding>, signal?: AbortSignal): Promise<Finding> {
+  const safe = String(id ?? '').trim();
+  if (!safe) throw new Error('Finding id is required');
   const body = mapFindingUpdate(data as Record<string, unknown>);
-  const { data: result } = await apiClient.put<unknown>(`/api/findings/${id}`, body, { signal });
+  const { data: result } = await apiClient.put<unknown>(findingPath(safe), body, { signal });
   apiCache.invalidatePrefix('/api/findings');
   apiCache.invalidatePrefix('/api/targets/findings');
-  return toFinding(result) ?? ({ id, ...data } as Finding);
+  const updated = toFinding(result);
+  if (!updated) throw new Error('Finding update returned an empty payload');
+  return updated;
 }
 
 export async function bulkUpdateFindings(ids: string[], data: Partial<Finding>, signal?: AbortSignal): Promise<Finding[]> {
@@ -155,7 +166,7 @@ export async function getFindingExplain(
   findingId: string,
   signal?: AbortSignal,
 ): Promise<FindingExplainResponse> {
-  return cachedGet<FindingExplainResponse>(`/api/findings/${findingId}/explain`, {
+  return cachedGet<FindingExplainResponse>(findingPath(findingId, '/explain'), {
     signal,
     bypassCache: true,
   });
@@ -173,7 +184,7 @@ export async function getFindingAiExplain(
   persona?: string,
   signal?: AbortSignal,
 ): Promise<FindingAiExplainResponse> {
-  return cachedGet<FindingAiExplainResponse>(`/api/findings/${findingId}/ai-explain`, {
+  return cachedGet<FindingAiExplainResponse>(findingPath(findingId, '/ai-explain'), {
     signal,
     params: persona ? { persona } : undefined,
     bypassCache: true,

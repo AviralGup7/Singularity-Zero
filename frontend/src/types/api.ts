@@ -523,6 +523,7 @@ export interface DashboardStats {
   stage_counts: Record<string, number>;
   pipeline_health_score: number;
   pipeline_health_label: string;
+  severity_counts?: Record<string, number>;
   trend_data: number[];
   scan_trend?: number[];
   trend_source?: 'jobs' | 'empty' | string;

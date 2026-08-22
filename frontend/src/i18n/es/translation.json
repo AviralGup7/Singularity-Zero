@@ -65,6 +65,7 @@
     "responseTooLarge": "Respuesta demasiado grande",
     "schemaViolation": "La respuesta de la API no coincide con el esquema esperado",
     "invalidRequestUrl": "URL de solicitud no válida",
+    "csrfUnavailable": "No se pudo obtener un token CSRF. Recargue e inténtelo de nuevo.",
     "sessionExpired": "Sesión expirada.",
     "rateLimitReached": "Límite de velocidad alcanzado."
   }
