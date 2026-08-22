@@ -13,26 +13,12 @@ import { useToast } from '@/hooks/useToast';
 import { showErrorToast } from '@/utils/extractErrorMessage';
 import { RunDiffViewer } from '@/components/RunDiffViewer';
 
-import { computeDiff, nextScanDiffSearch } from './scanDiffModel';
+import { bountyDelta, computeDiff, nextScanDiffSearch } from './scanDiffModel';
 import { clampFindingsPage } from '@/features/findings/findingsViewMode';
 import { collectFindingIds, normalizeScanDiffFilter } from './scanDiffFilters';
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const PAGE_SIZE = 50;
-
-function bountyDelta(items: Finding[]): { min: number; max: number; count: number } {
-  let min = 0;
-  let max = 0;
-  let count = 0;
-  for (const f of items) {
-    if (typeof f.bounty_value === 'number' && f.bounty_value > 0) {
-      min += f.bounty_value * 0.5;
-      max += f.bounty_value;
-      count++;
-    }
-  }
-  return { min, max, count };
-}
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 

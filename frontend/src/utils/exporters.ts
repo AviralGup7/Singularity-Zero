@@ -104,8 +104,9 @@ function toRecords(findings: Finding[], includePII: boolean): Record<string, unk
   return includePII ? records : stripPII(records);
 }
 
-function csvEscape(value: unknown): string {
-  const s = value === null || value === undefined ? '' : String(value);
+export function csvEscape(value: unknown): string {
+  let s = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'` + s;
   if (s.includes(',') || s.includes('"') || s.includes('\n')) {
     return `"${s.replace(/"/g, '""')}"`;
   }

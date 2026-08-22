@@ -1,4 +1,5 @@
 import type { Finding } from '@/types/api';
+import { normalizeScanDiffFilter } from './scanDiffFilters';
 
 export interface DiffBucket {
   newFindings: Finding[];
@@ -9,6 +10,20 @@ export interface DiffBucket {
 export function keyForFinding(f: Finding): string {
   if (f.id) return `id:${f.id}`;
   return `anon:${f.type}::${f.target}::${f.severity}::${f.url ?? ''}::${f.title ?? ''}`;
+}
+
+export function bountyDelta(items: Finding[]): { min: number; max: number; count: number } {
+  let min = 0;
+  let max = 0;
+  let count = 0;
+  for (const finding of items) {
+    if (typeof finding.bounty_value === 'number' && Number.isFinite(finding.bounty_value) && finding.bounty_value > 0) {
+      min += finding.bounty_value * 0.5;
+      max += finding.bounty_value;
+      count++;
+    }
+  }
+  return { min, max, count };
 }
 
 export function computeDiff(runA: Finding[], runB: Finding[]): DiffBucket {
@@ -44,7 +59,8 @@ export function nextScanDiffSearch(
   runB: string,
 ): string {
   const next = new URLSearchParams(current);
-  if (filter !== 'all') next.set('filter', filter); else next.delete('filter');
+  const safeFilter = normalizeScanDiffFilter(filter);
+  if (safeFilter !== 'all') next.set('filter', safeFilter); else next.delete('filter');
   if (runA) next.set('runA', runA); else next.delete('runA');
   if (runB) next.set('runB', runB); else next.delete('runB');
   return next.toString();

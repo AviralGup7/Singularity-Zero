@@ -18,11 +18,15 @@ export function adviceFor(code: string, attempt = 0, retryAfter?: number): Retry
   return { retry: true, afterSeconds: wait, reason: code };
 }
 
-export function parseRetryAfter(header: string | null | undefined): number | undefined {
+export function parseRetryAfter(header: string | null | undefined, now = Date.now()): number | undefined {
   if (!header) return undefined;
   const value = Number(header);
-  if (!Number.isFinite(value) || value < 0) return undefined;
-  return Math.min(value, 60);
+  if (Number.isFinite(value) && value >= 0) return Math.min(value, 60);
+  const date = Date.parse(header);
+  if (Number.isNaN(date)) return undefined;
+  const seconds = Math.ceil((date - now) / 1000);
+  if (seconds < 0) return 0;
+  return Math.min(seconds, 60);
 }
 
 export async function sleep(seconds: number): Promise<void> {

@@ -119,7 +119,12 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
     if (!trimmed) continue;
 
     const urlWithProtocol = trimmed.match(/^https?:\/\//) ? trimmed : `https://${trimmed}`;
-    const normalized = normalizeUrl(urlWithProtocol);
+    let normalized: string;
+    try {
+      normalized = normalizeUrl(urlWithProtocol);
+    } catch {
+      return { valid: false, error: `Invalid URL format: ${trimmed} (e.g., https://example.com)` };
+    }
 
     try {
       const parsed = new URL(normalized);

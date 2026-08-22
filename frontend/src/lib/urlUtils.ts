@@ -7,7 +7,12 @@ const TRACKING_PARAM_RE = /^(utm_|fbclid$|gclid$|msclkid$)/i;
  */
 export function normalizeUrl(input: string): string {
   const withProtocol = input.match(/^https?:\/\//i) ? input : `https://${input}`;
-  const parsed = new URL(withProtocol);
+  let parsed: URL;
+  try {
+    parsed = new URL(withProtocol);
+  } catch {
+    throw new Error('Invalid URL');
+  }
 
   parsed.protocol = parsed.protocol.toLowerCase();
   parsed.hostname = parsed.hostname.toLowerCase();
