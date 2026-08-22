@@ -370,10 +370,14 @@ def run_pipeline_job(
             job["progress_telemetry"] = telemetry
 
         if job["status"] == "completed":
-            for sp in stage_progress.values():
-                if isinstance(sp, dict) and sp.get("status") == "running":
-                    sp["status"] = "completed"
-                    sp["updated_at"] = finished_at
+            from src.dashboard.job_state_helpers import finalize_unfinished_stage_entries
+
+            finalize_unfinished_stage_entries(
+                stage_progress,
+                now=finished_at,
+                status="skipped",
+                reason="interrupted",
+            )
             job["stage"] = "completed"
             job["stage_label"] = STAGE_LABELS["completed"]
             job["status_message"] = "Run complete"
@@ -387,10 +391,14 @@ def run_pipeline_job(
             telemetry["next_best_action"] = "Review findings and prioritize validated issues."
             telemetry["last_update_epoch"] = finished_at
         elif job["status"] == "stopped":
-            for sp in stage_progress.values():
-                if isinstance(sp, dict) and sp.get("status") == "running":
-                    sp["status"] = "completed"
-                    sp["updated_at"] = finished_at
+            from src.dashboard.job_state_helpers import finalize_unfinished_stage_entries
+
+            finalize_unfinished_stage_entries(
+                stage_progress,
+                now=finished_at,
+                status="skipped",
+                reason="job_stopped",
+            )
             job["stage"] = "completed"
             job["stage_label"] = "Stopped"
             job["status_message"] = "Run stopped from dashboard control"
@@ -421,13 +429,22 @@ def run_pipeline_job(
             job["stage"] = failed_stage
             job["stage_label"] = STAGE_LABELS.get(failed_stage, "Run failed")
 
-            for stage_key, sp in stage_progress.items():
-                if not isinstance(sp, dict) or sp.get("status") != "running":
-                    continue
-                sp["status"] = "error"
-                sp["updated_at"] = finished_at
-                if stage_key == failed_stage and not sp.get("stage"):
-                    sp["stage"] = failed_stage
+            from src.dashboard.job_state_helpers import finalize_unfinished_stage_entries
+
+            failed_running = stage_progress.get(failed_stage)
+            if isinstance(failed_running, dict) and failed_running.get("status") == "running":
+                failed_running["status"] = "error"
+                failed_running["updated_at"] = finished_at
+                failed_running["finished_at"] = finished_at
+                if not failed_running.get("stage"):
+                    failed_running["stage"] = failed_stage
+            finalize_unfinished_stage_entries(
+                stage_progress,
+                now=finished_at,
+                status="skipped",
+                reason="interrupted",
+                exclude={failed_stage} if failed_stage else set(),
+            )
             if failed_stage not in stage_progress:
                 stage_progress[failed_stage] = {
                     "stage": failed_stage,

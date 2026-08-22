@@ -204,6 +204,34 @@ def _compute_eta_bayesian(job: dict[str, Any], elapsed_seconds: float) -> float 
     return _compute_eta_fallback(job, elapsed_seconds)
 
 
+def finalize_unfinished_stage_entries(
+    stage_progress: Any,
+    *,
+    now: float,
+    status: str,
+    reason: str,
+    exclude: set[str] | None = None,
+) -> None:
+    """Leave unfinished running stages as a truthful terminal status.
+
+    Never rewrite them to ``completed`` — they did not finish.
+    """
+    if not isinstance(stage_progress, dict):
+        return
+    skip = exclude or set()
+    for name, payload in stage_progress.items():
+        if name in skip or not isinstance(payload, dict):
+            continue
+        if _normalize_stage_status(payload.get("status")) != "running":
+            continue
+        payload["status"] = status
+        payload["updated_at"] = now
+        if status in {"completed", "skipped", "error"}:
+            payload["finished_at"] = now
+        if reason and not str(payload.get("reason") or "").strip():
+            payload["reason"] = reason
+
+
 def _finalize_stage(job: dict[str, Any], stage: str) -> None:
     now = time.time()
     stage_progress: dict[str, dict[str, Any]] = job.setdefault("stage_progress", {})

@@ -91,15 +91,15 @@ def mark_running_stage_entries_completed(
     stage_progress = job.get("stage_progress")
     if not isinstance(stage_progress, dict):
         return
-    for stage_name, entry in stage_progress.items():
-        if not isinstance(entry, dict):
-            continue
-        status = stage_entry_status(entry)
-        if status == "running" and stage_name != "completed":
-            entry["status"] = "completed"
-            entry["updated_at"] = now
-            if int(entry.get("percent", 0) or 0) < 100:
-                entry["percent"] = 100
+    from src.dashboard.job_state_helpers import finalize_unfinished_stage_entries
+
+    finalize_unfinished_stage_entries(
+        stage_progress,
+        now=now,
+        status="skipped",
+        reason="interrupted",
+        exclude={"completed"},
+    )
 
     completed_entry = stage_progress.get("completed")
     if not isinstance(completed_entry, dict):
