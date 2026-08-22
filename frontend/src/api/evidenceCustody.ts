@@ -21,6 +21,16 @@ export interface EvidenceRecord {
   custody_chain: CustodyEntry[];
 }
 
+export function asEvidenceList(value: unknown): EvidenceRecord[] {
+  return Array.isArray(value) ? value as EvidenceRecord[] : [];
+}
+
+export function requireEvidenceId(evidenceId: string): string {
+  const id = String(evidenceId ?? '').trim();
+  if (!id) throw new Error('Evidence id is required');
+  return id;
+}
+
 export async function listEvidence(options?: {
   limit?: number;
   offset?: number;
@@ -28,18 +38,19 @@ export async function listEvidence(options?: {
   signal?: AbortSignal;
 }): Promise<EvidenceRecord[]> {
   const params: Record<string, unknown> = {};
-  if (options?.limit) params.limit = options.limit;
-  if (options?.offset) params.offset = options.offset;
+  if (options?.limit !== undefined) params.limit = options.limit;
+  if (options?.offset !== undefined) params.offset = options.offset;
   if (options?.finding_id) params.finding_id = options.finding_id;
   const { data } = await apiClient.get<EvidenceRecord[]>('/api/evidence-custody', {
     params,
     signal: options?.signal,
   });
-  return data;
+  return asEvidenceList(data);
 }
 
 export async function getEvidence(evidenceId: string, signal?: AbortSignal): Promise<EvidenceRecord> {
-  const { data } = await apiClient.get<EvidenceRecord>(`/api/evidence-custody/${evidenceId}`, { signal });
+  const id = requireEvidenceId(evidenceId);
+  const { data } = await apiClient.get<EvidenceRecord>(`/api/evidence-custody/${encodeURIComponent(id)}`, { signal });
   return data;
 }
 

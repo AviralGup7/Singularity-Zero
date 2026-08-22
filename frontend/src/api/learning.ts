@@ -53,17 +53,21 @@ export interface FeedbackEventEntry {
   recorded_at: string;
 }
 
+export function asLearningList<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
 export async function getFeedbackEvents(limit = 100, runId?: string, signal?: AbortSignal): Promise<FeedbackEventEntry[]> {
   const { data } = await apiClient.get<FeedbackEventEntry[]>('/api/learning/feedback', {
     params: { limit, run_id: runId },
     signal,
   });
-  return data;
+  return asLearningList(data);
 }
 
 export async function getThresholdHistory(signal?: AbortSignal): Promise<ThresholdHistoryEntry[]> {
   const { data } = await apiClient.get<ThresholdHistoryEntry[]>('/api/learning/thresholds', { signal });
-  return data;
+  return asLearningList(data);
 }
 
 export async function getFPPatterns(activeOnly = true, signal?: AbortSignal): Promise<FPPattern[]> {
@@ -71,7 +75,7 @@ export async function getFPPatterns(activeOnly = true, signal?: AbortSignal): Pr
     params: { active_only: activeOnly },
     signal,
   });
-  return data;
+  return asLearningList(data);
 }
 
 export async function getLearningKPIs(target?: string, signal?: AbortSignal): Promise<LearningKPIs> {
