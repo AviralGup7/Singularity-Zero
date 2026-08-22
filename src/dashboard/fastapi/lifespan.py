@@ -258,6 +258,20 @@ def _reset_singletons() -> None:
     except (ImportError, AttributeError):
         pass
 
+    try:
+        from src.bootstrap.startup_registration import reset_startup_registration
+
+        reset_startup_registration()
+    except (ImportError, Exception):
+        pass
+
+    try:
+        from src.core.events.event_bus import reset_event_bus
+
+        reset_event_bus()
+    except (ImportError, Exception):
+        pass
+
     logger.debug("Singleton reset complete")
 
 
