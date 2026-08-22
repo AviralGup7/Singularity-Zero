@@ -29,10 +29,19 @@ export interface EvidenceRecord {
 
 const EVIDENCE_STORAGE_KEY = 'cyber-pipeline-evidence-chain';
 
+export function parseEvidenceRecords(raw: string | null): EvidenceRecord[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed as EvidenceRecord[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function loadEvidence(): EvidenceRecord[] {
   try {
-    const raw = sessionStorage.getItem(EVIDENCE_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return parseEvidenceRecords(sessionStorage.getItem(EVIDENCE_STORAGE_KEY));
   } catch {
     return [];
   }

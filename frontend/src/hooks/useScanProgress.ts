@@ -1,5 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
 
+export function clampScanProgress(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
 export type ScanProgressStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface ScanProgress {
@@ -17,7 +23,8 @@ export function useScanProgress() {
     setScanProgress((prev) => {
       const next = new Map(prev);
       const current = next.get(targetName) || { targetName, jobId: '', status: 'pending' as const, progress: 0 };
-      next.set(targetName, { ...current, ...update });
+      const merged = { ...current, ...update };
+      next.set(targetName, { ...merged, progress: clampScanProgress(merged.progress) });
       return next;
     });
   }, []);

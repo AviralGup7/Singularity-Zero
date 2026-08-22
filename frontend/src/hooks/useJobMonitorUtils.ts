@@ -28,7 +28,7 @@ function stageIndex(stage: string | undefined): number {
 }
 
 export function estimateStagePercent(stage: string | undefined, progressPercent: number | undefined): number {
-  if (!stage || typeof progressPercent !== 'number') {
+  if (!stage || typeof progressPercent !== 'number' || !Number.isFinite(progressPercent)) {
     return 0;
   }
   const idx = stageIndex(stage);
@@ -171,7 +171,7 @@ export function synthesizeCurrentStageEntry(jobLike: Partial<Job>): StageProgres
     status: normalizedStatus,
     processed: typeof jobLike.stage_processed === 'number' ? jobLike.stage_processed : 0,
     total: typeof jobLike.stage_total === 'number' ? jobLike.stage_total : null,
-    percent: Math.max(0, Math.min(100, basePercent)),
+    percent: Math.max(0, Math.min(100, Number.isFinite(basePercent) ? basePercent : 0)),
     reason: typeof jobLike.status_message === 'string' ? jobLike.status_message : '',
     error: normalizedStatus === 'error' ? String(jobLike.error || '') : '',
     updated_at: Date.now() / 1000,
@@ -196,9 +196,9 @@ export function normalizeStageEntry(input: Partial<StageProgressEntry> & { stage
     stage: input.stage,
     stage_label: input.stage_label || input.stage,
     status: normalizedStatus,
-    processed: typeof input.processed === 'number' ? input.processed : 0,
-    total: typeof input.total === 'number' ? input.total : null,
-    percent: typeof input.percent === 'number' ? Math.max(0, Math.min(100, input.percent)) : 0,
+    processed: typeof input.processed === 'number' && Number.isFinite(input.processed) ? input.processed : 0,
+    total: typeof input.total === 'number' && Number.isFinite(input.total) ? input.total : null,
+    percent: typeof input.percent === 'number' && Number.isFinite(input.percent) ? Math.max(0, Math.min(100, input.percent)) : 0,
     reason: typeof input.reason === 'string' ? input.reason : '',
     error: typeof input.error === 'string' ? input.error : '',
     retry_count: typeof input.retry_count === 'number' ? input.retry_count : 0,
