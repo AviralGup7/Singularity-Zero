@@ -243,7 +243,7 @@ export function buildMarkdownReportBundle(findings: Finding[], meta: ReportMeta 
     lines.push(`**Severity:** ${safe(f.severity).toUpperCase()}`);
     lines.push(`**Target:** ${safe(f.target)}`);
     lines.push(`**Type:** ${safe(f.type)}`);
-    lines.push(`**CVSS:** ${safe(f.cvss ?? f.cvss_score)}`);
+    lines.push(`**CVSS:** ${safe(f.cvss ?? f.cvss_score ?? 'N/A')}`);
     lines.push(`**CSI Score:** ${safe(f.csi_score)} (${csiLevel(f)})`);
     lines.push(`**Confidence:** ${confidencePercent(f.confidence)}%`);
     lines.push(`**Status:** ${safe(f.status)}`);

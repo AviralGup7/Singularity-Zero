@@ -158,26 +158,12 @@ def get_safe_target_path(output_root: Path, target_name: str) -> Path:
 
 async def get_enriched_job(job_id: str, services: Any) -> dict[str, Any]:
     """Retrieve and validate job presence in the job queue store."""
-    import logging as _logging
-
-    _logging.getLogger(__name__).info(
-        "GET_ENRICHED_JOB called job_id=%r services_instance_id=%d",
-        job_id,
-        id(services),
-    )
+    logger.debug("get_enriched_job job_id=%s", job_id)
     job = services.get_job(job_id)
     if not job:
-        _logging.getLogger(__name__).warning(
-            "[404] source=get_enriched_job job_id=%r services_instance_id=%d",
-            job_id,
-            id(services),
-        )
+        logger.debug("get_enriched_job miss job_id=%s", job_id)
         raise HTTPException(status_code=404, detail="Job not found")
-    _logging.getLogger(__name__).info(
-        "GET_ENRICHED_JOB found job_id=%r target=%r",
-        job_id,
-        job_target_name(job),
-    )
+    logger.debug("get_enriched_job hit job_id=%s", job_id)
     return cast(dict[str, Any], job)
 
 

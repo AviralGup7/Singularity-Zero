@@ -32,6 +32,7 @@ export interface ProcessRequest<F = unknown> {
     key: FindingSortKey;
     direction: SortDirection;
   };
+  requestId?: number;
 }
 
 export interface FindingLike {
@@ -105,15 +106,16 @@ function compareFindings(a: FindingLike, b: FindingLike, key: string, dir: SortD
 let storedFindings: FindingLike[] = [];
 
 self.onmessage = (event: MessageEvent<ProcessRequest<FindingLike> & { findings?: FindingLike[] }>) => {
+  const requestId = event.data?.requestId;
   try {
     const { type, findings, filters, sort } = event.data;
 
     if (type === 'PROCESS_FINDINGS') {
-      if (findings && findings.length > 0) {
+      if (Array.isArray(findings)) {
         storedFindings = findings;
       }
       if (!storedFindings || storedFindings.length === 0) {
-        (self as unknown as Worker).postMessage({ type: 'PROCESS_COMPLETE', result: [] });
+        (self as unknown as Worker).postMessage({ type: 'PROCESS_COMPLETE', result: [], requestId });
         return;
       }
       let result = [...storedFindings];
@@ -151,12 +153,13 @@ self.onmessage = (event: MessageEvent<ProcessRequest<FindingLike> & { findings?:
       const sortDir = sort.direction;
       result.sort((a, b) => compareFindings(a, b, sortKey, sortDir));
 
-      (self as unknown as Worker).postMessage({ type: 'PROCESS_COMPLETE', result });
+      (self as unknown as Worker).postMessage({ type: 'PROCESS_COMPLETE', result, requestId });
     }
   } catch (error) {
     (self as unknown as Worker).postMessage({
       type: 'PROCESS_ERROR',
       error: error instanceof Error ? error.message : String(error),
+      requestId: event.data?.requestId,
     });
   }
 };

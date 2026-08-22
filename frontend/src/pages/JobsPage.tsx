@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Briefcase, Search } from 'lucide-react';
@@ -30,7 +30,13 @@ export function JobsPage() {
    
   const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', searchParams.get('q') || '');
   const safeSearchQuery = pickPreferredFilter(searchParams.get('q'), searchQuery);
+  const [debouncedSearch, setDebouncedSearch] = useState(safeSearchQuery);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(safeSearchQuery), 300);
+    return () => window.clearTimeout(timer);
+  }, [safeSearchQuery]);
 
   const updateUrlParams = useCallback((status: string, q: string) => {
     setSearchParams(prev => {
@@ -58,11 +64,18 @@ export function JobsPage() {
   const handleSearchChange = useCallback((q: string) => {
     setSearchQuery(q);
     setCurrentPage(1);
-    updateUrlParams(safeStatusFilter, q);
-  }, [setSearchQuery, safeStatusFilter, updateUrlParams]);
+  }, [setSearchQuery]);
+
+  const urlSyncRef = useRef({ status: safeStatusFilter, q: safeSearchQuery });
+  useEffect(() => {
+    const next = { status: safeStatusFilter, q: debouncedSearch };
+    if (urlSyncRef.current.status === next.status && urlSyncRef.current.q === next.q) return;
+    urlSyncRef.current = next;
+    updateUrlParams(next.status, next.q);
+  }, [safeStatusFilter, debouncedSearch, updateUrlParams]);
 
   const filtered = useMemo(() => {
-    const query = safeSearchQuery.trim().toLowerCase();
+    const query = debouncedSearch.trim().toLowerCase();
     return (jobs ?? [])
       .filter(j => safeStatusFilter === 'all' || j?.status === safeStatusFilter)
       .filter(j => !query || [
@@ -72,7 +85,7 @@ export function JobsPage() {
         j?.failed_stage,
         j?.failure_reason_code,
       ].some(value => value?.toLowerCase().includes(query)));
-  }, [jobs, safeSearchQuery, safeStatusFilter]);
+  }, [jobs, debouncedSearch, safeStatusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = clampFindingsPage(currentPage, filtered.length === 0 ? 1 : totalPages);
@@ -81,8 +94,15 @@ export function JobsPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, safePage]);
 
-  const runningCount = filtered.filter(j => j?.status === 'running').length;
-  const failedCount = filtered.filter(j => j?.status === 'failed').length;
+  const { runningCount, failedCount } = useMemo(() => {
+    let running = 0;
+    let failed = 0;
+    for (const job of filtered) {
+      if (job?.status === 'running') running += 1;
+      else if (job?.status === 'failed') failed += 1;
+    }
+    return { runningCount: running, failedCount: failed };
+  }, [filtered]);
 
   return (
     <div className="jobs-page space-y-6">

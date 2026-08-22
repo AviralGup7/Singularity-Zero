@@ -1,5 +1,6 @@
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { parseFindingTimestamp } from '@/utils/findingTime';
 import { Virtuoso } from 'react-virtuoso';
 import { Shield, ExternalLink, Clock, CheckSquare, Square } from 'lucide-react';
 import type { Finding } from '@/types/api';
@@ -19,33 +20,21 @@ const FindingRow = memo(function FindingRow({
   onToggleSelect?: (id: string) => void;
   selectionMode?: boolean;
 }) {
-  const severityClass = useMemo(() => {
-    switch (finding.severity) {
-      case 'critical': return 'border-l-critical bg-critical/5';
-      case 'high':     return 'border-l-high bg-high/5';
-      case 'medium':   return 'border-l-medium bg-medium/5';
-      case 'low':      return 'border-l-low bg-low/5';
-      default:         return 'border-l-info bg-info/5';
-    }
-   
-  }, [finding.severity]);
+  let severityClass = 'border-l-info bg-info/5';
+  switch (finding.severity) {
+    case 'critical': severityClass = 'border-l-critical bg-critical/5'; break;
+    case 'high':     severityClass = 'border-l-high bg-high/5'; break;
+    case 'medium':   severityClass = 'border-l-medium bg-medium/5'; break;
+    case 'low':      severityClass = 'border-l-low bg-low/5'; break;
+    default: break;
+  }
 
   const initials = finding.target?.substring(0, 2).toUpperCase() || '??';
-
-  const timestamp = (() => {
-    if (typeof finding.timestamp === 'number' && Number.isFinite(finding.timestamp)) {
-      return finding.timestamp * 1000;
-    }
-    if (typeof finding.timestamp === 'string') {
-      const parsed = Date.parse(finding.timestamp);
-      return Number.isNaN(parsed) ? null : parsed;
-    }
-    return null;
-  })();
+  const timestamp = parseFindingTimestamp(finding.timestamp) || null;
 
   return (
     <div className="px-4 py-2">
-      <div className={`flex items-center gap-4 p-4 rounded-xl border border-line border-l-4 ${severityClass} hover:border-line transition-all group cursor-pointer glass-panel`}>
+      <div className={`flex items-center gap-4 p-4 rounded-xl border border-line border-l-4 ${severityClass} hover:border-accent/40 transition-all group cursor-pointer glass-panel`}>
         {selectionMode && (
           <button
             type="button"
@@ -138,7 +127,13 @@ export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
   selectionMode = false,
 }: VirtualizedFindingsListProps) {
    
-  const Header = useCallback(() => <FindingHeader count={findings.length} />, [findings.length]);
+  const headerCount = findings.length;
+  const Header = useMemo(() => {
+    function ListHeader() {
+      return <FindingHeader count={headerCount} />;
+    }
+    return ListHeader;
+  }, [headerCount]);
 
   if (findings.length === 0) {
     return (
@@ -157,11 +152,13 @@ export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
         className="scrollbar-cyber"
         itemContent={(_index: number, finding: Finding) => (
           <Link
-            to={`/findings?finding=${finding.id}`}
+            to={`/findings?finding=${encodeURIComponent(finding.id)}`}
             className="w-full text-left block focus:outline-none"
+            aria-label={`Open finding ${finding.title || finding.id}`}
             onClick={(e) => {
+              if (!onSelect) return;
               e.preventDefault();
-              onSelect?.(finding);
+              onSelect(finding);
             }}
             key={finding.id}
           >

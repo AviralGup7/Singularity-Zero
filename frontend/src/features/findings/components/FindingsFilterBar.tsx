@@ -22,21 +22,26 @@ export function FindingsFilterBar({
   const hasActiveFilters = searchQuery !== '' || severityFilter.length > 0;
 
   return (
-    <div className="findings-filter-compact bg-card border border-border rounded-xl p-4 mb-6 shadow-sm space-y-4">
+    <div className="findings-filter-compact bg-card border border-border rounded-xl p-4 mb-6 shadow-sm space-y-4" role="search">
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
         {/* Search Bar */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <label htmlFor="findings-filter-search" className="sr-only">Search findings</label>
           <input
-            type="text"
+            id="findings-filter-search"
+            type="search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search findings by title, CVE, host, or tool..."
+            aria-label="Search findings by title, CVE, host, or tool"
             className="w-full pl-9 pr-4 py-2 bg-background border border-input rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => onSearchChange('')}
+              aria-label="Clear search"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="w-4 h-4" />
@@ -73,7 +78,9 @@ export function FindingsFilterBar({
           return (
             <button
               key={level}
+              type="button"
               onClick={() => onSeverityToggle(level)}
+              aria-pressed={isSelected}
               className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider transition-all ${
                 isSelected
                   ? 'bg-primary text-primary-foreground shadow-sm'

@@ -197,7 +197,7 @@ async def start_job(
         if request.project_id:
             project_config, project_scope = _load_project_config(request.project_id)
             # Use project scope as fallback if no scope provided
-            if not request.scope_text.strip():
+            if not (request.scope_text or "").strip():
                 request.scope_text = project_scope
 
         # Bug #38: Compute config fingerprint for resume drift detection

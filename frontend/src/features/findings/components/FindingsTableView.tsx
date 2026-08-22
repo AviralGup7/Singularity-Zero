@@ -7,6 +7,35 @@ import { FindingsBulkActionBar } from './FindingsBulkActionBar';
 type SortKey = 'severity' | 'type' | 'target' | 'status' | 'date' | 'bounty_value';
 type SortDir = 'asc' | 'desc';
 
+const USD_FORMAT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+function SortHeader({
+  label,
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sortKey === column;
+  return (
+    <th
+      scope="col"
+      className="sortable"
+      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button type="button" onClick={() => onSort(column)}>
+        {label} {active && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+      </button>
+    </th>
+  );
+}
+
 function signalQualityFor(finding: Finding) {
   const quality =
     finding.signal_quality?.quality_score ??
@@ -118,9 +147,10 @@ export function FindingsTableView({
       />
       <div className="findings-table-wrapper">
         <table className="findings-table">
+          <caption className="sr-only">Findings list</caption>
           <thead>
             <tr>
-              <th className="col-checkbox">
+              <th scope="col" className="col-checkbox">
                 <input
                   type="checkbox"
                   checked={allOnPageSelected}
@@ -128,53 +158,17 @@ export function FindingsTableView({
                   aria-label="Select all on page"
                 />
               </th>
-              <th
-                className="sortable"
-                onClick={() => handleSort('severity')}
-                aria-sort={sortKey === 'severity' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Severity {sortKey === 'severity' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-              </th>
-              <th
-                className="sortable"
-                onClick={() => handleSort('bounty_value')}
-                aria-sort={sortKey === 'bounty_value' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Bounty {sortKey === 'bounty_value' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-              </th>
-              <th
-                className="sortable"
-                onClick={() => handleSort('type')}
-                aria-sort={sortKey === 'type' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Type {sortKey === 'type' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-              </th>
-              <th
-                className="sortable"
-                onClick={() => handleSort('target')}
-                aria-sort={sortKey === 'target' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Target {sortKey === 'target' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-              </th>
-              <th
-                className="sortable"
-                onClick={() => handleSort('status')}
-                aria-sort={sortKey === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Status {sortKey === 'status' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-              </th>
-              <th>Lifecycle</th>
-              <th>Signal</th>
-              <th
-                className="sortable"
-                onClick={() => handleSort('date')}
-                aria-sort={sortKey === 'date' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Date {sortKey === 'date' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-              </th>
-              <th>Assignee</th>
-              <th>FP</th>
-              <th>Actions</th>
+              <SortHeader label="Severity" column="severity" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Bounty" column="bounty_value" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Type" column="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Target" column="target" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <th scope="col">Lifecycle</th>
+              <th scope="col">Signal</th>
+              <SortHeader label="Date" column="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <th scope="col">Assignee</th>
+              <th scope="col">FP</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -211,7 +205,7 @@ export function FindingsTableView({
                   <td className="finding-bounty">
                     {typeof finding.bounty_value === 'number' && finding.bounty_value > 0 ? (
                       <span className="bounty-value">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finding.bounty_value)}
+                        {USD_FORMAT.format(finding.bounty_value)}
                         {finding.bounty_currency && finding.bounty_currency !== 'USD' && (
                           <span className="bounty-currency"> {finding.bounty_currency}</span>
                         )}

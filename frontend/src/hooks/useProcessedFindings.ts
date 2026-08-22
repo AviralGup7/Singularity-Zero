@@ -12,13 +12,27 @@ interface SortOptions {
   direction: 'asc' | 'desc';
 }
 
+type WorkerListener = (event: MessageEvent) => void;
+
 /**
  * Shared Web Worker instance — created once at module level and reused
- * across all mounts of useProcessedFindings. This prevents the
- * memory/CPU churn of creating and terminating a worker on every mount.
+ * across all mounts of useProcessedFindings. Messages fan out to every
+ * subscriber so the last mount cannot steal PROCESS_COMPLETE events.
  */
 let sharedWorker: Worker | null = null;
 let sharedWorkerRefCount = 0;
+const workerListeners = new Set<WorkerListener>();
+let nextRequestId = 1;
+
+function dispatchWorkerMessage(event: MessageEvent): void {
+  workerListeners.forEach((fn) => fn(event));
+}
+
+function dispatchWorkerError(): void {
+  workerListeners.forEach((fn) => {
+    fn({ data: { type: 'PROCESS_ERROR', error: 'Findings worker failed' } } as MessageEvent);
+  });
+}
 
 function getSharedWorker(): Worker {
   if (!sharedWorker) {
@@ -26,6 +40,8 @@ function getSharedWorker(): Worker {
       new URL('../workers/findingsProcessor.ts', import.meta.url),
       { type: 'module' }
     );
+    sharedWorker.onmessage = dispatchWorkerMessage;
+    sharedWorker.onerror = dispatchWorkerError;
   }
   sharedWorkerRefCount++;
   return sharedWorker;
@@ -37,6 +53,7 @@ function releaseSharedWorker(): void {
     sharedWorker.terminate();
     sharedWorker = null;
     sharedWorkerRefCount = 0;
+    workerListeners.clear();
   }
 }
 
@@ -63,15 +80,23 @@ export function useProcessedFindings(
     if (!workerRef.current) return;
 
     let isCurrent = true;
+    const requestId = nextRequestId++;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsProcessing(true);
 
-    workerRef.current.onmessage = (event) => {
-      if (isCurrent && event.data.type === 'PROCESS_COMPLETE') {
+    const onMessage = (event: MessageEvent) => {
+      if (!isCurrent) return;
+      if (event.data?.requestId != null && event.data.requestId !== requestId) return;
+      if (event.data?.type === 'PROCESS_COMPLETE') {
         setProcessed(event.data.result);
+        setIsProcessing(false);
+        return;
+      }
+      if (event.data?.type === 'PROCESS_ERROR') {
         setIsProcessing(false);
       }
     };
+    workerListeners.add(onMessage);
 
     const lastRaw = lastRawFindingsRef.current;
     let rawChanged = lastRaw.length !== rawFindings.length;
@@ -92,7 +117,8 @@ export function useProcessedFindings(
       type: 'PROCESS_FINDINGS',
       findings: rawChanged ? rawFindings : undefined,
       filters,
-      sort
+      sort,
+      requestId,
     });
 
     if (rawChanged) {
@@ -101,6 +127,7 @@ export function useProcessedFindings(
 
     return () => {
       isCurrent = false;
+      workerListeners.delete(onMessage);
     };
   }, [rawFindings, filters, sort]);
 

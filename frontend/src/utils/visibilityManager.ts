@@ -115,6 +115,9 @@ class VisibilityManager {
 
   destroy(): void {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    this.pollIntervals.forEach((_meta, interval) => {
+      clearInterval(interval);
+    });
     this.pollIntervals.clear();
   }
 }

@@ -98,12 +98,14 @@ export function TargetsPage() {
           const validation = validateUrl(name);
           if (!validation.valid) {
             updateProgress(name, { status: 'failed', progress: 0 });
+            showErrorToast(validation.error || 'Invalid target URL', `Cannot rescan ${name}`);
             continue;
           }
           const job = await startJob({ base_url: name, mode: 'safe', modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx'] });
           updateProgress(name, { jobId: job.id, status: 'running', progress: 10 });
-        } catch {
+        } catch (err) {
           updateProgress(name, { status: 'failed', progress: 0 });
+          showErrorToast(err, `Failed to rescan ${name}`);
         }
       }
       clearSelection();
@@ -290,7 +292,7 @@ export function TargetsPage() {
             <table className="targets-table min-w-[800px]">
               <thead>
                 <tr>
-                  <th className="bulk-select-col">
+                  <th scope="col" className="bulk-select-col">
                     <input
                       type="checkbox"
                       checked={allOnPageSelected}
@@ -298,14 +300,14 @@ export function TargetsPage() {
                       aria-label="Select all on page"
                     />
                   </th>
-                  <th>Target</th>
-                  <th>Latest Run</th>
-                  <th>Findings</th>
-                  <th>URLs</th>
-                  <th>Severity</th>
-                  <th>Attack Chains</th>
-                  <th>Validated</th>
-                  <th>Actions</th>
+                  <th scope="col">Target</th>
+                  <th scope="col">Latest Run</th>
+                  <th scope="col">Findings</th>
+                  <th scope="col">URLs</th>
+                  <th scope="col">Severity</th>
+                  <th scope="col">Attack Chains</th>
+                  <th scope="col">Validated</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>

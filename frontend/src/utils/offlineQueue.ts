@@ -17,6 +17,7 @@ class OfflineMutationQueue {
   private listeners = new Set<QueueListener>();
   private onlineHandler: (() => void) | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private epoch = 0;
 
   private notify() {
     this.listeners.forEach((fn) => fn([...this.queue]));
@@ -42,7 +43,7 @@ class OfflineMutationQueue {
     this.notify();
     // Execute immediately if online; otherwise queue for replay
     if (navigator.onLine) {
-      this.process();
+      void this.process();
     } else {
       this.ensureOnlineHandler();
     }
@@ -51,7 +52,7 @@ class OfflineMutationQueue {
   private ensureOnlineHandler() {
     if (this.onlineHandler) return;
     this.onlineHandler = () => {
-      this.process();
+      void this.process();
     };
     window.addEventListener('online', this.onlineHandler);
   }
@@ -63,11 +64,21 @@ class OfflineMutationQueue {
     }
   }
 
+  private stillCurrent(epoch: number, mutationId?: string): boolean {
+    if (epoch !== this.epoch) return false;
+    if (mutationId && this.queue[0]?.id !== mutationId) return false;
+    return true;
+  }
+
   async process(): Promise<void> {
     if (this.processing || this.queue.length === 0) return;
     this.processing = true;
+    const epoch = this.epoch;
 
     while (this.queue.length > 0) {
+      if (epoch !== this.epoch) {
+        return;
+      }
       if (!navigator.onLine) {
         this.processing = false;
         return;
@@ -76,9 +87,12 @@ class OfflineMutationQueue {
       const mutation = this.queue[0];
       try {
         await mutation.execute();
+        if (!this.stillCurrent(epoch, mutation.id)) return;
         this.queue.shift();
         this.notify();
-      } catch {
+      } catch (error) {
+        if (!this.stillCurrent(epoch, mutation.id)) return;
+        console.warn('offline mutation failed', mutation.description, error);
         const retries = nextOfflineRetryCount(mutation.retries);
         if (retries === null) {
           this.queue.shift();
@@ -97,12 +111,14 @@ class OfflineMutationQueue {
       }
     }
 
+    if (epoch !== this.epoch) return;
     this.processing = false;
     this.cleanupOnlineHandler();
     this.notify();
   }
 
   clear(): void {
+    this.epoch += 1;
     if (this.retryTimer) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
@@ -113,9 +129,21 @@ class OfflineMutationQueue {
   }
 
   rollbackAll(): void {
-    [...this.queue].reverse().forEach((m) => m.rollback());
+    this.epoch += 1;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    const pending = [...this.queue];
     this.queue = [];
     this.processing = false;
+    pending.reverse().forEach((m) => {
+      try {
+        m.rollback();
+      } catch (error) {
+        console.warn('offline mutation rollback failed', m.description, error);
+      }
+    });
     this.notify();
   }
 
@@ -125,4 +153,5 @@ class OfflineMutationQueue {
 }
 
 export const offlineQueue = new OfflineMutationQueue();
+export { OfflineMutationQueue };
 export type { QueuedMutation };

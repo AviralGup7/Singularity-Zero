@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '@/types/api';
 import { getFindingRemediation, getFindingById } from '@/api/client';
+import { updateFinding } from '@/api/findings';
 import { useToast } from '@/hooks/useToast';
 import { EvidenceDisplay } from './EvidenceDisplay';
 import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
@@ -42,6 +44,7 @@ export function FindingDetailPanel({
   finding: initialFinding,
   onClose,
 }: FindingDetailPanelProps) {
+  const navigate = useNavigate();
   const [finding, setFinding] = useState<Finding>(initialFinding);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -73,10 +76,7 @@ export function FindingDetailPanel({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (shouldCloseFindingDetail(e.key, submitDialogOpen)) onClose();
-        return;
-      }
+      if (e.key === 'Escape') return;
       if (e.key !== 'Tab') return;
       const dialog = dialogRef.current;
       if (!dialog) return;
@@ -98,7 +98,7 @@ export function FindingDetailPanel({
         }
       }
     },
-    [onClose, submitDialogOpen],
+    [],
   );
 
   const [detailTab, setDetailTab] = useState<DetailTab>('csi');
@@ -118,12 +118,11 @@ export function FindingDetailPanel({
     setBountySource(finding.bounty_source || 'estimate');
     setBountyCurrency(finding.bounty_currency || 'USD');
     setAlreadyReported(finding.already_reported || false);
-  }, [finding]);
+  }, [finding.id, finding.bounty_value, finding.bounty_source, finding.bounty_currency, finding.already_reported]);
 
   const handleSaveBounty = async () => {
     setSavingBounty(true);
     try {
-      const { updateFinding } = await import('../../../api/findings');
       await updateFinding(finding.id, {
         bounty_value: bountyValue,
         bounty_source: bountySource as 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'estimate' | 'manual',
@@ -140,7 +139,10 @@ export function FindingDetailPanel({
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (shouldCloseFindingDetail(e.key, submitDialogOpen)) onClose();
+      if (!shouldCloseFindingDetail(e.key, submitDialogOpen)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onClose();
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
@@ -210,7 +212,6 @@ export function FindingDetailPanel({
           )
         : true;
     if (!ok) return;
-      const { updateFinding } = await import('../../../api/findings');
     let failed = 0;
     for (const dupId of dupIds) {
       try {
@@ -239,7 +240,6 @@ export function FindingDetailPanel({
           )
         : true;
     if (!ok) return;
-      const { updateFinding } = await import('../../../api/findings');
     try {
       await updateFinding(finding.id, {
         falsePositive: true,
@@ -261,7 +261,6 @@ export function FindingDetailPanel({
           )
         : true;
     if (!ok) return;
-      const { updateFinding } = await import('../../../api/findings');
     try {
       await updateFinding(finding.id, { duplicates: [], kanbanStatus: 'new' });
       toast.success('Finding promoted to independent');
@@ -447,8 +446,10 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                 onSanitizePIIChange={setSanitizePII}
                 onSaveBounty={handleSaveBounty}
                 onCopyReport={() => {
-                  navigator.clipboard.writeText(rawPocText);
-                  toast.success('Sanitized markdown report copied to clipboard!');
+                  void navigator.clipboard.writeText(rawPocText).then(
+                    () => toast.success('Sanitized markdown report copied to clipboard!'),
+                    () => toast.error('Unable to copy report — clipboard access was denied'),
+                  );
                 }}
               />
             )}
@@ -597,10 +598,20 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
           onReplay={() => {
             const runName = finding.metadata?.run_name || finding.metadata?.job_id || '';
             const replayId = finding.metadata?.replay_id || evidence?.replay?.id || '';
-            window.location.href = `/replay?target=${finding.target}&run=${runName}&replay_id=${replayId}&finding=${finding.id}`;
+            const params = new URLSearchParams({
+              target: String(finding.target ?? ''),
+              run: String(runName ?? ''),
+              replay_id: String(replayId ?? ''),
+              finding: String(finding.id ?? ''),
+            });
+            navigate(`/replay?${params.toString()}`);
           }}
           onCockpitView={() => {
-            window.location.href = `/cockpit?target=${finding.target}&focus=${finding.id}`;
+            const params = new URLSearchParams({
+              target: String(finding.target ?? ''),
+              focus: String(finding.id ?? ''),
+            });
+            navigate(`/cockpit?${params.toString()}`);
           }}
           onForensicProbe={async () => {
             if (!finding.target || !finding.url) {
