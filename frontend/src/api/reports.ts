@@ -54,12 +54,20 @@ export async function refreshGapAnalysis(signal?: AbortSignal): Promise<{ status
   return data;
 }
 
+export function asReportList(value: unknown): ReportLibraryItem[] {
+  return Array.isArray(value) ? value as ReportLibraryItem[] : [];
+}
+
 export async function getReportLibrary(signal?: AbortSignal): Promise<ReportLibraryResponse> {
-  return cachedGet<ReportLibraryResponse>('/api/reports/library', { signal, bypassCache: true });
+  const res = await cachedGet<ReportLibraryResponse>('/api/reports/library', { signal, bypassCache: true });
+  const reports = asReportList(res.reports);
+  return { ...res, reports, total: Number.isFinite(res.total) ? res.total : reports.length };
 }
 
 export function getCompliancePdfUrl(target: string): string {
-  const params = new URLSearchParams({ target });
+  const name = String(target ?? '').trim();
+  if (!name) return '';
+  const params = new URLSearchParams({ target: name });
   return `/api/reports/compliance/pdf?${params.toString()}`;
 }
 

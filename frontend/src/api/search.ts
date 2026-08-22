@@ -19,18 +19,28 @@ export interface GlobalSearchResponse {
   total: number;
 }
 
+export function asSearchResults(value: unknown): GlobalSearchResult[] {
+  return Array.isArray(value) ? value as GlobalSearchResult[] : [];
+}
+
+export function sanitizeSearchQuery(q: string): string {
+  return String(q ?? '').trim();
+}
+
 export async function globalSearch(
   params: GlobalSearchParams,
   signal?: AbortSignal
 ): Promise<GlobalSearchResponse> {
+  const q = sanitizeSearchQuery(params.q);
+  if (!q) return { results: [], total: 0 };
   try {
     const { data } = await apiClient.get<GlobalSearchResponse>('/api/search', {
-      params: { q: params.q, limit: params.limit ?? 20 },
+      params: { q, limit: params.limit ?? 20 },
       signal,
     });
-    return data;
+    const results = asSearchResults(data.results);
+    return { ...data, results, total: Number.isFinite(data.total) ? data.total : results.length };
   } catch {
-    // Fallback to empty results if backend search is not available
     return { results: [], total: 0 };
   }
 }
