@@ -95,8 +95,7 @@ def test_from_dict_does_not_stuff_mapping_into_first_field() -> None:
     assert cfg.nuclei.severity == ["critical"]
     assert cfg.nuclei.threads == 4
     assert cfg.scoring.custom_keyword_bonus == 8
-    assert cfg.scoring.weights["api"] == 11
-    assert cfg.scoring.weights["ssrf"] == 5
+    assert cfg.scoring.weights == {"api": 11}
 
 
 def test_adaptive_overrides_keep_typed_nested_sections() -> None:

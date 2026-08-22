@@ -368,7 +368,7 @@ class FilterConfig(TypedConfig):
             "register",
         ]
     )
-    priority_limit: int = 100
+    priority_limit: int | dict[str, Any] = 100
     adaptive_url_cap: bool = True
     archive_host_threshold: int = 250
     archive_batch_size: int = 20
