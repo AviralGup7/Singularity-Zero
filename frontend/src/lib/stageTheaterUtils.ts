@@ -1,6 +1,50 @@
 import type { Job, StageProgressEntry } from '@/types/api';
 
-export type StageTheaterStatus = 'pending' | 'running' | 'completed' | 'error' | 'skipped';
+export type StageTheaterStatus = 'pending' | 'ready' | 'running' | 'completed' | 'error' | 'skipped';
+
+export interface StageGraph {
+  nodes: string[];
+  edges: Array<[string, string] | string[]>;
+  levels?: string[][];
+  labels?: Record<string, string>;
+}
+
+/** Fallback DAG matching the orchestrator _BASE_NODES edges. */
+export const DEFAULT_STAGE_EDGES: Array<[string, string]> = [
+  ['startup', 'subdomains'],
+  ['subdomains', 'live_hosts'],
+  ['subdomains', 'subdomain_takeover'],
+  ['live_hosts', 'waf'],
+  ['live_hosts', 'urls'],
+  ['urls', 'git_diff_crawl'],
+  ['urls', 'parameters'],
+  ['urls', 'ranking'],
+  ['parameters', 'ranking'],
+  ['waf', 'ranking'],
+  ['urls', 'recon_validation'],
+  ['ranking', 'passive_scan'],
+  ['live_hosts', 'passive_scan'],
+  ['urls', 'passive_scan'],
+  ['passive_scan', 'active_scan'],
+  ['passive_scan', 'semgrep'],
+  ['passive_scan', 'nuclei'],
+  ['passive_scan', 'access_control'],
+  ['ranking', 'access_control'],
+  ['passive_scan', 'validation'],
+  ['active_scan', 'validation'],
+  ['passive_scan', 'intelligence'],
+  ['active_scan', 'intelligence'],
+  ['nuclei', 'intelligence'],
+  ['validation', 'intelligence'],
+  ['intelligence', 'threat_modeling'],
+  ['intelligence', 'reporting'],
+  ['nuclei', 'reporting'],
+  ['access_control', 'reporting'],
+  ['validation', 'reporting'],
+  ['passive_scan', 'reporting'],
+  ['threat_modeling', 'reporting'],
+  ['reporting', 'sarif_export'],
+];
 
 export interface StageTheaterNode {
   id: string;
@@ -142,6 +186,7 @@ function resolveSingleStageStatus(
   if (existing?.status === 'completed') return 'completed';
   if (existing?.status === 'running') return 'running';
   if (existing?.status === 'pending') return 'pending';
+  if (existing?.status === 'ready') return 'ready';
 
   if (job.status === 'failed' && normalizeStageName(job.failed_stage) === stageName) return 'error';
   if (index === currentIndex && job.status === 'running') return 'running';
@@ -196,7 +241,9 @@ export function buildStageTheaterNodesFromJob(job: Job): StageTheaterNode[] {
     const estimated = estimateStagePercent(job, stageName, index, currentIndex, stageOrder);
     const baseStatus = resolveSingleStageStatus(job, stageName, index, currentIndex, existing);
     const status: StageTheaterStatus = failedStage === stageName ? 'error' : baseStatus;
-    const percent = clampPercent(existing?.percent ?? estimated);
+    const percent = status === 'completed'
+      ? 100
+      : clampPercent(existing?.percent ?? (status === 'pending' || status === 'ready' ? 0 : estimated));
     const label =
       (existing?.stage_label || '').trim() ||
       (currentStage === stageName ? (job.stage_label || '').trim() : '') ||
@@ -207,7 +254,7 @@ export function buildStageTheaterNodesFromJob(job: Job): StageTheaterNode[] {
       id: stageName,
       label,
       status,
-      percent: status === 'completed' ? 100 : percent,
+      percent,
       activeCount: status === 'running' ? 1 : 0,
       completedCount: status === 'completed' ? 1 : 0,
       errorCount: status === 'error' ? 1 : 0,
@@ -250,4 +297,70 @@ export function buildStageTheaterNodesFromJobs(jobs: Job[]): StageTheaterNode[] 
       errorCount,
     };
   });
+}
+
+export function normalizeStageEdges(edges: Array<[string, string] | string[]> | undefined): Array<[string, string]> {
+  const source = edges && edges.length > 0 ? edges : DEFAULT_STAGE_EDGES;
+  const seen = new Set<string>();
+  const out: Array<[string, string]> = [];
+  for (const edge of source) {
+    if (!edge || edge.length < 2) continue;
+    const from = normalizeStageName(edge[0]);
+    const to = normalizeStageName(edge[1]);
+    if (!from || !to || from === to) continue;
+    const key = `${from}->${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([from, to]);
+  }
+  return out;
+}
+
+export function layoutStageDag(
+  nodeIds: string[],
+  edges: Array<[string, string] | string[]> | undefined,
+): { levels: string[][]; edges: Array<[string, string]> } {
+  const ids = nodeIds.map((id) => normalizeStageName(id)).filter(Boolean);
+  const present = new Set(ids);
+  const filtered = normalizeStageEdges(edges).filter(([from, to]) => present.has(from) && present.has(to));
+  const preds = new Map<string, string[]>();
+  for (const id of ids) preds.set(id, []);
+  for (const [from, to] of filtered) {
+    preds.get(to)?.push(from);
+  }
+  const levelOf = new Map<string, number>();
+  const visit = (id: string, stack: Set<string>): number => {
+    const cached = levelOf.get(id);
+    if (cached != null) return cached;
+    if (stack.has(id)) return 0;
+    stack.add(id);
+    const parents = preds.get(id) ?? [];
+    const level = parents.length === 0 ? 0 : 1 + Math.max(...parents.map((parent) => visit(parent, stack)));
+    stack.delete(id);
+    levelOf.set(id, level);
+    return level;
+  };
+  for (const id of ids) visit(id, new Set());
+  const buckets = new Map<number, string[]>();
+  for (const id of ids) {
+    const level = levelOf.get(id) ?? 0;
+    const bucket = buckets.get(level) ?? [];
+    bucket.push(id);
+    buckets.set(level, bucket);
+  }
+  const levels = [...buckets.keys()].sort((a, b) => a - b).map((key) => buckets.get(key) ?? []);
+  return { levels, edges: filtered };
+}
+
+export function stageGraphForJob(job: Job | null | undefined): StageGraph {
+  const backend = job?.stage_graph;
+  const nodes = (backend?.nodes?.length ? backend.nodes : resolveStageOrder(job ? [job] : [])).map(normalizeStageName).filter(Boolean);
+  const edges = normalizeStageEdges(backend?.edges);
+  const layout = layoutStageDag(nodes, edges);
+  return {
+    nodes,
+    edges: layout.edges,
+    levels: backend?.levels?.length ? backend.levels : layout.levels,
+    labels: backend?.labels,
+  };
 }

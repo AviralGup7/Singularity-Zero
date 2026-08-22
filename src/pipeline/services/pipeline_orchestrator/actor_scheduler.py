@@ -490,6 +490,18 @@ class ActorScheduler:
         if node.name in self._completed:
             return
         self._launched.add(node.name)
+        try:
+            self._progress_emitter(
+                node.name,
+                f"Stage ready: {node.name}",
+                0,
+                status="ready",
+                stage_status="ready",
+                event_trigger="stage_ready",
+                injected=node.name in self._injected,
+            )
+        except Exception:
+            logger.debug("Failed to emit ready progress for %s", node.name, exc_info=True)
 
         method = self._stage_methods.get(node.name)
         if method is None:

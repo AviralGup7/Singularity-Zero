@@ -2,7 +2,7 @@ import unittest
 
 from src.core.logging.pipeline_logging import PROGRESS_PREFIX
 from src.pipeline.runner_support import emit_stage_skipped
-from src.pipeline.stage_plan import constrain_remaining_stages, merge_tool_status
+from src.pipeline.stage_plan import constrain_remaining_stages, export_stage_graph, merge_tool_status
 
 
 class StagePlanTests(unittest.TestCase):

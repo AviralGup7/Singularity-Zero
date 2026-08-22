@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Job } from '@/types/api';
-import { buildStageTheaterNodesFromJob } from '@/lib/stageTheaterUtils';
+import { buildStageTheaterNodesFromJob, stageGraphForJob } from '@/lib/stageTheaterUtils';
 
 export function finiteCount(value: unknown, fallback = 0): number {
   const n = typeof value === 'number' ? value : Number(value);
@@ -41,8 +41,9 @@ export function useJobStageTheater(job: Job | null) {
     if (!job) return [];
     return buildStageTheaterNodesFromJob(job);
   }, [job]);
+  const stageGraph = useMemo(() => stageGraphForJob(job), [job]);
 
-  return { stageTheaterNodes };
+  return { stageTheaterNodes, stageGraph };
 }
 
 export function useJobThroughput(job: Job | null) {

@@ -86,28 +86,16 @@ async def _shutdown(app: FastAPI, ws_services: Any) -> None:
         except asyncio.CancelledError as exc:
             logger.warning("Operation failed in lifespan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
-    # Terminate running job processes BEFORE shutting down websocket
-    if hasattr(app.state, "services") and hasattr(app.state.services, "jobs"):
-        for job_id, job in app.state.services.jobs.items():
-            if job.get("status") == "running":
-                process = job.get("process")
-                if process:
-                    logger.info("Terminating process for job %s", job_id)
-                    try:
-                        process.terminate()
-                        try:
-                            process.wait(timeout=5.0)
-                        except Exception:
-                            # process.wait() not available or timed out — force kill
-                            try:
-                                process.kill()
-                                process.wait(timeout=3.0)
-                            except Exception:
-                                logger.warning("Failed to kill process for job %s", job_id)
-                    except Exception as exc:
-                        logger.warning("Failed to terminate process for job %s: %s", job_id, exc)
+    # Terminate running jobs and persist a terminal state before tearing
+    # down persistence. Daemon workers cannot finish after process exit.
+    services = getattr(app.state, "services", None)
+    if services is not None and hasattr(services, "shutdown_jobs"):
+        try:
+            await asyncio.to_thread(services.shutdown_jobs, 2.0)
+        except Exception:
+            logger.exception("Failed to finalize running jobs during shutdown")
 
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.2)
 
     if ws_services:
         await ws_services.shutdown()

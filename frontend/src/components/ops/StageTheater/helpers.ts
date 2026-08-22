@@ -56,5 +56,6 @@ export function formatStageStatus(node: StageTheaterNode): string {
   if (node.status === 'completed') return '100% · COMPLETE';
   if (node.status === 'error') return 'FAULT DETECTED';
   if (node.status === 'skipped') return 'SKIPPED';
+  if (node.status === 'ready') return 'READY';
   return 'WAITING INPUT';
 }

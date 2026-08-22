@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,7 @@ class DashboardLaunchService:
         self.jobs = jobs
         self.query_service = query_service
         self.persist_callback = persist_callback
+        self._workers: list[threading.Thread] = []
 
     def start(
         self,
@@ -154,6 +156,10 @@ class DashboardLaunchService:
             job["config_fingerprint"] = config_fingerprint
         if runtime_overrides:
             job["runtime_overrides"] = dict(runtime_overrides)
+        # Dashboard launches always write a new config/scope pair. Resume from a
+        # previous checkpoint would mix those files with stale stage state.
+        job["force_fresh"] = True
+        job["resume_supported"] = False
         href_prefix = launcher_href_prefix(self.output_root, job_id)
         job["config_href"] = f"{href_prefix}/config.json"
         job["scope_href"] = f"{href_prefix}/scope.txt"

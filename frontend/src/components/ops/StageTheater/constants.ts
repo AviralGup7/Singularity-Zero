@@ -55,6 +55,11 @@ export const STAGE_ACTIVITY_LABELS: Record<string, string> = {
   validation: 'VALIDATING',
   intelligence: 'CORRELATING',
   reporting: 'COMPILING',
+  waf: 'FINGERPRINTING',
+  git_diff_crawl: 'DIFFING',
+  subdomain_takeover: 'TAKEOVER',
+  threat_modeling: 'MODELING',
+  sarif_export: 'EXPORTING',
 };
 
 export const AMBIENT_LOG_LINES = [
@@ -68,6 +73,7 @@ export const AMBIENT_LOG_LINES = [
 
 export const NODE_COLORS: Record<StageTheaterStatus, string> = {
   pending: 'var(--muted, #8ea4bf)',
+  ready: 'var(--accent, #7dd3fc)',
   running: 'var(--accent, #37f6ff)',
   completed: 'var(--ok, #1fe28a)',
   error: 'var(--bad, #ff5568)',

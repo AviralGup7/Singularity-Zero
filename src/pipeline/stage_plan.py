@@ -67,6 +67,41 @@ def constrain_remaining_stages(
     return planned
 
 
+def export_stage_graph() -> dict[str, Any]:
+    """Serialize the orchestrator DAG for the dashboard theater."""
+    from src.pipeline.services.pipeline_orchestrator._constants import (
+        PIPELINE_STAGES,
+        STAGE_DEPS,
+        STAGE_ORDER,
+    )
+
+    edges: list[list[str]] = []
+    for name, deps in STAGE_DEPS.items():
+        for dep in sorted(deps):
+            edges.append([str(dep), str(name)])
+    levels = _levels_from_deps({name: set(deps) for name, deps in STAGE_DEPS.items()}, list(STAGE_ORDER))
+    return {
+        "nodes": [str(name) for name in STAGE_ORDER],
+        "edges": edges,
+        "levels": levels,
+        "labels": {str(k): str(v) for k, v in PIPELINE_STAGES.items()},
+    }
+
+
+def _levels_from_deps(deps: dict[str, set[str]], order: list[str]) -> list[list[str]]:
+    level_of: dict[str, int] = {}
+    for name in order:
+        preds = [dep for dep in deps.get(name, set()) if dep in level_of or dep in deps]
+        if not preds:
+            level_of[name] = 0
+            continue
+        level_of[name] = 1 + max((level_of.get(dep, 0) for dep in preds), default=0)
+    buckets: dict[int, list[str]] = {}
+    for name in order:
+        buckets.setdefault(level_of.get(name, 0), []).append(name)
+    return [buckets[idx] for idx in sorted(buckets)]
+
+
 def merge_tool_status(
     tool_status: Mapping[str, Any] | None,
     config: Mapping[str, Any] | Any | None,

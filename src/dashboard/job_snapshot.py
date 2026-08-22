@@ -21,6 +21,20 @@ _MAX_TELEMETRY_EVENTS = 500
 # Simple TTL cache for snapshot results to avoid O(stages×requests) rebuilds
 _snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _SNAPSHOT_CACHE_TTL = 1.0  # seconds
+_STAGE_GRAPH_CACHE: dict[str, Any] | None = None
+
+
+def _stage_graph_payload() -> dict[str, Any]:
+    global _STAGE_GRAPH_CACHE
+    if _STAGE_GRAPH_CACHE is not None:
+        return _STAGE_GRAPH_CACHE
+    try:
+        from src.pipeline.stage_plan import export_stage_graph
+
+        _STAGE_GRAPH_CACHE = export_stage_graph()
+    except Exception:
+        _STAGE_GRAPH_CACHE = {"nodes": [], "edges": [], "levels": [], "labels": {}}
+    return _STAGE_GRAPH_CACHE
 
 
 def _snapshot_progress_telemetry(
@@ -268,6 +282,9 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
             for entry in stage_progress_list
             if _normalize_stage_status(entry.get("status")) == "running"
         ],
+        "stage_graph": _stage_graph_payload(),
+        "force_fresh": bool(job.get("force_fresh", True)),
+        "resume_supported": False,
         "state_version": int(job.get("state_version", 0) or 0),
         "_cache_key": cache_key,
     }

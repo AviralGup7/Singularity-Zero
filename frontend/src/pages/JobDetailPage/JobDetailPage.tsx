@@ -69,7 +69,7 @@ export function JobDetailPage() {
 
   const { displayLines, warningCount, fatalSignalCount, degradedProviders, timeoutEvents, hasRuntimeSignals } =
     useJobDetails(job ?? null);
-  const { stageTheaterNodes } = useJobStageTheater(job ?? null);
+  const { stageTheaterNodes, stageGraph } = useJobStageTheater(job ?? null);
   const throughput = useJobThroughput(job ?? null);
   const { remediation, remediationLoading } = useJobRemediation(jobId, job?.status === 'failed' || job?.status === 'stopped');
   const { tracePanel, traceLoading, openTracePanel, setTracePanel } = useJobTracePanel(jobId);

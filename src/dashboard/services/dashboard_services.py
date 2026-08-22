@@ -218,6 +218,58 @@ class DashboardServices:
     def detection_gap_summary(self, target_name: str | None = None) -> dict[str, object]:
         return self.query.detection_gap_summary(target_name)
 
+    def shutdown_jobs(self, timeout: float = 2.0) -> None:
+        """Terminate live pipeline processes and persist a terminal failure.
+
+        Dashboard workers are daemon threads so process exit would otherwise
+        drop finalize. Shutdown asks each subprocess to stop, waits briefly
+        for the worker, then records any still-running job as failed.
+        """
+        import time
+
+        from src.dashboard.job_status import JobStatus, _transition
+
+        now = time.time()
+        with self.lock:
+            running = [job for job in self.jobs.values() if job.get("status") == "running"]
+        for job in running:
+            process = job.get("process")
+            if not process:
+                continue
+            try:
+                process.terminate()
+                try:
+                    process.wait(timeout=min(3.0, timeout))
+                except Exception:
+                    try:
+                        process.kill()
+                    except Exception:
+                        logging.getLogger(__name__).warning(
+                            "Failed to kill pipeline process for job %s", job.get("id")
+                        )
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "Failed to terminate pipeline process for job %s: %s", job.get("id"), exc
+                )
+        if hasattr(self.launch, "join_workers"):
+            self.launch.join_workers(timeout=timeout)
+        with self.lock:
+            for job in list(self.jobs.values()):
+                if job.get("status") != "running":
+                    continue
+                _transition(job, JobStatus.FAILED)
+                job["process"] = None
+                job["finished_at"] = now
+                job["updated_at"] = now
+                job["failure_reason_code"] = str(job.get("failure_reason_code") or "dashboard_shutdown")
+                job["failure_reason"] = str(
+                    job.get("failure_reason")
+                    or "Dashboard stopped while the pipeline was still running."
+                )
+                job["error"] = job["failure_reason"]
+                job["status_message"] = "Run interrupted by dashboard shutdown"
+                self._persist_job(job)
+
     def start(
         self,
         base_url: str,

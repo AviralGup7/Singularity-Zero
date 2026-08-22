@@ -174,6 +174,14 @@ export interface Job {
   telemetry_events?: PipelineTelemetryEvent[];
   concurrent_stage_count?: number;
   running_stages?: string[];
+  stage_graph?: {
+    nodes?: string[];
+    edges?: Array<[string, string] | string[]>;
+    levels?: string[][];
+    labels?: Record<string, string>;
+  };
+  force_fresh?: boolean;
+  resume_supported?: boolean;
   can_stop?: boolean;
   returncode?: number | null;
   duration_forecast?: DurationForecast;
@@ -203,7 +211,7 @@ export interface PluginProgressEntry {
 export interface StageProgressEntry {
   stage: string;
   stage_label: string;
-  status: 'pending' | 'running' | 'completed' | 'error' | 'skipped';
+  status: 'pending' | 'ready' | 'running' | 'completed' | 'error' | 'skipped';
   processed: number;
   total: number | null;
   percent: number;

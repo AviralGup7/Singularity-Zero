@@ -3,6 +3,7 @@ import type { Job, StageProgressEntry } from '../../types/api';
 import {
   buildStageTheaterNodesFromJob,
   buildStageTheaterNodesFromJobs,
+  layoutStageDag,
 } from '../../lib/stageTheaterUtils';
 
 function makeStageEntry(
@@ -197,5 +198,21 @@ describe('StageTheater stage contract', () => {
     expect(getNode(nodes, 'active_scan')?.status).toBe('running');
     expect(getNode(nodes, 'semgrep')?.status).toBe('running');
     expect(getNode(nodes, 'nuclei')?.status).toBe('running');
+  });
+
+  it('lays out parallel scan stages on the same DAG level', () => {
+    const { levels, edges } = layoutStageDag(
+      ['passive_scan', 'active_scan', 'semgrep', 'nuclei', 'reporting'],
+      [
+        ['passive_scan', 'active_scan'],
+        ['passive_scan', 'semgrep'],
+        ['passive_scan', 'nuclei'],
+        ['active_scan', 'reporting'],
+        ['nuclei', 'reporting'],
+      ],
+    );
+    const scanLevel = levels.find((level) => level.includes('active_scan'));
+    expect(scanLevel).toEqual(expect.arrayContaining(['active_scan', 'semgrep', 'nuclei']));
+    expect(edges).toContainEqual(['passive_scan', 'semgrep']);
   });
 });
