@@ -883,11 +883,12 @@ def _run_candidate_checks(
         "checks": checks,
         "totals": totals,
     }
-    return _without_secret(
+    redacted = _without_secret(
         payload,
         candidate_copy.get("key_value", ""),
         candidate_copy.get("masked_key", "***"),
     )
+    return redacted if isinstance(redacted, dict) else payload
 
 
 def run_api_key_checklist(

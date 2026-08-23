@@ -52,19 +52,24 @@ class RequestEnvelope:
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> RequestEnvelope:
-        payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
-        query = data.get("query") if isinstance(data.get("query"), dict) else {}
-        path_params = data.get("path_params") if isinstance(data.get("path_params"), dict) else {}
+        raw_payload = data.get("payload")
+        payload: dict[str, Any] = dict(raw_payload) if isinstance(raw_payload, dict) else {}
+        raw_query = data.get("query")
+        query: dict[str, Any] = dict(raw_query) if isinstance(raw_query, dict) else {}
+        raw_path_params = data.get("path_params")
+        path_params: dict[str, Any] = (
+            dict(raw_path_params) if isinstance(raw_path_params, dict) else {}
+        )
         return cls(
             command=str(data.get("command") or ""),
-            payload=dict(payload),
+            payload=payload,
             request_id=str(data.get("request_id") or ""),
             idempotency_key=(str(data["idempotency_key"]) if data.get("idempotency_key") else None),
             subject=(str(data["subject"]) if data.get("subject") else None),
             bearer_token=(str(data["bearer_token"]) if data.get("bearer_token") else None),
             connection_id=(str(data["connection_id"]) if data.get("connection_id") else None),
             path_params={str(k): str(v) for k, v in path_params.items()},
-            query=dict(query),
+            query=query,
             issued_at=float(data.get("issued_at") or time.time()),
             protocol=str(data.get("protocol") or PROTOCOL_VERSION),
             session_kind=(str(data["session_kind"]) if data.get("session_kind") else None),

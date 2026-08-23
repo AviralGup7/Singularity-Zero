@@ -16,8 +16,8 @@ class Inbox:
     def __init__(self, *, limit: int = 500) -> None:
         self._limit = max(32, int(limit))
         self._lock = threading.RLock()
-        self._items: list[Notification] = []
-        self._listeners: list[Callable[[Notification], None]] = []
+        self._items: builtins.list[Notification] = []
+        self._listeners: builtins.list[Callable[[Notification], None]] = []
 
     def subscribe(self, listener: Callable[[Notification], None]) -> None:
         with self._lock:
@@ -54,7 +54,9 @@ class Inbox:
         start = max(0, offset)
         return items[start : start + max(1, limit)]
 
-    def overdue_critical_ids(self, *, older_than: float, now: float | None = None) -> list[str]:
+    def overdue_critical_ids(
+        self, *, older_than: float, now: float | None = None
+    ) -> builtins.list[str]:
         from src.notifications.escalation import overdue_critical
 
         return overdue_critical(self, older_than=older_than, now=now)
@@ -101,7 +103,7 @@ class Inbox:
     def visible_to(self, session: Session | None) -> bool:
         return should_fetch(session)
 
-    def high_priority(self) -> list[Notification]:
+    def high_priority(self) -> builtins.list[Notification]:
         with self._lock:
             return [
                 item

@@ -113,7 +113,12 @@ def api_security_assessor(
         return []
     findings: list[dict[str, Any]] = []
     for item in raw:
-        payload = item.__dict__.copy() if hasattr(item, "__dict__") else dict(item)  # type: ignore[arg-type]
+        if hasattr(item, "__dict__"):
+            payload = dict(item.__dict__)
+        elif isinstance(item, dict):
+            payload = dict(item)
+        else:
+            payload = {"value": item}
         payload.setdefault("url", payload.get("endpoint") or "")
         payload.setdefault("title", payload.get("message") or payload.get("check") or "API finding")
         findings.append(payload)
@@ -144,14 +149,13 @@ def graphql_batch_attack_probe(
     from src.analysis.active.graphql_batch import GraphQLBatchAttack
 
     findings: list[dict[str, Any]] = []
-    attacker = GraphQLBatchAttack()
     for item in list(priority_urls)[: max(1, limit)]:
         url = _as_url(item)
         if not url or "graphql" not in url.lower():
             continue
         try:
-            run = getattr(attacker, "run", None) or getattr(attacker, "attack", None)
-            result = run(url) if callable(run) else None
+            with GraphQLBatchAttack(endpoint=url) as attacker:
+                result = attacker.run_all()
         except Exception as exc:
             logger.debug("graphql_batch_attack_probe failed for %s: %s", url, exc)
             continue
@@ -160,6 +164,15 @@ def graphql_batch_attack_probe(
                 if isinstance(row, dict):
                     row.setdefault("url", url)
                     findings.append(row)
+                else:
+                    findings.append(
+                        {
+                            "url": url,
+                            "title": getattr(row, "attack", "GraphQL batch attack"),
+                            "severity": getattr(row, "severity", "info"),
+                            "evidence": getattr(row, "evidence", {}),
+                        }
+                    )
         elif result:
             findings.append({"url": url, "title": "GraphQL batch attack", "evidence": result})
     return findings

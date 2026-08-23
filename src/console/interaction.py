@@ -52,7 +52,8 @@ class ConsoleInteraction:
             command in {CommandName.HANDSHAKE_OPEN.value, CommandName.SESSION_DEMO.value}
             and self.last.ok
         ):
-            session = data.get("session") if isinstance(data.get("session"), dict) else {}
+            raw_session = data.get("session")
+            session: dict[str, Any] = raw_session if isinstance(raw_session, dict) else {}
             self.subject = str(session.get("subject") or self.subject or "")
             self.role = str(session.get("role") or self.role or "")
             caps = session.get("capabilities") or []

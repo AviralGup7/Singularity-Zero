@@ -113,7 +113,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     from src.dashboard.fastapi.http_metrics_policy import should_enable_http_metrics
 
     if should_enable_http_metrics(os.getenv("ENABLE_HTTP_METRICS")):
-        app.add_middleware(HTTPMetricsMiddleware)
+        app.add_middleware(HTTPMetricsMiddleware)  # type: ignore[arg-type]
         logger.info("HTTP metrics middleware enabled via ENABLE_HTTP_METRICS")
     setup_routers(app, config)
 

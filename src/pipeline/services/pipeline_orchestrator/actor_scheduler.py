@@ -308,7 +308,7 @@ class ActorScheduler:
                         except Exception:
                             task_ram = 0
 
-                        ok, reason = capacity_mgr.can_dispatch(
+                        ok, deny_reason = capacity_mgr.can_dispatch(
                             subsystem="actor_scheduler",
                             estimated_ram_mb=task_ram,
                             stage_name=node.name,
@@ -317,7 +317,7 @@ class ActorScheduler:
                             logger.debug(
                                 "CapacityManager denied dispatch for '%s': %s",
                                 node.name,
-                                reason,
+                                deny_reason,
                             )
                             continue
                     else:
@@ -796,7 +796,7 @@ class ActorScheduler:
                 self._mark_skipped(node, reason="condition_never_satisfied")
 
     def _planner_skip_reason(self, name: str) -> str:
-        metrics = {}
+        metrics: dict[str, Any] = {}
         try:
             metrics = self._ctx.result.module_metrics.get(name, {}) or {}
         except Exception:
