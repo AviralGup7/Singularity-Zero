@@ -25,6 +25,30 @@ from src.infrastructure.notifications.manager import NotificationManager
 
 logger = logging.getLogger(__name__)
 
+# Operator/lifecycle statuses that mean the vulnerability is gone.
+# ``verified`` / ``verified_tp`` are AEVE/analyst confirmation that the
+# issue is still exploitable — they are not remediations.
+REMEDIATED_STATUSES = frozenset({"remediated", "resolved", "fixed", "closed"})
+CONFIRMED_OPEN_STATUSES = frozenset(
+    {
+        "verified",
+        "verified_tp",
+        "unremediated",
+        "active",
+        "open",
+        "candidate",
+        "verifying",
+        "degraded",
+        "new",
+        "unresolved",
+    }
+)
+
+
+def is_remediated_status(status: object) -> bool:
+    """Return True only for statuses that mean the finding is fixed."""
+    return str(status or "").strip().lower() in REMEDIATED_STATUSES
+
 
 class SLATracker:
     """Manages remediation SLA schedules and auto-escalations for severe findings."""

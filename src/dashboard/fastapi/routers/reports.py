@@ -37,6 +37,7 @@ from src.reporting.platform_clients import (
     YesWeHackClient,
 )
 from src.reporting.report_artifacts import build_report_library
+from src.reporting.sla_tracker import is_remediated_status
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +275,7 @@ async def get_sla_trending(
                 trend_entry["total_count"] += 1
 
                 status = str(f.get("status") or "").lower()
-                is_remediated = status in {"remediated", "resolved", "verified"}
+                is_remediated = is_remediated_status(status)
 
                 if is_remediated:
                     total_remediated += 1
