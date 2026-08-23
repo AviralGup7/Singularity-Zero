@@ -45,7 +45,10 @@ def health_check() -> dict[str, Any]:
         from src.api_tests.apitester.api_key_workflows import (  # noqa: F401
             list_workflows,
         )
-        from src.api_tests.apitester.client import APITestClient  # noqa: F401
+        from src.api_tests.apitester.client import (  # noqa: F401
+            display_secret,
+            safe_request,
+        )
 
         return {
             "status": "ok",
