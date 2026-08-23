@@ -30,7 +30,10 @@ async def query_virustotal_passive(
     Returns:
         Set of discovered subdomain FQDNs.
     """
-    api_key = api_key or os.environ.get("VT_API_KEY")
+    if not api_key:
+        from src.intelligence.feeds.virustotal import resolve_virustotal_api_key
+
+        api_key = resolve_virustotal_api_key()
     if not api_key:
         logger.debug("VT_API_KEY not set, skipping VirusTotal passive DNS")
         return set()

@@ -29,6 +29,11 @@ _FEEDS: tuple[tuple[str, str, str], ...] = (
 
 
 def _env_set(name: str) -> bool:
+    if name == "VT_API_KEY":
+        return bool(
+            os.environ.get("VT_API_KEY", "").strip()
+            or os.environ.get("VIRUSTOTAL_API_KEY", "").strip()
+        )
     return bool(os.environ.get(name, "").strip())
 
 

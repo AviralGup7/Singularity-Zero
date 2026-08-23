@@ -11,6 +11,7 @@ def test_list_feeds_includes_vt_and_otx() -> None:
 def test_unconfigured_by_default(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     for feed in list_feeds():
         monkeypatch.delenv(feed.env_var, raising=False)
+    monkeypatch.delenv("VIRUSTOTAL_API_KEY", raising=False)
     assert configured_feed_keys() == ()
     assert is_feed_configured("virustotal") is False
 

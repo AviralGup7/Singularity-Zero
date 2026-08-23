@@ -5,7 +5,8 @@ malware detection results, community scores, WHOIS data, and related
 indicators of compromise.
 
 Environment Variables:
-    VT_API_KEY: VirusTotal API key (required).
+    VT_API_KEY: VirusTotal API key (canonical).
+    VIRUSTOTAL_API_KEY: deprecated alias accepted if VT_API_KEY is unset.
 
 Usage:
     from src.intelligence.feeds.virustotal import VirusTotalClient, VirusTotalConfig
@@ -29,6 +30,21 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig, FeedError
 logger = logging.getLogger(__name__)
 
 VT_BASE_URL = os.environ.get("VT_BASE_URL", "https://www.virustotal.com/api/v3")
+CANONICAL_VT_API_KEY_ENV = "VT_API_KEY"
+_LEGACY_VT_API_KEY_ENV = "VIRUSTOTAL_API_KEY"
+
+
+def resolve_virustotal_api_key(environ: dict[str, str] | None = None) -> str:
+    """Return the VirusTotal API key from the canonical env var.
+
+    ``VT_API_KEY`` wins. ``VIRUSTOTAL_API_KEY`` is accepted only as a
+    compatibility alias when the canonical name is unset.
+    """
+    env = os.environ if environ is None else environ
+    primary = str(env.get(CANONICAL_VT_API_KEY_ENV, "") or "").strip()
+    if primary:
+        return primary
+    return str(env.get(_LEGACY_VT_API_KEY_ENV, "") or "").strip()
 
 
 class VirusTotalConfig(FeedConfig):

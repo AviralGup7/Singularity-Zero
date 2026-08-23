@@ -44,7 +44,7 @@ def startup_core(app: FastAPI, config: Any) -> None:
     validate_or_raise()
 
     optional_api_keys = {
-        "VIRUSTOTAL_API_KEY": "VirusTotal",
+        "VT_API_KEY": "VirusTotal",
         "SHODAN_API_KEY": "Shodan",
         "ALIENVAULT_API_KEY": "AlienVault",
         "CVE_API_KEY": "CVE",
