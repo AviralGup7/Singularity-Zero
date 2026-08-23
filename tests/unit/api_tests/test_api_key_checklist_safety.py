@@ -61,7 +61,7 @@ class FakeRequests:
         self._handler = handler
         self.session: FakeSession | None = None
 
-    def Session(self) -> FakeSession:
+    def Session(self) -> FakeSession:  # noqa: N802
         self.session = FakeSession(self._handler)
         return self.session
 
@@ -97,9 +97,7 @@ def test_default_validation_sends_no_write_requests() -> None:
     methods = {call["method"] for call in requests_module.session.calls}
     assert methods == {"GET"}
     write_check = next(
-        item
-        for item in _payload["results"][0]["checks"]
-        if item["id"] == "write_actions"
+        item for item in _payload["results"][0]["checks"] if item["id"] == "write_actions"
     )
     assert write_check["outcome"] == "info"
     assert "Skipped" in write_check["summary"]

@@ -6,14 +6,14 @@ from urllib.parse import urlparse
 
 from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
+from .api_key_candidates import discover_api_key_candidates
+from .api_key_workflows.scope import extract_registrable_domain
+from .client import build_base_headers, normalize_base_url, safe_request, summarize_response
+
 logger = logging.getLogger(__name__)
 
 _probe_allowed_host: ContextVar[str] = ContextVar("api_key_probe_allowed_host", default="")
 _probe_allow_write: ContextVar[bool] = ContextVar("api_key_probe_allow_write", default=False)
-
-from .api_key_candidates import discover_api_key_candidates
-from .api_key_workflows.scope import extract_registrable_domain
-from .client import build_base_headers, normalize_base_url, safe_request, summarize_response
 
 
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})

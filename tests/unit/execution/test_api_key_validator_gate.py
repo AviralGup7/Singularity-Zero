@@ -44,9 +44,7 @@ def _run(validation_settings: dict[str, Any] | None = None) -> tuple[Any, Any]:
 
 
 def test_implicit_default_still_runs_api_key_plugin() -> None:
-    summary, checklist = _run(
-        {"blackbox_validation": {"active_probe_enabled": False}}
-    )
+    summary, checklist = _run({"blackbox_validation": {"active_probe_enabled": False}})
     checklist.assert_called()
     assert "api_key_validation" in summary["results"]
 

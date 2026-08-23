@@ -28,7 +28,7 @@ class FakeSession:
 
 
 class FakeRequests:
-    def Session(self) -> FakeSession:
+    def Session(self) -> FakeSession:  # noqa: N802
         return FakeSession()
 
 
