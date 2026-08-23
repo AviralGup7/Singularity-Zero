@@ -1,6 +1,12 @@
 from typing import Any, Protocol
 
-from .client import materialize_key_location, normalize_base_url, safe_request, summarize_response
+from .client import (
+    display_secret,
+    materialize_key_location,
+    normalize_base_url,
+    safe_request,
+    summarize_response,
+)
 from .constants import (
     DEFAULT_HEADERS,
     DEFAULT_KEY_LOCATIONS,
@@ -16,6 +22,18 @@ class _RequestsLike(Protocol):
 
 def _format_key_location(template: dict[str, Any], api_key: str) -> dict[str, Any]:
     return materialize_key_location(template, api_key)
+
+
+def _public_secret_map(mapping: dict[str, Any], api_key: str) -> dict[str, Any]:
+    masked = display_secret(api_key)
+    public: dict[str, Any] = {}
+    for key, value in mapping.items():
+        text = str(value)
+        if api_key and api_key in text:
+            public[key] = text.replace(api_key, masked)
+        else:
+            public[key] = value
+    return public
 
 
 def _probe_endpoint(
@@ -93,8 +111,8 @@ def test_api_key_security(
             results.append(
                 {
                     "location": location["name"],
-                    "headers": location_headers,
-                    "params": location_params,
+                    "headers": _public_secret_map(location_headers, api_key),
+                    "params": _public_secret_map(location_params, api_key),
                     "results": endpoint_results,
                 }
             )

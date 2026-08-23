@@ -9,9 +9,12 @@ def normalize_base_url(base_url: str) -> str:
 
 
 def display_secret(secret: str) -> str:
-    if len(secret) <= 12:
-        return secret
-    return f"{secret[:8]}...{secret[-4:]}"
+    value = str(secret or "")
+    if not value:
+        return ""
+    if len(value) <= 8:
+        return f"{value[:1]}{'*' * max(3, len(value) - 1)}"
+    return f"{value[:4]}...{value[-2:]}"
 
 
 def build_base_headers(
