@@ -22,6 +22,10 @@ export function formatDurationMs(ms: number): string {
 
 export function clampUnitInterval(value: number | undefined, fallback = 0): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  if (n > 1 && n <= 100) return n / 100;
+  if (n > 1 && n <= 100) {
+    // (1, 2] is unit-interval overshoot (1.4 → 1). Larger values are percents (92 → 0.92).
+    if (n <= 2) return 1;
+    return n / 100;
+  }
   return Math.min(1, Math.max(0, n));
 }
