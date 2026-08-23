@@ -72,7 +72,7 @@ def test_execute_single_stage_does_not_emit_completed_after_failure() -> None:
             ctx,
             None,
             SimpleNamespace(load_stage_deltas=lambda _name: []),
-            _checkpoint_guard,
+            _CheckpointGuard,
             progress_emitter,
             MagicMock(),
         )
@@ -82,11 +82,11 @@ def test_execute_single_stage_does_not_emit_completed_after_failure() -> None:
     assert "running" in emitted
 
 
-class _checkpoint_guard:
+class _CheckpointGuard:
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         pass
 
-    def __enter__(self) -> "_checkpoint_guard":
+    def __enter__(self) -> _CheckpointGuard:
         return self
 
     def __exit__(self, *_exc: object) -> bool:

@@ -30,7 +30,9 @@ def plan_next(
     if stop_requested:
         return Plan(action="stop", stage=None, reason="stop_requested")
     if failed:
-        return Plan(action="fail", stage=parse_stage_key(current_stage).value, reason="stage_failed")
+        return Plan(
+            action="fail", stage=parse_stage_key(current_stage).value, reason="stage_failed"
+        )
     if enforcer is not None:
         if should_stop(enforcer):
             return Plan(action="stop", stage=None, reason="budget_exhausted")

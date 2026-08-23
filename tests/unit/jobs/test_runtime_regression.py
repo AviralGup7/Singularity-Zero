@@ -15,8 +15,8 @@ from src.jobs import (
     create_job_record,
     parse_job_status,
 )
-from src.jobs.stages import next_stage, parse_stage_key, previous_stages, stage_band_percent
 from src.jobs.failure import apply_exit
+from src.jobs.stages import next_stage, parse_stage_key, previous_stages, stage_band_percent
 
 
 @pytest.mark.parametrize(

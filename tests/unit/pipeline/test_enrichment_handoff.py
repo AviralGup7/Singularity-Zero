@@ -221,9 +221,7 @@ def test_should_run_threat_intel_network_respects_offline_and_disable() -> None:
         is False
     )
     assert (
-        enrichment_stage.should_run_threat_intel_network(
-            {"enable_threat_intel": False}, environ={}
-        )
+        enrichment_stage.should_run_threat_intel_network({"enable_threat_intel": False}, environ={})
         is False
     )
     assert (

@@ -93,7 +93,9 @@ def from_finding(*, finding_id: str, title: str, severity: str) -> Notification:
         title=title,
         message=f"{severity} finding {finding_id}",
         event=NotificationEvent.CRITICAL_FINDING if critical else NotificationEvent.NEW_FINDING,
-        priority=NotificationPriority.CRITICAL if severity.lower() == "critical" else NotificationPriority.HIGH,
+        priority=NotificationPriority.CRITICAL
+        if severity.lower() == "critical"
+        else NotificationPriority.HIGH,
         entity_id=finding_id,
         entity_type="finding",
         href=f"/findings/{finding_id}",

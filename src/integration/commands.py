@@ -251,7 +251,9 @@ def get_command(name: str | CommandName) -> CommandSpec:
     return spec
 
 
-def catalog_payload(*, capabilities: frozenset[str] | None = None) -> list[dict[str, str | bool | None]]:
+def catalog_payload(
+    *, capabilities: frozenset[str] | None = None
+) -> list[dict[str, str | bool | None]]:
     rows: list[dict[str, str | bool | None]] = []
     for spec in CATALOG:
         if spec.capability and capabilities is not None and spec.capability not in capabilities:

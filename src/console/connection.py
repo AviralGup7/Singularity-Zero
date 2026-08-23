@@ -79,7 +79,9 @@ class ConnectionRegistry:
         with self._lock:
             return self._items.pop(connection_id, None) is not None
 
-    def touch(self, connection_id: str | None, *, now: float | None = None) -> ConsoleConnection | None:
+    def touch(
+        self, connection_id: str | None, *, now: float | None = None
+    ) -> ConsoleConnection | None:
         conn = self.get(connection_id)
         if conn is None:
             return None

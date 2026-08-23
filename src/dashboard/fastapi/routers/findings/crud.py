@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.routers.findings.field_map import coerce_bool, map_update_payload
 from src.dashboard.fastapi.routers.findings.helpers import read_json_file
-from src.dashboard.fastapi.routers.targets import _normalize_finding_payload, is_target_owned_by_tenant
+from src.dashboard.fastapi.routers.targets import (
+    _normalize_finding_payload,
+    is_target_owned_by_tenant,
+)
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)

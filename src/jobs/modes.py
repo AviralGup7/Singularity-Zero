@@ -15,13 +15,21 @@ class ScanMode:
 
 
 MODES: tuple[ScanMode, ...] = (
-    ScanMode("standard", "Standard", ("recon", "passive", "active"), "standard", "Balanced recon + active"),
+    ScanMode(
+        "standard",
+        "Standard",
+        ("recon", "passive", "active"),
+        "standard",
+        "Balanced recon + active",
+    ),
     ScanMode("idor", "IDOR hunt", ("recon", "access"), "idor", "Access-control focused"),
     ScanMode("ssrf", "SSRF hunt", ("recon", "active"), "ssrf", "Outbound request abuse"),
     ScanMode("xss", "XSS hunt", ("recon", "passive", "active"), "xss", "Injection in HTML/JS"),
     ScanMode("sqli", "SQLi hunt", ("recon", "active"), "sqli", "Injection in queries"),
     ScanMode("api", "API hunt", ("recon", "passive", "active"), "api", "REST/GraphQL/gRPC"),
-    ScanMode("full", "Full", ("recon", "passive", "active", "nuclei"), "full", "Everything enabled"),
+    ScanMode(
+        "full", "Full", ("recon", "passive", "active", "nuclei"), "full", "Everything enabled"
+    ),
     ScanMode("passive-only", "Passive", ("recon", "passive"), "standard", "No active probes"),
 )
 

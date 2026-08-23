@@ -69,9 +69,9 @@ def test_retry_advice() -> None:
 
 def test_catalog_complete() -> None:
     names = {spec.key for spec in CATALOG}
-    assert names == {item.value for item in CommandName if item is not CommandName.BATCH_EXECUTE} | {
-        CommandName.BATCH_EXECUTE.value
-    }
+    assert names == {
+        item.value for item in CommandName if item is not CommandName.BATCH_EXECUTE
+    } | {CommandName.BATCH_EXECUTE.value}
     get_command("jobs.list")
 
 

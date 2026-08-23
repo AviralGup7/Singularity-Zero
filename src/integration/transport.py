@@ -9,7 +9,6 @@ from typing import Any
 from src.integration.envelope import RequestEnvelope, ResponseEnvelope
 from src.integration.errors import ErrorCode, IntegrationError
 
-
 Dispatcher = Callable[[RequestEnvelope], ResponseEnvelope]
 
 

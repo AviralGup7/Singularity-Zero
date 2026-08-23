@@ -261,7 +261,9 @@ class DashboardServices:
                 job["process"] = None
                 job["finished_at"] = now
                 job["updated_at"] = now
-                job["failure_reason_code"] = str(job.get("failure_reason_code") or "dashboard_shutdown")
+                job["failure_reason_code"] = str(
+                    job.get("failure_reason_code") or "dashboard_shutdown"
+                )
                 job["failure_reason"] = str(
                     job.get("failure_reason")
                     or "Dashboard stopped while the pipeline was still running."

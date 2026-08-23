@@ -19,11 +19,11 @@ from src.core.exceptions import (
     ToolNotInstalledError,
 )
 from src.dashboard.fastapi.config import DashboardConfig
+from src.dashboard.fastapi.dashboard_metrics import build_stage_counts, job_series
 from src.dashboard.fastapi.dependencies import require_admin, require_auth, set_app_ref
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
-from src.dashboard.fastapi.dashboard_metrics import build_stage_counts, job_series
 from src.dashboard.fastapi.schemas import DashboardStatsResponse
 from src.dashboard.fastapi.security_setup import setup_security_store
 from src.dashboard.fastapi.spa import setup_spa_routes
@@ -109,8 +109,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     set_app_ref(app)
     setup_security_store(app, config)
     setup_middleware(app, config)
-    from src.dashboard.fastapi.http_metrics_policy import should_enable_http_metrics
     from src.dashboard.fastapi.http_metrics import HTTPMetricsMiddleware
+    from src.dashboard.fastapi.http_metrics_policy import should_enable_http_metrics
 
     if should_enable_http_metrics(os.getenv("ENABLE_HTTP_METRICS")):
         app.add_middleware(HTTPMetricsMiddleware)
@@ -472,7 +472,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                     for t in targets
                     if t.get("name")
                 ],
-                "targets_with_findings": sum(1 for t in targets if int(t.get("finding_count") or 0) > 0),
+                "targets_with_findings": sum(
+                    1 for t in targets if int(t.get("finding_count") or 0) > 0
+                ),
                 "total_targets": total_targets,
             },
             **job_series(jobs),

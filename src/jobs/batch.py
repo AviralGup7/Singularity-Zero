@@ -11,7 +11,11 @@ from src.jobs.summary import health_from_jobs
 def stop_all_running(store: MemoryJobStore) -> int:
     stopped = 0
     for job in store.list(JobFilter(active_only=True)):
-        if job.get("status") in {JobStatus.RUNNING.value, JobStatus.STARTING.value, JobStatus.PENDING.value}:
+        if job.get("status") in {
+            JobStatus.RUNNING.value,
+            JobStatus.STARTING.value,
+            JobStatus.PENDING.value,
+        }:
             store.request_stop(str(job["id"]))
             store.finish(str(job["id"]), returncode=0, stop_requested=True)
             stopped += 1

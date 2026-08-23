@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import threading
 from collections.abc import Callable
+from typing import Any
 
 from src.auth.session import Session
 from src.notifications.events import Notification, NotificationEvent, NotificationPriority

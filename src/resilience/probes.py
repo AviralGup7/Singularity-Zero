@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from src.resilience.circuit_breaker import CircuitState, ToolCircuitBreaker
 from src.resilience.metrics import ResilienceMetrics
 
-
 Probe = Callable[[], bool]
 
 
@@ -19,7 +18,9 @@ class ProbePlan:
 
 
 class ProbeDispatcher:
-    def __init__(self, breaker: ToolCircuitBreaker, metrics: ResilienceMetrics | None = None) -> None:
+    def __init__(
+        self, breaker: ToolCircuitBreaker, metrics: ResilienceMetrics | None = None
+    ) -> None:
         self.breaker = breaker
         self.metrics = metrics or ResilienceMetrics()
         self._plans: dict[str, Probe] = {}
@@ -32,7 +33,10 @@ class ProbeDispatcher:
         for tool_name in self._plans:
             if self.breaker.get_state(tool_name) is CircuitState.HALF_OPEN:
                 names.append(tool_name)
-            elif self.breaker.can_execute(tool_name) and self.breaker.get_state(tool_name) is CircuitState.HALF_OPEN:
+            elif (
+                self.breaker.can_execute(tool_name)
+                and self.breaker.get_state(tool_name) is CircuitState.HALF_OPEN
+            ):
                 names.append(tool_name)
         return names
 

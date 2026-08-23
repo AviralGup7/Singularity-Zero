@@ -27,8 +27,12 @@ def parse_batch(payload: dict[str, Any]) -> list[dict[str, Any]]:
         items.append(
             {
                 "command": command,
-                "payload": dict(entry.get("payload") or {}) if isinstance(entry.get("payload"), dict) else {},
-                "path_params": {str(k): str(v) for k, v in dict(entry.get("path_params") or {}).items()},
+                "payload": dict(entry.get("payload") or {})
+                if isinstance(entry.get("payload"), dict)
+                else {},
+                "path_params": {
+                    str(k): str(v) for k, v in dict(entry.get("path_params") or {}).items()
+                },
             }
         )
     return items

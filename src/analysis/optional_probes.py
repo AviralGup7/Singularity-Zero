@@ -18,7 +18,9 @@ def _as_url(item: Any) -> str:
     return str(item or "")
 
 
-def secrets_response_scanner(responses: list[dict[str, Any]], limit: int = 80) -> list[dict[str, Any]]:
+def secrets_response_scanner(
+    responses: list[dict[str, Any]], limit: int = 80
+) -> list[dict[str, Any]]:
     from src.analysis.checks.passive.secrets_scanner import scan_response
 
     findings: list[dict[str, Any]] = []
@@ -92,7 +94,9 @@ def csp_bypass_probe(responses: list[dict[str, Any]], limit: int = 40) -> list[d
     return findings
 
 
-def api_security_assessor(urls: set[str], responses: list[dict[str, Any]], limit: int = 40) -> list[dict[str, Any]]:
+def api_security_assessor(
+    urls: set[str], responses: list[dict[str, Any]], limit: int = 40
+) -> list[dict[str, Any]]:
     from src.analysis.checks.active.api_security_assessor import APISecurityAssessor
 
     endpoints: list[dict[str, Any]] = []
@@ -116,13 +120,17 @@ def api_security_assessor(urls: set[str], responses: list[dict[str, Any]], limit
     return findings
 
 
-def differential_logic_prober(responses: list[dict[str, Any]], limit: int = 40) -> list[dict[str, Any]]:
+def differential_logic_prober(
+    responses: list[dict[str, Any]], limit: int = 40
+) -> list[dict[str, Any]]:
     from src.analysis.intelligence.differential_prober import apply_differential_analysis
 
     return apply_differential_analysis(responses[: max(1, limit)])
 
 
-def semantic_finding_dedup(bulk_findings: list[dict[str, Any]], limit: int = 200) -> list[dict[str, Any]]:
+def semantic_finding_dedup(
+    bulk_findings: list[dict[str, Any]], limit: int = 200
+) -> list[dict[str, Any]]:
     from src.analysis.intelligence.semantic_dedup import apply_frontier_deduplication
 
     return apply_frontier_deduplication(bulk_findings[: max(1, limit)])

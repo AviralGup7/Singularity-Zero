@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-from src.jobs import JobFilter, create_job_record, elapsed_seconds, filter_jobs, format_duration, paginate, remaining_seconds, stalled, sort_jobs
+from src.jobs import (
+    JobFilter,
+    create_job_record,
+    elapsed_seconds,
+    filter_jobs,
+    format_duration,
+    paginate,
+    remaining_seconds,
+    sort_jobs,
+    stalled,
+)
 from src.jobs.eta import remaining_seconds as eta_remaining
 from src.jobs.status import JobStatus, _transition
 

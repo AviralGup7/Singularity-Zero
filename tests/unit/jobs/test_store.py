@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from src.jobs import FailureCode, JobFilter, JobStatus, MemoryJobStore, StageStatus, classify_failure
+from src.jobs import (
+    FailureCode,
+    JobFilter,
+    JobStatus,
+    MemoryJobStore,
+    StageStatus,
+    classify_failure,
+)
 
 
 def test_create_transition_and_finish() -> None:

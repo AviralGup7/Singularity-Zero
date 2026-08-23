@@ -97,7 +97,8 @@ def set_stage(
         running = sum(
             1
             for item in _stage_map(job).values()
-            if isinstance(item, dict) and parse_stage_status(item.get("status")) is StageStatus.RUNNING
+            if isinstance(item, dict)
+            and parse_stage_status(item.get("status")) is StageStatus.RUNNING
         )
         telemetry["active_task_count"] = running
     if parsed_status is StageStatus.FAILED:
@@ -123,9 +124,7 @@ def overall_percent(job: dict[str, Any]) -> int:
     if not stages:
         return int(job.get("progress_percent", 0) or 0)
     percents = [
-        int(item.get("percent", 0) or 0)
-        for item in stages.values()
-        if isinstance(item, dict)
+        int(item.get("percent", 0) or 0) for item in stages.values() if isinstance(item, dict)
     ]
     if not percents:
         return int(job.get("progress_percent", 0) or 0)

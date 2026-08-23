@@ -42,9 +42,7 @@ def test_guest_cannot_list_jobs() -> None:
     runtime.sessions.issue_guest()
     gateway = ConsoleGateway(runtime)
     guest = runtime.sessions.subjects()[0]
-    response = gateway.dispatch(
-        RequestEnvelope(command=CommandName.JOBS_LIST.value, subject=guest)
-    )
+    response = gateway.dispatch(RequestEnvelope(command=CommandName.JOBS_LIST.value, subject=guest))
     assert response.ok is False
     assert response.status == 403
 

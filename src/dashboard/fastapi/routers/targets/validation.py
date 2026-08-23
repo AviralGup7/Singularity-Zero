@@ -110,7 +110,11 @@ def _normalize_finding_payload(
 
     status = canonicalize_status(
         finding.get("status")
-        or ("false_positive" if finding.get("false_positive") or finding.get("falsePositive") else "open"),
+        or (
+            "false_positive"
+            if finding.get("false_positive") or finding.get("falsePositive")
+            else "open"
+        ),
         for_api=True,
     )
 

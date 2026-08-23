@@ -42,7 +42,9 @@ class AuthAuditLog:
         self._limit = max(32, int(limit))
         self._items: list[AuthAuditEvent] = []
 
-    def record(self, action: AuthAuditAction, session: Session, *, detail: str = "") -> AuthAuditEvent:
+    def record(
+        self, action: AuthAuditAction, session: Session, *, detail: str = ""
+    ) -> AuthAuditEvent:
         event = AuthAuditEvent(
             action=action,
             subject=session.subject,

@@ -17,7 +17,9 @@ class WatchdogReport:
 
 
 class JobWatchdog:
-    def __init__(self, store: MemoryJobStore, *, after_seconds: float = 300.0, auto_stop: bool = False) -> None:
+    def __init__(
+        self, store: MemoryJobStore, *, after_seconds: float = 300.0, auto_stop: bool = False
+    ) -> None:
         self.store = store
         self.after_seconds = after_seconds
         self.auto_stop = auto_stop
@@ -36,9 +38,13 @@ class JobWatchdog:
             stalled_ids.append(job_id)
             if self.auto_stop:
                 self.store.request_stop(job_id)
-                self.store.finish(job_id, returncode=1, stop_requested=True, stderr="watchdog stalled")
+                self.store.finish(
+                    job_id, returncode=1, stop_requested=True, stderr="watchdog stalled"
+                )
                 stopped_ids.append(job_id)
-        return WatchdogReport(checked=checked, stalled=tuple(stalled_ids), stopped=tuple(stopped_ids))
+        return WatchdogReport(
+            checked=checked, stalled=tuple(stalled_ids), stopped=tuple(stopped_ids)
+        )
 
     def force_fail(self, job_id: str, message: str) -> None:
         job = self.store.get(job_id)
@@ -48,4 +54,6 @@ class JobWatchdog:
             return
         from src.jobs.failure import FailureCode, JobFailure
 
-        self.store.fail(job_id, JobFailure(FailureCode.TIMEOUT, str(job.get("stage") or ""), message))
+        self.store.fail(
+            job_id, JobFailure(FailureCode.TIMEOUT, str(job.get("stage") or ""), message)
+        )

@@ -33,7 +33,6 @@ from src.integration.idempotency import IdempotencyCache
 from src.integration.protocol import protocol_compatible
 from src.integration.serialize import jsonable
 
-
 _MUTATING = frozenset(
     {
         CommandName.JOBS_START.value,
@@ -85,14 +84,18 @@ class ConsoleGateway:
         epoch = float(now if now is not None else time.time())
         command = str(envelope.command or "").strip()
         if not command:
-            return ResponseEnvelope.from_error("", envelope.request_id, bad_request("command required"))
+            return ResponseEnvelope.from_error(
+                "", envelope.request_id, bad_request("command required")
+            )
         if command == CommandName.BATCH_EXECUTE.value:
             return self._dispatch_batch(envelope, now=epoch)
         try:
             spec = get_command(command)
         except IntegrationError as exc:
             return ResponseEnvelope.from_error(command, envelope.request_id, exc)
-        cached = self.idempotency.get(envelope.idempotency_key) if envelope.idempotency_key else None
+        cached = (
+            self.idempotency.get(envelope.idempotency_key) if envelope.idempotency_key else None
+        )
         if cached is not None:
             return ResponseEnvelope.success(command, envelope.request_id, cached, status=200)
         try:
@@ -157,7 +160,9 @@ class ConsoleGateway:
         try:
             items = parse_batch(envelope.payload)
         except IntegrationError as exc:
-            return ResponseEnvelope.from_error(CommandName.BATCH_EXECUTE.value, envelope.request_id, exc)
+            return ResponseEnvelope.from_error(
+                CommandName.BATCH_EXECUTE.value, envelope.request_id, exc
+            )
         results: list[dict[str, Any]] = []
         for item in items:
             child = RequestEnvelope(

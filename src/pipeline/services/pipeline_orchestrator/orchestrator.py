@@ -196,9 +196,7 @@ __all__ = [
 
 logger = get_pipeline_logger(__name__)
 
-_FAILED_STAGE_MARKERS = frozenset(
-    {"FAILED", "ERROR", "TIMEOUT", "failed", "error", "timeout"}
-)
+_FAILED_STAGE_MARKERS = frozenset({"FAILED", "ERROR", "TIMEOUT", "failed", "error", "timeout"})
 _SKIPPED_STAGE_MARKERS = frozenset(
     {
         "SKIPPED",
@@ -225,7 +223,14 @@ def stage_progress_kind(
         metric_status = str(metrics.get("status") or "").strip()
     outcome = getattr(stage_output, "outcome", None)
     outcome_value = str(getattr(outcome, "value", outcome) or "").strip()
-    tokens = {recorded, recorded.upper(), metric_status, metric_status.lower(), outcome_value, outcome_value.lower()}
+    tokens = {
+        recorded,
+        recorded.upper(),
+        metric_status,
+        metric_status.lower(),
+        outcome_value,
+        outcome_value.lower(),
+    }
     if tokens & _FAILED_STAGE_MARKERS:
         return "failed"
     if tokens & _SKIPPED_STAGE_MARKERS:

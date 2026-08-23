@@ -42,6 +42,7 @@ async def list_jobs(
 
     query = (search or "").strip().lower()
     if query:
+
         def _matches(job: dict[str, Any]) -> bool:
             hay = " ".join(
                 str(job.get(key) or "")

@@ -12,7 +12,9 @@ from src.dashboard.services.launch_service import DashboardLaunchService
 
 class LaunchOverrideTests(unittest.TestCase):
     def test_module_selection_disables_nuclei_tool(self) -> None:
-        config = {"tools": {option["name"]: True for option in MODULE_OPTIONS if option["kind"] == "tool"}}
+        config = {
+            "tools": {option["name"]: True for option in MODULE_OPTIONS if option["kind"] == "tool"}
+        }
         apply_module_selection(config, {"subfinder", "httpx"})
         self.assertFalse(config["tools"]["nuclei"])
         self.assertTrue(config["tools"]["subfinder"])

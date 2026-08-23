@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from src.jobs.status import JobStatus, parse_job_status
 from src.jobs.stages import StageKey, parse_stage_key
+from src.jobs.status import JobStatus, parse_job_status
 
 
 class JobEventType(StrEnum):
@@ -80,7 +80,9 @@ class JobEvent:
         )
 
 
-def event_for_status(job_id: str, status: object, *, message: str = "", stage: object = "startup") -> JobEvent:
+def event_for_status(
+    job_id: str, status: object, *, message: str = "", stage: object = "startup"
+) -> JobEvent:
     parsed = parse_job_status(status)
     event_type = _STATUS_TO_EVENT.get(parsed, JobEventType.HEARTBEAT)
     return JobEvent(

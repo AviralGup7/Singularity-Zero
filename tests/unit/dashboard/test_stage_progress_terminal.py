@@ -18,9 +18,7 @@ def test_finalize_unfinished_does_not_complete_running_stages() -> None:
         "active_scan": {"stage": "active_scan", "status": "running", "percent": 40},
         "nuclei": {"stage": "nuclei", "status": "completed", "percent": 100},
     }
-    finalize_unfinished_stage_entries(
-        progress, now=10.0, status="skipped", reason="interrupted"
-    )
+    finalize_unfinished_stage_entries(progress, now=10.0, status="skipped", reason="interrupted")
     assert progress["active_scan"]["status"] == "skipped"
     assert progress["active_scan"]["reason"] == "interrupted"
     assert progress["nuclei"]["status"] == "completed"

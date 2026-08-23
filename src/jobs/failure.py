@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from src.jobs.status import JobStatus, _transition, apply_pipeline_exit_status
 from src.jobs.records import mark_finished
+from src.jobs.status import JobStatus, _transition, apply_pipeline_exit_status
 
 
 class FailureCode(StrEnum):
@@ -25,7 +25,10 @@ class FailureCode(StrEnum):
 
 
 _MARKERS: tuple[tuple[FailureCode, tuple[str, ...]], ...] = (
-    (FailureCode.BUDGET, ("global_deadline", "budget exceeded", "max duration", "deadline exceeded")),
+    (
+        FailureCode.BUDGET,
+        ("global_deadline", "budget exceeded", "max duration", "deadline exceeded"),
+    ),
     (FailureCode.TIMEOUT, ("timed out", "timeout")),
     (FailureCode.RECON, ("recon_validation", "recon failed", "no live hosts")),
     (FailureCode.AUTH, ("401", "403", "unauthorized", "forbidden")),

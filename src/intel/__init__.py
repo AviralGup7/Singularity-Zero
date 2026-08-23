@@ -9,10 +9,10 @@ from src.intel.feeds import (
     list_feeds,
 )
 from src.intel.ioc import Indicator, IndicatorKind, classify_indicator, extract_indicators
-from src.intel.verdict import FeedVote, Verdict, combine_votes
-from src.intel.watchlist import Watchlist
 from src.intel.metrics import aggregator_size, lookup_stats
 from src.intel.report import render_intel_report
+from src.intel.verdict import FeedVote, Verdict, combine_votes
+from src.intel.watchlist import Watchlist
 
 __all__ = [
     "FeedAggregator",

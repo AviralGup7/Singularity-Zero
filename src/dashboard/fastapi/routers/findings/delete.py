@@ -4,7 +4,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_admin
-from src.dashboard.fastapi.routers.findings.crud import _atomic_write_json, _locate_finding_on_disk, _lock_for
+from src.dashboard.fastapi.routers.findings.crud import (
+    _atomic_write_json,
+    _locate_finding_on_disk,
+    _lock_for,
+)
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)

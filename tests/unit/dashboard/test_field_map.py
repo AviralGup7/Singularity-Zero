@@ -2,6 +2,7 @@ import unittest
 
 from src.dashboard.fastapi.routers.findings.field_map import (
     canonicalize_status,
+    coerce_bool,
     map_update_payload,
     project_finding_aliases,
 )

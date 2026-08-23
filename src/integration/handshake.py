@@ -37,7 +37,9 @@ class HandshakeOffer:
                 f"incompatible protocol {protocol}",
                 details={"server": PROTOCOL_VERSION, "client": protocol},
             )
-        return cls(client=client, protocol=protocol, kind=kind, name=name or "Demo Analyst", role=role)
+        return cls(
+            client=client, protocol=protocol, kind=kind, name=name or "Demo Analyst", role=role
+        )
 
 
 def accept(offer: HandshakeOffer) -> dict[str, Any]:

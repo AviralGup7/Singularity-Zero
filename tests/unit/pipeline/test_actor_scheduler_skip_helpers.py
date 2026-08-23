@@ -16,7 +16,9 @@ def _scheduler() -> ActorScheduler:
     ctx = SimpleNamespace(
         result=SimpleNamespace(
             stage_status={},
-            module_metrics={"waf": {"status": "skipped", "reason": "probabilistic_skip_low_confidence"}},
+            module_metrics={
+                "waf": {"status": "skipped", "reason": "probabilistic_skip_low_confidence"}
+            },
         )
     )
     return ActorScheduler(

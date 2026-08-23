@@ -30,11 +30,15 @@ class PipelineSimulator:
                 self.store.update_stage(job_id, stage, StageStatus.SKIPPED, reason="simulator")
                 continue
             if fail_at == stage.value:
-                self.store.update_stage(job_id, stage, StageStatus.FAILED, error="simulated failure")
+                self.store.update_stage(
+                    job_id, stage, StageStatus.FAILED, error="simulated failure"
+                )
                 self.store.finish(job_id, returncode=1, stderr=f"{stage.value} failed")
                 return job_id
             self.store.update_stage(job_id, stage, StageStatus.RUNNING, processed=1, total=1)
-            self.store.update_stage(job_id, stage, StageStatus.COMPLETED, processed=1, total=1, percent=100)
+            self.store.update_stage(
+                job_id, stage, StageStatus.COMPLETED, processed=1, total=1, percent=100
+            )
         current = self.store.get(job_id)
         if current is not None:
             current["findings_count"] = findings

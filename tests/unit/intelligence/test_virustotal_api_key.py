@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from src.intelligence.feeds.virustotal import CANONICAL_VT_API_KEY_ENV, resolve_virustotal_api_key
 from src.intel.feeds import is_feed_configured
+from src.intelligence.feeds.virustotal import CANONICAL_VT_API_KEY_ENV, resolve_virustotal_api_key
 
 
 def test_canonical_name_is_vt_api_key() -> None:

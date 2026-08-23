@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from src.detection.taxonomy import classify_key, catalog_taxonomy
-
+from src.detection.taxonomy import catalog_taxonomy, classify_key
 
 MODE_FAMILIES: dict[str, frozenset[str]] = {
     "idor": frozenset({"access"}),

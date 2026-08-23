@@ -52,7 +52,11 @@ class ArtifactIndex:
 
 def default_launcher_artifacts(job_id: str, target_name: str) -> ArtifactIndex:
     index = ArtifactIndex()
-    index.add(Artifact(ArtifactKind.CONFIG, f"/_launcher/{job_id}/config.json", content_type="application/json"))
+    index.add(
+        Artifact(
+            ArtifactKind.CONFIG, f"/_launcher/{job_id}/config.json", content_type="application/json"
+        )
+    )
     index.add(Artifact(ArtifactKind.SCOPE, f"/_launcher/{job_id}/scope.txt"))
     index.add(Artifact(ArtifactKind.STDOUT, f"/_launcher/{job_id}/stdout.txt"))
     index.add(Artifact(ArtifactKind.STDERR, f"/_launcher/{job_id}/stderr.txt"))

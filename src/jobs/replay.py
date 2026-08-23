@@ -24,9 +24,13 @@ def replay(events: list[JobEvent], *, base_url: str = "https://replay.test") -> 
         elif event.type is JobEventType.STAGE_COMPLETED:
             set_stage(job, event.stage, StageStatus.COMPLETED, now=event.timestamp)
         elif event.type is JobEventType.STAGE_FAILED:
-            set_stage(job, event.stage, StageStatus.FAILED, error=event.message, now=event.timestamp)
+            set_stage(
+                job, event.stage, StageStatus.FAILED, error=event.message, now=event.timestamp
+            )
         elif event.type is JobEventType.STAGE_SKIPPED:
-            set_stage(job, event.stage, StageStatus.SKIPPED, reason=event.message, now=event.timestamp)
+            set_stage(
+                job, event.stage, StageStatus.SKIPPED, reason=event.message, now=event.timestamp
+            )
         elif event.type is JobEventType.COMPLETED:
             _transition(job, JobStatus.COMPLETED)
         elif event.type is JobEventType.FAILED:

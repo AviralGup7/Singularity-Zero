@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.learning.feedback import Feedback, FeedbackBook, FeedbackLabel
-from src.learning.fp_rules import likely_false_positive, fp_score
+from src.learning.fp_rules import fp_score, likely_false_positive
 
 
 def test_example_host_is_likely_fp() -> None:

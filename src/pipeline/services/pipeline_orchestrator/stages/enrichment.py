@@ -596,9 +596,9 @@ async def run_post_analysis_enrichments(
                                         ioc_match.get("malicious")
                                         or ioc_match.get("reputation_score", 0) > 0
                                     ):
-                                        finding.setdefault("threat_intel", {})["ioc_correlation"] = (
-                                            ioc_match
-                                        )
+                                        finding.setdefault("threat_intel", {})[
+                                            "ioc_correlation"
+                                        ] = ioc_match
                                         count += 1
                         except Exception as exc:
                             logger.debug("IoC matching failed for finding target: %s", exc)
@@ -643,7 +643,6 @@ async def run_post_analysis_enrichments(
     except (TypeError, ValueError, RuntimeError) as exc:
         logger.error("Threat intelligence enrichment failed: %s", exc)
         threat_intel_metrics = {"status": "error", "error": str(exc)}
-
 
     # Threat Graph and Campaigns Generation
     try:

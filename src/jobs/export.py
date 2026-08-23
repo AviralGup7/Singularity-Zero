@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.jobs.summary import summarize
 from src.jobs.store import MemoryJobStore
+from src.jobs.summary import summarize
 
 
 def export_rows(store: MemoryJobStore, *, now: float) -> list[dict[str, Any]]:

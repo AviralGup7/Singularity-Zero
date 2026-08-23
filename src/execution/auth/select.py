@@ -22,7 +22,9 @@ def normalize_auth_flow_engine(value: str | None) -> str:
 
 
 def resolve_auth_flow_runner_cls(value: str | None = None) -> type[Any]:
-    engine = normalize_auth_flow_engine(value if value is not None else os.getenv("AUTH_FLOW_ENGINE"))
+    engine = normalize_auth_flow_engine(
+        value if value is not None else os.getenv("AUTH_FLOW_ENGINE")
+    )
     if engine == "yaml":
         from src.execution.auth.auth_flow_runner import AuthFlowRunner as YamlAuthFlowRunner
 

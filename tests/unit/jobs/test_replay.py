@@ -28,4 +28,8 @@ def test_store_events_can_replay() -> None:
     store.transition(created["id"], JobStatus.RUNNING)
     store.finish(created["id"], returncode=0)
     rebuilt = replay(store.events.for_job(created["id"]), base_url="https://r.test")
-    assert rebuilt["status"] in {JobStatus.COMPLETED.value, JobStatus.RUNNING.value, JobStatus.STARTING.value}
+    assert rebuilt["status"] in {
+        JobStatus.COMPLETED.value,
+        JobStatus.RUNNING.value,
+        JobStatus.STARTING.value,
+    }

@@ -58,7 +58,9 @@ def correlate_finding(finding: dict[str, Any], aggregator: FeedAggregator) -> Fi
     )
 
 
-def correlate_findings(findings: list[dict[str, Any]], aggregator: FeedAggregator) -> list[FindingIntel]:
+def correlate_findings(
+    findings: list[dict[str, Any]], aggregator: FeedAggregator
+) -> list[FindingIntel]:
     return [correlate_finding(item, aggregator) for item in findings]
 
 

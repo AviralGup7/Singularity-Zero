@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.jobs.status import parse_job_status
 from src.jobs.stages import parse_stage_key
+from src.jobs.status import parse_job_status
 
 REQUIRED_KEYS = (
     "id",
@@ -50,7 +50,11 @@ def validate_job(job: dict[str, Any]) -> list[str]:
             errors.append("percent_range")
     started = job.get("started_at")
     updated = job.get("updated_at")
-    if isinstance(started, (int, float)) and isinstance(updated, (int, float)) and updated < started:
+    if (
+        isinstance(started, (int, float))
+        and isinstance(updated, (int, float))
+        and updated < started
+    ):
         errors.append("clock_skew")
     return errors
 

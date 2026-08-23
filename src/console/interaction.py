@@ -35,7 +35,9 @@ class ConsoleInteraction:
             headers["X-Console-Connection"] = self.connection_id
         return headers
 
-    def call(self, command: str, payload: dict[str, Any] | None = None, **path_params: str) -> ResponseEnvelope:
+    def call(
+        self, command: str, payload: dict[str, Any] | None = None, **path_params: str
+    ) -> ResponseEnvelope:
         envelope = RequestEnvelope(
             command=command,
             payload=dict(payload or {}),
@@ -46,7 +48,10 @@ class ConsoleInteraction:
         )
         self.last = self.gateway.dispatch(envelope)
         data = self.last.data
-        if command in {CommandName.HANDSHAKE_OPEN.value, CommandName.SESSION_DEMO.value} and self.last.ok:
+        if (
+            command in {CommandName.HANDSHAKE_OPEN.value, CommandName.SESSION_DEMO.value}
+            and self.last.ok
+        ):
             session = data.get("session") if isinstance(data.get("session"), dict) else {}
             self.subject = str(session.get("subject") or self.subject or "")
             self.role = str(session.get("role") or self.role or "")
@@ -56,7 +61,14 @@ class ConsoleInteraction:
                 self.connection_id = str(data["connection_id"])
         return self.last
 
-    def http_call(self, method: str, path: str, *, body: dict[str, Any] | None = None, query: dict[str, Any] | None = None) -> HttpResponse:
+    def http_call(
+        self,
+        method: str,
+        path: str,
+        *,
+        body: dict[str, Any] | None = None,
+        query: dict[str, Any] | None = None,
+    ) -> HttpResponse:
         return self.http.handle(method, path, headers=self._headers(), body=body, query=query)
 
     def demo_sign_in(self, name: str = "Demo Analyst", role: str = "analyst") -> ResponseEnvelope:
@@ -65,10 +77,18 @@ class ConsoleInteraction:
     def handshake(self, name: str = "Demo Analyst", role: str = "analyst") -> ResponseEnvelope:
         return self.call(
             CommandName.HANDSHAKE_OPEN.value,
-            {"client": "security-console", "protocol": PROTOCOL_VERSION, "kind": "demo", "name": name, "role": role},
+            {
+                "client": "security-console",
+                "protocol": PROTOCOL_VERSION,
+                "kind": "demo",
+                "name": name,
+                "role": role,
+            },
         )
 
-    def start_scan(self, url: str, *, findings: int = 0, fail_at: str | None = None) -> ResponseEnvelope:
+    def start_scan(
+        self, url: str, *, findings: int = 0, fail_at: str | None = None
+    ) -> ResponseEnvelope:
         payload: dict[str, Any] = {"base_url": url, "findings": findings}
         if fail_at:
             payload["fail_at"] = fail_at
@@ -100,7 +120,9 @@ class ConsoleInteraction:
         self.last = self.gateway.dispatch(envelope)
         return self.last
 
-    def seed_intel(self, value: str, *, verdict: str = "malicious", source: str = "manual") -> ResponseEnvelope:
+    def seed_intel(
+        self, value: str, *, verdict: str = "malicious", source: str = "manual"
+    ) -> ResponseEnvelope:
         return self.call(
             CommandName.INTEL_SEED.value,
             {"value": value, "verdict": verdict, "source": source, "score": 0.9},

@@ -8,7 +8,9 @@ from src.auth.session import Session
 from src.auth.sessions import SessionRegistry, describe
 
 
-def bootstrap_demo(registry: SessionRegistry, log: AuthAuditLog, name: str = "Demo Analyst") -> Session:
+def bootstrap_demo(
+    registry: SessionRegistry, log: AuthAuditLog, name: str = "Demo Analyst"
+) -> Session:
     session = registry.issue_demo(name, "analyst")
     log.record(AuthAuditAction.LOGIN, session, detail="demo")
     return session

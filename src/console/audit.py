@@ -6,7 +6,6 @@ from src.auth.audit import AuthAuditAction, AuthAuditLog
 from src.auth.session import Session
 from src.integration.commands import CommandName
 
-
 _LOGIN = {CommandName.SESSION_DEMO.value, CommandName.HANDSHAKE_OPEN.value}
 _LOGOUT = {CommandName.SESSION_REVOKE.value, CommandName.HANDSHAKE_CLOSE.value}
 

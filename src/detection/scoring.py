@@ -59,9 +59,13 @@ def score_finding(
     if false_positive_hits:
         confidence = blend(confidence, -0.12 * min(false_positive_hits, 3))
         reasons.append(f"fp:{false_positive_hits}")
-    return Score(confidence=confidence, severity=str(severity or "info").lower(), reasons=tuple(reasons))
+    return Score(
+        confidence=confidence, severity=str(severity or "info").lower(), reasons=tuple(reasons)
+    )
 
 
 def rank(scores: list[Score]) -> list[Score]:
     order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
-    return sorted(scores, key=lambda item: (order.get(item.severity, 0), item.confidence), reverse=True)
+    return sorted(
+        scores, key=lambda item: (order.get(item.severity, 0), item.confidence), reverse=True
+    )

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from src.jobs.stages import StageStatus, parse_stage_status
 
-
 _ALLOWED: dict[StageStatus, frozenset[StageStatus]] = {
     StageStatus.PENDING: frozenset(
         {StageStatus.RUNNING, StageStatus.SKIPPED, StageStatus.FAILED, StageStatus.PENDING}

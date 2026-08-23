@@ -13,7 +13,7 @@ class MemoryJournal:
         self._entries: list[dict[str, Any]] = []
 
     def append(self, payload: dict[str, Any]) -> str:
-        wal_id = str(payload.get("_wal_id") or f"{len(self._entries)+1}-0")
+        wal_id = str(payload.get("_wal_id") or f"{len(self._entries) + 1}-0")
         payload = dict(payload)
         payload["_wal_id"] = wal_id
         self._entries.append(payload)

@@ -79,7 +79,9 @@ def export_stage_graph() -> dict[str, Any]:
     for name, deps in STAGE_DEPS.items():
         for dep in sorted(deps):
             edges.append([str(dep), str(name)])
-    levels = _levels_from_deps({name: set(deps) for name, deps in STAGE_DEPS.items()}, list(STAGE_ORDER))
+    levels = _levels_from_deps(
+        {name: set(deps) for name, deps in STAGE_DEPS.items()}, list(STAGE_ORDER)
+    )
     return {
         "nodes": [str(name) for name in STAGE_ORDER],
         "edges": edges,

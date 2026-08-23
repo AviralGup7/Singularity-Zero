@@ -22,7 +22,8 @@ def diff_jobs(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     return {
         "left_id": left.get("id"),
         "right_id": right.get("id"),
-        "status_changed": parse_job_status(left.get("status")) is not parse_job_status(right.get("status")),
+        "status_changed": parse_job_status(left.get("status"))
+        is not parse_job_status(right.get("status")),
         "findings_delta": right_counts["findings"] - left_counts["findings"],
         "critical_delta": right_counts["critical"] - left_counts["critical"],
         "high_delta": right_counts["high"] - left_counts["high"],

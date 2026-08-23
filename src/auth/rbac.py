@@ -25,11 +25,15 @@ def require_any(session: Session, *capabilities: str) -> None:
 
 
 def can_launch(session: Session) -> bool:
-    return can(session.role, Capability.LAUNCH_JOBS.value) or session.allows(Capability.LAUNCH_JOBS.value)
+    return can(session.role, Capability.LAUNCH_JOBS.value) or session.allows(
+        Capability.LAUNCH_JOBS.value
+    )
 
 
 def can_stop(session: Session) -> bool:
-    return can(session.role, Capability.STOP_JOBS.value) or session.allows(Capability.STOP_JOBS.value)
+    return can(session.role, Capability.STOP_JOBS.value) or session.allows(
+        Capability.STOP_JOBS.value
+    )
 
 
 def gaps(session: Session, *required: str) -> frozenset[str]:

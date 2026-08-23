@@ -17,7 +17,9 @@ class RetryAdvice:
 _RETRYABLE = frozenset({ErrorCode.RATE_LIMITED, ErrorCode.UNAVAILABLE, ErrorCode.INTERNAL})
 
 
-def advice_for(code: ErrorCode, *, attempt: int = 0, retry_after: float | None = None) -> RetryAdvice:
+def advice_for(
+    code: ErrorCode, *, attempt: int = 0, retry_after: float | None = None
+) -> RetryAdvice:
     if code not in _RETRYABLE:
         return RetryAdvice(retry=False, after_seconds=0.0, reason=code.value)
     attempt_n = max(0, int(attempt))

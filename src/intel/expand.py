@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from src.intel.ioc import Indicator, IndicatorKind, classify_indicator, host_from_url, related_indicators
+from src.intel.ioc import (
+    Indicator,
+    IndicatorKind,
+    classify_indicator,
+    host_from_url,
+    related_indicators,
+)
 
 
 def expand(raw: object) -> list[Indicator]:

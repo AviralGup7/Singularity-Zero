@@ -6,7 +6,9 @@ from src.detection.taxonomy import classify_key, families
 
 
 def test_score_blends_evidence_and_fp() -> None:
-    high = score_finding(severity="high", plugin_confidence=0.6, evidence_points=3, corroborated=True)
+    high = score_finding(
+        severity="high", plugin_confidence=0.6, evidence_points=3, corroborated=True
+    )
     fp = score_finding(severity="high", plugin_confidence=0.6, false_positive_hits=2)
     assert high.confidence > fp.confidence
     ordered = rank([fp, high])

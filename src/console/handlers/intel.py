@@ -11,7 +11,12 @@ from src.intel.ioc import extract_indicators
 
 
 def handle_lookup(ctx: RequestContext) -> dict[str, Any]:
-    value = ctx.query.get("q") or ctx.query.get("value") or ctx.payload.get("value") or ctx.payload.get("q")
+    value = (
+        ctx.query.get("q")
+        or ctx.query.get("value")
+        or ctx.payload.get("value")
+        or ctx.payload.get("q")
+    )
     text = ctx.payload.get("text")
     if text:
         indicators = extract_indicators(text)

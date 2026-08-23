@@ -34,7 +34,6 @@ async def get_job_logs(
     from pathlib import Path
 
     from src.dashboard.fastapi.dependencies import get_config
-
     from src.dashboard.launcher_paths import resolve_launcher_dir
 
     config = get_config()

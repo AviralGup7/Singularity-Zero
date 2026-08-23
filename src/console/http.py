@@ -141,5 +141,7 @@ def handle_http(
 
 def missing_route(method: str, path: str) -> HttpResponse:
     request_id = normalize_request_id("")
-    failed = ResponseEnvelope.from_error("", request_id, not_found("no console route", method=method, path=path))
+    failed = ResponseEnvelope.from_error(
+        "", request_id, not_found("no console route", method=method, path=path)
+    )
     return response_to_http(failed)

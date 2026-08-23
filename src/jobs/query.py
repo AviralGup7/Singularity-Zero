@@ -6,7 +6,12 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from src.jobs.status import JobStatus, is_active_job_status, is_terminal_job_status, parse_job_status
+from src.jobs.status import (
+    JobStatus,
+    is_active_job_status,
+    is_terminal_job_status,
+    parse_job_status,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +66,9 @@ def _matches(job: dict[str, Any], spec: JobFilter) -> bool:
     return True
 
 
-def filter_jobs(jobs: Iterable[dict[str, Any]], spec: JobFilter | None = None) -> list[dict[str, Any]]:
+def filter_jobs(
+    jobs: Iterable[dict[str, Any]], spec: JobFilter | None = None
+) -> list[dict[str, Any]]:
     query = spec or JobFilter()
     return [job for job in jobs if _matches(job, query)]
 

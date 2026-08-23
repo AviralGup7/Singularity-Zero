@@ -6,8 +6,8 @@ from typing import Any
 
 from src.jobs.eta import elapsed_seconds, format_duration, remaining_seconds, stalled
 from src.jobs.progress import overall_percent, running_stage_count
-from src.jobs.status import parse_job_status
 from src.jobs.stages import parse_stage_key
+from src.jobs.status import parse_job_status
 
 
 def summarize(job: dict[str, Any], *, now: float) -> dict[str, Any]:

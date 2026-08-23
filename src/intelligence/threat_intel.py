@@ -84,7 +84,9 @@ def explicit_cves_from_finding(finding: dict[str, Any]) -> list[str]:
     for source in (
         finding.get("cves"),
         finding.get("cve_correlations"),
-        (finding.get("threat_intel") or {}).get("cves") if isinstance(finding.get("threat_intel"), dict) else None,
+        (finding.get("threat_intel") or {}).get("cves")
+        if isinstance(finding.get("threat_intel"), dict)
+        else None,
     ):
         if isinstance(source, (list, tuple)):
             for item in source:

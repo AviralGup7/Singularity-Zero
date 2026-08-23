@@ -16,7 +16,9 @@ def handle_policy(ctx: RequestContext) -> dict[str, Any]:
 
 
 def handle_list(ctx: RequestContext) -> dict[str, Any]:
-    unread_only = str(ctx.query.get("unread_only") or ctx.payload.get("unread_only") or "").lower() in {
+    unread_only = str(
+        ctx.query.get("unread_only") or ctx.payload.get("unread_only") or ""
+    ).lower() in {
         "1",
         "true",
         "yes",
@@ -57,4 +59,8 @@ def handle_delete(ctx: RequestContext) -> dict[str, Any]:
         raise bad_request("notification id required")
     if not ctx.runtime.inbox.delete(notification_id):
         raise not_found("notification not found", id=notification_id)
-    return {"id": notification_id, "deleted": True, "unread_count": ctx.runtime.inbox.unread_count()}
+    return {
+        "id": notification_id,
+        "deleted": True,
+        "unread_count": ctx.runtime.inbox.unread_count(),
+    }

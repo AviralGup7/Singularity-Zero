@@ -26,16 +26,18 @@ def should_call_jwt_path(
     bearer_token: str | None = None,
 ) -> bool:
     normalized = str(path or "").split("?", 1)[0]
-    if normalized.rstrip("/") in {item.rstrip("/") for item in JWT_NOTIFICATION_PATHS} or normalized.startswith(
-        "/api/notifications/"
-    ):
+    if normalized.rstrip("/") in {
+        item.rstrip("/") for item in JWT_NOTIFICATION_PATHS
+    } or normalized.startswith("/api/notifications/"):
         if normalized.endswith("/stream") or normalized.endswith("/stream/"):
             return should_open_stream(session, bearer_token=bearer_token)
         return should_fetch(session, bearer_token=bearer_token)
     return True
 
 
-def policy_payload(session: Session | None, *, bearer_token: str | None = None) -> dict[str, object]:
+def policy_payload(
+    session: Session | None, *, bearer_token: str | None = None
+) -> dict[str, object]:
     hints = transport_hints(session, bearer_token=bearer_token)
     jwt_ok = requires_bearer_token(session) or bool(bearer_token)
     return {
@@ -43,5 +45,7 @@ def policy_payload(session: Session | None, *, bearer_token: str | None = None) 
         "fetch_notifications_http": jwt_ok,
         "open_notification_stream": jwt_ok,
         "use_console_inbox": should_use_console_inbox(session, bearer_token=bearer_token),
-        "reason": "demo_or_guest" if is_demo_or_guest(session) else ("bearer" if jwt_ok else "anonymous"),
+        "reason": "demo_or_guest"
+        if is_demo_or_guest(session)
+        else ("bearer" if jwt_ok else "anonymous"),
     }
