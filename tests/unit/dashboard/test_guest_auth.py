@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def _reset_dashboard_config_singleton() -> None:
+    from src.dashboard.fastapi import dependencies as _dep
+
+    _dep._config_instance = None
+    yield
+    _dep._config_instance = None
 
 
 def _app(tmp_path, monkeypatch, guest_access_enabled: bool, enable_api_security: str = "true"):

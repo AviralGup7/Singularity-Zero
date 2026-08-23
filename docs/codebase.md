@@ -41,7 +41,7 @@ src/
 │   ├── plugin_runtime/   # Dynamic plugin executor and lifecycle management
 │   └── response/         # Response classification, diffing, and anomaly scoring
 │
-├── api_tests/            # 🧪 Automated REST/GraphQL/gRPC test harnesses and fuzzing
+├── api_tests/            # 🧪 API-key candidate checklist and stored-result formatting (not GraphQL/gRPC/fuzzing)
 │   ├── apitester/        # Core API test harness and scenario runners
 │   ├── api_tester.py     # Unified API test orchestrator
 │   └── __main__.py       # Standalone CLI entrypoint for API testing
