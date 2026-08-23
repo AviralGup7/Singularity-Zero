@@ -1,9 +1,9 @@
+"""Core service helpers.
+
+Pipeline process objects are constructed by ``PipelineOrchestrator``
+and passed as arguments. There is no global service locator here.
+"""
+
 from __future__ import annotations
 
-from src.core.services.pipeline import PipelineServices, get_services, setup_pipeline_services
-
-__all__ = [
-    "PipelineServices",
-    "get_services",
-    "setup_pipeline_services",
-]
+__all__: list[str] = []

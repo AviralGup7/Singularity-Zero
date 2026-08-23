@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-from src.core.checkpoint.manager import CheckpointManager
-from src.core.config.typed_config import ValidatedPipelineConfig, load_config
-from src.core.di.container import container
-from src.core.events.event_bus import EventBus
+from src.core.checkpoint.manager import CheckpointManager, LocalCheckpointStore
+from src.core.config.typed_config import ValidatedPipelineConfig
+from src.core.events.event_bus import get_event_bus
 from src.core.ids import generate_run_id
-from src.core.storage.abstraction import StorageBackend, create_storage_backend
+from src.core.storage.abstraction import create_storage_backend
 from src.pipeline.engine import (
     ExecutionContext,
     PipelineEngine,
@@ -21,85 +18,6 @@ from src.pipeline.engine import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PipelineServices:
-    """Central service container for the pipeline."""
-
-    config: ValidatedPipelineConfig
-    storage: Any
-    event_bus: EventBus
-    checkpoint_manager: CheckpointManager
-    pipeline_engine: PipelineEngine | None = None
-
-
-# Global services instance
-_services: PipelineServices | None = None
-
-
-def get_services() -> PipelineServices:
-    global _services
-    if _services is None:
-        raise RuntimeError(
-            "Pipeline services not initialized. Call setup_pipeline_services() first."
-        )
-    return _services
-
-
-def setup_pipeline_services(config_path: str | None = None) -> PipelineServices:
-    """Initialize all pipeline services."""
-    global _services
-
-    # Load config
-    if config_path:
-        config = load_config(config_path)
-    else:
-        config = ValidatedPipelineConfig(
-            target_name="default",
-            output_dir="output",
-        )
-
-    # Register config
-    from src.core.config.typed_config import register_config
-
-    register_config(config)
-
-    # Create services
-
-    storage = create_storage_backend(config.storage)
-    event_bus = EventBus()
-    checkpoint = CheckpointManager(
-        run_id=config.target_name,
-        storage=storage,
-    )
-    services = PipelineServices(
-        config=config,
-        storage=storage,
-        event_bus=event_bus,
-        checkpoint_manager=checkpoint,
-    )
-
-    # Register with the DI container, exactly as the canonical
-    # implementation in src/core/services/pipeline.py does.
-    container.register_instance(StorageBackend, storage)
-    container.register_instance(EventBus, event_bus)
-    container.register_instance(CheckpointManager, checkpoint)
-    container.register_instance(ValidatedPipelineConfig, config)
-
-    _services = services
-    logger.info("Pipeline services initialized")
-    return services
-
-
-async def shutdown_pipeline_services() -> None:
-    """Gracefully shutdown all services."""
-    global _services
-    if _services:
-        await _services.storage.close()
-        await _services.event_bus.stop()
-        _services = None
-        logger.info("Pipeline services shutdown complete")
 
 
 # Built-in stages
@@ -404,25 +322,29 @@ def create_pipeline_engine(config: ValidatedPipelineConfig) -> PipelineEngine:
 
 
 async def run_pipeline(config: ValidatedPipelineConfig, run_id: str) -> PipelineState:
-    """Run complete pipeline with all services."""
-    # Setup services
-    services = setup_pipeline_services()
+    """Run the leftover demo pipeline using the passed-in config.
 
-    # Create engine with proper context
+    Process-wide services are owned by ``PipelineOrchestrator`` / the
+    event-bus singleton. This helper does not publish a global locator.
+    """
+    storage = create_storage_backend(config.storage or {"backend": "local"})
+    checkpoint_manager = CheckpointManager(
+        store=LocalCheckpointStore(Path(config.output_dir) / config.target_name / "checkpoints"),
+        run_id=run_id,
+    )
     context = ExecutionContext(
         run_id=run_id,
         target_name=config.target_name,
         config=config.__dict__,
-        storage=services.storage,
-        event_bus=services.event_bus,
-        checkpoint_manager=services.checkpoint_manager,
+        storage=storage,
+        event_bus=get_event_bus(),
+        checkpoint_manager=checkpoint_manager,
     )
 
     engine = create_pipeline_engine(config)
     engine.context = context
 
-    # Try to resume from checkpoint
-    checkpoint = await services.checkpoint_manager.load()
+    checkpoint = await checkpoint_manager.load()
     if checkpoint:
         state = PipelineState.from_dict(checkpoint.__dict__)
     else:
@@ -432,9 +354,11 @@ async def run_pipeline(config: ValidatedPipelineConfig, run_id: str) -> Pipeline
             scope_entries=config.scope_entries or [],
         )
 
-    # Execute
     try:
-        final_state = await engine.execute(state)
-        return final_state
+        return await engine.execute(state)
     finally:
-        await shutdown_pipeline_services()
+        closer = getattr(storage, "close", None)
+        if closer is not None:
+            result = closer()
+            if hasattr(result, "__await__"):
+                await result

@@ -386,3 +386,41 @@ def get_tool_execution_service_cls() -> type[ToolExecutionServiceProtocol] | Non
     if _tool_execution_service_cls is None:
         _warn_if_missing("tool_execution_service_cls")
     return _tool_execution_service_cls
+
+
+def reset_protocol_registry() -> None:
+    """Clear every registered binding (process reload and tests)."""
+    global _ast_mutator, _wasm_executor, _analysis_check_options
+    global _lateral_graph_cls, _fetch_response_provider, _response_comparator
+    global _plugin_artifact_loader, _passive_check_names, _chameleon_evasion
+    global _exploit_replay, _remediation_scanner_cls
+    global _self_healing_controller_cls, _corrective_action_registry_cls
+    global _analyst_notes, _stage_baseline, _active_manifest_registry
+    global _validation_runtime, _isolated_execution, _oauth_authenticator_cls
+    global _auth_flow_runner_cls, _retry_policy_cls, _launcher_manifest
+    global _tenant_isolation_check, _tool_execution_service_cls
+    _ast_mutator = None
+    _wasm_executor = None
+    _analysis_check_options = None
+    _lateral_graph_cls = None
+    _fetch_response_provider = None
+    _response_comparator = None
+    _plugin_artifact_loader = None
+    _passive_check_names = None
+    _chameleon_evasion = None
+    _exploit_replay = None
+    _remediation_scanner_cls = None
+    _self_healing_controller_cls = None
+    _corrective_action_registry_cls = None
+    _analyst_notes = None
+    _stage_baseline = None
+    _active_manifest_registry = None
+    _validation_runtime = None
+    _isolated_execution = None
+    _oauth_authenticator_cls = None
+    _auth_flow_runner_cls = None
+    _retry_policy_cls = None
+    _launcher_manifest = None
+    _tenant_isolation_check = None
+    _tool_execution_service_cls = None
+    _warned_missing.clear()

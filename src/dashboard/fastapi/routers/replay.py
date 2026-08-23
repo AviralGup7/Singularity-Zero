@@ -89,9 +89,9 @@ async def replay_request(
     replay_headers_for_mode = get_exploit_replay()
     if replay_headers_for_mode is None:
         try:
-            from src.bootstrap.startup_registration import ensure_protocol_bindings_registered
+            from src.bootstrap.startup_registration import register_process_bindings
 
-            ensure_protocol_bindings_registered()
+            register_process_bindings()
             replay_headers_for_mode = get_exploit_replay()
         except Exception:
             pass
@@ -135,9 +135,9 @@ async def replay_request(
 
     if fetch_response_provider is None:
         try:
-            from src.bootstrap.startup_registration import ensure_protocol_bindings_registered
+            from src.bootstrap.startup_registration import register_process_bindings
 
-            ensure_protocol_bindings_registered()
+            register_process_bindings()
             fetch_response_provider = get_fetch_response_provider()
             artifact_loader = get_plugin_artifact_loader()
             compare_response_records = get_response_comparator()

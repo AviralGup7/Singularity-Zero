@@ -30,7 +30,35 @@ def normalize_progress_status(value: object) -> str:
         return "completed"
     if status in {"skipped", "skip"}:
         return "skipped"
+    if status == "pending":
+        return "pending"
+    if status == "ready":
+        return "ready"
     return "running"
+
+
+def rebuild_progress_state_from_file(path: Path, *, progress_prefix: str) -> dict[str, Any]:
+    """Replay every PIPELINE_PROGRESS payload into the live stage_progress model."""
+    from src.dashboard.progress_ingestion import apply_progress
+
+    scratch: dict[str, Any] = {
+        "stage": "startup",
+        "status": "running",
+        "progress_percent": 0,
+        "status_message": "",
+        "stage_progress": {},
+        "latest_logs": [],
+    }
+    for line in read_all_lines(path):
+        if not line.startswith(progress_prefix):
+            continue
+        try:
+            parsed = json.loads(line[len(progress_prefix) :])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and str(parsed.get("stage") or "").strip():
+            apply_progress(scratch, parsed)
+    return scratch
 
 
 def last_progress_payload(lines: list[str], *, progress_prefix: str) -> dict[str, Any]:

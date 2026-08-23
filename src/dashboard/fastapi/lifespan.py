@@ -258,6 +258,20 @@ def _reset_singletons() -> None:
     except (ImportError, AttributeError):
         pass
 
+    try:
+        from src.bootstrap.startup_registration import reset_startup_registration
+
+        reset_startup_registration()
+    except (ImportError, Exception):
+        pass
+
+    try:
+        from src.core.events.event_bus import reset_event_bus
+
+        reset_event_bus()
+    except (ImportError, Exception):
+        pass
+
     logger.debug("Singleton reset complete")
 
 
@@ -276,19 +290,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     register_main_loop(asyncio.get_running_loop())
 
-    # Register all protocol implementations (CorrectiveActionRegistry, etc.)
-    from src.bootstrap.startup_registration import register_all_implementations
+    # Same composition root as CLI ``src.pipeline.runtime:main``.
+    from src.bootstrap.startup_registration import register_process_bindings
 
-    register_all_implementations()
-
-    # Register plugin hooks from analysis and detection layers
-    from src.bootstrap.startup_registration import (
-        register_analysis_plugin_hooks,
-        register_detection_plugin_hooks,
-    )
-
-    register_analysis_plugin_hooks()
-    register_detection_plugin_hooks()
+    register_process_bindings()
 
     config: Any = app.state.config
     ws_services = None

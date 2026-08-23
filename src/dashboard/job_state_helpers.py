@@ -261,15 +261,14 @@ def _apply_terminal_state(
         job["returncode"] = returncode
 
     stage_progress: dict[str, dict[str, Any]] = job.setdefault("stage_progress", {})
-    cancel_reason = "Pipeline cancelled" if status == "stopped" else "Pipeline finished"
-    for sp in stage_progress.values():
-        if sp.get("status") == "running":
-            sp["status"] = "completed"
-            if int(sp.get("percent", 0) or 0) < 100:
-                sp["percent"] = 100
-            if not sp.get("reason"):
-                sp["reason"] = cancel_reason
-            sp["updated_at"] = now
+    leftover_status = "skipped"
+    leftover_reason = "job_stopped" if status == "stopped" else "interrupted"
+    finalize_unfinished_stage_entries(
+        stage_progress,
+        now=now,
+        status=leftover_status,
+        reason=leftover_reason,
+    )
 
     active_stages = _get_active_stages(job)
     active_stages.clear()
