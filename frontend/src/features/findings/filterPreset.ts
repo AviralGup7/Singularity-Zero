@@ -1,4 +1,5 @@
-import { sanitizeSeverityFilters, type FindingSeverity } from './severityFilter';
+import { sanitizeSeverityFilters } from './severityFilter';
+import type { FindingSeverity } from './severityFilter';
 
 export function applyFilterPreset(
   current: { search: string; severity: FindingSeverity[] },

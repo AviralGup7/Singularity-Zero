@@ -3,7 +3,8 @@ import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
 import { appendStreamToken } from './streamAuth';
 
-import { asNumber, asRecord, asString, canonicalizeJobStatus, collectAllPages, readPageEnvelope, toJobListParams, type JobListQuery, type PageEnvelope } from './contract';
+import { asNumber, asRecord, asString, canonicalizeJobStatus, collectAllPages, readPageEnvelope, toJobListParams } from './contract';
+import type { JobListQuery, PageEnvelope } from './contract';
 import { JobSchema } from './schemas';
 
 export interface JobsListParams {

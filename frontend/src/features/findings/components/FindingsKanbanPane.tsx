@@ -7,8 +7,8 @@ import {
   FindingsKanbanView,
   bucketKanbanFindings,
   resolveKanbanColumn,
-  type KanbanColumn,
 } from './FindingsKanbanView';
+import type { KanbanColumn } from './FindingsKanbanView';
 
 function hashToColor(str: string): string {
   let hash = 0;

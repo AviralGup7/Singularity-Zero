@@ -9,9 +9,8 @@ import {
   normalizeFindingRecord,
   readPageEnvelope,
   toFindingListParams,
-  type FindingListQuery,
-  type PageEnvelope,
 } from './contract';
+import type { FindingListQuery, PageEnvelope } from './contract';
 
 function findingPath(id: string, suffix = ''): string {
   const safe = encodeURIComponent(String(id ?? '').trim());
