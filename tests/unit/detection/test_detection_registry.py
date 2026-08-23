@@ -232,6 +232,7 @@ class TestDetectionRegistry:
             "waf",
             "third-party",
             "api",
+            "intelligence",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.group in valid_groups
@@ -253,6 +254,7 @@ class TestDetectionRegistry:
             "dynamic_analysis_context",
             "flow_items_and_cache",
             "flow_items_only",
+            "bulk_findings_only",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.input_kind in valid_kinds

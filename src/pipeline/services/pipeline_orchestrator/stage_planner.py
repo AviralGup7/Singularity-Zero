@@ -10,6 +10,10 @@ from src.infrastructure.resource_guard import ResourceGuard
 
 logger = logging.getLogger(__name__)
 
+# Required for honest exit codes / report emission. Planner must not
+# drop these because of low predicted value or a tight RAM estimate.
+_NEVER_SKIP_STAGES = frozenset({"reporting", "threat_modeling", "subdomains", "live_hosts", "urls"})
+
 
 def _get_graph_nodes() -> list:
     """Return the current pipeline graph nodes for dependency checking."""
@@ -82,6 +86,13 @@ class StagePlanner:
         filtered_stages: list[str] = []
         for s in active_stages:
             skip, reason = self.resource_guard.should_skip_stage(s, target_count, url_count)
+            if skip and s in _NEVER_SKIP_STAGES:
+                logger.info(
+                    "StagePlanner: Stage '%s' resource-guarded but is required; not skipping.",
+                    s,
+                )
+                filtered_stages.append(s)
+                continue
             if skip and s in dependent_stages:
                 logger.info(
                     "StagePlanner: Stage '%s' resource-guarded but has dependents; not skipping.", s
@@ -187,6 +198,16 @@ class StagePlanner:
 
         for s, val in ordered_stages:
             if val < threshold:
+                if s in _NEVER_SKIP_STAGES:
+                    logger.info(
+                        "StagePlanner: Stage '%s' marginal value %.2f < threshold %.2f "
+                        "but is required; not skipping.",
+                        s,
+                        val,
+                        threshold,
+                    )
+                    final_stages.append(s)
+                    continue
                 # Don't skip stages that have downstream dependents in the current plan
                 has_dependents = any(
                     s in node.needs for node in _get_graph_nodes() if node.name in adjusted_stages

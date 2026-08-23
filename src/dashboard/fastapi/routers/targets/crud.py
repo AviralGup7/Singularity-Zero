@@ -310,7 +310,7 @@ async def list_all_findings(
                 )
                 if not _severity_allowed(normalized.get("severity"), severity):
                     continue
-                query = (search or "").strip().lower()
+                query = search.strip().lower() if isinstance(search, str) else ""
                 if query:
                     hay = " ".join(
                         str(normalized.get(key) or "")
