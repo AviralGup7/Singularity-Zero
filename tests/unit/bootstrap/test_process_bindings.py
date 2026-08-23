@@ -47,11 +47,7 @@ def test_lifespan_resets_protocol_registry_and_event_bus() -> None:
     from pathlib import Path
 
     lifespan_src = (
-        Path(__file__).resolve().parents[3]
-        / "src"
-        / "dashboard"
-        / "fastapi"
-        / "lifespan.py"
+        Path(__file__).resolve().parents[3] / "src" / "dashboard" / "fastapi" / "lifespan.py"
     ).read_text(encoding="utf-8")
     assert "reset_startup_registration" in lifespan_src
     assert "reset_event_bus" in lifespan_src

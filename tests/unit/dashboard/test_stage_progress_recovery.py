@@ -6,8 +6,8 @@ import json
 import tempfile
 from pathlib import Path
 
-from src.dashboard.job_state import apply_progress
 from src.dashboard.job_record_builder import create_job_record
+from src.dashboard.job_state import apply_progress
 from src.dashboard.registry import PROGRESS_PREFIX, STAGE_LABELS
 from src.dashboard.services.query_service_recovery import recover_job_from_launcher
 
@@ -39,11 +39,21 @@ def test_recovery_rebuilds_full_stage_progress_matching_live_apply() -> None:
     events = [
         {"stage": "subdomains", "status": "running", "percent": 10, "message": "Enumerating"},
         {"stage": "subdomains", "status": "completed", "percent": 20, "message": "Done subdomains"},
-        {"stage": "live_hosts", "status": "ready", "percent": 20, "message": "Stage ready: live_hosts"},
+        {
+            "stage": "live_hosts",
+            "status": "ready",
+            "percent": 20,
+            "message": "Stage ready: live_hosts",
+        },
         {"stage": "live_hosts", "status": "running", "percent": 30, "message": "Probing"},
         {"stage": "live_hosts", "status": "completed", "percent": 36, "message": "Done hosts"},
         {"stage": "urls", "status": "completed", "percent": 50, "message": "Done urls"},
-        {"stage": "waf", "status": "skipped", "reason": "condition_never_satisfied", "message": "Stage skipped"},
+        {
+            "stage": "waf",
+            "status": "skipped",
+            "reason": "condition_never_satisfied",
+            "message": "Stage skipped",
+        },
         {"stage": "passive_scan", "status": "completed", "percent": 70, "message": "Passive done"},
         {"stage": "active_scan", "status": "running", "percent": 80, "message": "Active running"},
         {"stage": "nuclei", "status": "running", "percent": 82, "message": "Nuclei running"},
