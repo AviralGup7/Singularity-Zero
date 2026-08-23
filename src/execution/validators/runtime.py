@@ -54,12 +54,23 @@ def execute_validation_runtime(
         for name in engine_output.get("settings", {}).get("enabled_validators", [])
         if str(name).strip()
     }
+    requested_validators = {
+        str(name).strip().lower()
+        for name in engine_output.get("settings", {}).get("requested_validators", [])
+        if str(name).strip()
+    }
 
     def _is_enabled(validator_name: str) -> bool:
         # Empty enabled set means "all validators" only for implicit/default selection.
+        # Sidecar validators (e.g. api_key) are not in the blackbox registry, so
+        # honor the operator request list as well as resolved engine names.
         if selection_explicit:
-            return validator_name in enabled_validators
-        return not enabled_validators or validator_name in enabled_validators
+            return validator_name in enabled_validators or validator_name in requested_validators
+        return (
+            not enabled_validators
+            or validator_name in enabled_validators
+            or validator_name == "api_key"
+        )
 
     # IDOR
     if _is_enabled("idor"):
@@ -100,15 +111,18 @@ def execute_validation_runtime(
                 errors.append(msg)
         results["xss_validation"] = xss_results
 
-    # API Keys
-    try:
-        validate_api_keys = resolve_plugin(VALIDATOR, "api_key_candidates")
-        api_key_results = validate_api_keys(runtime_inputs, validation_settings)
-        results["api_key_validation"] = api_key_results
-    except KeyError as e:
-        msg = f"Validator plugin 'api_key_candidates' could not be resolved from registry: {e}"
-        logger.warning(msg)
-        errors.append(msg)
+    # API Keys (sidecar: not in the blackbox registry; honor _is_enabled)
+    if _is_enabled("api_key"):
+        try:
+            validate_api_keys = resolve_plugin(VALIDATOR, "api_key_candidates")
+            api_key_results = validate_api_keys(runtime_inputs, validation_settings)
+            results["api_key_validation"] = api_key_results
+        except KeyError as e:
+            msg = f"Validator plugin 'api_key_candidates' could not be resolved from registry: {e}"
+            logger.warning(msg)
+            errors.append(msg)
+    else:
+        results["api_key_validation"] = []
 
     # Promote results
     verified_exploits = []
