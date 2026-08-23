@@ -1,15 +1,50 @@
 import logging
-
-logger = logging.getLogger(__name__)
 import time
+from contextvars import ContextVar
 from typing import Any
 from urllib.parse import urlparse
 
 from src.infrastructure.execution_engine.shared_pool import get_shared_executor
 
+logger = logging.getLogger(__name__)
+
+_probe_allowed_host: ContextVar[str] = ContextVar("api_key_probe_allowed_host", default="")
+_probe_allow_write: ContextVar[bool] = ContextVar("api_key_probe_allow_write", default=False)
+
 from .api_key_candidates import discover_api_key_candidates
 from .api_key_workflows.scope import extract_registrable_domain
 from .client import build_base_headers, normalize_base_url, safe_request, summarize_response
+
+
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _host_of(url: str) -> str:
+    return (urlparse(str(url or "")).netloc or "").lower()
+
+
+def _without_secret(payload: Any, secret: str, masked: str) -> Any:
+    """Replace raw secret material in structured checklist output."""
+    if not secret:
+        return payload
+    if isinstance(payload, str):
+        return payload.replace(secret, masked)
+    if isinstance(payload, dict):
+        return {
+            key: _without_secret(value, secret, masked)
+            for key, value in payload.items()
+            if key != "key_value"
+        }
+    if isinstance(payload, list):
+        return [_without_secret(item, secret, masked) for item in payload]
+    return payload
+
+
+def _bound_request_kwargs() -> dict[str, Any]:
+    return {
+        "allowed_host": _probe_allowed_host.get(),
+        "allow_write": _probe_allow_write.get(),
+    }
 
 
 def _request(
@@ -21,10 +56,19 @@ def _request(
     params: dict[str, str] | None = None,
     timeout: int = 10,
     json_body: dict[str, Any] | None = None,
+    allowed_host: str = "",
+    allow_write: bool = False,
 ) -> dict[str, object]:
+    verb = str(method or "GET").upper()
+    host_allow = allowed_host or _probe_allowed_host.get()
+    write_ok = allow_write or _probe_allow_write.get()
+    if verb in _WRITE_METHODS and not write_ok:
+        return summarize_response(None, "write_probes_disabled", fallback_url=url)
+    if host_allow and _host_of(url) != host_allow.lower():
+        return summarize_response(None, "host_not_allowed", fallback_url=url)
     response, error = safe_request(
         session,
-        method,
+        verb,
         url,
         headers=headers,
         params=params,
@@ -33,6 +77,13 @@ def _request(
         allow_redirects=True,
     )
     return summarize_response(response, error, fallback_url=url)
+
+
+def _auth_differential(with_key: dict[str, object], without_key: dict[str, object]) -> bool:
+    """True only when the key changes an unauthorized response into 200."""
+    if not with_key.get("ok") or not without_key.get("ok"):
+        return False
+    return with_key.get("status_code") == 200 and without_key.get("status_code") in {401, 403}
 
 
 def _base_headers(user_agent: str) -> dict[str, str]:
@@ -128,7 +179,7 @@ def _check_direct_access(
     record = _record(
         "direct_no_login",
         "Direct API request without login",
-        "risk" if direct_with_key.get("status_code") == 200 else "ok",
+        "risk" if _auth_differential(direct_with_key, direct_without_key) else "ok",
         f"with key {direct_with_key.get('status_code')} vs no key {direct_without_key.get('status_code')}",
         compare=direct_compare,
     )
@@ -144,6 +195,7 @@ def _check_sensitive_endpoints(
 ) -> dict[str, Any]:
     endpoints = ("users", "orders", "admin", "admin/users", "admin/dashboard")
     executor = get_shared_executor()
+    bound = _bound_request_kwargs()
     futures = {
         executor.submit(
             _request,
@@ -153,6 +205,7 @@ def _check_sensitive_endpoints(
             headers=auth_headers,
             params=auth_params,
             timeout=timeout,
+            **bound,
         ): ep
         for ep in endpoints
     }
@@ -177,13 +230,12 @@ def _check_sensitive_endpoints(
                     "error": str(exc),
                 }
             )
-    risky_sensitive = [item for item in sensitive_hits if item.get("status_code") == 200]
     return _record(
         "sensitive_endpoints",
         "Sensitive endpoints with key",
-        "risk" if risky_sensitive else "ok",
-        f"{len(risky_sensitive)} of {len(sensitive_hits)} sensitive endpoints returned 200",
-        hits=risky_sensitive[:6],
+        "info",
+        f"{len(sensitive_hits)} GET probes recorded; 200 alone is not treated as a finding",
+        hits=sensitive_hits[:6],
     )
 
 
@@ -239,6 +291,7 @@ def _check_id_tampering(
 ) -> dict[str, Any]:
     test_ids = ("1", "123", "456", "999999", "admin")
     executor = get_shared_executor()
+    bound = _bound_request_kwargs()
     futures = {
         executor.submit(
             _request,
@@ -248,6 +301,7 @@ def _check_id_tampering(
             headers=auth_headers,
             params=auth_params,
             timeout=timeout,
+            **bound,
         ): t_id
         for t_id in test_ids
     }
@@ -272,13 +326,12 @@ def _check_id_tampering(
                     "error": str(exc),
                 }
             )
-    risky_ids = [item for item in id_results if item.get("status_code") == 200]
     return _record(
         "id_tampering",
         "Modified IDs expose other users' data",
-        "risk" if risky_ids else "ok",
-        f"{len(risky_ids)} tampered IDs returned 200",
-        hits=risky_ids[:6],
+        "info",
+        "GET probes of alternate IDs recorded; 200 alone is not treated as a finding",
+        hits=id_results[:6],
     )
 
 
@@ -313,7 +366,7 @@ def _check_rate_limit_replay(
     return _record(
         "rate_limit_replay",
         "Replay multiple requests for rate-limit abuse",
-        "risk" if success_count >= 8 and rate_limited == 0 else "ok",
+        "info",
         f"{success_count} successful rapid requests before block",
         success_count=success_count,
         rate_limited=rate_limited,
@@ -331,6 +384,7 @@ def _check_subdomain_scope(
     subdomain_hits = []
     if urls:
         executor = get_shared_executor()
+        bound = _bound_request_kwargs()
         futures = {
             executor.submit(
                 _request,
@@ -340,6 +394,7 @@ def _check_subdomain_scope(
                 headers=auth_headers,
                 params=auth_params,
                 timeout=timeout,
+                **bound,
             ): u
             for u in urls
         }
@@ -354,7 +409,7 @@ def _check_subdomain_scope(
     return _record(
         "subdomain_scope",
         "Use key on different subdomains/services",
-        "risk" if subdomain_hits else "ok",
+        "info",
         f"{len(subdomain_hits)} alternate subdomains accepted the key",
         hits=subdomain_hits[:6],
     )
@@ -386,7 +441,7 @@ def _check_privilege_escalation(
     return _record(
         "privilege_escalation",
         "Privilege escalation endpoints with key",
-        "risk" if privilege_hits else "ok",
+        "info",
         f"{len(privilege_hits)} privilege endpoints returned 200",
         hits=privilege_hits[:6],
     )
@@ -400,7 +455,7 @@ def _check_http_methods(
     timeout: int,
 ) -> dict[str, Any]:
     method_hits = []
-    for method in ("GET", "POST", "PUT"):
+    for method in ("GET",):
         try:
             result = _request(
                 session,
@@ -409,22 +464,16 @@ def _check_http_methods(
                 headers=auth_headers,
                 params=auth_params,
                 timeout=timeout,
-                json_body={"test": True},
             )
             method_hits.append({"method": method, "status_code": result.get("status_code")})
         except Exception as exc:  # noqa: BLE001
             method_hits.append({"method": method, "status_code": "error", "error": str(exc)})
-    risky_methods = [
-        item
-        for item in method_hits
-        if item.get("status_code") in {200, 201, 204} and item.get("method") in {"POST", "PUT"}
-    ]
     return _record(
         "http_methods",
-        "Different HTTP methods with key",
-        "risk" if risky_methods else "ok",
-        f"{len(risky_methods)} write-capable methods succeeded",
-        hits=risky_methods,
+        "Read-only HTTP methods with key",
+        "info",
+        "GET-only method probe; write methods are opt-in",
+        hits=method_hits,
     )
 
 
@@ -687,9 +736,39 @@ def _check_parameter_chaining(
     )
 
 
-def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dict[str, Any]:
+def _run_candidate(
+    session: Any,
+    candidate: dict[str, str],
+    timeout: int,
+    *,
+    allow_write_probes: bool = False,
+) -> dict[str, Any]:
     candidate_copy = dict(candidate)
     base_url = normalize_base_url(candidate_copy.get("base_url", ""))
+    allowed_host = _host_of(base_url)
+    host_token = _probe_allowed_host.set(allowed_host)
+    write_token = _probe_allow_write.set(bool(allow_write_probes))
+    try:
+        return _run_candidate_checks(
+            session,
+            candidate_copy,
+            base_url,
+            timeout,
+            allow_write_probes=allow_write_probes,
+        )
+    finally:
+        _probe_allowed_host.reset(host_token)
+        _probe_allow_write.reset(write_token)
+
+
+def _run_candidate_checks(
+    session: Any,
+    candidate_copy: dict[str, str],
+    base_url: str,
+    timeout: int,
+    *,
+    allow_write_probes: bool,
+) -> dict[str, Any]:
     base_hdrs = _base_headers("Mozilla/5.0 (Codex API Key Validation)")
     placement = _placements(candidate_copy)[0]
     auth_headers: dict[str, str] = {**base_hdrs, **placement.get("headers", {})}
@@ -699,7 +778,7 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     checks: list[dict[str, Any]] = []
 
     # 1. Direct Access Check
-    direct_with_key, _, direct_record = _check_direct_access(
+    direct_with_key, direct_without_key, direct_record = _check_direct_access(
         session, base_url, auth_headers, auth_params, no_auth_headers, no_auth_params, timeout
     )
     checks.append(direct_record)
@@ -707,12 +786,12 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     # 2. Sensitive Endpoints Check
     checks.append(_check_sensitive_endpoints(session, base_url, auth_headers, auth_params, timeout))
 
-    # 3. Key Alone Check
+    # 3. Key Alone Check — same evidence bar as direct access
     checks.append(
         _record(
             "key_alone",
             "Key works without cookies/session",
-            "risk" if direct_with_key.get("status_code") == 200 else "ok",
+            "risk" if _auth_differential(direct_with_key, direct_without_key) else "ok",
             f"key-only request returned {direct_with_key.get('status_code')}",
             status_code=direct_with_key.get("status_code"),
         )
@@ -727,8 +806,16 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     # 6. Rate Limit Replay Check
     checks.append(_check_rate_limit_replay(session, base_url, auth_headers, auth_params, timeout))
 
-    # 7. Subdomain Scope Check
-    checks.append(_check_subdomain_scope(session, base_url, auth_headers, auth_params, timeout))
+    # 7. Subdomain Scope Check — quarantined: other hosts are out of default scope
+    checks.append(
+        _record(
+            "subdomain_scope",
+            "Use key on different subdomains/services",
+            "info",
+            "Skipped: default checklist stays on the candidate source host",
+            hits=[],
+        )
+    )
 
     # 8. Privilege Escalation Check
     checks.append(
@@ -751,8 +838,19 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     # 12. Browser vs Curl Check
     checks.append(_check_browser_vs_curl(session, base_url, auth_headers, auth_params, timeout))
 
-    # 13. Write Actions Check
-    checks.append(_check_write_actions(session, base_url, auth_headers, auth_params, timeout))
+    # 13. Write Actions Check — opt-in only
+    if allow_write_probes:
+        checks.append(_check_write_actions(session, base_url, auth_headers, auth_params, timeout))
+    else:
+        checks.append(
+            _record(
+                "write_actions",
+                "Write actions with key",
+                "info",
+                "Skipped: write probes require api_key_allow_write_probes=true",
+                hits=[],
+            )
+        )
 
     # 14. Placement Flexibility Check
     checks.append(
@@ -773,7 +871,7 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
         "ok_count": sum(1 for item in checks if item["outcome"] == "ok"),
         "info_count": sum(1 for item in checks if item["outcome"] == "info"),
     }
-    return {
+    payload = {
         "candidate": {
             "masked_key": candidate_copy["masked_key"],
             "source_url": candidate_copy["source_url"],
@@ -785,6 +883,11 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
         "checks": checks,
         "totals": totals,
     }
+    return _without_secret(
+        payload,
+        candidate_copy.get("key_value", ""),
+        candidate_copy.get("masked_key", "***"),
+    )
 
 
 def run_api_key_checklist(
@@ -794,6 +897,7 @@ def run_api_key_checklist(
     requests_module: Any = None,
     timeout: int = 10,
     candidate_limit: int = 6,
+    allow_write_probes: bool = False,
 ) -> dict[str, Any]:
     import requests as requests  # type: ignore[import-untyped]
 
@@ -810,7 +914,15 @@ def run_api_key_checklist(
 
     session = requests_module.Session()
     try:
-        results = [_run_candidate(session, candidate, timeout) for candidate in candidates]
+        results = [
+            _run_candidate(
+                session,
+                candidate,
+                timeout,
+                allow_write_probes=allow_write_probes,
+            )
+            for candidate in candidates
+        ]
         total_risk = sum(item["totals"]["risk_count"] for item in results)
         return {
             "status": "completed",

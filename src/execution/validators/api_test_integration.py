@@ -30,11 +30,16 @@ def run_api_key_checklist(
     responses: list[dict[str, Any]],
     timeout: int = int(TIMEOUT_DEFAULTS["api_test_seconds"]),
     candidate_limit: int = 6,
+    allow_write_probes: bool = False,
 ) -> dict[str, Any]:
     module = _load_api_tester()
     if module and hasattr(module, "run_api_key_checklist"):
         payload = module.run_api_key_checklist(
-            urls, responses, timeout=timeout, candidate_limit=candidate_limit
+            urls,
+            responses,
+            timeout=timeout,
+            candidate_limit=candidate_limit,
+            allow_write_probes=allow_write_probes,
         )
         if isinstance(payload, dict):
             return payload

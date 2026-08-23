@@ -33,8 +33,13 @@ def validate_api_key_candidates(
     settings = validation_settings or {}
     timeout = int(settings.get("api_key_timeout_seconds", 10))
     candidate_limit = int(settings.get("api_key_candidate_limit", 6))
+    allow_write_probes = bool(settings.get("api_key_allow_write_probes", False))
     result = run_api_key_checklist(
-        urls, responses, timeout=timeout, candidate_limit=candidate_limit
+        urls,
+        responses,
+        timeout=timeout,
+        candidate_limit=candidate_limit,
+        allow_write_probes=allow_write_probes,
     )
     if result.get("status") not in {"completed", "none"}:
         return []
