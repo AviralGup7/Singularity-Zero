@@ -45,32 +45,70 @@ def _is_test_mode() -> bool:
     return flag in {"1", "true", "yes", "on"}
 
 
+# Illustrative category→CVE samples for docs/tests only.
+# NOT a correlation: these IDs are unrelated third-party bugs (e.g. Log4Shell
+# is not "command injection"). Production enrichers must not consult this table.
+NON_PRODUCTION_CATEGORY_CVE_EXAMPLES: dict[str, tuple[str, ...]] = {
+    "sql_injection": ("CVE-2024-27956", "CVE-2023-46574", "CVE-2023-38646"),
+    "command_injection": ("CVE-2024-21887", "CVE-2023-49103", "CVE-2021-44228"),
+    "xss": ("CVE-2024-25600", "CVE-2023-30777", "CVE-2023-34992"),
+    "idor": ("CVE-2024-28757", "CVE-2023-49070"),
+    "ssrf": ("CVE-2024-27198", "CVE-2023-26360", "CVE-2021-26084"),
+    "broken_access_control": ("CVE-2024-21626", "CVE-2023-38646"),
+}
+
+
+def example_cves_for_category(finding_category: str) -> list[str]:
+    """Return labeled non-production example CVEs. Never used to stamp findings."""
+    cat = str(finding_category or "").strip().lower()
+    return list(NON_PRODUCTION_CATEGORY_CVE_EXAMPLES.get(cat, ()))
+
+
+def explicit_cves_from_finding(finding: dict[str, Any]) -> list[str]:
+    """Collect CVE IDs already present on a finding. Does not invent IDs from category."""
+    collected: list[str] = []
+
+    def _add(raw: object) -> None:
+        if raw is None:
+            return
+        if isinstance(raw, dict):
+            _add(raw.get("id") or raw.get("cve_id") or raw.get("cve"))
+            return
+        text = str(raw).strip().upper()
+        if not text.startswith("CVE-") or text in collected:
+            return
+        collected.append(text)
+
+    _add(finding.get("cve_id"))
+    _add(finding.get("cve"))
+    for source in (
+        finding.get("cves"),
+        finding.get("cve_correlations"),
+        (finding.get("threat_intel") or {}).get("cves") if isinstance(finding.get("threat_intel"), dict) else None,
+    ):
+        if isinstance(source, (list, tuple)):
+            for item in source:
+                _add(item)
+        else:
+            _add(source)
+    return collected
+
+
 class ThreatIntelCorrelator:
     """Correlates discovered assets, IPs, and vulnerabilities with external Threat Intel sources."""
 
     def __init__(self, enable_threat_intel: bool = True) -> None:
         self.enable_threat_intel = enable_threat_intel
-        # Predefined mapping database of signatures/categories to known CVEs for offline matching
-        self._cve_knowledge_base: dict[str, list[str]] = {
-            "sql_injection": ["CVE-2024-27956", "CVE-2023-46574", "CVE-2023-38646"],
-            "command_injection": ["CVE-2024-21887", "CVE-2023-49103", "CVE-2021-44228"],
-            "xss": ["CVE-2024-25600", "CVE-2023-30777", "CVE-2023-34992"],
-            "idor": ["CVE-2024-28757", "CVE-2023-49070"],
-            "ssrf": ["CVE-2024-27198", "CVE-2023-26360", "CVE-2021-26084"],
-            "broken_access_control": ["CVE-2024-21626", "CVE-2023-38646"],
-        }
 
     def correlate_cve(self, finding_category: str) -> list[str]:
-        """Map a pipeline finding category to high-fidelity matching CVE entries.
+        """Production CVE correlation.
 
-        Args:
-            finding_category: Standardized finding category name (e.g. 'sql_injection').
-
-        Returns:
-            List of matching CVE identifiers.
+        Category names are not CVEs. Historical example IDs live in
+        ``NON_PRODUCTION_CATEGORY_CVE_EXAMPLES`` and are excluded here so
+        EPSS/KEV cannot be attached to unrelated vulnerabilities.
         """
-        cat = str(finding_category or "").strip().lower()
-        return self._cve_knowledge_base.get(cat, [])
+        del finding_category
+        return []
 
     async def match_ioc_async(self, host_or_ip: str) -> dict[str, Any]:
         """Correlate host assets or target IPs with known threat indicators (MISP/VirusTotal/OTX).
@@ -166,7 +204,9 @@ class ThreatIntelCorrelator:
                     logger.debug("Metrics tracking failed (OTX failure)", exc_info=True)
 
         # 3. Query VirusTotal
-        vt_key = os.environ.get("VIRUSTOTAL_API_KEY")
+        from src.intelligence.feeds.virustotal import resolve_virustotal_api_key
+
+        vt_key = resolve_virustotal_api_key()
         if vt_key:
             try:
                 vt_cfg = VirusTotalConfig(api_key=vt_key)
@@ -273,19 +313,15 @@ class ThreatIntelCorrelator:
         enriched: list[dict[str, Any]] = []
         for finding in findings:
             f_copy = dict(finding)
-            cat = f_copy.get("category") or f_copy.get("type") or ""
-            cves = self.correlate_cve(cat)
-            f_copy["cve_correlations"] = cves
+            cves = explicit_cves_from_finding(f_copy)
 
-            # EPSS / CISA KEV best-effort. We import lazily so the
-            # intel module is not a hard runtime dependency for
-            # the rest of the pipeline.
+            # EPSS / CISA KEV only for CVEs already on the finding.
             for cve in cves:
                 self._attach_epss(f_copy, cve)
                 self._attach_cisa_kev(f_copy, cve)
             if cves:
                 logger.info(
-                    "ThreatIntel: Enriched finding %s with CVEs: %s",
+                    "ThreatIntel: Enriched finding %s with explicit CVEs: %s",
                     f_copy.get("id"),
                     cves,
                 )

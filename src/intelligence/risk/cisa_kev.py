@@ -230,15 +230,6 @@ class CISAKEVClient:
                 norm = self._normalize_cve(item)
                 if norm and norm not in cves:
                     cves.append(norm)
-        if not cves and finding.get("category"):
-            try:
-                from src.intelligence.threat_intel import ThreatIntelCorrelator
-
-                cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:
-                logger.warning(
-                    "CISAKEVClient: Failed to correlate CVEs from category", exc_info=True
-                )
         return [c for c in cves if c]
 
     def _network_disabled(self) -> bool:

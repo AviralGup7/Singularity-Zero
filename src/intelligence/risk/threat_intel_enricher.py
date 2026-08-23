@@ -231,15 +231,6 @@ class ThreatIntelEnricher:
                 text = str(item).strip().upper()
                 if text.startswith("CVE-") and text not in cves:
                     cves.append(text)
-        if not cves and finding.get("category"):
-            try:
-                from src.intelligence.threat_intel import ThreatIntelCorrelator
-
-                cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:
-                logger.warning(
-                    "ThreatIntelEnricher: Failed to correlate CVEs from category", exc_info=True
-                )
         return [c for c in cves if c]
 
     @staticmethod

@@ -177,16 +177,6 @@ class EPSSClient:
                 norm = self._normalize_cve(item)
                 if norm and norm not in cves:
                     cves.append(norm)
-        # Fall back to category-based CVE hints from the threat intel
-        # correlator. ``correlate_cve`` is called lazily to avoid
-        # circular imports.
-        if not cves and finding.get("category"):
-            try:
-                from src.intelligence.threat_intel import ThreatIntelCorrelator
-
-                cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
-            except Exception:
-                logger.warning("EPSSClient: Failed to correlate CVEs from category", exc_info=True)
         return [c for c in cves if c]
 
     def _fetch_remote(self, cve: str) -> EPSSScore | None:

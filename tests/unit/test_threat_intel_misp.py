@@ -94,8 +94,8 @@ async def test_threat_intel_correlator_async(monkeypatch: pytest.MonkeyPatch) ->
 
     assert isinstance(enriched, list)
     assert len(enriched) == 2
-    # Verify CVE enrichment
-    assert "CVE-2024-27956" in enriched[0]["cve_correlations"]
+    # Category is not a CVE: do not stamp unrelated example IDs.
+    assert not enriched[0].get("cve_correlations")
     # Verify IoC correlation enrichment on target URL
     assert "ioc_correlation" in enriched[0]["threat_intel"]
     assert enriched[0]["threat_intel"]["ioc_correlation"]["malicious"] is True
