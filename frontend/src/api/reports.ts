@@ -81,20 +81,6 @@ export function getCompliancePdfHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export interface AiExecutiveSummary {
-  target: string;
-  run_id: string;
-  summary: string;
-}
-
-export async function getAiExecutiveSummary(target: string, signal?: AbortSignal): Promise<AiExecutiveSummary> {
-  const { data } = await apiClient.get<AiExecutiveSummary>('/api/reports/ai-summary', {
-    signal,
-    params: { target },
-  });
-  return data;
-}
-
 export interface SlaTrendingResponse {
   active_breaches: number;
   mttr_days: number;

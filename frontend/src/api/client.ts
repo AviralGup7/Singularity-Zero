@@ -65,9 +65,9 @@ export type { ReplayParams } from './replay';
 export {
   getHealth, getGapAnalysis, exportFindings, refreshGapAnalysis,
   getReportLibrary, getCompliancePdfUrl, getCompliancePdfHeaders,
-  getAiExecutiveSummary, getSlaTrending,
+  getSlaTrending,
 } from './reports';
-export type { ReportLibraryItem, ReportLibraryResponse, AiExecutiveSummary, SlaTrendingResponse } from './reports';
+export type { ReportLibraryItem, ReportLibraryResponse, SlaTrendingResponse } from './reports';
 export { getReadiness, getLiveness } from './health';
 export { getNotes, createNote, updateNote, deleteNote } from './notes';
 export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest } from '@/types/extended';

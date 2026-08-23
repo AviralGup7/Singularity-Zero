@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ROUTES } from '@/config/paths';
 import { Link } from 'react-router-dom';
-import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus, Sparkles, TrendingUp } from 'lucide-react';
+import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus, TrendingUp } from 'lucide-react';
 
-import { getReportLibrary,  getAiExecutiveSummary,  getSlaTrending  } from '@/api/reports';
-import type {ReportLibraryItem, AiExecutiveSummary, SlaTrendingResponse} from '@/api/reports';
+import { getReportLibrary, getSlaTrending } from '@/api/reports';
+import type { ReportLibraryItem, SlaTrendingResponse } from '@/api/reports';
 import { ApiError } from '@/api/core';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
@@ -31,9 +31,6 @@ export function ReportLibraryPage() {
   const [reports, setReports] = useState<ReportLibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [aiSummary, setAiSummary] = useState<AiExecutiveSummary | null>(null);
-  const [aiTarget, setAiTarget] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
   const [slaData, setSlaData] = useState<SlaTrendingResponse | null>(null);
 
   const loadReports = async (signal?: AbortSignal) => {
@@ -61,20 +58,6 @@ export function ReportLibraryPage() {
       .catch(() => { showErrorToast('Failed to load SLA trending data'); });
     return () => controller.abort();
   }, []);
-
-  const handleLoadAiSummary = async () => {
-    if (!aiTarget.trim()) return;
-    setAiLoading(true);
-    try {
-      const result = await getAiExecutiveSummary(aiTarget.trim());
-      setAiSummary(result);
-    } catch {
-      setAiSummary(null);
-      showErrorToast('Failed to generate AI executive summary');
-    } finally {
-      setAiLoading(false);
-    }
-  };
 
   const stats = useMemo(() => {
     const signed = reports.filter(report => report.signature_valid).length;
