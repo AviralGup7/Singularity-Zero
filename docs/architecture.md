@@ -7,17 +7,17 @@ This document outlines the architecture, distributed execution model, resilience
 | Subsystem / Capability | Current Status | Code Location |
 |---|---|---|
 | **DAG Pipeline Orchestrator** | **Production** — Async DAG builder, actor scheduler, stage lifecycle, speculative dispatch | `src/pipeline/services/pipeline_orchestrator/`, `src/pipeline/engine.py` |
-| **Resilience & Circuit Breaking** | **Production** — 3-state Circuit Breaker, Redis/SQLite persistence, HTTP 429 `Retry-After` sleep override | `src/resilience/` |
+| **Resilience & Circuit Breaking** | **Production** — tool breaker is `src/pipeline/services/circuit_breaker.py`; Retry-After parser is `src/resilience/retry_after.py`. There is no live `src/resilience/circuit_breaker.py`. | `src/pipeline/services/circuit_breaker.py`, `src/resilience/retry_after.py` |
 | **Unified Hierarchical Cache** | **Production** — In-memory LRU + SQLite/Redis tiered cache with single-flight request coalescing | `src/pipeline/unified_cache/`, `src/cache/` |
 | **Frontier State & CRDT Engine** | **Production** — LWW-Set CRDTs keyed by Hybrid Logical Clocks (HLC), journaled state deltas | `src/frontier/`, `src/core/frontier/` |
 | **Tamper-Evident Audit Ledger** | **Production** — Cryptographic HMAC-SHA256 chained audit trail for administrative and scan events | `src/auth/audit.py`, `src/console/audit.py` |
 | **Active & Passive Analyzers** | **Production** — Multi-stage detectors for SQLi, XSS, SSRF, JWT, CSP, HTTP/2 smuggling | `src/analysis/active/`, `src/analysis/passive/` |
-| **ML Severity & Active Learning** | **Production** — XGBoost / Scikit-Learn classifier with NumPy fallback, automated FP feedback loop | `src/learning/`, `src/intel/` |
+| **ML Severity & Active Learning** | **Production** — in-process calibrated logreg priors (`src/intelligence/severity_model.py`), not XGBoost. `src/intel/` is an offline console vote store, not this model. | `src/intelligence/severity_model.py`, `src/learning/` |
 | **Adaptive Nuclei Tag Optimizer** | **Production** — Per-tag precision/recall/F1 telemetry tracking with dynamic config overrides | `src/learning/nuclei_tag_optimizer.py` |
-| **WASM / Process Sandbox** | **Production** — `wasmtime` runtime isolation for PoC verification; AST validation child process loader | `src/sandbox/`, `src/execution/` |
+| **WASM / Process Sandbox** | **Optional / incomplete** — wasmtime is an extra; default `.wasm` verifiers are stubs. `src/sandbox/` is only a feature-flag facade. Live plugin isolation is `src/core/plugins/sandbox.py`. | `src/execution/frontier/wasm.py`, `src/core/plugins/sandbox.py` |
 | **3D Cockpit & Real-time Console** | **Production** — React 19 + Three.js instanced attack graph rendering, Zustand stores, WebSockets | `frontend/src/`, `src/websocket_server/` |
 | **Distributed Actor Mesh** | **Production (Single-node & P2P)** — Pykka/Asyncio workers with SWIM gossip discovery and shard balancing | `src/mesh/`, `src/infrastructure/mesh/` |
-| **Attack Graph & Path Prediction** | **Production / Heuristic** — Kuzu graph integration and 2-layer GCN path prediction fallback | `src/intelligence/graph/`, `src/analysis/intelligence/` |
+| **Attack Graph & Path Prediction** | **Heuristic** — in-process threat-graph dicts and campaign builder. Not a live Kuzu GCN. | `src/intelligence/graph/`, `src/intelligence/campaigns/` |
 
 ---
 
@@ -27,11 +27,11 @@ This document outlines the architecture, distributed execution model, resilience
 - **Actor-Based Stage Scheduling**: Tasks are scheduled as asynchronous stage actors managed by `ActorScheduler` (`src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`). The scheduler continuously evaluates dependency readiness futures and greedily dispatches runnable stages into worker pools without waiting for static tier synchronization bubbles.
 - **CRDT Hybrid Logical Clock (HLC) Engine**: Frontier assets (subdomains, live hosts, endpoints, parameters, findings) are stored in Conflict-Free Replicated Data Types (`LWW-Sets`) indexed by Hybrid Logical Clocks. HLCs provide causal state consistency in $O(1)$ space per node, avoiding the unbounded network and memory overhead of classic vector clocks.
 - **Durable Write-Ahead Logging (WAL)**: All state transitions emit immutable deltas recorded in a journal ledger (`src/frontier/journal.py`). When cluster checkpoints are enabled, snapshots are dual-committed to Redis Streams and local Append-Only Files (AOF), ensuring instantaneous recovery and resume from interrupted runs (`--resume-from <checkpoint_id>`).
-- **Resilience & Circuit Breaker Isolation**: Network-bound tools and stages are wrapped by a 3-state Circuit Breaker (`src/resilience/circuit_breaker.py`). If a remote host or service throttles (HTTP 429) or times out, the breaker trips to `OPEN`, immediately parsing `Retry-After` delay headers (`src/resilience/retry_after.py`) to pause downstream dispatch without freezing event loops.
+- **Resilience & Circuit Breaker Isolation**: Tool binaries use `src/pipeline/services/circuit_breaker.py`. HTTP 429 `Retry-After` parsing lives in `src/resilience/retry_after.py`. Do not treat `src/resilience/` as a full breaker framework.
 
 ### 2. Cognitive Vulnerability Analysis & Validation
 - **Differential State Probing**: `src/analysis/intelligence/differential_prober.py` compares responses across differing authentication roles and tenant boundaries using normalized Levenshtein distance, automatically discovering Insecure Direct Object References (IDOR) and Broken Access Controls (BAC).
-- **PoC Validation Sandbox**: Exploit validation scripts and untrusted probes execute within a restricted WebAssembly sandbox (`wasmtime`) or isolated child processes with AST-enforced import restrictions (`src/sandbox/`), preventing unauthorized host breakout.
+- **PoC Validation Sandbox**: WASM verification is opt-in (`FEATURE_WASM_PLUGINS`) and is not a production default. Dynamic Python plugins use a JSON child-process boundary (`src/core/plugins/sandbox.py`), not `src/sandbox/`.
 - **Adaptive Closed-Loop Learning**: The ML severity engine (`src/learning/`) extracts operator triage feedback in real time. False positives flagged by security analysts update the FP-rules repository (`src/learning/fp_rules.py`) and retrain severity calibration weights, suppressing duplicate noise across subsequent scan executions.
 
 ### 3. High-Throughput Hardware Acceleration

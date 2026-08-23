@@ -75,12 +75,16 @@ This document serves as the authoritative single source of truth for all environ
 
 ---
 
-## 🕵️ Threat Intelligence API Keys (`src/intel/`)
+## 🕵️ Threat Intelligence API Keys
+
+Live HTTP clients live in `src/intelligence/feeds/`. `src/intel/` is an offline console vote store that only *checks* whether keys are set.
 
 | Variable | Type | Description |
 |---|---|---|
 | `SHODAN_API_KEY` | string | API key for Shodan host discovery and open port enumeration. |
-| `VIRUSTOTAL_API_KEY` / `VT_API_KEY` | string | API key for VirusTotal domain resolution and threat intelligence. |
+| `VT_API_KEY` | string | **Canonical** VirusTotal API key (recon + threat intel). |
+| `VIRUSTOTAL_API_KEY` | string | Deprecated alias; used only if `VT_API_KEY` is unset. |
+| `PIPELINE_OFFLINE` | boolean | When `1`/`true`, skip NVD/MITRE/EPSS/KEV network enrichment. |
 | `OTX_API_KEY` | string | AlienVault Open Threat Exchange (OTX) API key for passive IOC feeds. |
 | `SECURITYTRAILS_API_KEY` | string | API key for SecurityTrails historical DNS and subdomain records. |
 | `LEAKIX_API_KEY` | string | API key for LeakIX exposed service and leak searches. |
