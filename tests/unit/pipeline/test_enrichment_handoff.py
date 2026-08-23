@@ -208,3 +208,89 @@ async def test_threat_intel_budget_limits_feed_calls(
     assert len(_CountingCVESyncClient.calls) == 3
     assert len(_CountingMitreAttackMapper.calls) == 3
     assert len(_CountingMitreAttackMapper.calls) == 3
+
+
+def test_should_run_threat_intel_network_defaults_on() -> None:
+    assert enrichment_stage.should_run_threat_intel_network({}) is True
+    assert enrichment_stage.should_run_threat_intel_network(None, environ={}) is True
+
+
+def test_should_run_threat_intel_network_respects_offline_and_disable() -> None:
+    assert (
+        enrichment_stage.should_run_threat_intel_network({}, environ={"PIPELINE_OFFLINE": "1"})
+        is False
+    )
+    assert (
+        enrichment_stage.should_run_threat_intel_network(
+            {"enable_threat_intel": False}, environ={}
+        )
+        is False
+    )
+    assert (
+        enrichment_stage.should_run_threat_intel_network(
+            {"threat_intel": {"enabled": False}}, environ={}
+        )
+        is False
+    )
+    assert (
+        enrichment_stage.should_run_threat_intel_network(
+            {"enable_threat_intel": True}, environ={"PIPELINE_OFFLINE": "true"}
+        )
+        is False
+    )
+
+
+def test_threat_intel_network_skipped_when_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    _CountingCVESyncClient.calls = []
+    _CountingMitreAttackMapper.calls = []
+    monkeypatch.setenv("PIPELINE_OFFLINE", "1")
+    monkeypatch.setattr(
+        enrichment_stage, "enrich_findings_with_cvss", lambda findings: list(findings)
+    )
+    monkeypatch.setattr(enrichment_stage, "api_security_analyzer", lambda _responses: [])
+    monkeypatch.setattr(enrichment_stage, "dns_security_analyzer", lambda _domains: [])
+    monkeypatch.setattr(enrichment_stage, "correlate_findings", lambda _findings: [])
+    monkeypatch.setattr(enrichment_stage, "detect_multi_vector_endpoints", lambda _findings: [])
+    monkeypatch.setattr(enrichment_stage, "calculate_compound_risk", lambda _findings: {})
+    monkeypatch.setattr(
+        enrichment_stage,
+        "annotate_finding_decisions",
+        lambda findings, target_profile=None: findings,
+    )
+    monkeypatch.setattr(enrichment_stage, "apply_lifecycle", lambda findings: findings)
+    monkeypatch.setattr(
+        enrichment_stage, "filter_reportable_findings", lambda findings: list(findings)
+    )
+    monkeypatch.setattr("src.learning.integration.LearningIntegration", _DummyLearningIntegration)
+    monkeypatch.setattr(enrichment_stage, "CVESyncClient", _CountingCVESyncClient)
+    monkeypatch.setattr(enrichment_stage, "MitreAttackMapper", _CountingMitreAttackMapper)
+
+    ctx = PipelineContext()
+    ctx.result.merged_findings = [
+        {
+            "module": "access_control",
+            "category": "xss",
+            "title": "Reflected XSS",
+            "url": "https://example.com/q",
+            "severity": "high",
+            "confidence": 0.9,
+            "evidence": {},
+        }
+    ]
+    ctx.result.reportable_findings = list(ctx.result.merged_findings)
+    ctx.result.analysis_results = {}
+
+    output = asyncio.run(
+        enrichment_stage.run_post_analysis_enrichments(
+            args=SimpleNamespace(),
+            config=SimpleNamespace(analysis={}),
+            ctx=ctx,
+        )
+    )
+    metrics = output.metrics.get("threat_intel", {})
+    assert metrics.get("status") == "skipped"
+    assert metrics.get("reason") == "disabled_or_offline"
+    assert _CountingCVESyncClient.calls == []
+    assert _CountingMitreAttackMapper.calls == []

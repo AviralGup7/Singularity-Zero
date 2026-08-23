@@ -1,7 +1,9 @@
 """Post-analysis enrichment stage: CVSS, API security, DNS security, threat intel, correlation."""
 
 import asyncio
+import os
 import time
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlparse
 
@@ -123,6 +125,31 @@ def _coerce_bounded_float(
     except (TypeError, ValueError):
         parsed = default
     return max(minimum, min(maximum, parsed))
+
+
+def should_run_threat_intel_network(
+    analysis_settings: Mapping[str, Any] | None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    """Return True when NVD/MITRE feed calls are allowed.
+
+    Default is on (preserves existing enrichment). Off when
+    ``PIPELINE_OFFLINE`` is set or analysis config explicitly disables TI.
+    """
+    env = os.environ if environ is None else environ
+    flag = str(env.get("PIPELINE_OFFLINE", "")).strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return False
+    settings = analysis_settings or {}
+    if settings.get("enable_threat_intel") is False:
+        return False
+    threat_intel = settings.get("threat_intel")
+    if threat_intel is False:
+        return False
+    if isinstance(threat_intel, Mapping) and threat_intel.get("enabled") is False:
+        return False
+    return True
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -408,200 +435,207 @@ async def run_post_analysis_enrichments(
     # Enrich findings with threat intelligence feeds — parallelized
     threat_intel_metrics: dict[str, Any] = {"status": "skipped"}
     try:
-        total_reportable_findings = len(state_delta["reportable_findings"])
-        max_findings = _coerce_bounded_int(
-            analysis_settings.get(
-                "threat_intel_max_findings",
-                _DEFAULT_THREAT_INTEL_MAX_FINDINGS,
-            ),
-            default=_DEFAULT_THREAT_INTEL_MAX_FINDINGS,
-            minimum=1,
-            maximum=_MAX_THREAT_INTEL_FINDINGS_CAP,
-        )
-        max_concurrency = _coerce_bounded_int(
-            analysis_settings.get("threat_intel_max_feed_concurrency", _MAX_FEED_CONCURRENCY),
-            default=_MAX_FEED_CONCURRENCY,
-            minimum=1,
-            maximum=_MAX_FEED_CONCURRENCY_CAP,
-        )
-        per_finding_timeout_seconds = _coerce_bounded_float(
-            analysis_settings.get(
-                "threat_intel_per_finding_timeout_seconds",
-                _DEFAULT_THREAT_INTEL_PER_FINDING_TIMEOUT_SECONDS,
-            ),
-            default=_DEFAULT_THREAT_INTEL_PER_FINDING_TIMEOUT_SECONDS,
-            minimum=1.0,
-            maximum=30.0,
-        )
-        cve_timeout_seconds = _coerce_bounded_float(
-            analysis_settings.get(
-                "threat_intel_cve_timeout_seconds",
-                _DEFAULT_THREAT_INTEL_CVE_TIMEOUT_SECONDS,
-            ),
-            default=_DEFAULT_THREAT_INTEL_CVE_TIMEOUT_SECONDS,
-            minimum=1.0,
-            maximum=30.0,
-        )
-        cve_max_retries = _coerce_bounded_int(
-            analysis_settings.get(
-                "threat_intel_cve_max_retries",
-                _DEFAULT_THREAT_INTEL_CVE_MAX_RETRIES,
-            ),
-            default=_DEFAULT_THREAT_INTEL_CVE_MAX_RETRIES,
-            minimum=0,
-            maximum=5,
-        )
-        threat_intel_candidates = _select_threat_intel_candidates(
-            state_delta["reportable_findings"],
-            max_findings=max_findings,
-        )
-        skipped_findings = max(0, total_reportable_findings - len(threat_intel_candidates))
-        if skipped_findings:
-            emit_progress(
-                "intelligence",
-                (
-                    "Threat intelligence budget active: "
-                    f"processing top {len(threat_intel_candidates)}/{total_reportable_findings} findings"
+        if not should_run_threat_intel_network(analysis_settings):
+            threat_intel_metrics = {
+                "status": "skipped",
+                "reason": "disabled_or_offline",
+                "findings_enriched": 0,
+            }
+        else:
+            total_reportable_findings = len(state_delta["reportable_findings"])
+            max_findings = _coerce_bounded_int(
+                analysis_settings.get(
+                    "threat_intel_max_findings",
+                    _DEFAULT_THREAT_INTEL_MAX_FINDINGS,
                 ),
-                89,
+                default=_DEFAULT_THREAT_INTEL_MAX_FINDINGS,
+                minimum=1,
+                maximum=_MAX_THREAT_INTEL_FINDINGS_CAP,
             )
-        if not threat_intel_candidates:
+            max_concurrency = _coerce_bounded_int(
+                analysis_settings.get("threat_intel_max_feed_concurrency", _MAX_FEED_CONCURRENCY),
+                default=_MAX_FEED_CONCURRENCY,
+                minimum=1,
+                maximum=_MAX_FEED_CONCURRENCY_CAP,
+            )
+            per_finding_timeout_seconds = _coerce_bounded_float(
+                analysis_settings.get(
+                    "threat_intel_per_finding_timeout_seconds",
+                    _DEFAULT_THREAT_INTEL_PER_FINDING_TIMEOUT_SECONDS,
+                ),
+                default=_DEFAULT_THREAT_INTEL_PER_FINDING_TIMEOUT_SECONDS,
+                minimum=1.0,
+                maximum=30.0,
+            )
+            cve_timeout_seconds = _coerce_bounded_float(
+                analysis_settings.get(
+                    "threat_intel_cve_timeout_seconds",
+                    _DEFAULT_THREAT_INTEL_CVE_TIMEOUT_SECONDS,
+                ),
+                default=_DEFAULT_THREAT_INTEL_CVE_TIMEOUT_SECONDS,
+                minimum=1.0,
+                maximum=30.0,
+            )
+            cve_max_retries = _coerce_bounded_int(
+                analysis_settings.get(
+                    "threat_intel_cve_max_retries",
+                    _DEFAULT_THREAT_INTEL_CVE_MAX_RETRIES,
+                ),
+                default=_DEFAULT_THREAT_INTEL_CVE_MAX_RETRIES,
+                minimum=0,
+                maximum=5,
+            )
+            threat_intel_candidates = _select_threat_intel_candidates(
+                state_delta["reportable_findings"],
+                max_findings=max_findings,
+            )
+            skipped_findings = max(0, total_reportable_findings - len(threat_intel_candidates))
+            if skipped_findings:
+                emit_progress(
+                    "intelligence",
+                    (
+                        "Threat intelligence budget active: "
+                        f"processing top {len(threat_intel_candidates)}/{total_reportable_findings} findings"
+                    ),
+                    89,
+                )
+            if not threat_intel_candidates:
+                threat_intel_metrics = {
+                    "status": "ok",
+                    "findings_enriched": 0,
+                    "candidate_findings": 0,
+                    "total_reportable_findings": total_reportable_findings,
+                    "skipped_findings": skipped_findings,
+                    "errors": 0,
+                    "parallel": True,
+                    "max_concurrency": max_concurrency,
+                }
+                duration = round(time.monotonic() - stage_started, 2)
+                return StageOutput(
+                    stage_name="enrichment",
+                    outcome=StageOutcome.COMPLETED,
+                    duration_seconds=duration,
+                    metrics={
+                        "api_security": api_security_metrics,
+                        "dns_security": dns_security_metrics,
+                        "correlation": correlation_metrics,
+                        "threat_intel": threat_intel_metrics,
+                    },
+                    state_delta=state_delta,
+                )
+
+            cve_config = CVEConfig(timeout_seconds=cve_timeout_seconds, max_retries=cve_max_retries)
+
+            from src.intelligence.threat_intel import ThreatIntelCorrelator
+
+            correlator = ThreatIntelCorrelator(enable_threat_intel=True)
+
+            async with (
+                CVESyncClient(cve_config) as cve_feed,
+                MitreAttackMapper(MitreConfig()) as mitre_feed,
+            ):
+                if not isinstance(cve_feed, CVESyncClient):
+                    raise TypeError(f"Expected CVESyncClient, got {type(cve_feed).__name__}")
+                if not isinstance(mitre_feed, MitreAttackMapper):
+                    raise TypeError(f"Expected MitreAttackMapper, got {type(mitre_feed).__name__}")
+                semaphore = asyncio.Semaphore(max_concurrency)
+
+                async def _enrich_single(finding: dict[str, Any]) -> int:
+                    """Enrich one finding with CVE + MITRE data. Returns count of enrichment sources applied."""
+                    count = 0
+                    async with semaphore:
+                        try:
+                            cves = await cve_feed.search_cves(
+                                keyword=finding.get("title", ""),
+                                results_per_page=5,
+                            )
+                            if cves and cves.entries:
+                                finding.setdefault("threat_intel", {})["cves"] = [
+                                    {
+                                        "id": e.cve_id,
+                                        "cvss_score": e.cvss_score,
+                                        "severity": e.severity.value,
+                                    }
+                                    for e in cves.entries[:5]
+                                ]
+                                count += 1
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as exc:
+                            logger.debug(
+                                "CVE enrichment failed for '%s': %s",
+                                finding.get("title", ""),
+                                exc,
+                            )
+
+                        try:
+                            mitre_refs = await mitre_feed.get_techniques_by_tactic(
+                                finding.get("category", "")
+                            )
+                            if mitre_refs:
+                                finding.setdefault("threat_intel", {})["mitre"] = [
+                                    {"id": t.id, "name": t.name} for t in mitre_refs[:3]
+                                ]
+                                count += 1
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as exc:
+                            logger.debug(
+                                "MITRE enrichment failed for '%s': %s",
+                                finding.get("category", ""),
+                                exc,
+                            )
+
+                        try:
+                            target_url = finding.get("url")
+                            if target_url:
+                                host = urlparse(str(target_url)).netloc
+                                if host:
+                                    ioc_match = await correlator.match_ioc_async(host)
+                                    if (
+                                        ioc_match.get("malicious")
+                                        or ioc_match.get("reputation_score", 0) > 0
+                                    ):
+                                        finding.setdefault("threat_intel", {})["ioc_correlation"] = (
+                                            ioc_match
+                                        )
+                                        count += 1
+                        except Exception as exc:
+                            logger.debug("IoC matching failed for finding target: %s", exc)
+
+                        return count
+
+                enriched_count = 0
+                error_count = 0
+                tasks = [
+                    asyncio.wait_for(_enrich_single(finding), timeout=per_finding_timeout_seconds)
+                    for finding in threat_intel_candidates
+                ]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for r in results:
+                    if isinstance(r, BaseException):
+                        if isinstance(r, asyncio.CancelledError):
+                            raise r
+                        error_count += 1
+                        continue
+                    enriched_count += int(r)
+
+            if enriched_count:
+                logger.info("Enriched %d findings with threat intelligence", enriched_count)
+
             threat_intel_metrics = {
                 "status": "ok",
-                "findings_enriched": 0,
-                "candidate_findings": 0,
+                "findings_enriched": enriched_count,
+                "candidate_findings": len(threat_intel_candidates),
                 "total_reportable_findings": total_reportable_findings,
                 "skipped_findings": skipped_findings,
-                "errors": 0,
+                "errors": error_count,
                 "parallel": True,
                 "max_concurrency": max_concurrency,
+                "per_finding_timeout_seconds": per_finding_timeout_seconds,
+                "cve_timeout_seconds": cve_timeout_seconds,
+                "cve_max_retries": cve_max_retries,
             }
-            duration = round(time.monotonic() - stage_started, 2)
-            return StageOutput(
-                stage_name="enrichment",
-                outcome=StageOutcome.COMPLETED,
-                duration_seconds=duration,
-                metrics={
-                    "api_security": api_security_metrics,
-                    "dns_security": dns_security_metrics,
-                    "correlation": correlation_metrics,
-                    "threat_intel": threat_intel_metrics,
-                },
-                state_delta=state_delta,
-            )
-
-        cve_config = CVEConfig(timeout_seconds=cve_timeout_seconds, max_retries=cve_max_retries)
-
-        from src.intelligence.threat_intel import ThreatIntelCorrelator
-
-        correlator = ThreatIntelCorrelator(enable_threat_intel=True)
-
-        async with (
-            CVESyncClient(cve_config) as cve_feed,
-            MitreAttackMapper(MitreConfig()) as mitre_feed,
-        ):
-            if not isinstance(cve_feed, CVESyncClient):
-                raise TypeError(f"Expected CVESyncClient, got {type(cve_feed).__name__}")
-            if not isinstance(mitre_feed, MitreAttackMapper):
-                raise TypeError(f"Expected MitreAttackMapper, got {type(mitre_feed).__name__}")
-            semaphore = asyncio.Semaphore(max_concurrency)
-
-            async def _enrich_single(finding: dict[str, Any]) -> int:
-                """Enrich one finding with CVE + MITRE data. Returns count of enrichment sources applied."""
-                count = 0
-                async with semaphore:
-                    try:
-                        cves = await cve_feed.search_cves(
-                            keyword=finding.get("title", ""),
-                            results_per_page=5,
-                        )
-                        if cves and cves.entries:
-                            finding.setdefault("threat_intel", {})["cves"] = [
-                                {
-                                    "id": e.cve_id,
-                                    "cvss_score": e.cvss_score,
-                                    "severity": e.severity.value,
-                                }
-                                for e in cves.entries[:5]
-                            ]
-                            count += 1
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as exc:
-                        logger.debug(
-                            "CVE enrichment failed for '%s': %s",
-                            finding.get("title", ""),
-                            exc,
-                        )
-
-                    try:
-                        mitre_refs = await mitre_feed.get_techniques_by_tactic(
-                            finding.get("category", "")
-                        )
-                        if mitre_refs:
-                            finding.setdefault("threat_intel", {})["mitre"] = [
-                                {"id": t.id, "name": t.name} for t in mitre_refs[:3]
-                            ]
-                            count += 1
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as exc:
-                        logger.debug(
-                            "MITRE enrichment failed for '%s': %s",
-                            finding.get("category", ""),
-                            exc,
-                        )
-
-                    try:
-                        target_url = finding.get("url")
-                        if target_url:
-                            host = urlparse(str(target_url)).netloc
-                            if host:
-                                ioc_match = await correlator.match_ioc_async(host)
-                                if (
-                                    ioc_match.get("malicious")
-                                    or ioc_match.get("reputation_score", 0) > 0
-                                ):
-                                    finding.setdefault("threat_intel", {})["ioc_correlation"] = (
-                                        ioc_match
-                                    )
-                                    count += 1
-                    except Exception as exc:
-                        logger.debug("IoC matching failed for finding target: %s", exc)
-
-                    return count
-
-            enriched_count = 0
-            error_count = 0
-            tasks = [
-                asyncio.wait_for(_enrich_single(finding), timeout=per_finding_timeout_seconds)
-                for finding in threat_intel_candidates
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for r in results:
-                if isinstance(r, BaseException):
-                    if isinstance(r, asyncio.CancelledError):
-                        raise r
-                    error_count += 1
-                    continue
-                enriched_count += int(r)
-
-        if enriched_count:
-            logger.info("Enriched %d findings with threat intelligence", enriched_count)
-
-        threat_intel_metrics = {
-            "status": "ok",
-            "findings_enriched": enriched_count,
-            "candidate_findings": len(threat_intel_candidates),
-            "total_reportable_findings": total_reportable_findings,
-            "skipped_findings": skipped_findings,
-            "errors": error_count,
-            "parallel": True,
-            "max_concurrency": max_concurrency,
-            "per_finding_timeout_seconds": per_finding_timeout_seconds,
-            "cve_timeout_seconds": cve_timeout_seconds,
-            "cve_max_retries": cve_max_retries,
-        }
 
     except FeedError as exc:
         logger.warning("Threat intelligence enrichment skipped: %s", exc)
@@ -609,6 +643,7 @@ async def run_post_analysis_enrichments(
     except (TypeError, ValueError, RuntimeError) as exc:
         logger.error("Threat intelligence enrichment failed: %s", exc)
         threat_intel_metrics = {"status": "error", "error": str(exc)}
+
 
     # Threat Graph and Campaigns Generation
     try:
