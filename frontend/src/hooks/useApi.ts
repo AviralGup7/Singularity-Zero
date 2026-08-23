@@ -86,7 +86,6 @@ export function useApi<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState<boolean>(enabled && !!url);
   const [error, setError] = useState<UseApiError | null>(null);
-  const [refetchKey, setRefetchKey] = useState<number>(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef<boolean>(true);
