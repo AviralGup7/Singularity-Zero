@@ -1,11 +1,5 @@
-from __future__ import annotations
+"""High-performance concurrency primitives and lock-free ring buffers."""
 
-from src.core.concurrency.structured import (
-    TaskGroup,
-    task_group,
-)
+from src.core.concurrency.ring_buffer import DisruptorRingBuffer
 
-__all__ = [
-    "TaskGroup",
-    "task_group",
-]
+__all__ = ["DisruptorRingBuffer"]
