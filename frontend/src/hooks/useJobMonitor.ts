@@ -27,7 +27,13 @@ export function shouldPollJob(status: string | undefined): boolean {
 }
 
 export function sumFiniteDurations(values: Array<number | undefined>): number {
-  return values.reduce((sum, value) => sum + (typeof value === 'number' && Number.isFinite(value) ? value : 0), 0);
+  let total = 0;
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      total += value;
+    }
+  }
+  return total;
 }
 
 const POLL_INTERVAL_MS = 2000;

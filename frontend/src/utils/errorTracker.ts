@@ -170,14 +170,31 @@ export class ErrorTracker {
           this.errors = [];
           return;
         }
-        this.errors = parsed.map((e: Record<string, unknown>) => {
-          const err = new Error(e.message as string);
-          err.name = (e.name as string) || 'Error';
-          err.stack = e.stack as string;
-          return {
-            ...e,
-            error: err,
-          };
+        this.errors = parsed.flatMap((raw: unknown) => {
+          if (!raw || typeof raw !== 'object') return [];
+          const e = raw as Record<string, unknown>;
+          const err = new Error(typeof e.message === 'string' ? e.message : 'Unknown error');
+          err.name = typeof e.name === 'string' ? e.name : 'Error';
+          if (typeof e.stack === 'string') err.stack = e.stack;
+          const context =
+            e.context && typeof e.context === 'object'
+              ? (e.context as ErrorContext)
+              : { timestamp: new Date().toISOString() };
+          const severity =
+            e.severity === 'low' ||
+            e.severity === 'medium' ||
+            e.severity === 'high' ||
+            e.severity === 'critical'
+              ? e.severity
+              : 'low';
+          return [
+            {
+              id: typeof e.id === 'string' ? e.id : `error-${crypto.randomUUID()}`,
+              error: err,
+              context,
+              severity,
+            },
+          ];
         });
       }
     } catch {

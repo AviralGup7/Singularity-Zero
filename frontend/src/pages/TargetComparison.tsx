@@ -170,7 +170,7 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
 
   const severityTotals = useMemo(() => {
     const calc = (t: Target) => {
-      return Object.values(t.severity_counts ?? {}).reduce((sum, v) => sum + (v || 0), 0);
+      return Object.values(t.severity_counts ?? {}).reduce((sum: number, v) => sum + (Number(v) || 0), 0);
     };
     return { a: selectedA ? calc(selectedA) : null, b: selectedB ? calc(selectedB) : null };
    

@@ -183,7 +183,7 @@ export function useApi<T>(
         }
       }
     }
-  }, [url, enabled, bypassCache, paramsKey, refetchKey, ttl, autoToast, errorContext]);
+  }, [url, enabled, bypassCache, paramsKey, ttl, autoToast, errorContext]);
 
   useEffect(() => {
     mountedRef.current = true;

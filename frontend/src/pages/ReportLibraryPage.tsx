@@ -149,46 +149,6 @@ export function ReportLibraryPage() {
         </motion.section>
       )}
 
-      {/* ── AI Executive Summary ──────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.25 }}
-      >
-        <GlassCard variant="glow" hoverable={false}>
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={16} className="text-accent" />
-            <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">AI Executive Summary</h3>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            <input
-              type="text"
-              placeholder="Enter target name..."
-              value={aiTarget}
-              onChange={e => setAiTarget(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleLoadAiSummary(); }}
-              className="flex-1 bg-surface-hover border border-line rounded-lg px-3 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleLoadAiSummary}
-              disabled={aiLoading || !aiTarget.trim()}
-              className="btn btn-primary btn-sm text-[10px] uppercase tracking-wider"
-            >
-              {aiLoading ? 'Generating...' : 'Generate'}
-            </button>
-          </div>
-          {aiSummary && (
-            <div className="p-4 rounded-xl bg-surface-2 border border-line text-xs text-muted/80 font-mono leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto scrollbar-cyber">
-              <div className="text-[9px] text-accent uppercase tracking-widest mb-2">
-                Target: {aiSummary.target} · Run: {aiSummary.run_id}
-              </div>
-              {aiSummary.summary}
-            </div>
-          )}
-        </GlassCard>
-      </motion.section>
-
       {/* ── Error Banner ───────────────────────────────────────── */}
       {error && (
         <GlassCard variant="error" hoverable={false}>
