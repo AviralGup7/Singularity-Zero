@@ -529,71 +529,13 @@ def merge_stage_output(
     stage_name: str,
     stage_output: StageOutput,
     wal: Any | None = None,
-) -> None:
-    """Merge immutable stage output into mutable pipeline context with WAL durability."""
-    from src.core.contracts.state_schema import GLOBAL_STATE_SCHEMA_REGISTRY
+) -> Any:
+    """Merge immutable stage output into pipeline context through StateAuthority."""
+    from src.core.frontier.state_authority import StateAuthority
 
-    def _to_mutable(value: Any) -> Any:
-        if isinstance(value, Mapping):
-            return {k: _to_mutable(v) for k, v in value.items()}
-        if isinstance(value, (tuple, list, set, frozenset)):
-            return [_to_mutable(item) for item in value]
-        return value
+    authority = getattr(ctx, "_state_authority", None) or StateAuthority(wal=wal or getattr(ctx, "_wal", None))
+    return authority.commit_stage_output(ctx, stage_name, stage_output)
 
-    _validate_stage_output_contract(stage_name, stage_output)
-    state_delta = _to_mutable(dict(stage_output.state_delta))
-    validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
-    if validation_errors:
-        raise StageOutputValidationError(
-            f"Stage '{stage_name}' produced invalid state_delta: " + "; ".join(validation_errors)
-        )
-
-    if wal:
-        wal_id = wal.log_delta(stage_name, state_delta)
-        if not wal_id:
-            raise RuntimeError(
-                f"WAL durability layer failed for stage '{stage_name}': no durable backend accepted record."
-            )
-        if hasattr(ctx.result, "_neural_state"):
-            state_delta = dict(state_delta)
-            state_delta["_wal_id"] = wal_id
-            ctx.result._neural_state.last_wal_id = wal_id
-
-    ctx.result.apply_state_delta(state_delta)
-
-    if hasattr(ctx.result.stage_status, "copy"):
-        ctx.result.stage_status = dict(ctx.result.stage_status)
-    if stage_output.outcome.value == "failed":
-        ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
-    elif stage_output.outcome.value == "skipped":
-        from src.core.models.stage_status import resolve_skip_status
-
-        skip_status = resolve_skip_status(stage_output.error or stage_output.reason)
-        ctx.result.stage_status[stage_name] = skip_status.value
-    else:
-        ctx.result.stage_status[stage_name] = StageStatus.COMPLETED.value
-
-    existing_metrics = ctx.result.module_metrics.get(stage_name) or {}
-    stage_metrics = _to_mutable(dict(stage_output.metrics))
-    merged_metrics = {}
-    if isinstance(existing_metrics, dict):
-        merged_metrics.update(_to_mutable(existing_metrics))
-    merged_metrics.update(stage_metrics)
-
-    merged_metrics.setdefault("status", stage_output.outcome.value)
-    merged_metrics.setdefault("duration_seconds", round(stage_output.duration_seconds, 2))
-    if stage_output.reason:
-        merged_metrics.setdefault("reason", stage_output.reason)
-    if stage_output.error:
-        merged_metrics.setdefault("error", stage_output.error)
-    if hasattr(ctx.result.module_metrics, "copy"):
-        ctx.result.module_metrics = dict(ctx.result.module_metrics)
-    ctx.result.module_metrics[stage_name] = merged_metrics
-
-    if stage_name == "parameters":
-        ctx.output_store.write_parameters(ctx.result.parameters)
-    elif stage_name == "ranking":
-        ctx.output_store.write_priority_endpoints(ctx.result.priority_urls)
 
 
 # ---------------------------------------------------------------------------

@@ -105,6 +105,16 @@ async def run_nuclei_stage(
         )
         nuclei_started = time.monotonic()
 
+        import uuid
+        from src.decision.authorization import ExecutionAuthorizer
+        from src.decision.models import (
+            ActionSpec,
+            ExecutionRequest,
+            ResourceLimits,
+            ScopeToken,
+            TargetSpec,
+        )
+        from src.execution.request_executor import ExecutionRequestWorker
         from src.recon.nuclei import run_nuclei_adaptive
 
         scope_hosts = {
@@ -114,17 +124,56 @@ async def run_nuclei_stage(
         }
 
         nuclei_output_file = str(ctx.output_store.run_dir / "nuclei.jsonl")
-        parsed_findings = await asyncio.to_thread(
-            run_nuclei_adaptive,
-            nuclei_targets,
-            config,
-            None,
-            {"cdn_protected_urls": {f.get("url") for f in ctx.waf_findings if f.get("url")}},
-            scope_hosts,
-            nuclei_output_file,
+
+        authorizer = ExecutionAuthorizer()
+        worker = ExecutionRequestWorker(authorizer=authorizer)
+
+        action = ActionSpec(
+            action_id=f"act_{uuid.uuid4().hex[:8]}",
+            action_type="nuclei_scan",
+            tool_or_detector="nuclei",
+            payload=(("targets_count", len(nuclei_targets)),),
         )
 
+        first_target = nuclei_targets[0] if nuclei_targets else "localhost"
+        req = ExecutionRequest(
+            request_id=f"req_{uuid.uuid4().hex[:12]}",
+            tenant_id=str(getattr(ctx, "tenant_id", "default") or "default"),
+            target=TargetSpec(host=first_target),
+            stage="nuclei",
+            actions=(action,),
+            resource_limits=ResourceLimits(timeout_seconds=300.0),
+            scope_token=ScopeToken(scope_hash="nuclei_scope", allowed_domains=tuple(scope_hosts) or (first_target,)),
+            deadline=time.time() + 360.0,
+        )
+
+        ticket = authorizer.authorize(req)
+
+        def _run_nuclei_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
+            findings = run_nuclei_adaptive(
+                nuclei_targets,
+                config,
+                None,
+                {"cdn_protected_urls": {f.get("url") for f in ctx.waf_findings if f.get("url")}},
+                scope_hosts,
+                nuclei_output_file,
+            )
+            return {"findings": findings}
+
+        worker.register_handler("nuclei_scan", _run_nuclei_action)
+
+        def _execute_worker() -> list[dict[str, Any]]:
+            res = worker.execute(ticket)
+            if res.outcome == "REJECTED":
+                logger.error("Nuclei execution authorization rejected: %s", res.error)
+                return []
+            artifacts = dict(res.artifacts)
+            action_res = artifacts.get(f"action_{action.action_id}", {})
+            return action_res.get("findings", [])
+
+        parsed_findings = await asyncio.to_thread(_execute_worker)
         nuclei_duration = round(time.monotonic() - nuclei_started, 2)
+
 
         state_delta: dict[str, Any] = {
             "nuclei_findings": parsed_findings,

@@ -25,11 +25,14 @@ import logging
 import math
 import threading
 import time
+import uuid
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
+
+from src.decision.models import CandidateLease
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +177,11 @@ class ScanTarget:
     created_at: float = field(default_factory=time.time)
     last_boosted_at: float | None = None
     lease_expires_at: float = 0.0
+    candidate_id: str = ""
+    lease_id: str = ""
+    lease_worker_id: str = ""
+    execution_id: str = ""
+
 
     @property
     def effective_priority(self) -> float:
@@ -312,6 +320,7 @@ class CorrelationPriorityQueue:
         boost_factor: float = 2.0,
         budget_enforcer: HuntBudgetEnforcer | None = None,
         bid_calculator: BidCalculator | None = None,
+        policy: Any | None = None,
     ) -> None:
         self._lock = threading.Lock()
         self._targets: list[ScanTarget] = []  # heap
@@ -325,6 +334,8 @@ class CorrelationPriorityQueue:
         self._budget_enforcer: HuntBudgetEnforcer | None = budget_enforcer
         self._budget_enforcer_hook: HuntBudgetEnforcer | None = budget_enforcer
         self._bid_calculator: BidCalculator | None = bid_calculator
+        self._policy: Any | None = policy
+        self._policy_version: str = getattr(policy, "version", "") if policy else ""
 
         if targets:
             for i, t in enumerate(targets):
@@ -335,6 +346,51 @@ class CorrelationPriorityQueue:
                 heapq.heappush(self._targets, t)
                 self._url_map[t.url] = t
                 self._patterns[t.url] = _url_patterns(t.url)
+
+        if policy is not None:
+            self.apply_versioned_policy(policy)
+
+    @property
+    def policy_version(self) -> str:
+        return self._policy_version
+
+    def apply_versioned_policy(self, policy: Any) -> int:
+        """Apply target boosts and suppressions from an immutable VersionedPolicy."""
+        applied_count = 0
+        with self._lock:
+            self._policy = policy
+            self._policy_version = getattr(policy, "version", "1.0.0")
+            boosts = dict(getattr(policy, "target_boosts", ()))
+            suppressions = dict(getattr(policy, "target_suppressions", ()))
+
+            for target in self._targets:
+                if target.url in boosts:
+                    target.current_priority += boosts[target.url]
+                    target.boost_factors.append(f"policy_boost:{self._policy_version}")
+                    applied_count += 1
+                elif any(pattern in target.url for pattern in boosts):
+                    for p, b in boosts.items():
+                        if p in target.url:
+                            target.current_priority += b
+                            target.boost_factors.append(f"policy_pattern_boost:{p}")
+                            applied_count += 1
+                            break
+
+                if target.url in suppressions:
+                    target.current_priority = max(0.0, target.current_priority + suppressions[target.url])
+                    target.boost_factors.append(f"policy_suppress:{self._policy_version}")
+                    applied_count += 1
+                elif any(pattern in target.url for pattern in suppressions):
+                    for p, s in suppressions.items():
+                        if p in target.url:
+                            target.current_priority = max(0.0, target.current_priority + s)
+                            target.boost_factors.append(f"policy_pattern_suppress:{p}")
+                            applied_count += 1
+                            break
+
+            self._refresh_heap()
+        return applied_count
+
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -430,8 +486,14 @@ class CorrelationPriorityQueue:
             )
             return [t.url for t in sorted_unscanned[:limit]]
 
-    def lease_batch(self, limit: int = 10, lease_timeout_seconds: float = 60.0) -> list[str]:
-        """Lease the top N unscanned targets, marking them in-flight until lease expires."""
+    def lease_batch(
+        self,
+        limit: int = 10,
+        lease_timeout_seconds: float = 60.0,
+        worker_id: str = "worker_default",
+        execution_id: str = "",
+    ) -> list[CandidateLease]:
+        """Lease the top N unscanned targets, marking them in-flight with a unique lease token."""
         with self._lock:
             if not self._targets:
                 return []
@@ -442,29 +504,77 @@ class CorrelationPriorityQueue:
                 key=lambda t: t.effective_priority,
                 reverse=True,
             )
-            leased_urls: list[str] = []
+            leases: list[CandidateLease] = []
             for target in available[:limit]:
                 target.lease_expires_at = now + lease_timeout_seconds
-                leased_urls.append(target.url)
-            return leased_urls
+                target.candidate_id = target.candidate_id or f"cand_{uuid.uuid4().hex[:12]}"
+                target.lease_id = f"lease_{uuid.uuid4().hex[:12]}"
+                target.lease_worker_id = worker_id
+                target.execution_id = execution_id
+                leases.append(
+                    CandidateLease(
+                        candidate_id=target.candidate_id,
+                        target_url=target.url,
+                        execution_id=execution_id,
+                        lease_id=target.lease_id,
+                        worker_id=worker_id,
+                        expires_at=target.lease_expires_at,
+                    )
+                )
+            return leases
 
-    def ack_batch(self, urls: list[str]) -> None:
-        """Acknowledge completed execution of targets, marking them scanned."""
+    def ack_batch(self, items: list[CandidateLease | str]) -> int:
+        """Acknowledge completed execution of targets, verifying lease identity."""
+        acked_count = 0
         with self._lock:
-            for url in urls:
-                target = self._url_map.get(url)
-                if target:
-                    target.scanned = True
-                    target.lease_expires_at = 0.0
-                    self._pop_count += 1
+            for item in items:
+                if isinstance(item, CandidateLease):
+                    target = self._url_map.get(item.target_url)
+                    if target and not target.scanned:
+                        # Enforce lease identity: reject stale or expired worker acks
+                        if target.lease_id != item.lease_id:
+                            logger.warning(
+                                "Stale lease ack rejected for target %s: expected lease %s, got %s",
+                                item.target_url,
+                                target.lease_id,
+                                item.lease_id,
+                            )
+                            continue
+                        target.scanned = True
+                        target.lease_expires_at = 0.0
+                        target.lease_id = ""
+                        self._pop_count += 1
+                        acked_count += 1
+                elif isinstance(item, str):
+                    target = self._url_map.get(item)
+                    if target and not target.scanned:
+                        target.scanned = True
+                        target.lease_expires_at = 0.0
+                        target.lease_id = ""
+                        self._pop_count += 1
+                        acked_count += 1
+        return acked_count
 
-    def release_batch(self, urls: list[str]) -> None:
-        """Release leased targets back to available pool if execution failed before execution."""
+    def release_batch(self, items: list[CandidateLease | str]) -> int:
+        """Release leased targets back to available pool if execution failed before completion."""
+        released_count = 0
         with self._lock:
-            for url in urls:
-                target = self._url_map.get(url)
-                if target and not target.scanned:
-                    target.lease_expires_at = 0.0
+            for item in items:
+                if isinstance(item, CandidateLease):
+                    target = self._url_map.get(item.target_url)
+                    if target and not target.scanned:
+                        if target.lease_id == item.lease_id:
+                            target.lease_expires_at = 0.0
+                            target.lease_id = ""
+                            released_count += 1
+                elif isinstance(item, str):
+                    target = self._url_map.get(item)
+                    if target and not target.scanned:
+                        target.lease_expires_at = 0.0
+                        target.lease_id = ""
+                        released_count += 1
+        return released_count
+
 
     def push(self, target: ScanTarget) -> None:
         """Add a new target to the queue.

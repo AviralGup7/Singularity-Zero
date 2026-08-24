@@ -64,64 +64,55 @@ To prevent split-brain control flow, scheduling decisions follow a strict, unidi
                     ┌────────────────────────┐
                     │ 7. Executor / Sandbox  │ "DO IT (Stateless execution inside isolated sandbox)"
                     └───────────┬────────────┘
-                                │
-                                ▼
-                         ExecutionResult
-                                │
-                   ┌────────────┼────────────┐
-                   ▼            ▼            ▼
-                Findings   StateDeltas     Logs
-                                │
-                                ▼
-                    ┌────────────────────────┐
-                    │    State Authority     │ (Single-source-of-truth State Merge Engine)
-                    └───────────┬────────────┘
-                           ┌────┴────┐
-                           ▼         ▼
-                          WAL       CRDT (LWW-Set / HLC)
-                                     │
-                                     ▼
-                               Actor Gossip
 ```
 
----
-
-### 2. State Authority vs. Worker Separation
+### 2. State Authority & Settlement Coordinator Boundary
 
 - **Workers Produce; State Authority Commits**: Execution Workers never directly mutate the Frontier CRDTs, WAL, or persistent stores. Workers return an immutable `ExecutionResult` containing `state_deltas`.
-- **Single State Authority**: The `State Authority` validates received deltas, verifies sequence versions, appends to the Write-Ahead Log (WAL), and performs the deterministic CRDT merge ($O(1)$ space with Hybrid Logical Clocks).
+- **Settlement Coordinator (`SettlementCoordinator`)**: The single production settlement path responsible for coordinating:
+  1. **State Settlement**: Commits `ExecutionResult` via `StateAuthority.commit()` / `commit_stage_output()`.
+  2. **Budget Settlement**: Commits reserved quota (`commit_requests()`) on success, or releases it (`release_requests()`) on failure/rejection.
+  3. **Queue Settlement**: Acknowledges candidate leases (`ack_batch()`) on success, or returns them to the queue (`release_batch()`) on failure.
+- **Single State Authority (`StateAuthority`)**: Validates received deltas against `GLOBAL_STATE_SCHEMA_REGISTRY`, appends to the Write-Ahead Log (WAL), verifies sequence versions, performs deduplication on `execution_id`, and executes deterministic CRDT merges ($O(1)$ space with Hybrid Logical Clocks).
 
 ```text
-Worker ──────► ExecutionResult(state_deltas) ──────► State Authority ──────► WAL & CRDT Store
+Worker ──► ExecutionResult ──► SettlementCoordinator
+                                     │
+                 ┌───────────────────┼───────────────────┐
+                 ▼                   ▼                   ▼
+           StateAuthority      HuntBudgetEnforcer   PriorityQueue
+           (WAL + CRDT Commit) (commit / release)   (ack / release lease)
 ```
 
 ---
 
 ### 3. Authorization & Resource Gate with Replay Resistance
 
-- **Speculative Dispatcher Role**: The Dispatcher translates ranked work into an immutable `ExecutionRequest` carrying context (`ScopeToken`, `TenantID`, `Capabilities`, `Deadline`, `ResourceLimits`, `execution_id`, `job_id`). It does **not** grant execution authority.
+- **Speculative Dispatcher Role**: The Dispatcher translates ranked work into an immutable `ExecutionRequest` carrying context (`ScopeToken`, `TenantID`, `Capabilities`, `Deadline`, `ResourceLimits`, `execution_id`, `job_id`, `candidate_id`, `lease_id`, `policy_version`). It does **not** grant execution authority.
 - **Authorization Gate Role** (`src/decision/authorization.py`):
   - Normalizes evasive URL paths (unquoting, matrix stripping, slash collapsing, POSIX directory traversal resolution).
   - Validates domain wildcards (`*.example.com`) and CIDR subnets (`10.0.0.0/8`).
+  - Reserves request quota atomically from `HuntBudgetEnforcer.reserve_requests()`.
   - Issues an HMAC-SHA256 signed `AuthorizedExecutionTicket` with a unique `nonce`.
   - Atomically marks tickets consumed upon single-use to prevent execution replay during ticket lifetime.
+- **Worker Security**: `ExecutionRequestWorker.execute(ticket)` strictly requires an `AuthorizedExecutionTicket`. Unauthenticated raw `ExecutionRequest` instances are rejected with `outcome="REJECTED"`.
 
 ---
 
-### 4. Candidate Lifecycle: Peeking, Leasing, and Acknowledgement
+### 4. Candidate Identity & Lease Lifecycle
 
-To prevent candidate loss and redundant duplicate dispatches:
+To prevent candidate loss, race conditions, and redundant duplicate dispatches:
 ```text
-AVAILABLE ──(lease_batch)──► IN-FLIGHT (Lease Active) ──(ack_batch)──► COMPLETED
-                                      │
-                         (release_batch / TTL Expiry)
-                                      │
-                                      ▼
-                                  AVAILABLE
+AVAILABLE ──(lease_batch)──► IN-FLIGHT (CandidateLease) ──(ack_batch)──► COMPLETED
+                                       │
+                          (release_batch / TTL Expiry)
+                                       │
+                                       ▼
+                                   AVAILABLE
 ```
-- `lease_batch(limit, ttl)`: Leases top candidates, hiding them from concurrent peek/dispatch cycles.
-- `ack_batch(urls)`: Marks leased candidates as scanned upon verified `ExecutionResult` ingestion by the State Authority.
-- `release_batch(urls)`: Returns leased candidates to the available queue on downstream failure.
+- `lease_batch(limit, ttl, worker_id, execution_id)`: Generates a cryptographically unique `lease_id` and binds `candidate_id`, returning a `CandidateLease`.
+- `ack_batch([lease])`: Verifies that `target.lease_id == lease.lease_id` and `target.lease_worker_id == lease.worker_id`. Stale or expired lease acknowledgements are safely rejected.
+- `release_batch([lease])`: Returns leased candidates to the available queue on downstream failure.
 
 ---
 
@@ -139,22 +130,32 @@ AVAILABLE ──(lease_batch)──► IN-FLIGHT (Lease Active) ──(ack_batch
 
 ---
 
-### 6. Atomic Budget Controller & Reservation Accounting
+### 6. Atomic Budget Controller & Reservation Lifecycle
 
 - Stage budgets are governed by `HuntBudgetEnforcer` (`src/decision/hunt_budget.py`).
 - **Reservation Accounting**:
   - `available = max_requests - (reserved + consumed)`
-  - `reserve_requests(count)`: Mutex-guarded atomic quota reservation before worker dispatch.
-  - `commit_requests(count)`: Converts reserved quota to consumed upon `ExecutionResult` ingestion.
-  - `release_requests(count)`: Releases unneeded reservations back to the pool on failure.
+  - `reserve_requests(count)`: Mutex-guarded atomic quota reservation at the Authorization Gate.
+  - `commit_requests(count)`: Converts reserved quota to consumed upon `SettlementCoordinator.settle()`.
+  - `release_requests(count)`: Releases unneeded reservations back to the pool on rejection, failure, or timeout.
+  - Legacy unreserved `record_request()` calls have been eliminated from production execution loops.
 
 ---
 
-### 7. Cognitive Vulnerability Analysis & Validation
+### 7. Immutable Versioned Policy & Decision Provenance
+
+- **VersionedPolicy (`src/learning/versioned_policy.py`)**: Immutable, versioned policy container specifying `target_boosts`, `target_suppressions`, and tool configuration parameters.
+- **Priority Engine Consumption**: `CorrelationPriorityQueue.apply_versioned_policy(policy)` directly consumes the policy to dynamically boost or suppress candidates.
+- **Provenance Tracking**: `policy_version` is bound to `ExecutionRequest.policy_version` and propagated to `ExecutionResult.policy_version` for auditability.
+
+---
+
+### 8. Cognitive Vulnerability Analysis & Validation
 
 - **Differential State Probing**: `src/analysis/intelligence/differential_prober.py` compares responses across differing authentication roles and tenant boundaries using normalized Levenshtein distance, automatically discovering Insecure Direct Object References (IDOR) and Broken Access Controls (BAC).
 - **PoC Validation Sandbox**: Dynamic Python plugins use a JSON child-process boundary with AST pre-validation (`src/core/plugins/sandbox.py`), preventing lateral execution on the host runner.
 - **Adaptive Closed-Loop Learning**: Operator triage signals update the false-positive rules matrix (`src/learning/fp_rules.py`) and adjust severity calibration weights, suppressing duplicate alerts across subsequent scan runs.
+
 
 ---
 

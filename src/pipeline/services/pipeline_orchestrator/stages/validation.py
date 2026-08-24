@@ -68,6 +68,20 @@ async def run_validation(
     }
     validation_ok = False
 
+    import uuid
+    from src.decision.authorization import ExecutionAuthorizer
+    from src.decision.models import (
+        ActionSpec,
+        ExecutionRequest,
+        ResourceLimits,
+        ScopeToken,
+        TargetSpec,
+    )
+    from src.execution.request_executor import ExecutionRequestWorker
+
+    authorizer = ExecutionAuthorizer()
+    worker = ExecutionRequestWorker(authorizer=authorizer)
+
     for attempt in range(1, 3):
         try:
             from src.core.contracts.protocol_registry import get_validation_runtime
@@ -76,14 +90,47 @@ async def run_validation(
             if _validation_runtime is None:
                 raise RuntimeError("Validation runtime not registered")
 
-            validation_summary = await asyncio.to_thread(
-                _validation_runtime,
-                analysis_results,
-                ranked_priority_urls,
-                config.extensions,
-                config.mode,
-                validation_runtime_inputs,
+            action = ActionSpec(
+                action_id=f"act_val_{uuid.uuid4().hex[:8]}",
+                action_type="validation_run",
+                tool_or_detector="validation_runtime",
+                payload=(("attempt", attempt),),
             )
+
+            req = ExecutionRequest(
+                request_id=f"req_val_{uuid.uuid4().hex[:12]}",
+                tenant_id=str(getattr(ctx, "tenant_id", "default") or "default"),
+                target=TargetSpec(host="localhost", path="/validation"),
+                stage="validation",
+                actions=(action,),
+                resource_limits=ResourceLimits(timeout_seconds=300.0),
+                scope_token=ScopeToken(scope_hash="val_scope", allowed_domains=("localhost",)),
+                deadline=time.time() + 360.0,
+            )
+
+            ticket = authorizer.authorize(req)
+
+            def _run_val_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
+                summary = _validation_runtime(
+                    analysis_results,
+                    ranked_priority_urls,
+                    config.extensions,
+                    config.mode,
+                    validation_runtime_inputs,
+                )
+                return {"summary": summary}
+
+            worker.register_handler("validation_run", _run_val_action)
+
+            def _execute_worker() -> dict[str, Any]:
+                res = worker.execute(ticket)
+                if res.outcome == "REJECTED":
+                    raise RuntimeError(f"Validation execution rejected: {res.error}")
+                artifacts = dict(res.artifacts)
+                action_res = artifacts.get(f"action_{action.action_id}", {})
+                return action_res.get("summary", {})
+
+            validation_summary = await asyncio.to_thread(_execute_worker)
             validation_ok = True
             break
         except Exception as exc:
@@ -93,6 +140,7 @@ async def run_validation(
                 exc,
             )
             if attempt == 2:
+
                 logger.error(
                     "Validation failed after 2 retries, continuing with empty summary",
                 )

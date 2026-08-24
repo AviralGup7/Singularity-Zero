@@ -378,13 +378,31 @@ class PipelineOrchestrator:
     ) -> dict[str, Any]:
         return cast(dict[str, Any], ctx.build_stage_output(stage_name, duration_seconds).to_dict())
 
+    @property
+    def state_authority(self) -> Any:
+        if not hasattr(self, "_state_authority_instance") or self._state_authority_instance is None:
+            from src.core.frontier.state_authority import StateAuthority
+
+            self._state_authority_instance = StateAuthority(wal=self._wal)
+        return self._state_authority_instance
+
+    @property
+    def settlement_coordinator(self) -> Any:
+        if not hasattr(self, "_settlement_coordinator_instance") or self._settlement_coordinator_instance is None:
+            from src.core.frontier.state_authority import SettlementCoordinator
+
+            self._settlement_coordinator_instance = SettlementCoordinator(
+                state_authority=self.state_authority
+            )
+        return self._settlement_coordinator_instance
+
     def _merge_stage_output(
         self,
         ctx: PipelineContext,
         stage_name: str,
         stage_output: StageOutput,
-    ) -> None:
-        merge_stage_output(ctx, stage_name, stage_output, wal=getattr(self, "_wal", None))
+    ) -> Any:
+        settle_res = self.settlement_coordinator.settle_stage_output(ctx, stage_name, stage_output)
 
         stage_trace_id = getattr(stage_output, "trace_id", "") or ""
         if stage_output.state_delta:
@@ -404,6 +422,8 @@ class PipelineOrchestrator:
                         data={"finding": finding, "trace_id": stage_trace_id},
                         trace_id=stage_trace_id,
                     )
+        return settle_res
+
 
     @staticmethod
     def _safe_checkpoint_stage_outcome(

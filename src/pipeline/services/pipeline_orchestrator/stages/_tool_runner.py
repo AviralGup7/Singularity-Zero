@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import time
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 
 def is_scanner_crash(returncode: int | None) -> bool:
@@ -25,11 +28,46 @@ async def run_scanner(
     *,
     timeout: int,
     cwd: str | Path | None = None,
+    stage_name: str = "tool_scan",
+    tenant_id: str = "default",
 ) -> subprocess.CompletedProcess[str]:
-    """Run ``cmd`` off the event loop so long scans do not freeze the orchestrator."""
+    """Run authorized scanner subprocess under formal contract of intent."""
+    from src.decision.authorization import ExecutionAuthorizer
+    from src.decision.models import (
+        ActionSpec,
+        ExecutionRequest,
+        ResourceLimits,
+        ScopeToken,
+        TargetSpec,
+    )
+    from src.execution.request_executor import ExecutionRequestWorker
 
-    def _run() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(  # noqa: S603
+    authorizer = ExecutionAuthorizer()
+    worker = ExecutionRequestWorker(authorizer=authorizer)
+
+    tool_name = cmd[0] if cmd else "scanner"
+    action = ActionSpec(
+        action_id=f"act_{uuid.uuid4().hex[:8]}",
+        action_type="subprocess_scan",
+        tool_or_detector=tool_name,
+        payload=(("cmd", tuple(cmd)), ("timeout", timeout)),
+    )
+
+    req = ExecutionRequest(
+        request_id=f"req_{uuid.uuid4().hex[:12]}",
+        tenant_id=tenant_id,
+        target=TargetSpec(host="localhost", path=str(cwd or "/")),
+        stage=stage_name,
+        actions=(action,),
+        resource_limits=ResourceLimits(timeout_seconds=float(timeout)),
+        scope_token=ScopeToken(scope_hash="local_tool_scope", allowed_domains=("localhost",)),
+        deadline=time.time() + timeout + 10.0,
+    )
+
+    ticket = authorizer.authorize(req)
+
+    def _run_tool_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
+        proc = subprocess.run(  # noqa: S603
             list(cmd),
             capture_output=True,
             text=True,
@@ -37,5 +75,26 @@ async def run_scanner(
             check=False,
             cwd=str(cwd) if cwd is not None else None,
         )
+        return {
+            "returncode": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+        }
 
-    return await asyncio.to_thread(_run)
+    worker.register_handler("subprocess_scan", _run_tool_action)
+
+    def _execute_worker() -> subprocess.CompletedProcess[str]:
+        res = worker.execute(ticket)
+        if res.outcome == "REJECTED":
+            raise RuntimeError(f"Tool execution authorization rejected: {res.error}")
+        artifacts = dict(res.artifacts)
+        action_res = artifacts.get(f"action_{action.action_id}", {})
+        return subprocess.CompletedProcess(
+            args=list(cmd),
+            returncode=action_res.get("returncode", 1),
+            stdout=action_res.get("stdout", ""),
+            stderr=action_res.get("stderr", res.error),
+        )
+
+    return await asyncio.to_thread(_execute_worker)
+

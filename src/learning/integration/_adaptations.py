@@ -10,6 +10,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def build_versioned_policy(
+    integration: LearningIntegration,
+    ctx: dict[str, Any],
+) -> VersionedPolicy:
+    """Build an immutable, versioned policy from feedback learning without in-place mutation."""
+    from src.learning.versioned_policy import VersionedPolicy
+
+    adaptations_dict = compute_adaptations(integration, ctx)
+    if not adaptations_dict:
+        return VersionedPolicy(policy_id="pol_default", version="1.0.0")
+
+    return VersionedPolicy.from_mapping(
+        {
+            "target_boosts": adaptations_dict.get("target_boosts", {}),
+            "target_suppressions": adaptations_dict.get("target_suppressions", {}),
+            "plugin_overrides": adaptations_dict.get("plugin_enabled_overrides", {}),
+            "threshold_deltas": adaptations_dict.get("threshold_adjustments", {}),
+            "nuclei_adaptive_tags": adaptations_dict.get("nuclei_adaptive_tags_override", {}),
+        }
+    )
+
+
 def compute_adaptations(
     integration: LearningIntegration,
     ctx: dict[str, Any],
@@ -50,6 +72,7 @@ def compute_adaptations(
                 adaptations.nuclei_adaptive_tags_override = optimized
 
     return adaptations.to_dict()
+
 
 
 def apply_adaptations(

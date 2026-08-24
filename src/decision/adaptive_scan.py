@@ -98,10 +98,14 @@ class AdaptiveScanCoordinator:
         max_batches: int | None = None,
         concurrency: int = 10,
         budget_enforcer: HuntBudgetEnforcer | None = None,
+        policy: Any | None = None,
     ) -> None:
         self._budget_enforcer = budget_enforcer
+        self._policy = policy
         if queue is not None:
             self._queue = queue
+            if policy is not None and hasattr(self._queue, "apply_versioned_policy"):
+                self._queue.apply_versioned_policy(policy)
         else:
             self._queue = CorrelationPriorityQueue.from_urls(
                 urls or [],
@@ -109,6 +113,8 @@ class AdaptiveScanCoordinator:
                 boost_factor=boost_factor,
                 budget_enforcer=budget_enforcer,
             )
+            if policy is not None and hasattr(self._queue, "apply_versioned_policy"):
+                self._queue.apply_versioned_policy(policy)
         self._probe_fn = probe_fn
         self._early_terminate = early_terminate
         self._early_terminate_min = early_terminate_min
@@ -118,6 +124,7 @@ class AdaptiveScanCoordinator:
         self._concurrency = concurrency
         self._results: list[ScanResult] = []
         self._total_findings: list[dict[str, Any]] = []
+
 
     @classmethod
     def from_plan(
@@ -174,22 +181,34 @@ class AdaptiveScanCoordinator:
             return [getattr(peeked, "url", str(peeked))] if peeked is not None else []
         return []
 
-    def lease_batch(self, batch_size: int | None = None, lease_timeout_seconds: float = 60.0) -> list[str]:
+    def lease_batch(
+        self,
+        batch_size: int | None = None,
+        lease_timeout_seconds: float = 60.0,
+        worker_id: str = "worker_default",
+        execution_id: str = "",
+    ) -> list[Any]:
         """Lease candidate targets with an automatic timeout to prevent candidate loss and duplication."""
         limit = batch_size if batch_size is not None else self._batch_size
         if hasattr(self._queue, "lease_batch"):
-            return self._queue.lease_batch(limit, lease_timeout_seconds)
+            return self._queue.lease_batch(
+                limit=limit,
+                lease_timeout_seconds=lease_timeout_seconds,
+                worker_id=worker_id,
+                execution_id=execution_id,
+            )
         return self.pop_batch(limit)
 
-    def ack_batch(self, urls: list[str]) -> None:
+    def ack_batch(self, items: list[Any]) -> None:
         """Acknowledge completed execution of leased targets."""
         if hasattr(self._queue, "ack_batch"):
-            self._queue.ack_batch(urls)
+            self._queue.ack_batch(items)
 
-    def release_batch(self, urls: list[str]) -> None:
+    def release_batch(self, items: list[Any]) -> None:
         """Release leased targets back to available pool on downstream dispatch/worker failure."""
         if hasattr(self._queue, "release_batch"):
-            self._queue.release_batch(urls)
+            self._queue.release_batch(items)
+
 
     def pop_batch(self, batch_size: int | None = None) -> list[str]:
         """Pop the next batch of prioritized candidate targets (Tier 3 Priority Engine)."""
@@ -288,11 +307,9 @@ class AdaptiveScanCoordinator:
             # consuming resources after the pipeline is cancelled.
             # Instead, we run the batch with a timeout and explicitly
             # cancel the inner task when the outer is cancelled.
-            if self._budget_enforcer:
-                self._budget_enforcer.record_request(len(urls))
-
             cancelled = False
             _BATCH_TIMEOUT = 300.0  # 5 minutes per batch hard cap
+
             task = asyncio.create_task(self._scan_batch(urls))
             try:
                 batch_results = await asyncio.wait_for(
@@ -322,9 +339,12 @@ class AdaptiveScanCoordinator:
                     batch_results = []
 
             self._results.extend(batch_results)
+            if self._budget_enforcer and hasattr(self._budget_enforcer, "commit_requests"):
+                self._budget_enforcer.commit_requests(len(urls))
 
             # Collect findings and boost correlated targets
             batch_findings = []
+
             for result in batch_results:
                 batch_findings.extend(result.findings)
 

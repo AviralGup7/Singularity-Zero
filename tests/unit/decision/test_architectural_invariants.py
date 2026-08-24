@@ -65,19 +65,21 @@ class TestPriorityEngineBoundaries:
         # In-flight candidates are not returned by subsequent peek
         remaining_peek = coordinator.peek_batch(batch_size=10)
         assert len(remaining_peek) == 1
-        assert remaining_peek[0] not in leased
+        leased_urls = [getattr(item, "target_url", str(item)) for item in leased]
+        assert remaining_peek[0] not in leased_urls
 
         # Release first leased candidate (simulating downstream dispatch failure)
         coordinator.release_batch([leased[0]])
         re_peek = coordinator.peek_batch(batch_size=10)
         assert len(re_peek) == 2
-        assert leased[0] in re_peek
+        assert leased_urls[0] in re_peek
 
         # Acknowledge remaining leased candidate (simulating completed execution)
         coordinator.ack_batch([leased[1]])
         final_peek = coordinator.peek_batch(batch_size=10)
         assert len(final_peek) == 2
-        assert leased[1] not in final_peek
+        assert leased_urls[1] not in final_peek
+
 
 
 class TestStateAuthorityAndIdempotency:

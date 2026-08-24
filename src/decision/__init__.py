@@ -131,6 +131,7 @@ from src.decision.models import (
     AttackPlan,
     AttackStep,
     BudgetSnapshot,
+    CandidateLease,
     ExecutionRequest,
     ExecutionResult,
     Finding,
@@ -156,6 +157,7 @@ __all__ = [
     "AttackPlan",
     "AttackStep",
     "BudgetSnapshot",
+    "CandidateLease",
     "CorrelationPriorityQueue",
     "DEFAULT_SELECTOR_CONFIG",
     "ExecutionRequest",
@@ -176,6 +178,7 @@ __all__ = [
     "annotate_finding_decisions",
     "classify_finding",
     "filter_reportable_findings",
+    "health_check",
     "select_validation_actions",
     "select_validation_attack_plans",
 ]

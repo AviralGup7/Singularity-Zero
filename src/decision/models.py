@@ -655,6 +655,43 @@ class PlacementStatus:
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateLease:
+    """Strongly-typed lease token binding a candidate target to a specific execution and worker."""
+
+    candidate_id: str
+    target_url: str
+    execution_id: str
+    lease_id: str
+    worker_id: str
+    expires_at: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "target_url": self.target_url,
+            "execution_id": self.execution_id,
+            "lease_id": self.lease_id,
+            "worker_id": self.worker_id,
+            "expires_at": self.expires_at,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> CandidateLease:
+        return cls(
+            candidate_id=str(data.get("candidate_id", "")),
+            target_url=str(data.get("target_url", "")),
+            execution_id=str(data.get("execution_id", "")),
+            lease_id=str(data.get("lease_id", "")),
+            worker_id=str(data.get("worker_id", "")),
+            expires_at=float(data.get("expires_at", 0.0)),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> CandidateLease:
+        return cls.from_mapping(data)
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionRequest:
     """Formal contract of intent handed off from Decision to Execution."""
 
@@ -670,6 +707,9 @@ class ExecutionRequest:
     metadata: tuple[tuple[str, Any], ...] = ()
     execution_id: str = ""
     job_id: str = ""
+    candidate_id: str = ""
+    lease_id: str = ""
+    policy_version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -685,6 +725,9 @@ class ExecutionRequest:
             "metadata": dict(self.metadata),
             "execution_id": self.execution_id,
             "job_id": self.job_id,
+            "candidate_id": self.candidate_id,
+            "lease_id": self.lease_id,
+            "policy_version": self.policy_version,
         }
 
     @classmethod
@@ -715,6 +758,9 @@ class ExecutionRequest:
             metadata=meta_tuple,
             execution_id=str(data.get("execution_id", "")),
             job_id=str(data.get("job_id", "")),
+            candidate_id=str(data.get("candidate_id", "")),
+            lease_id=str(data.get("lease_id", "")),
+            policy_version=str(data.get("policy_version", "")),
         )
 
     @classmethod
@@ -737,6 +783,9 @@ class ExecutionResult:
     error: str = ""
     execution_id: str = ""
     job_id: str = ""
+    candidate_id: str = ""
+    lease_id: str = ""
+    policy_version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -751,6 +800,9 @@ class ExecutionResult:
             "error": self.error,
             "execution_id": self.execution_id,
             "job_id": self.job_id,
+            "candidate_id": self.candidate_id,
+            "lease_id": self.lease_id,
+            "policy_version": self.policy_version,
         }
 
     @classmethod
@@ -777,7 +829,11 @@ class ExecutionResult:
             error=str(data.get("error", "")),
             execution_id=str(data.get("execution_id", "")),
             job_id=str(data.get("job_id", "")),
+            candidate_id=str(data.get("candidate_id", "")),
+            lease_id=str(data.get("lease_id", "")),
+            policy_version=str(data.get("policy_version", "")),
         )
+
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ExecutionResult:
@@ -789,6 +845,7 @@ __all__ = [
     "AttackPlan",
     "AttackStep",
     "BudgetSnapshot",
+    "CandidateLease",
     "ExecutionRequest",
     "ExecutionResult",
     "Finding",
@@ -803,3 +860,4 @@ __all__ = [
     "StageResult",
     "TargetSpec",
 ]
+

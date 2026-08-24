@@ -231,7 +231,8 @@ class TestStatelessExecutionWorker(unittest.TestCase):
         self.assertGreaterEqual(res.duration_seconds, 0.0)
 
     def test_custom_handler_registration(self):
-        worker = ExecutionRequestWorker()
+        authorizer = ExecutionAuthorizer()
+        worker = ExecutionRequestWorker(authorizer=authorizer)
         worker.register_handler(
             "custom_fuzz",
             lambda action, req: {"custom_key": "fuzz_payload_success", "host": req.target.host},
@@ -249,10 +250,71 @@ class TestStatelessExecutionWorker(unittest.TestCase):
             target=TargetSpec(host="fuzz.target.com"),
             stage="fuzzing",
             actions=(action,),
+            scope_token=ScopeToken(scope_hash="h1", allowed_domains=("fuzz.target.com",)),
         )
 
-        res = worker.execute(req)
+        ticket = authorizer.authorize(req)
+        res = worker.execute(ticket)
         self.assertEqual(res.outcome, "COMPLETED")
         artifacts = dict(res.artifacts)
         self.assertIn("action_act_fuzz", artifacts)
         self.assertEqual(artifacts["action_act_fuzz"]["custom_key"], "fuzz_payload_success")
+
+    def test_reject_raw_unauthorized_execution_request(self):
+        worker = ExecutionRequestWorker()
+        raw_req = ExecutionRequest(
+            request_id="raw_bypass_attempt",
+            tenant_id="default",
+            target=TargetSpec(host="bypass.example.com"),
+            stage="probing",
+        )
+        # Attempting to execute raw request without ticket MUST be rejected
+        res = worker.execute(raw_req)  # type: ignore[arg-type]
+        self.assertEqual(res.outcome, "REJECTED")
+        self.assertIn("Worker strictly requires an AuthorizedExecutionTicket", res.error)
+
+
+    def test_identity_propagation_and_ticket_consumption(self):
+        from src.decision.models import CandidateLease
+
+        authorizer = ExecutionAuthorizer()
+        worker = ExecutionRequestWorker(authorizer=authorizer)
+
+        lease = CandidateLease(
+            candidate_id="cand_101",
+            target_url="https://example.com/api/test",
+            execution_id="exec_999",
+            lease_id="lease_888",
+            worker_id="worker_01",
+            expires_at=time.time() + 60.0,
+        )
+        self.assertEqual(lease.candidate_id, "cand_101")
+        self.assertEqual(lease.lease_id, "lease_888")
+
+        req = ExecutionRequest(
+            request_id="req_ident",
+            tenant_id="tenant_x",
+            target=TargetSpec(host="example.com", path="/api/test"),
+            stage="probing",
+            execution_id="exec_999",
+            job_id="job_777",
+            candidate_id="cand_101",
+            lease_id="lease_888",
+            scope_token=ScopeToken(scope_hash="h1", allowed_domains=("example.com",)),
+        )
+
+        ticket = authorizer.authorize(req)
+
+        # 1. First execution consumes ticket successfully and preserves identity
+        res = worker.execute(ticket)
+        self.assertEqual(res.outcome, "COMPLETED")
+        self.assertEqual(res.execution_id, "exec_999")
+        self.assertEqual(res.job_id, "job_777")
+        self.assertEqual(res.candidate_id, "cand_101")
+        self.assertEqual(res.lease_id, "lease_888")
+
+        # 2. Second execution with same ticket must be REJECTED (replay protection)
+        replay_res = worker.execute(ticket)
+        self.assertEqual(replay_res.outcome, "REJECTED")
+        self.assertIn("failed consumption", replay_res.error)
+

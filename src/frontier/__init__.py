@@ -23,8 +23,29 @@ def wal_cls() -> Any:
     return FrontierWAL
 
 
+def state_authority_cls() -> Any:
+    from src.core.frontier.state_authority import StateAuthority
+
+    return StateAuthority
+
+
+def settlement_coordinator_cls() -> Any:
+    from src.core.frontier.state_authority import SettlementCoordinator
+
+    return SettlementCoordinator
+
+
 def new_state() -> Any:
     return neural_state_cls()()
 
 
-__all__ = ["hybrid_clock_cls", "neural_state_cls", "new_state", "wal_cls"]
+
+__all__ = [
+    "hybrid_clock_cls",
+    "neural_state_cls",
+    "new_state",
+    "settlement_coordinator_cls",
+    "state_authority_cls",
+    "wal_cls",
+]
+

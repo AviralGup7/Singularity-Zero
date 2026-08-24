@@ -55,8 +55,13 @@ class AuthorizedExecutionTicket:
 class ExecutionAuthorizer:
     """Authorizes ExecutionRequests before dispatch to scheduling and worker."""
 
-    def __init__(self, secret_key: str = "cstp-scope-authorizer-v1") -> None:
+    def __init__(
+        self,
+        secret_key: str = "cstp-scope-authorizer-v1",
+        budget_enforcer: Any | None = None,
+    ) -> None:
         self._secret_key = secret_key.encode("utf-8")
+        self._budget_enforcer = budget_enforcer
         self._consumed_tickets: set[str] = set()
         self._lock = threading.Lock()
 
@@ -118,11 +123,15 @@ class ExecutionAuthorizer:
                 return True
         return False
 
-    def authorize(self, request: ExecutionRequest) -> AuthorizedExecutionTicket:
-        """Validate execution request and issue an AuthorizedExecutionTicket.
+    def authorize(
+        self,
+        request: ExecutionRequest,
+        budget_enforcer: Any | None = None,
+    ) -> AuthorizedExecutionTicket:
+        """Validate execution request, reserve budget quota, and issue an AuthorizedExecutionTicket.
 
         Raises:
-            ScopeAuthorizationError: If scope, deadline, or resource limits fail validation.
+            ScopeAuthorizationError: If scope, deadline, resource limits, or budget reservation fails.
         """
         now = time.time()
 
@@ -166,7 +175,16 @@ class ExecutionAuthorizer:
                         f"Target path '{target_path}' matches forbidden path '{forbidden}'"
                     )
 
-        # 4. Generate Ticket with Nonce & HMAC binding
+        # 4. Atomic Budget Reservation
+        enforcer = budget_enforcer or self._budget_enforcer
+        if enforcer is not None and hasattr(enforcer, "reserve_requests"):
+            req_count = len(request.actions) if request.actions else 1
+            if not enforcer.reserve_requests(req_count):
+                raise ScopeAuthorizationError(
+                    f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
+                )
+
+        # 5. Generate Ticket with Nonce & HMAC binding
         ticket_id = f"tkt_{uuid.uuid4().hex[:16]}"
         nonce = uuid.uuid4().hex
         expires_at = request.deadline if request.deadline > 0 else (now + limits.timeout_seconds)
@@ -186,6 +204,7 @@ class ExecutionAuthorizer:
         )
 
     def verify_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
+
         """Verify ticket signature, expiration, and tampering."""
         now = time.time()
         if ticket.expires_at < now:

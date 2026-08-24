@@ -27,7 +27,14 @@ ActionHandler = Callable[[ActionSpec, ExecutionRequest], dict[str, Any]]
 class ExecutionRequestWorker:
     """Stateless worker executing against the formal contract of intent."""
 
-    def __init__(self) -> None:
+    def __init__(self, authorizer: Any | None = None) -> None:
+        if authorizer is None:
+            from src.decision.authorization import ExecutionAuthorizer
+
+            self._authorizer = ExecutionAuthorizer()
+        else:
+            self._authorizer = authorizer
+
         self._handlers: dict[str, ActionHandler] = {}
         self._register_default_handlers()
 
@@ -58,14 +65,36 @@ class ExecutionRequestWorker:
         self._handlers["mutate"] = _default_probe_handler
         self._handlers["fingerprint"] = _default_probe_handler
 
-    def execute(self, request_or_ticket: ExecutionRequest | AuthorizedExecutionTicket) -> ExecutionResult:
-        """Execute the request deterministically and return ExecutionResult."""
-        request = (
-            request_or_ticket.request
-            if isinstance(request_or_ticket, AuthorizedExecutionTicket)
-            else request_or_ticket
-        )
+    def execute(
+        self,
+        ticket: AuthorizedExecutionTicket,
+    ) -> ExecutionResult:
+        """Execute the request deterministically from an AuthorizedExecutionTicket."""
+        if not isinstance(ticket, AuthorizedExecutionTicket):
+            return ExecutionResult(
+                request_id="",
+                tenant_id="default",
+                outcome="REJECTED",
+                duration_seconds=0.0,
+                error="Unauthorized execution attempt: Worker strictly requires an AuthorizedExecutionTicket",
+            )
 
+        if not self._authorizer.consume_ticket(ticket):
+            request = ticket.request
+            return ExecutionResult(
+                request_id=request.request_id,
+                tenant_id=request.tenant_id,
+                outcome="REJECTED",
+                duration_seconds=0.0,
+                error=f"Ticket {ticket.ticket_id} failed consumption (replay, expired, or invalid signature)",
+                execution_id=request.execution_id,
+                job_id=request.job_id,
+                candidate_id=request.candidate_id,
+                lease_id=request.lease_id,
+                policy_version=request.policy_version,
+            )
+
+        request = ticket.request
         start_time = time.perf_counter()
         now = time.time()
 
@@ -77,13 +106,17 @@ class ExecutionRequestWorker:
                 outcome="TIMED_OUT",
                 duration_seconds=0.0,
                 error=f"Deadline exceeded before execution start: {request.deadline} < {now}",
+                execution_id=request.execution_id,
+                job_id=request.job_id,
+                candidate_id=request.candidate_id,
+                lease_id=request.lease_id,
+                policy_version=request.policy_version,
             )
 
         collected_artifacts: dict[str, Any] = {}
         collected_findings: list[Finding] = []
         collected_deltas: dict[str, Any] = {
-            "last_scanned_target": request.target.host,
-            "stage_executed": request.stage,
+            "urls": [request.target.url],
         }
         resource_usage: dict[str, Any] = {
             "actions_executed": 0,
@@ -132,6 +165,11 @@ class ExecutionRequestWorker:
             state_deltas=tuple(collected_deltas.items()),
             resource_consumption=tuple(resource_usage.items()),
             error=error_message,
+            execution_id=request.execution_id,
+            job_id=request.job_id,
+            candidate_id=request.candidate_id,
+            lease_id=request.lease_id,
+            policy_version=request.policy_version,
         )
 
 
@@ -139,3 +177,5 @@ __all__ = [
     "ActionHandler",
     "ExecutionRequestWorker",
 ]
+
+

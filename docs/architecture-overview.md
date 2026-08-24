@@ -51,25 +51,28 @@ This document provides a **non-marketing, engineering-focused** map of the Cyber
 | **Pipeline DAG Orchestrator** | `src/pipeline/`, `src/pipeline/services/pipeline_orchestrator/` | Asynchronous DAG executor (`GraphBuilder`, `ActorScheduler`, `Orchestrator`) handling task dependency resolution, speculative dispatch, checkpoint persistence, and resume flows. |
 | **Resilience & Circuit Breaking** | `src/resilience/` | 3-state Circuit Breaker (`Closed`, `Open`, `Half-Open`) with persistent state, automatic rate-limit detection, and HTTP 429 `Retry-After` sleep overrides. |
 | **Unified Cache** | `src/pipeline/unified_cache/`, `src/cache/` | Tiered caching (in-memory LRU + persistent SQLite/Redis) featuring request coalescing, stale-while-revalidate, and stage result deduplication. |
+| **State Authority & Settlement** | `src/core/frontier/state_authority.py` | Centralized `StateAuthority` (WAL logging, schema validation, CRDT state merge, execution deduplication) and `SettlementCoordinator` (unified state, budget commit/release, and queue lease settlement). |
 | **Frontier State & CRDTs** | `src/frontier/`, `src/core/frontier/` | Conflict-Free Replicated Data Types (LWW-Sets) indexed by Hybrid Logical Clocks (HLCs) providing causal state ordering with $O(1)$ node space complexity, backed by an append-only WAL. |
 | **Distributed Actor Mesh** | `src/mesh/`, `src/infrastructure/mesh/` | Peer-to-peer clustering via authenticated SWIM gossip, dynamic node capability tracking, and consistent-hashing shard balancing. |
-| **Real-Time Telemetry & WebSockets** | `src/websocket_server/`, `src/realtime/` | High-throughput WebSocket server with MessagePack/JSON serialization, heartbeats, channel-based event multiplexing, and backpressure shedding. |
+| **Real-Time Telemetry & WebSockets** | `src/websocket_server/`, `src/realtime/` | High-throughput WebSocket server with MessagePack/JSON serialization, heartbeats, channel-based event multiplexing, and non-lossy critical event backpressure protection. |
 | **Dashboard & API Layer** | `src/dashboard/fastapi/`, `src/console/` | FastAPI REST services exposing OpenAPI 3.1 contracts, JWT RBAC security, audit logging, live stage metrics, and operator console handlers. |
-| **Closed-Loop Active Learning** | `src/learning/`, `src/intelligence/`, `src/intel/` | Adaptive ML severity classifier (XGBoost/Scikit-Learn with pure NumPy fallback), automated false-positive suppression, and Nuclei tag prioritization retrained from analyst triage signals. |
-| **Decision & Attack Planning** | `src/decision/` | Adaptive attack selection, priority queues, and hunt budgets. Emits formal `ExecutionRequest` contracts of intent. |
-| **Execution Request Worker** | `src/execution/request_executor.py` | Stateless execution of authorized requests with strict resource budgets and sandbox supervision, emitting `ExecutionResult`. |
-| **Scope & Policy Authorization** | `src/decision/authorization.py` | Cryptographic `ScopeToken` validation (domain wildcards, CIDRs, forbidden paths) issuing signed `AuthorizedExecutionTicket` leases. |
+| **Closed-Loop Active Learning** | `src/learning/`, `src/intelligence/`, `src/intel/` | Adaptive ML severity classifier, automated false-positive suppression, and immutable `VersionedPolicy` generation consumed directly by the priority engine. |
+| **Decision & Attack Planning** | `src/decision/` | Adaptive attack selection, priority queues (`CorrelationPriorityQueue`), and hunt budgets. Emits formal `ExecutionRequest` contracts of intent with candidate leases. |
+| **Execution Request Worker** | `src/execution/request_executor.py` | Stateless execution of authorized requests with mandatory `AuthorizedExecutionTicket` verification and sandbox supervision, emitting `ExecutionResult`. |
+| **Scope & Policy Authorization** | `src/decision/authorization.py` | Cryptographic `ScopeToken` validation (domain wildcards, CIDRs, forbidden paths) and atomic budget reservation issuing signed `AuthorizedExecutionTicket` leases. |
 | **Reporting & Compliance** | `src/reporting/` | Multi-format vulnerability report generator (SARIF 2.1.0, JSON, Markdown, CSV, cryptographically signed PDF) and compliance mappings (SOC 2, ISO 27001, PCI-DSS). |
 
 ---
 
 ## Core System Invariants
 
-1. **Immutable Stage Contracts & State Authority**:
+1. **Immutable Stage Contracts & State Authority Settlement**:
    - Pipeline stages accept immutable `StageInput` / `ExecutionRequest` contracts and must return `StageOutput` / `ExecutionResult` containing state deltas.
-   - Workers are strictly forbidden from directly writing to CRDTs or storage; all state mutations are validated and committed exclusively by the `State Authority` via the Write-Ahead Log (WAL).
-2. **Centralized Authorization Gate**:
-   - The Speculative Dispatcher mints requests carrying authorization context, which must pass the independent `Authorization & Resource Gate` (`src/decision/authorization.py`) before worker placement.
+   - Workers are strictly forbidden from directly writing to CRDTs or storage; all state mutations are validated, deduplicated by `execution_id`, and committed exclusively through `SettlementCoordinator` ➔ `StateAuthority` via the Write-Ahead Log (WAL).
+2. **Centralized Authorization Gate & Mandatory Tickets**:
+   - The Speculative Dispatcher mints requests carrying authorization context, which must pass the independent `Authorization & Resource Gate` (`src/decision/authorization.py`) to atomically reserve budget and receive an `AuthorizedExecutionTicket`.
+   - `ExecutionRequestWorker.execute(ticket)` strictly rejects unauthenticated raw `ExecutionRequest` instances.
+
 3. **Sensitive Credential Scrubbing**:
    - Hostname and target validation: `src/recon/domain_validation.py` and `src/core/utils/url_validation.py`.
    - Sensitive credential scrubbing and header masking: `src/core/security/sensitive_names.py`.

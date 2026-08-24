@@ -672,6 +672,34 @@ class Broadcaster:
             return 1
         return await self._deliver_local("all", "*", message, exclude, skip_redis=True)
 
+    def _is_critical_payload(self, json_data: str) -> bool:
+        """Identify critical events (findings, status changes, errors, acks) that must not be lost."""
+        try:
+            data = json.loads(json_data)
+            mtype = str(data.get("type", "")).lower()
+            if mtype in ("error", "status", "ack", "finding", "auth"):
+                return True
+            payload = data.get("payload") or data.get("data") or {}
+            if isinstance(payload, dict):
+                event = str(payload.get("event") or payload.get("type") or "").lower()
+                if any(
+                    crit in event
+                    for crit in (
+                        "finding",
+                        "alert",
+                        "error",
+                        "auth",
+                        "stage_completed",
+                        "stage_failed",
+                        "stage_ready",
+                        "pipeline_completed",
+                    )
+                ):
+                    return True
+        except Exception:
+            pass
+        return False
+
     async def _handle_backpressure(
         self,
         info: Any,
@@ -681,21 +709,13 @@ class Broadcaster:
     ) -> None:
         """Handle backpressure when a connection's message queue is full.
 
-        If ``backpressure_drop_oldest`` is enabled, drains a fraction of
-        the queue to make room for new messages. Otherwise the message
-        is silently dropped.
-
-        In either case a :class:`BackpressureMessage` is emitted to the
-        affected client so it can implement adaptive throttling, and
-        the per-channel drop counter is incremented for Prometheus
-        alerting.
-
-        Args:
-            info: ConnectionInfo with the full queue.
-            json_data: JSON message to enqueue.
-            scope: Broadcast scope that triggered the drop.
-            target: Channel/user/connection target of the original message.
+        Critical events (findings, stage transitions, errors) are non-lossy
+        and protected: when backpressure occurs, non-critical telemetry/metrics
+        are drained first to ensure critical events are never lost. Lossy metric
+        messages are shed immediately.
         """
+        is_critical = self._is_critical_payload(json_data)
+
         with self._counter_lock:
             self._drop_count += 1
         with self._scope_drop_lock:
@@ -708,45 +728,48 @@ class Broadcaster:
         except Exception as exc:
             logger.debug("Failed to increment dropped messages metric: %s", exc)
 
-        # Determine how many messages we are about to drop.
         watermark = info.message_queue.maxsize
-        drain_count = 0
-        if self.backpressure_drop_oldest:
-            drain_count = max(1, int(watermark * self.backpressure_drain_fraction))
 
-        logger.warning(
-            "Message queue full for connection %s (scope=%s target=%s dropped=%d watermark=%d)",
-            info.connection_id,
-            scope,
-            target,
-            drain_count or 1,
-            watermark,
-        )
-
-        recovered = False
-        if drain_count > 0:
-            for _ in range(drain_count):
+        if is_critical:
+            # Drain non-critical messages from the queue to make room for critical event
+            drained_items: list[str] = []
+            while not info.message_queue.empty():
                 try:
-                    info.message_queue.get_nowait()
+                    item = info.message_queue.get_nowait()
+                    if self._is_critical_payload(item):
+                        drained_items.append(item)
                 except asyncio.QueueEmpty:
                     break
-            try:
-                await info.message_queue.put(json_data)
-                recovered = True
-                logger.info(
-                    "Recovered from backpressure for connection %s",
-                    info.connection_id,
-                )
-            except asyncio.QueueFull:
-                logger.error(
-                    "Failed to recover from backpressure for connection %s",
-                    info.connection_id,
-                )
 
-        # Notify the client so it can adapt. We always emit this — even
-        # when the message was eventually queued — so silent data loss
-        # becomes observable.
+            # Put back preserved critical items
+            for item in drained_items:
+                try:
+                    info.message_queue.put_nowait(item)
+                except asyncio.QueueFull:
+                    break
+
+            # Now enqueue the critical event
+            try:
+                info.message_queue.put_nowait(json_data)
+                logger.info(
+                    "Backpressure: Preserved critical event for connection %s (scope=%s)",
+                    info.connection_id,
+                    scope,
+                )
+                return
+            except asyncio.QueueFull:
+                logger.warning("Backpressure queue full even after non-critical drain")
+        else:
+            # Non-critical (metrics / lossy log lines) are dropped immediately
+            logger.debug(
+                "Backpressure: Shed lossy telemetry message for connection %s (scope=%s)",
+                info.connection_id,
+                scope,
+            )
+
+        # Notify the client of backpressure drop
         queue_depth = info.message_queue.qsize()
+
         try:
             bp = BackpressureMessage(
                 scope=scope,

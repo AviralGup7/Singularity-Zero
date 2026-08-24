@@ -182,19 +182,67 @@ async def run_active_scanning_adaptive(
     except Exception as exc:
         logger.debug("Failed to build HuntBudgetEnforcer from config: %s", exc)
 
+    import uuid
+    from src.decision.authorization import ExecutionAuthorizer
+    from src.decision.models import ActionSpec, ExecutionRequest, ScopeToken, TargetSpec
+    from src.learning.versioned_policy import VersionedPolicy
+
+    policy: VersionedPolicy | None = getattr(ctx, "_versioned_policy", None)
+    if policy is None:
+        hf = getattr(ctx, "history_feedback", {}) or {}
+        if hf:
+            policy = VersionedPolicy.from_mapping(hf)
+
+    authorizer = ExecutionAuthorizer(budget_enforcer=budget_enforcer)
+    raw_composite_probe = CompositeActiveProbe(
+        probes,
+        response_cache,
+        timeout_seconds=probe_timeout_seconds,
+        error_accumulator=degraded_probes,
+    )
+
+    async def authorized_probe_fn(url: str) -> list[dict[str, Any]]:
+        parsed = urlparse(url)
+        host = parsed.hostname or url
+        path = parsed.path or "/"
+        req = ExecutionRequest(
+            request_id=f"req_{uuid.uuid4().hex[:12]}",
+            tenant_id=str(getattr(ctx, "tenant_id", "default") or "default"),
+            target=TargetSpec(host=host, path=path, scheme=parsed.scheme or "https", port=parsed.port or 443),
+            stage="active_scan",
+            actions=(
+                ActionSpec(
+                    action_id=f"act_{uuid.uuid4().hex[:8]}",
+                    action_type="probe",
+                    tool_or_detector="composite_probe",
+                ),
+            ),
+            scope_token=ScopeToken(scope_hash="active_scope", allowed_domains=(host,)),
+            deadline=time.time() + probe_timeout_seconds + 30.0,
+            policy_version=getattr(policy, "version", "") if policy else "",
+        )
+        try:
+            ticket = authorizer.authorize(req)
+            if not authorizer.consume_ticket(ticket):
+                logger.warning("Ticket consumption failed for %s", url)
+                return []
+        except Exception as exc:
+            logger.warning("Authorization check failed for %s: %s", url, exc)
+            return []
+
+        return await raw_composite_probe(url)
+
     coordinator = AdaptiveScanCoordinator(
         urls=all_urls,
-        probe_fn=CompositeActiveProbe(
-            probes,
-            response_cache,
-            timeout_seconds=probe_timeout_seconds,
-            error_accumulator=degraded_probes,
-        ),
+        probe_fn=authorized_probe_fn,
         batch_size=batch_size,
         concurrency=concurrency,
         boost_on_findings=True,
         budget_enforcer=budget_enforcer,
+        policy=policy,
     )
+
+
 
     def save_delta_fn(batch_urls: list[str], batch_findings: list[dict[str, Any]]) -> None:
         if checkpoint_mgr and hasattr(checkpoint_mgr, "save_stage_delta"):
