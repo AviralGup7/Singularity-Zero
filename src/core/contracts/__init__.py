@@ -84,6 +84,29 @@ from src.core.contracts.schema_validator import (  # noqa: F401
     validate_execution_payload,
     validate_recon_payload,
 )
+from src.core.contracts.bidder import (  # noqa: F401
+    BidContract,
+    BidWeightsContract,
+    BidderProtocol,
+)
+from src.core.contracts.decision_engine import (  # noqa: F401
+    AttackSelectorProtocol,
+    DecisionEngineProtocol,
+)
+from src.core.contracts.executor import (  # noqa: F401
+    ExecutionResultContract,
+    ProbeExecutorProtocol,
+    TaskExecutorProtocol,
+)
+from src.core.contracts.resource_manager import (  # noqa: F401
+    BudgetEnforcerContract,
+    ResourceGuardContract,
+)
+from src.core.contracts.scheduler import (  # noqa: F401
+    AdaptiveCoordinatorContract,
+    PriorityQueueContract,
+    SchedulerProtocol,
+)
 from src.core.contracts.state_schema import (  # noqa: F401
     GLOBAL_STATE_SCHEMA_REGISTRY,
     StateSchema,
