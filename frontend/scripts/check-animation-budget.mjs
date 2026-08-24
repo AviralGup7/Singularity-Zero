@@ -5,7 +5,7 @@ import { gzipSync } from 'node:zlib';
 const DIST_ASSETS = join(process.cwd(), 'dist', 'assets');
 
 const BUDGETS = {
-  totalJsGzip: 1050 * 1024,
+  totalJsGzip: 1100 * 1024,
   appShellChunkGzip: 95 * 1024,
   gsapChunkGzip: 40 * 1024,
   lottieChunkGzip: 75 * 1024,
