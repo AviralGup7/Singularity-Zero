@@ -16,6 +16,7 @@ from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
+from src.decision.hunt_budget import HuntBudgetEnforcer
 from src.pipeline.runner_support import emit_progress
 
 from .composite_probe import CompositeActiveProbe
@@ -174,6 +175,13 @@ async def run_active_scanning_adaptive(
     batch_size = int(analysis_settings.get("adaptive_batch_size", 20))
     concurrency = int(analysis_settings.get("adaptive_concurrency", 5))
 
+    budget_enforcer: HuntBudgetEnforcer | None = None
+    try:
+        cfg_mapping = config if isinstance(config, dict) else (getattr(config, "__dict__", None) or {})
+        budget_enforcer = HuntBudgetEnforcer.from_config(cfg_mapping, label="active_scan")
+    except Exception as exc:
+        logger.debug("Failed to build HuntBudgetEnforcer from config: %s", exc)
+
     coordinator = AdaptiveScanCoordinator(
         urls=all_urls,
         probe_fn=CompositeActiveProbe(
@@ -185,6 +193,7 @@ async def run_active_scanning_adaptive(
         batch_size=batch_size,
         concurrency=concurrency,
         boost_on_findings=True,
+        budget_enforcer=budget_enforcer,
     )
 
     def save_delta_fn(batch_urls: list[str], batch_findings: list[dict[str, Any]]) -> None:

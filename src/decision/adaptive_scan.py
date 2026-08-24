@@ -19,6 +19,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from src.decision.hunt_budget import HuntBudgetEnforcer
+from src.decision.models import ScanPlan
 from src.decision.priority_queue import CorrelationPriorityQueue
 
 
@@ -57,6 +59,7 @@ class AdaptiveScanCoordinator:
             probe_fn=scan_url,  # async callable(urls) -> findings
             boost_on_findings=True,
             early_terminate=True,
+            budget_enforcer=enforcer,
         )
         result = await coordinator.run()
     """
@@ -74,11 +77,14 @@ class AdaptiveScanCoordinator:
         batch_size: int = 50,
         max_batches: int | None = None,
         concurrency: int = 10,
+        budget_enforcer: HuntBudgetEnforcer | None = None,
     ) -> None:
+        self._budget_enforcer = budget_enforcer
         self._queue = CorrelationPriorityQueue.from_urls(
             urls,
             auto_correlate=boost_on_findings,
             boost_factor=boost_factor,
+            budget_enforcer=budget_enforcer,
         )
         self._probe_fn = probe_fn
         self._early_terminate = early_terminate
@@ -89,6 +95,37 @@ class AdaptiveScanCoordinator:
         self._concurrency = concurrency
         self._results: list[ScanResult] = []
         self._total_findings: list[dict[str, Any]] = []
+
+    @classmethod
+    def from_plan(
+        cls,
+        plan: ScanPlan,
+        probe_fn: Callable,
+        *,
+        budget_enforcer: HuntBudgetEnforcer | None = None,
+    ) -> AdaptiveScanCoordinator:
+        """Create a coordinator instance from an immutable ScanPlan object."""
+        return cls(
+            urls=list(plan.targets),
+            probe_fn=probe_fn,
+            boost_on_findings=plan.boost_on_findings,
+            early_terminate=plan.early_terminate,
+            early_terminate_min=plan.early_terminate_min,
+            early_terminate_ratio=plan.early_terminate_ratio,
+            boost_factor=plan.boost_factor,
+            batch_size=plan.batch_size,
+            max_batches=plan.max_batches,
+            concurrency=plan.concurrency,
+            budget_enforcer=budget_enforcer,
+        )
+
+    @property
+    def queue(self) -> CorrelationPriorityQueue:
+        return self._queue
+
+    @property
+    def budget_enforcer(self) -> HuntBudgetEnforcer | None:
+        return self._budget_enforcer
 
     async def run(
         self, save_delta_fn: Callable[[list[str], list[dict[str, Any]]], None] | None = None
@@ -156,6 +193,9 @@ class AdaptiveScanCoordinator:
             # consuming resources after the pipeline is cancelled.
             # Instead, we run the batch with a timeout and explicitly
             # cancel the inner task when the outer is cancelled.
+            if self._budget_enforcer:
+                self._budget_enforcer.record_request(len(urls))
+
             cancelled = False
             _BATCH_TIMEOUT = 300.0  # 5 minutes per batch hard cap
             task = asyncio.create_task(self._scan_batch(urls))
@@ -195,6 +235,10 @@ class AdaptiveScanCoordinator:
 
             if batch_findings:
                 self._total_findings.extend(batch_findings)
+                if self._budget_enforcer:
+                    for finding_item in batch_findings:
+                        conf = float(finding_item.get("confidence", 0.8) or 0.8)
+                        self._budget_enforcer.record_finding(conf)
                 boosted = self._queue.boost_from_findings(batch_findings)
                 boosted_total += boosted
                 logger.info(

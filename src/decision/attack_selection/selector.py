@@ -241,6 +241,36 @@ COMPOUND_RULES: tuple[CompoundRule, ...] = (
 )
 
 
+def select_validation_attack_plans(
+    *,
+    url: str,
+    params: list[str] | set[str] | tuple[str, ...] | None,
+    signals: list[str] | set[str] | tuple[str, ...] | None,
+    scope_hosts: set[str] | None = None,
+    config: dict[str, Any] | None = None,
+) -> tuple[Any, ...]:
+    """Select immutable AttackPlan objects for a target endpoint."""
+    from src.decision.models import AttackPlan
+
+    merged = _merge_config(config)
+    normalized_params = {str(item).strip().lower() for item in (params or []) if str(item).strip()}
+    normalized_signals = {
+        str(item).strip().lower() for item in (signals or []) if str(item).strip()
+    }
+    in_scope = _is_in_scope(url, scope_hosts or set())
+    facts = _build_endpoint_facts(
+        normalized_params=normalized_params,
+        normalized_signals=normalized_signals,
+        url=url,
+    )
+    raw_plans = _build_compound_validation_plans(
+        merged=merged,
+        facts=facts,
+        in_scope=in_scope,
+    )
+    return tuple(AttackPlan.from_mapping(p) for p in raw_plans)
+
+
 def select_validation_actions(
     *,
     url: str,

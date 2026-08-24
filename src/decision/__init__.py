@@ -18,14 +18,36 @@ MODULE_META: dict[str, Any] = {
     "description": (
         "Scan prioritization and attack-selection logic: adaptive scan "
         "coordination, hunt-budget management, priority queues, and "
-        "validation-action selection."
+        "validation-action selection with immutable result models."
     ),
     "layer": "decision",
-    "submodules": ("attack_selection", "prioritization"),
+    "submodules": (
+        "adaptive_scan",
+        "attack_selection",
+        "hunt_budget",
+        "models",
+        "prioritization",
+        "priority_queue",
+    ),
     "public_api": (
+        "AdaptiveScanCoordinator",
+        "AttackPlan",
+        "AttackStep",
+        "BudgetSnapshot",
+        "CorrelationPriorityQueue",
+        "DEFAULT_SELECTOR_CONFIG",
+        "Finding",
+        "FindingDecision",
+        "HuntBudget",
+        "HuntBudgetEnforcer",
+        "HuntMode",
+        "ScanPlan",
+        "ScanResult",
+        "ScanTarget",
+        "StageRequest",
+        "StageResult",
         "annotate_finding_decisions",
         "classify_finding",
-        "DEFAULT_SELECTOR_CONFIG",
         "filter_reportable_findings",
         "select_validation_actions",
     ),
@@ -43,16 +65,24 @@ def health_check() -> dict[str, Any]:
         ``version``, and optional ``errors``.
     """
     try:
+        from src.decision.adaptive_scan import AdaptiveScanCoordinator  # noqa: F401
         from src.decision.attack_selection import select_validation_actions  # noqa: F401
+        from src.decision.hunt_budget import HuntBudgetEnforcer  # noqa: F401
+        from src.decision.models import FindingDecision, ScanPlan, ScanResult, StageResult  # noqa: F401
         from src.decision.prioritization import classify_finding  # noqa: F401
+        from src.decision.priority_queue import CorrelationPriorityQueue  # noqa: F401
 
         return {
             "status": "ok",
             "module": "decision",
             "version": "3.1.0",
             "details": {
+                "adaptive_scan": "available",
                 "attack_selection": "available",
+                "hunt_budget": "available",
+                "models": "available",
                 "prioritization": "available",
+                "priority_queue": "available",
             },
         }
     except ImportError as exc:
@@ -73,20 +103,54 @@ from src.core.utils.shared import register_module_meta  # noqa: E402
 register_module_meta(MODULE_META)
 
 # ---------------------------------------------------------------------------
-# Public API re-exports (unchanged)
+# Public API re-exports
 # ---------------------------------------------------------------------------
 
-from src.decision.attack_selection import DEFAULT_SELECTOR_CONFIG, select_validation_actions
+from src.decision.adaptive_scan import AdaptiveScanCoordinator
+from src.decision.attack_selection import (
+    DEFAULT_SELECTOR_CONFIG,
+    select_validation_actions,
+    select_validation_attack_plans,
+)
+from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer, HuntMode
+from src.decision.models import (
+    AttackPlan,
+    AttackStep,
+    BudgetSnapshot,
+    Finding,
+    FindingDecision,
+    ScanPlan,
+    ScanResult,
+    StageRequest,
+    StageResult,
+)
 from src.decision.prioritization import (
     annotate_finding_decisions,
     classify_finding,
     filter_reportable_findings,
 )
+from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
 
 __all__ = [
+    "AdaptiveScanCoordinator",
+    "AttackPlan",
+    "AttackStep",
+    "BudgetSnapshot",
+    "CorrelationPriorityQueue",
+    "DEFAULT_SELECTOR_CONFIG",
+    "Finding",
+    "FindingDecision",
+    "HuntBudget",
+    "HuntBudgetEnforcer",
+    "HuntMode",
+    "ScanPlan",
+    "ScanResult",
+    "ScanTarget",
+    "StageRequest",
+    "StageResult",
     "annotate_finding_decisions",
     "classify_finding",
-    "DEFAULT_SELECTOR_CONFIG",
     "filter_reportable_findings",
     "select_validation_actions",
+    "select_validation_attack_plans",
 ]

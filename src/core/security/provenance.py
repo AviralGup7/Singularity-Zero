@@ -12,8 +12,15 @@ import logging
 import os
 from pathlib import Path
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric import ed25519
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    HAS_CRYPTOGRAPHY = True
+except ImportError:
+    InvalidSignature = Exception  # type: ignore[misc,assignment]
+    ed25519 = None  # type: ignore[assignment]
+    HAS_CRYPTOGRAPHY = False
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +113,9 @@ def verify_provenance(template_path: str | Path, manifest_dir: str | Path) -> bo
         sig_bytes = bytes.fromhex(sig_hex)
     except ValueError as exc:
         raise ValueError("Provenance Error: Invalid signature format (must be hex)") from exc
+
+    if not HAS_CRYPTOGRAPHY or ed25519 is None:
+        raise RuntimeError("Provenance Error: cryptography package is required for provenance verification")
 
     # Load trusted public key (refuses dev default in production).
     try:

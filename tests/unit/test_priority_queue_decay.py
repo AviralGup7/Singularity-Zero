@@ -82,3 +82,55 @@ def test_queue_pop_resolves_decay_and_aging() -> None:
     popped = pq.pop()
     assert popped is not None
     assert popped.url == "http://example.com/t1"
+
+
+def test_should_terminate_early_evaluates_highest_priority_not_lowest() -> None:
+    """Verify that should_terminate_early evaluates top items (not bottom items)."""
+    # Create 1 high-priority target and 9 low-priority targets
+    t_high = ScanTarget(url="http://example.com/high", base_priority=100.0, current_priority=100.0)
+    targets = [t_high] + [
+        ScanTarget(url=f"http://example.com/low{i}", base_priority=1.0, current_priority=1.0)
+        for i in range(9)
+    ]
+    pq = CorrelationPriorityQueue(targets)
+
+    # Pop 5 low priority targets to pass the min_items threshold
+    pq._pop_count = 5
+
+    # If should_terminate_early erroneously evaluated the lowest items, it would return True because low items are < 30% of 100.
+    # But because t_high (100.0) is still unscanned, it MUST return False!
+    assert pq.should_terminate_early(min_items=5, threshold_ratio=0.3) is False
+
+
+def test_get_stats_top_remaining_lists_highest_scores() -> None:
+    """Verify get_stats returns highest bid/priority targets in top_remaining."""
+    targets = [
+        ScanTarget(url="http://example.com/low", base_priority=5.0, current_priority=5.0),
+        ScanTarget(url="http://example.com/med", base_priority=25.0, current_priority=25.0),
+        ScanTarget(url="http://example.com/high", base_priority=80.0, current_priority=80.0),
+    ]
+    pq = CorrelationPriorityQueue(targets)
+    stats = pq.get_stats()
+    top_urls = [item["url"] for item in stats["top_remaining"]]
+    assert top_urls[0] == "http://example.com/high"
+    assert top_urls[1] == "http://example.com/med"
+    assert top_urls[2] == "http://example.com/low"
+
+
+def test_boost_url_without_reason_refreshes_bid() -> None:
+    """Verify boosting a target with empty reason still refreshes bid and updates heap ordering."""
+    t1 = ScanTarget(url="http://example.com/t1", base_priority=10.0, current_priority=10.0)
+    t2 = ScanTarget(url="http://example.com/t2", base_priority=5.0, current_priority=5.0)
+    pq = CorrelationPriorityQueue([t1, t2])
+
+    # Boost t2 without providing a reason
+    success = pq.boost_url("http://example.com/t2", factor=5.0, reason="")
+    assert success is True
+    assert t2.current_priority == 25.0
+    assert t2.bid is not None
+    assert (t2.bid.score) > (t1.bid.score)
+
+    popped = pq.pop()
+    assert popped is not None
+    assert popped.url == "http://example.com/t2"
+

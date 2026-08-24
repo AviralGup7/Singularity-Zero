@@ -1,8 +1,14 @@
-"""Unit tests for the AdaptiveScanCoordinator."""
-
 from unittest.mock import AsyncMock
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    class _PytestMock:
+        class mark:
+            @staticmethod
+            def asyncio(f):
+                return f
+    pytest = _PytestMock()  # type: ignore[assignment]
 
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
 
@@ -66,3 +72,29 @@ async def test_coordinator_boosting():
 
     assert result.scanned == 2
     assert result.findings_count == 1
+
+
+@pytest.mark.asyncio
+async def test_coordinator_with_hunt_budget_exhaustion():
+    from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
+
+    urls = [f"https://example.com/api/{i}" for i in range(20)]
+    enforcer = HuntBudgetEnforcer(budget=HuntBudget(max_requests=2))
+
+    async def mock_probe(url):
+        return []
+
+    coordinator = AdaptiveScanCoordinator(
+        urls,
+        mock_probe,
+        batch_size=1,
+        concurrency=1,
+        early_terminate=True,
+        early_terminate_min=1,
+        budget_enforcer=enforcer,
+    )
+    result = await coordinator.run()
+
+    assert result.early_terminated is True
+    assert enforcer.is_exhausted()
+    assert result.budget_snapshot is not None

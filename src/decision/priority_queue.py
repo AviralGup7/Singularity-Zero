@@ -26,13 +26,6 @@ import math
 import threading
 import time
 
-try:
-    import numpy as np
-
-    HAS_NUMPY = True
-except ImportError:
-    HAS_NUMPY = False
-    np = None  # type: ignore[assignment]
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -187,8 +180,18 @@ class ScanTarget:
         adjudicated_factor = max(0.1, min(factor, 5.0))
         old_priority = self.current_priority
 
-        # Calculate new potential priority
-        new_priority = self.current_priority * adjudicated_factor
+        # Compute current effective base before applying new boost to prevent resurrecting decayed boosts
+        now = time.time()
+        boosted_portion = max(0.0, self.current_priority - self.base_priority)
+        if boosted_portion > 0.0 and self.last_boosted_at is not None:
+            time_since_boost = max(0.0, now - self.last_boosted_at)
+            decay_factor = math.pow(2.0, -time_since_boost / 120.0)
+            current_active = self.base_priority + (boosted_portion * decay_factor)
+        else:
+            current_active = self.current_priority
+
+        # Calculate new potential priority from active priority level
+        new_priority = max(self.base_priority, current_active) * adjudicated_factor
 
         # Cap the boosted priority at 5x base_priority (min 50.0) and enforce global hard limit of 1000.0
         cap = min(max(5.0 * self.base_priority, 50.0), 1000.0)
@@ -197,16 +200,11 @@ class ScanTarget:
 
         self.current_priority = new_priority
         self.last_boosted_at = time.time()
-        # Bug #21 fix: previously ``self.boost_factors.append(reason)`` ran
-        # unconditionally, so a no-op boost (priority already at the cap)
-        # would still consume one of the ``max_boosts`` slots. A target
-        # that has hit the cap with a real boost would then silently drop
-        # subsequent genuine boosts because all its slots were burned.
-        # Only record the boost if the priority actually changed.
-        if reason and self.current_priority != old_priority:
-            self.boost_factors.append(reason)
-            if self.current_priority != old_priority:
-                self.refresh_bid()
+
+        if self.current_priority != old_priority:
+            if reason:
+                self.boost_factors.append(reason)
+            self.refresh_bid()
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ScanTarget):
@@ -597,12 +595,13 @@ class CorrelationPriorityQueue:
             # Check if top remaining targets are all below threshold
             unscanned = sorted(
                 [t for t in self._targets if not t.scanned],
+                key=lambda t: (t.bid or t.refresh_bid()).score,
                 reverse=True,
             )
             if not unscanned:
                 return True
 
-            top_3_priorities = [t.current_priority for t in unscanned[:3]]
+            top_3_priorities = [t.effective_priority for t in unscanned[:3]]
             threshold = max_base * threshold_ratio
 
             return all(p < threshold for p in top_3_priorities)
@@ -617,6 +616,11 @@ class CorrelationPriorityQueue:
             unscanned = [t for t in self._targets if not t.scanned]
             scanned = len(self._targets) - len(unscanned)
             boosted = sum(1 for t in self._targets if len(t.boost_factors) > 0)
+            top_5 = sorted(
+                unscanned,
+                key=lambda t: (t.bid or t.refresh_bid()).score,
+                reverse=True,
+            )[:5]
 
             return {
                 "total_targets": len(self._targets),
@@ -630,10 +634,11 @@ class CorrelationPriorityQueue:
                     {
                         "url": t.url,
                         "priority": round(t.current_priority, 2),
+                        "effective_priority": round(t.effective_priority, 2),
                         "bid_score": round((t.bid or t.refresh_bid()).score, 3),
                         "boosts": len(t.boost_factors),
                     }
-                    for t in heapq.nlargest(5, unscanned)
+                    for t in top_5
                 ]
                 if unscanned
                 else [],
