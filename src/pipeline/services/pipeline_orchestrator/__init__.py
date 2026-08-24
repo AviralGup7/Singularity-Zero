@@ -15,15 +15,9 @@ from ..pipeline_helpers import (
     finding_identity,
 )
 from ._constants import DEFAULT_ITERATION_LIMIT, PIPELINE_STAGES, STAGE_ORDER
-from .learning_hooks import (
-    apply_learning_adaptations,
-    emit_feedback_events,
-    run_learning_update,
-)
-from .orchestrator import FindingDict, PipelineOrchestrator
 
-# Lazy imports for stage runners to avoid eagerly pulling in all stage
-# dependencies (reporting, validators, etc.) at package import time.
+# Lazy imports for stage runners and orchestrator components to avoid eagerly pulling
+# in all stage and learning dependencies at package import time.
 _LAZY_STAGE_IMPORTS: dict[str, tuple[str, str]] = {
     "run_passive_scanning": (".stages.analysis", "run_passive_scanning"),
     "run_post_analysis_enrichments": (".stages.enrichment", "run_post_analysis_enrichments"),
@@ -35,6 +29,11 @@ _LAZY_STAGE_IMPORTS: dict[str, tuple[str, str]] = {
     "run_priority_ranking": (".stages.recon", "run_priority_ranking"),
     "run_reporting": (".stages.reporting", "run_reporting"),
     "run_semgrep_stage": (".stages.semgrep", "run_semgrep_stage"),
+    "PipelineOrchestrator": (".orchestrator", "PipelineOrchestrator"),
+    "FindingDict": (".orchestrator", "FindingDict"),
+    "apply_learning_adaptations": (".learning_hooks", "apply_learning_adaptations"),
+    "emit_feedback_events": (".learning_hooks", "emit_feedback_events"),
+    "run_learning_update": (".learning_hooks", "run_learning_update"),
 }
 
 

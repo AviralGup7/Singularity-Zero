@@ -3,12 +3,55 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from src.core.models.stage_result import StageStatus
-from src.infrastructure.resource_guard import ResourceGuard
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class ResourceGuardProtocol(Protocol):
+    """Protocol defining memory-guard and concurrency capping operations."""
+
+    def check_critical_oom(self) -> None:
+        ...
+
+    def should_skip_stage(
+        self, stage_name: str, target_count: int = 1, url_count: int = 0
+    ) -> tuple[bool, str]:
+        ...
+
+    def get_concurrency_cap(
+        self, stage_name: str, requested_concurrency: int = 10
+    ) -> int:
+        ...
+
+
+def _get_default_resource_guard() -> Any:
+    """Lazy fallback loader for ResourceGuard to decouple infrastructure import."""
+    try:
+        from src.infrastructure.resource_guard import ResourceGuard
+
+        return ResourceGuard()
+    except Exception:
+
+        class _NoOpResourceGuard:
+            def check_critical_oom(self) -> None:
+                pass
+
+            def should_skip_stage(
+                self, stage_name: str, target_count: int = 1, url_count: int = 0
+            ) -> tuple[bool, str]:
+                return False, ""
+
+            def get_concurrency_cap(
+                self, stage_name: str, requested_concurrency: int = 10
+            ) -> int:
+                return requested_concurrency
+
+        return _NoOpResourceGuard()
+
 
 # Required for honest exit codes / report emission. Planner must not
 # drop these because of low predicted value or a tight RAM estimate.
@@ -26,11 +69,19 @@ def _get_graph_nodes() -> list:
 
 
 class StagePlanner:
-    def __init__(self, config: Any, ctx: Any, learning_integration: Any) -> None:
+    def __init__(
+        self,
+        config: Any,
+        ctx: Any,
+        learning_integration: Any,
+        resource_guard: ResourceGuardProtocol | Any | None = None,
+    ) -> None:
         self.config = config
         self.ctx = ctx
         self.learning_integration = learning_integration
-        self.resource_guard = ResourceGuard()
+        self.resource_guard = (
+            resource_guard if resource_guard is not None else _get_default_resource_guard()
+        )
 
     def plan_stages(self, remaining_stages: list[str]) -> tuple[list[str], dict[str, Any]]:
         adjusted_stages = list(remaining_stages)

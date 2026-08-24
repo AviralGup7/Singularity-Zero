@@ -1,50 +1,8 @@
-from src.pipeline.cache import (
-    cache_enabled,
-    load_cached_json,
-    load_cached_set,
-    response_cache_fresh,
-    save_cached_json,
-    save_cached_set,
-)
-from src.pipeline.retry import (
-    AdaptiveBackoffHeuristic,
-    RetryBudgetExhausted,
-    RetryEvent,
-    RetryEventEmitter,
-    RetryEventType,
-    RetryMetrics,
-    RetryPolicy,
-    RetryPolicyState,
-    StageRetryPolicy,
-    ToolRetryPolicy,
-    classify_error,
-    execute_with_retry,
-    is_retryable,
-    is_stage_retry_policy,
-    is_tool_retry_policy,
-    retry_ready,
-    sleep_before_retry,
-    sleep_before_retry_async,
-)
-from src.pipeline.runtime import main
-from src.pipeline.storage import (
-    DISK_SPACE_WARN_BYTES,
-    check_disk_space,
-    ensure_dir,
-    format_json,
-    format_jsonl,
-    format_lines,
-    format_ranked_lines,
-    load_config,
-    preflight_storage_check,
-    read_lines,
-    read_scope,
-    validate_storage,
-    write_json,
-    write_jsonl,
-    write_lines,
-    write_ranked_lines,
-)
+"""Pipeline package exports."""
+
+from __future__ import annotations
+
+from typing import Any
 
 __all__ = [
     "AdaptiveBackoffHeuristic",
@@ -89,3 +47,67 @@ __all__ = [
     "write_lines",
     "write_ranked_lines",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in {
+        "cache_enabled",
+        "load_cached_json",
+        "load_cached_set",
+        "response_cache_fresh",
+        "save_cached_json",
+        "save_cached_set",
+    }:
+        from src.pipeline import cache
+
+        return getattr(cache, name)
+    if name in {
+        "AdaptiveBackoffHeuristic",
+        "RetryBudgetExhausted",
+        "RetryEvent",
+        "RetryEventEmitter",
+        "RetryEventType",
+        "RetryMetrics",
+        "RetryPolicy",
+        "RetryPolicyState",
+        "StageRetryPolicy",
+        "ToolRetryPolicy",
+        "classify_error",
+        "execute_with_retry",
+        "is_retryable",
+        "is_stage_retry_policy",
+        "is_tool_retry_policy",
+        "retry_ready",
+        "sleep_before_retry",
+        "sleep_before_retry_async",
+    }:
+        from src.pipeline import retry
+
+        return getattr(retry, name)
+    if name == "main":
+        from src.pipeline import runtime
+
+        return getattr(runtime, name)
+    if name in {
+        "DISK_SPACE_WARN_BYTES",
+        "check_disk_space",
+        "ensure_dir",
+        "format_json",
+        "format_jsonl",
+        "format_lines",
+        "format_ranked_lines",
+        "load_config",
+        "preflight_storage_check",
+        "read_lines",
+        "read_scope",
+        "validate_storage",
+        "write_json",
+        "write_jsonl",
+        "write_lines",
+        "write_ranked_lines",
+    }:
+        from src.pipeline import storage
+
+        return getattr(storage, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

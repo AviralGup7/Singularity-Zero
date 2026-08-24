@@ -1,10 +1,32 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from src.core.contracts.pipeline import scope_match
-
 logger = logging.getLogger(__name__)
+
+ScopeChecker = Callable[[str, set[str]], tuple[bool, str]]
+
+
+def _default_scope_checker(url: str, scope_hosts: set[str]) -> tuple[bool, str]:
+    """Lazy scope matcher resolving to core contracts when present."""
+    if not scope_hosts:
+        return True, "no_scope_defined"
+    try:
+        from src.core.contracts.pipeline import scope_match
+
+        return scope_match(url, scope_hosts)
+    except Exception:
+        from urllib.parse import urlparse
+
+        hostname = (urlparse(url).hostname or "").lower()
+        if not hostname:
+            return False, "invalid_url"
+        matched = any(
+            hostname == s.lower() or hostname.endswith(f".{s.lower()}")
+            for s in scope_hosts
+        )
+        return matched, "matched" if matched else "out_of_scope"
 
 _ActionSpec = dict[str, Any]
 _PlannerConfig = dict[str, Any]
@@ -248,6 +270,7 @@ def select_validation_attack_plans(
     signals: list[str] | set[str] | tuple[str, ...] | None,
     scope_hosts: set[str] | None = None,
     config: dict[str, Any] | None = None,
+    scope_checker: ScopeChecker | None = None,
 ) -> tuple[Any, ...]:
     """Select immutable AttackPlan objects for a target endpoint."""
     from src.decision.models import AttackPlan
@@ -257,7 +280,7 @@ def select_validation_attack_plans(
     normalized_signals = {
         str(item).strip().lower() for item in (signals or []) if str(item).strip()
     }
-    in_scope = _is_in_scope(url, scope_hosts or set())
+    in_scope = _is_in_scope(url, scope_hosts or set(), scope_checker=scope_checker)
     facts = _build_endpoint_facts(
         normalized_params=normalized_params,
         normalized_signals=normalized_signals,
@@ -278,13 +301,14 @@ def select_validation_actions(
     signals: list[str] | set[str] | tuple[str, ...] | None,
     scope_hosts: set[str] | None = None,
     config: dict[str, Any] | None = None,
+    scope_checker: ScopeChecker | None = None,
 ) -> list[dict[str, Any]]:
     merged = _merge_config(config)
     normalized_params = {str(item).strip().lower() for item in (params or []) if str(item).strip()}
     normalized_signals = {
         str(item).strip().lower() for item in (signals or []) if str(item).strip()
     }
-    in_scope = _is_in_scope(url, scope_hosts or set())
+    in_scope = _is_in_scope(url, scope_hosts or set(), scope_checker=scope_checker)
 
     base_ranked = _rank_actions_by_hints(
         merged=merged,
@@ -593,9 +617,14 @@ def _merge_config(config: dict[str, Any] | None) -> dict[str, Any]:
     return merged
 
 
-def _is_in_scope(url: str, scope_hosts: set[str]) -> bool:
+def _is_in_scope(
+    url: str,
+    scope_hosts: set[str],
+    scope_checker: ScopeChecker | None = None,
+) -> bool:
+    checker = scope_checker or _default_scope_checker
     try:
-        matched, _reason = scope_match(url, scope_hosts)
+        matched, _reason = checker(url, scope_hosts)
         return matched
     except (ValueError, TypeError, AttributeError) as exc:
         logger.warning("Scope check failed for %s: %s, defaulting to OUT-OF-SCOPE", url, exc)

@@ -26,17 +26,52 @@ import math
 import threading
 import time
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
-
-from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_target
 
 logger = logging.getLogger(__name__)
 
-# Imported lazily to avoid a circular import with
-# ``src.decision.hunt_budget`` (which itself imports from this module
-# for type-checking only).
+
+class BidProtocol(Protocol):
+    """Structural protocol for bid objects."""
+
+    score: float
+
+
+BidCalculator = Callable[..., Any]
+
+
+def _default_bid_calculator(
+    url: str,
+    base_priority: float,
+    current_priority: float,
+    metadata: dict[str, Any],
+) -> Any:
+    """Lazy resolver for target bidding to decouple infrastructure scheduling."""
+    try:
+        from src.infrastructure.scheduling.bidding import bid_for_target
+
+        return bid_for_target(
+            url=url,
+            base_priority=base_priority,
+            current_priority=current_priority,
+            metadata=metadata,
+        )
+    except Exception:
+
+        class _SimpleBid:
+            __slots__ = ("score",)
+
+            def __init__(self, score: float) -> None:
+                self.score = score
+
+        return _SimpleBid(score=current_priority)
+
+
+# Imported lazily or typed cleanly to avoid a circular import with
+# ``src.decision.hunt_budget``.
 try:
     from src.decision.hunt_budget import HuntBudgetEnforcer
 except ImportError:  # pragma: no cover - defensive
@@ -134,7 +169,8 @@ class ScanTarget:
     scanned: bool = False
     heap_idx: int = -1
     metadata: dict[str, Any] = field(default_factory=dict)
-    bid: MultiObjectiveBid | None = None
+    bid: Any | None = None
+    bid_calculator: BidCalculator | None = None
     created_at: float = field(default_factory=time.time)
     last_boosted_at: float | None = None
 
@@ -159,11 +195,12 @@ class ScanTarget:
         eff_priority = self.base_priority + decayed_boost + aging_bonus
         return min(max(0.0, eff_priority), 1000.0)
 
-    def refresh_bid(self) -> MultiObjectiveBid:
+    def refresh_bid(self) -> Any:
         """Recompute the multi-objective bid for this target."""
         if "created_at" not in self.metadata:
             self.metadata["created_at"] = self.created_at
-        self.bid = bid_for_target(
+        calc = self.bid_calculator or _default_bid_calculator
+        self.bid = calc(
             url=self.url,
             base_priority=self.base_priority,
             current_priority=self.effective_priority,
@@ -273,6 +310,7 @@ class CorrelationPriorityQueue:
         auto_correlate: bool = True,
         boost_factor: float = 2.0,
         budget_enforcer: HuntBudgetEnforcer | None = None,
+        bid_calculator: BidCalculator | None = None,
     ) -> None:
         self._lock = threading.Lock()
         self._targets: list[ScanTarget] = []  # heap
@@ -285,10 +323,13 @@ class CorrelationPriorityQueue:
         self._retraining_failures_count: int = 0
         self._budget_enforcer: HuntBudgetEnforcer | None = budget_enforcer
         self._budget_enforcer_hook: HuntBudgetEnforcer | None = budget_enforcer
+        self._bid_calculator: BidCalculator | None = bid_calculator
 
         if targets:
             for i, t in enumerate(targets):
                 t.heap_idx = i
+                if bid_calculator is not None and t.bid_calculator is None:
+                    t.bid_calculator = bid_calculator
                 t.refresh_bid()
                 heapq.heappush(self._targets, t)
                 self._url_map[t.url] = t
@@ -307,6 +348,7 @@ class CorrelationPriorityQueue:
         auto_correlate: bool = True,
         boost_factor: float = 2.0,
         budget_enforcer: HuntBudgetEnforcer | None = None,
+        bid_calculator: BidCalculator | None = None,
     ) -> CorrelationPriorityQueue:
         """Build a priority queue from a list of URLs.
 
@@ -317,16 +359,25 @@ class CorrelationPriorityQueue:
             boost_factor: Multiplier for correlation boosts.
             budget_enforcer: Optional :class:`HuntBudgetEnforcer` that
                 gates ``should_terminate_early`` on time/requests/findings.
+            bid_calculator: Optional custom bid calculator callable.
         """
         targets = []
         for url in urls:
             score = base_scores.get(url, 10.0) if base_scores else 10.0
-            targets.append(ScanTarget(url=url, base_priority=score, current_priority=score))
+            targets.append(
+                ScanTarget(
+                    url=url,
+                    base_priority=score,
+                    current_priority=score,
+                    bid_calculator=bid_calculator,
+                )
+            )
         return cls(
             targets=targets,
             auto_correlate=auto_correlate,
             boost_factor=boost_factor,
             budget_enforcer=budget_enforcer,
+            bid_calculator=bid_calculator,
         )
 
     # ------------------------------------------------------------------

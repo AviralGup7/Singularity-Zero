@@ -11,9 +11,10 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, cast
-
-import redis.asyncio as redis
+try:
+    import redis.asyncio as redis
+except ImportError:
+    redis = None  # type: ignore[assignment]
 
 from src.infrastructure.queue.redis_config import (
     REDIS_BACKOFF_SECONDS as DEFAULT_REDIS_BACKOFF_SECONDS,

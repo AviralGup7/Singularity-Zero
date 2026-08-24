@@ -17,11 +17,30 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from src.decision.hunt_budget import HuntBudgetEnforcer
 from src.decision.models import ScanPlan
 from src.decision.priority_queue import CorrelationPriorityQueue
+
+
+@runtime_checkable
+class PriorityQueueProtocol(Protocol):
+    """Protocol defining the operations required of an adaptive scan priority queue."""
+
+    def pop(self) -> Any:
+        ...
+
+    def boost_from_findings(self, findings: list[dict[str, Any]]) -> list[str]:
+        ...
+
+    def should_terminate_early(
+        self, threshold_ratio: float = 0.3, min_items: int = 5
+    ) -> bool:
+        ...
+
+    def get_stats(self) -> dict[str, Any]:
+        ...
 
 
 @dataclass
@@ -66,9 +85,10 @@ class AdaptiveScanCoordinator:
 
     def __init__(
         self,
-        urls: list[str],
-        probe_fn: Callable,
+        urls: list[str] | None = None,
+        probe_fn: Callable = ...,
         *,
+        queue: PriorityQueueProtocol | Any | None = None,
         boost_on_findings: bool = True,
         early_terminate: bool = True,
         early_terminate_min: int = 5,
@@ -80,12 +100,15 @@ class AdaptiveScanCoordinator:
         budget_enforcer: HuntBudgetEnforcer | None = None,
     ) -> None:
         self._budget_enforcer = budget_enforcer
-        self._queue = CorrelationPriorityQueue.from_urls(
-            urls,
-            auto_correlate=boost_on_findings,
-            boost_factor=boost_factor,
-            budget_enforcer=budget_enforcer,
-        )
+        if queue is not None:
+            self._queue = queue
+        else:
+            self._queue = CorrelationPriorityQueue.from_urls(
+                urls or [],
+                auto_correlate=boost_on_findings,
+                boost_factor=boost_factor,
+                budget_enforcer=budget_enforcer,
+            )
         self._probe_fn = probe_fn
         self._early_terminate = early_terminate
         self._early_terminate_min = early_terminate_min
@@ -120,7 +143,7 @@ class AdaptiveScanCoordinator:
         )
 
     @property
-    def queue(self) -> CorrelationPriorityQueue:
+    def queue(self) -> PriorityQueueProtocol | Any:
         return self._queue
 
     @property
