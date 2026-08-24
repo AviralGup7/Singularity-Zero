@@ -415,6 +415,15 @@ class CorrelationPriorityQueue:
             self._refresh_heap()
             return self._targets[0]
 
+    def peek_batch(self, limit: int = 10) -> list[str]:
+        """Return the top N unscanned targets without removing them."""
+        with self._lock:
+            if not self._targets:
+                return []
+            self._refresh_heap()
+            sorted_unscanned = sorted([t for t in self._targets if not t.scanned], key=lambda t: t.effective_priority, reverse=True)
+            return [t.url for t in sorted_unscanned[:limit]]
+
     def push(self, target: ScanTarget) -> None:
         """Add a new target to the queue.
 

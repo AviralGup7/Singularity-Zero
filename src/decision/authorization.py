@@ -2,6 +2,7 @@
 
 Validates an incoming ExecutionRequest against cryptographic scope tokens,
 tenant boundaries, and resource budgets before handoff to scheduling/worker.
+Includes URL/path adversarial normalization and ticket replay protection.
 """
 
 from __future__ import annotations
@@ -9,7 +10,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import posixpath
+import re
+import threading
 import time
+import urllib.parse
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -30,6 +35,7 @@ class AuthorizedExecutionTicket:
     tenant_id: str
     authorized_at: float
     expires_at: float
+    nonce: str
     signature: str
     request: ExecutionRequest
 
@@ -40,6 +46,7 @@ class AuthorizedExecutionTicket:
             "tenant_id": self.tenant_id,
             "authorized_at": self.authorized_at,
             "expires_at": self.expires_at,
+            "nonce": self.nonce,
             "signature": self.signature,
             "request": self.request.to_dict(),
         }
@@ -50,9 +57,42 @@ class ExecutionAuthorizer:
 
     def __init__(self, secret_key: str = "cstp-scope-authorizer-v1") -> None:
         self._secret_key = secret_key.encode("utf-8")
+        self._consumed_tickets: set[str] = set()
+        self._lock = threading.Lock()
 
-    def _generate_signature(self, request_id: str, tenant_id: str, expires_at: float) -> str:
-        payload = f"{request_id}:{tenant_id}:{expires_at:.3f}".encode("utf-8")
+    def _normalize_path(self, raw_path: str) -> str:
+        """Adversarial normalization of URL paths (URL unquoting + path traversal collapsing)."""
+        if not raw_path:
+            return "/"
+        unquoted = urllib.parse.unquote(raw_path)
+        # Strip matrix parameters e.g. /..;/
+        cleaned = unquoted.replace(";/", "/")
+        norm = posixpath.normpath(cleaned)
+        norm = re.sub(r"/+", "/", norm)
+        if not norm.startswith("/"):
+            norm = "/" + norm
+        return norm
+
+    def _normalize_host(self, raw_host: str) -> str:
+        """Strip userinfo or trailing ports if accidentally passed in host."""
+        h = raw_host.lower().strip()
+        if "@" in h:
+            h = h.split("@")[-1]
+        if ":" in h and not h.startswith("["):
+            h = h.split(":")[0]
+        return h.rstrip(".")
+
+    def _generate_signature(
+        self,
+        ticket_id: str,
+        request_id: str,
+        tenant_id: str,
+        target_host: str,
+        target_path: str,
+        nonce: str,
+        expires_at: float,
+    ) -> str:
+        payload = f"{ticket_id}:{request_id}:{tenant_id}:{target_host}:{target_path}:{nonce}:{expires_at:.3f}".encode("utf-8")
         return hmac.new(self._secret_key, payload, hashlib.sha256).hexdigest()
 
     def _is_ip_allowed(self, host: str, allowed_cidrs: tuple[str, ...]) -> bool:
@@ -67,14 +107,14 @@ class ExecutionAuthorizer:
     def _is_domain_allowed(self, host: str, allowed_domains: tuple[str, ...]) -> bool:
         if not allowed_domains:
             return False
-        h = host.lower().strip()
+        h = self._normalize_host(host)
         for domain in allowed_domains:
-            d = domain.lower().strip()
+            d = self._normalize_host(domain)
             if d.startswith("*."):
                 suffix = d[2:]
                 if h == suffix or h.endswith("." + suffix):
                     return True
-            elif h == d or h.endswith("." + d):
+            elif h == d:
                 return True
         return False
 
@@ -101,8 +141,8 @@ class ExecutionAuthorizer:
 
         # 3. Validate Scope Token if specified
         token = request.scope_token
-        target_host = request.target.host
-        target_path = request.target.path
+        target_host = self._normalize_host(request.target.host)
+        target_path = self._normalize_path(request.target.path)
 
         if token.expires_at > 0 and token.expires_at < now:
             raise ScopeAuthorizationError(f"ScopeToken expired at {token.expires_at}")
@@ -117,17 +157,22 @@ class ExecutionAuthorizer:
                     f"or allowed CIDRs {token.allowed_cidrs}"
                 )
 
-        # Check forbidden paths
+        # Check forbidden paths against normalized path
         for forbidden in token.forbidden_paths:
-            if forbidden and target_path.startswith(forbidden):
-                raise ScopeAuthorizationError(
-                    f"Target path '{target_path}' matches forbidden path '{forbidden}'"
-                )
+            if forbidden:
+                norm_forbidden = self._normalize_path(forbidden)
+                if target_path == norm_forbidden or target_path.startswith(norm_forbidden.rstrip("/") + "/"):
+                    raise ScopeAuthorizationError(
+                        f"Target path '{target_path}' matches forbidden path '{forbidden}'"
+                    )
 
-        # 4. Generate Ticket
+        # 4. Generate Ticket with Nonce & HMAC binding
         ticket_id = f"tkt_{uuid.uuid4().hex[:16]}"
+        nonce = uuid.uuid4().hex
         expires_at = request.deadline if request.deadline > 0 else (now + limits.timeout_seconds)
-        signature = self._generate_signature(request.request_id, request.tenant_id, expires_at)
+        signature = self._generate_signature(
+            ticket_id, request.request_id, request.tenant_id, target_host, target_path, nonce, expires_at
+        )
 
         return AuthorizedExecutionTicket(
             ticket_id=ticket_id,
@@ -135,9 +180,38 @@ class ExecutionAuthorizer:
             tenant_id=request.tenant_id,
             authorized_at=now,
             expires_at=expires_at,
+            nonce=nonce,
             signature=signature,
             request=request,
         )
+
+    def verify_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
+        """Verify ticket signature, expiration, and tampering."""
+        now = time.time()
+        if ticket.expires_at < now:
+            return False
+        target_host = self._normalize_host(ticket.request.target.host)
+        target_path = self._normalize_path(ticket.request.target.path)
+        expected_sig = self._generate_signature(
+            ticket.ticket_id,
+            ticket.request_id,
+            ticket.tenant_id,
+            target_host,
+            target_path,
+            ticket.nonce,
+            ticket.expires_at,
+        )
+        return hmac.compare_digest(expected_sig, ticket.signature)
+
+    def consume_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
+        """Atomically verify and consume a ticket (single-use replay resistance)."""
+        with self._lock:
+            if ticket.ticket_id in self._consumed_tickets:
+                return False  # Replay detected!
+            if not self.verify_ticket(ticket):
+                return False
+            self._consumed_tickets.add(ticket.ticket_id)
+            return True
 
 
 __all__ = [

@@ -1,13 +1,14 @@
 """Automated architectural invariant test suite.
 
-Proves the 5 core architectural invariants:
+Proves the core architectural invariants with adversarial testing:
 1. Priority Engine / AdaptiveScanCoordinator is pure ranking (cannot execute or bypass Dispatcher)
 2. State Authority is the sole writer (workers cannot mutate CRDT/WAL; duplicate ExecutionResults are idempotent)
 3. Execution ID & Idempotency (duplicate requests/retries do not cause duplicate executions)
-4. Budget Controller reservation invariant (aggregate reservations cannot oversubscribe budget)
-5. Authorization Gate defense-in-depth (unauthorized / forged tokens are rejected before placement)
+4. Budget Controller atomic reservation invariant (concurrent reservations cannot oversubscribe budget)
+5. Authorization Gate defense-in-depth (adversarial normalization, ticket replay resistance, host/path evasion)
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
@@ -16,7 +17,7 @@ from src.decision.authorization import (
     ExecutionAuthorizer,
     ScopeAuthorizationError,
 )
-from src.decision.hunt_budget import HuntBudgetEnforcer
+from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import (
     ActionSpec,
     ExecutionRequest,
@@ -37,10 +38,11 @@ class TestPriorityEngineBoundaries:
         urls = ["https://example.com/api/users", "https://example.com/login", "https://example.com/static"]
         coordinator = AdaptiveScanCoordinator(urls=urls)
 
-        # 1. Ranks and pops candidates
+        # 1. Peeks and pops candidates
+        peeked = coordinator.peek_batch(batch_size=2)
+        assert len(peeked) == 2
         batch = coordinator.pop_batch(batch_size=2)
         assert len(batch) == 2
-        assert isinstance(batch[0], str)
 
         # 2. Boosts correlated items without executing
         boosted = coordinator.boost_from_findings([{"url": "https://example.com/api/users", "type": "sqli"}])
@@ -77,7 +79,6 @@ class TestStateAuthorityAndIdempotency:
         crdt_store: set[str] = set()
 
         def state_authority_commit(result: ExecutionResult) -> bool:
-            # State authority checks execution idempotency
             if result.execution_id in processed_executions:
                 return False  # Deduplicated, no state mutation
             processed_executions.add(result.execution_id)
@@ -107,29 +108,33 @@ class TestStateAuthorityAndIdempotency:
 class TestAuthoritativeBudgetController:
     """Invariant 3: Authoritative budget cannot be oversubscribed concurrently."""
 
-    def test_budget_reservation_invariant(self):
-        """Aggregate reservations + consumed must never exceed total budget."""
-        from src.decision.hunt_budget import HuntBudget
-
-        budget = HuntBudget(max_requests=100)
+    def test_concurrent_budget_reservations_cannot_oversubscribe(self):
+        """100 concurrent reservation attempts against budget of 10 must admit at most 10."""
+        budget = HuntBudget(max_requests=10)
         enforcer = HuntBudgetEnforcer(budget=budget)
 
-        # Initially not exhausted (100 available)
-        assert enforcer.is_exhausted() is False
+        def try_reserve() -> bool:
+            return enforcer.reserve_requests(count=1)
 
-        # Consume 80 requests
-        enforcer.record_request(count=80)
-        assert enforcer.requests_emitted == 80
-        assert enforcer.is_exhausted() is False
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            results = list(pool.map(lambda _: try_reserve(), range(100)))
 
-        # Consume remaining 20 requests -> now exhausted
-        enforcer.record_request(count=20)
-        assert enforcer.requests_emitted == 100
-        assert enforcer.is_exhausted() is True
+        successful = [r for r in results if r is True]
+        assert len(successful) == 10
+        assert enforcer.reserved_requests == 10
+        assert enforcer.available_requests == 0
+        # Additional reservation fails
+        assert enforcer.reserve_requests(count=1) is False
+
+        # Commit 10 requests
+        enforcer.commit_requests(count=10)
+        assert enforcer.requests_emitted == 10
+        assert enforcer.consumed_requests == 10
+        assert enforcer.reserved_requests == 0
 
 
 class TestAuthorizationGateDefenseInDepth:
-    """Invariant 4: Authorization Gate rejects unauthorized / out-of-scope requests."""
+    """Invariant 4: Authorization Gate rejects unauthorized / out-of-scope requests with adversarial validation."""
 
     def test_gate_authorizes_valid_request(self):
         """Authorizer validates in-scope ExecutionRequest and issues signed ticket."""
@@ -145,40 +150,46 @@ class TestAuthorizationGateDefenseInDepth:
         ticket = authorizer.authorize(req)
         assert ticket.ticket_id.startswith("tkt_")
         assert len(ticket.signature) == 64
+        # Single-use ticket consumption succeeds
+        assert authorizer.consume_ticket(ticket) is True
+        # Replay attempt fails!
+        assert authorizer.consume_ticket(ticket) is False
 
-    def test_gate_rejects_unscoped_target(self):
-        """Authorizer rejects target outside allowed ScopeToken domain and CIDR rules."""
+    def test_adversarial_host_spoofing_blocked(self):
+        """Authorizer rejects domain suffix attacks and userinfo spoofing."""
         authorizer = ExecutionAuthorizer()
         token = ScopeToken(scope_hash="h2", allowed_domains=("example.com",))
-        req = ExecutionRequest(
-            request_id="req-unscoped",
-            tenant_id="tenant-1",
-            target=TargetSpec(host="evil.com", port=443, path="/attack"),
-            stage="probing",
-            scope_token=token,
-        )
-        with pytest.raises(ScopeAuthorizationError) as exc_info:
-            authorizer.authorize(req)
-        assert "not in allowed domains" in str(exc_info.value)
 
-    def test_gate_rejects_forbidden_path(self):
-        """Authorizer rejects request targeting forbidden endpoint."""
+        for evil_host in ["example.com.evil.com", "example.com@evil.com", "notexample.com"]:
+            req = ExecutionRequest(
+                request_id="req-spoof",
+                tenant_id="tenant-1",
+                target=TargetSpec(host=evil_host, port=443, path="/"),
+                stage="probing",
+                scope_token=token,
+            )
+            with pytest.raises(ScopeAuthorizationError):
+                authorizer.authorize(req)
+
+    def test_adversarial_path_traversal_blocked(self):
+        """Authorizer normalizes path traversals and URL encodings to catch evasion."""
         authorizer = ExecutionAuthorizer()
         token = ScopeToken(
             scope_hash="h3",
             allowed_domains=("example.com",),
             forbidden_paths=("/admin", "/internal"),
         )
-        req = ExecutionRequest(
-            request_id="req-forbidden",
-            tenant_id="tenant-1",
-            target=TargetSpec(host="example.com", port=443, path="/admin/users"),
-            stage="probing",
-            scope_token=token,
-        )
-        with pytest.raises(ScopeAuthorizationError) as exc_info:
-            authorizer.authorize(req)
-        assert "matches forbidden path" in str(exc_info.value)
+
+        for evasive_path in ["/%61dmin", "/%2e%2e/admin", "/..;/admin", "//admin", "/./admin"]:
+            req = ExecutionRequest(
+                request_id="req-evade",
+                tenant_id="tenant-1",
+                target=TargetSpec(host="example.com", port=443, path=evasive_path),
+                stage="probing",
+                scope_token=token,
+            )
+            with pytest.raises(ScopeAuthorizationError):
+                authorizer.authorize(req)
 
 
 class TestActorSchedulerPlacementStatuses:

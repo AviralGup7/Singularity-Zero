@@ -164,6 +164,16 @@ class AdaptiveScanCoordinator:
             return self._queue.total
         return len(self._results)
 
+    def peek_batch(self, batch_size: int | None = None) -> list[str]:
+        """Inspect the next prioritized candidate targets without popping them."""
+        limit = batch_size if batch_size is not None else self._batch_size
+        if hasattr(self._queue, "peek_batch"):
+            return self._queue.peek_batch(limit)
+        elif hasattr(self._queue, "peek"):
+            peeked = self._queue.peek()
+            return [getattr(peeked, "url", str(peeked))] if peeked is not None else []
+        return []
+
     def pop_batch(self, batch_size: int | None = None) -> list[str]:
         """Pop the next batch of prioritized candidate targets (Tier 3 Priority Engine)."""
         limit = batch_size if batch_size is not None else self._batch_size

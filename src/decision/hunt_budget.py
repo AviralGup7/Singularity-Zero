@@ -40,6 +40,7 @@ for the orchestrator.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -302,6 +303,9 @@ class HuntBudgetEnforcer:
         self._budget = budget or HuntBudget()
         self._start = time.monotonic()
         self._requests_emitted = 0
+        self._requests_reserved = 0
+        self._requests_consumed = 0
+        self._lock = threading.Lock()
         self._productive_findings = 0
         self._high_confidence_findings = 0
         self._terminated_early = False
@@ -322,6 +326,23 @@ class HuntBudgetEnforcer:
     @property
     def requests_emitted(self) -> int:
         return self._requests_emitted
+
+    @property
+    def reserved_requests(self) -> int:
+        with self._lock:
+            return self._requests_reserved
+
+    @property
+    def consumed_requests(self) -> int:
+        with self._lock:
+            return self._requests_consumed
+
+    @property
+    def available_requests(self) -> int | float:
+        with self._lock:
+            if self._budget.max_requests is None:
+                return float("inf")
+            return max(0, self._budget.max_requests - (self._requests_reserved + self._requests_consumed))
 
     @property
     def productive_findings(self) -> int:
@@ -353,29 +374,65 @@ class HuntBudgetEnforcer:
             )
         return cls(budget=budget)
 
+    def reserve_requests(self, count: int = 1) -> bool:
+        """Atomically reserve a request quota before dispatching to workers.
+
+        Returns True if reservation succeeded, False if capacity is exceeded.
+        """
+        if count <= 0:
+            return True
+        with self._lock:
+            if self._budget.max_requests is not None:
+                if (self._requests_reserved + self._requests_consumed + count) > self._budget.max_requests:
+                    return False
+            self._requests_reserved += int(count)
+            return True
+
+    def commit_requests(self, count: int = 1) -> None:
+        """Commit reserved requests upon ExecutionResult ingestion."""
+        if count <= 0:
+            return
+        with self._lock:
+            self._requests_reserved = max(0, self._requests_reserved - int(count))
+            self._requests_consumed += int(count)
+            self._requests_emitted = self._requests_consumed
+
+    def release_requests(self, count: int = 1) -> None:
+        """Release unused reservations if dispatch or execution failed before execution."""
+        if count <= 0:
+            return
+        with self._lock:
+            self._requests_reserved = max(0, self._requests_reserved - int(count))
+
     def record_request(self, count: int = 1) -> None:
         if count <= 0:
             return
-        self._requests_emitted += int(count)
+        with self._lock:
+            self._requests_consumed += int(count)
+            self._requests_emitted = self._requests_consumed
 
     def record_finding(self, confidence: float) -> None:
         if confidence < self._budget.confidence_threshold:
             return
-        self._productive_findings += 1
-        if confidence >= self._budget.high_confidence_threshold:
-            self._high_confidence_findings += 1
+        with self._lock:
+            self._productive_findings += 1
+            if confidence >= self._budget.high_confidence_threshold:
+                self._high_confidence_findings += 1
 
     def reset(self) -> None:
-        self._start = time.monotonic()
-        self._requests_emitted = 0
-        self._productive_findings = 0
-        self._high_confidence_findings = 0
-        self._terminated_early = False
-        self._last_snapshot = BudgetSnapshot(
-            elapsed_seconds=0.0,
-            requests_emitted=0,
-            productive_findings=0,
-        )
+        with self._lock:
+            self._start = time.monotonic()
+            self._requests_emitted = 0
+            self._requests_reserved = 0
+            self._requests_consumed = 0
+            self._productive_findings = 0
+            self._high_confidence_findings = 0
+            self._terminated_early = False
+            self._last_snapshot = BudgetSnapshot(
+                elapsed_seconds=0.0,
+                requests_emitted=0,
+                productive_findings=0,
+            )
 
     def exhausted_axes(self) -> list[BudgetAxis]:
         axes: list[BudgetAxis] = []
