@@ -9,24 +9,29 @@ The **`ExecutionRequest`** is the canonical, immutable contract of intent that c
 ```text
 Decision Engine (src/decision/)
        │
-       ▼  (emits immutable intent)
+       ▼  (emits immutable intent with execution_id & job_id)
 ExecutionRequest
        │
        ▼  (verifies scope & policy)
-Authorization (src/decision/authorization.py)
+Authorization Gate (src/decision/authorization.py)
        │
-       ▼  (yields AuthorizedExecutionTicket)
+       ▼  (yields single-use AuthorizedExecutionTicket with nonce)
 Scheduling & Mesh Capacity (src/pipeline/services/pipeline_orchestrator/)
        │
-       ▼  (dispatches lease to worker)
+       ▼  (dispatches placement lease to worker: LEASED, DEFERRED, REJECTED)
 Worker Execution (src/execution/request_executor.py)
        │
        ▼  (executes statelessly in sandbox)
-ExecutionResult
+ExecutionResult (findings, state_deltas, resource_consumption)
+       │
+       ▼  (sole state mutation authority)
+State Authority (WAL Append ➔ CRDT LWW-Set Merge ➔ Idempotent Index)
 ```
 
-### Key Invariant: Zero Decision Rediscovery
-Once an `ExecutionRequest` is emitted and authorized, downstream workers execute **solely against the parameters and action payloads defined in the request**. The worker requires zero callbacks or state re-evaluations against the Decision subsystem.
+### Key Invariants
+1. **Zero Decision Rediscovery**: Once an `ExecutionRequest` is emitted and authorized, downstream workers execute **solely against the parameters and action payloads defined in the request**. The worker requires zero callbacks or state re-evaluations against the Decision subsystem.
+2. **State Authority Isolation**: Workers never directly touch the Frontier CRDTs or Write-Ahead Log (WAL). Workers emit an `ExecutionResult` containing `state_deltas`, which the State Authority validates and commits.
+3. **Execution Idempotency**: Every request carries an `execution_id` (unique per dispatch attempt) and `job_id` to ensure safe retry deduplication across worker crashes.
 
 ---
 
@@ -98,6 +103,8 @@ class ExecutionRequest:
     deadline: float = 0.0
     correlation_id: str = ""
     metadata: tuple[tuple[str, Any], ...] = ()
+    execution_id: str = ""
+    job_id: str = ""
 ```
 
 ### 6. `ExecutionResult`
@@ -114,22 +121,39 @@ class ExecutionResult:
     state_deltas: tuple[tuple[str, Any], ...] = ()
     resource_consumption: tuple[tuple[str, Any], ...] = ()
     error: str = ""
+    execution_id: str = ""
+    job_id: str = ""
 ```
 
 ---
 
-## 🛡️ Scope Authorization (`src/decision/authorization.py`)
+## 🛡️ Scope Authorization & Gatekeeper (`src/decision/authorization.py`)
 
 The `ExecutionAuthorizer` checks all inbound `ExecutionRequest` instances against:
 1. **Wall-clock deadline**: Rejects expired requests before wasting network or compute resources.
 2. **Resource sanity**: Ensures positive timeouts and valid memory ceilings.
-3. **Scope assertions**: Validates that `target.host` matches `allowed_domains` or `allowed_cidrs` and ensures `target.path` does not violate `forbidden_paths`.
-4. **Lease issuance**: Issues an `AuthorizedExecutionTicket` with an HMAC-SHA256 signature for verifiable execution.
+3. **Adversarial URL & Path Normalization**:
+   - Strips matrix parameters (`/..;/`), unquotes percent-encodings (`/%61dmin`), collapses redundant slashes (`//admin`), and normalizes POSIX directory traversals (`posixpath.normpath`).
+   - Rejects domain suffix evasion (`example.com.evil.com`) and userinfo spoofing (`example.com@evil.com`).
+4. **Single-Use Nonce & Replay Resistance**:
+   - Generates a signed `AuthorizedExecutionTicket` with HMAC-SHA256 signature and unique `nonce`.
+   - `consume_ticket()` atomically validates signature and invalidates the ticket against replay attacks.
 
 ---
 
-## ⚙️ Worker Execution (`src/execution/request_executor.py`)
+## ⚙️ Candidate Lifecycle & Worker Placement
 
+### Candidate Lifecycle
+```text
+AVAILABLE ──(lease_batch)──► IN-FLIGHT (Lease Active) ──(ack_batch)──► COMPLETED
+                                      │
+                         (release_batch / TTL Expiry)
+                                      │
+                                      ▼
+                                  AVAILABLE
+```
+
+### Worker Execution (`src/execution/request_executor.py`)
 The `ExecutionRequestWorker` acts as a stateless, deterministic executor:
 - Dispatches actions to registered handlers (`probe`, `exploit`, `nuclei`, etc.).
 - Enforces deadline timers during multi-step execution.

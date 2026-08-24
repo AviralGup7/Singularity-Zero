@@ -97,14 +97,35 @@ Worker ──────► ExecutionResult(state_deltas) ──────►
 
 ---
 
-### 3. Authorization & Resource Gate
+### 3. Authorization & Resource Gate with Replay Resistance
 
-- **Speculative Dispatcher Role**: The Dispatcher translates ranked work into an immutable `ExecutionRequest` carrying context (`ScopeToken`, `TenantID`, `Capabilities`, `Deadline`, `ResourceLimits`). It does **not** grant execution authority.
-- **Authorization Gate Role**: The execution boundary evaluates the request against cryptographic domain constraints, CIDRs, and active hunt budgets, issuing a signed `AuthorizedExecutionTicket` prior to placement on workers.
+- **Speculative Dispatcher Role**: The Dispatcher translates ranked work into an immutable `ExecutionRequest` carrying context (`ScopeToken`, `TenantID`, `Capabilities`, `Deadline`, `ResourceLimits`, `execution_id`, `job_id`). It does **not** grant execution authority.
+- **Authorization Gate Role** (`src/decision/authorization.py`):
+  - Normalizes evasive URL paths (unquoting, matrix stripping, slash collapsing, POSIX directory traversal resolution).
+  - Validates domain wildcards (`*.example.com`) and CIDR subnets (`10.0.0.0/8`).
+  - Issues an HMAC-SHA256 signed `AuthorizedExecutionTicket` with a unique `nonce`.
+  - Atomically marks tickets consumed upon single-use to prevent execution replay during ticket lifetime.
 
 ---
 
-### 4. Actor Scheduler Placement & Failure Semantics
+### 4. Candidate Lifecycle: Peeking, Leasing, and Acknowledgement
+
+To prevent candidate loss and redundant duplicate dispatches:
+```text
+AVAILABLE ──(lease_batch)──► IN-FLIGHT (Lease Active) ──(ack_batch)──► COMPLETED
+                                      │
+                         (release_batch / TTL Expiry)
+                                      │
+                                      ▼
+                                  AVAILABLE
+```
+- `lease_batch(limit, ttl)`: Leases top candidates, hiding them from concurrent peek/dispatch cycles.
+- `ack_batch(urls)`: Marks leased candidates as scanned upon verified `ExecutionResult` ingestion by the State Authority.
+- `release_batch(urls)`: Returns leased candidates to the available queue on downstream failure.
+
+---
+
+### 5. Actor Scheduler Placement & Retry Ownership
 
 - **Placement Semantics**:
   - `LEASED`: Request placed onto available worker slot.
@@ -112,21 +133,24 @@ Worker ──────► ExecutionResult(state_deltas) ──────►
   - `PLACEMENT_REJECTED`: Policy, budget, or scope constraint exceeded.
   - `WORKER_UNAVAILABLE`: Worker host crashed or unreachable.
   - `CIRCUIT_OPEN`: Target or tool tripped circuit breaker; request fast-failed.
-- **Execution Identity & Idempotency**: Every `ExecutionRequest` carries `request_id`, `execution_id`, `stage_id`, and `job_id`. Duplicate execution attempts are recognized and deduplicated, guaranteeing safe retries across worker crashes.
+- **Retry Ownership**:
+  - `ActorScheduler` is strictly a placement engine and does not loop internally.
+  - The **Stage Orchestrator / Dispatcher** owns the retry policy and backoff queue when `PLACEMENT_DEFERRED` is returned.
 
 ---
 
-### 5. Authoritative Budget Controller
+### 6. Atomic Budget Controller & Reservation Accounting
 
-- Stage budgets are owned by a single `BudgetController`.
-- **Flow**:
-  1. *Stage Planner*: Allocates initial stage budget.
-  2. *Dispatcher / Scheduler*: Reserves budget for in-flight tasks.
-  3. *Execution*: Deducts monotonic elapsed time and request counts upon `ExecutionResult` ingestion.
+- Stage budgets are governed by `HuntBudgetEnforcer` (`src/decision/hunt_budget.py`).
+- **Reservation Accounting**:
+  - `available = max_requests - (reserved + consumed)`
+  - `reserve_requests(count)`: Mutex-guarded atomic quota reservation before worker dispatch.
+  - `commit_requests(count)`: Converts reserved quota to consumed upon `ExecutionResult` ingestion.
+  - `release_requests(count)`: Releases unneeded reservations back to the pool on failure.
 
 ---
 
-### 6. Cognitive Vulnerability Analysis & Validation
+### 7. Cognitive Vulnerability Analysis & Validation
 
 - **Differential State Probing**: `src/analysis/intelligence/differential_prober.py` compares responses across differing authentication roles and tenant boundaries using normalized Levenshtein distance, automatically discovering Insecure Direct Object References (IDOR) and Broken Access Controls (BAC).
 - **PoC Validation Sandbox**: Dynamic Python plugins use a JSON child-process boundary with AST pre-validation (`src/core/plugins/sandbox.py`), preventing lateral execution on the host runner.
