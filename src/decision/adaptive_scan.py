@@ -174,6 +174,23 @@ class AdaptiveScanCoordinator:
             return [getattr(peeked, "url", str(peeked))] if peeked is not None else []
         return []
 
+    def lease_batch(self, batch_size: int | None = None, lease_timeout_seconds: float = 60.0) -> list[str]:
+        """Lease candidate targets with an automatic timeout to prevent candidate loss and duplication."""
+        limit = batch_size if batch_size is not None else self._batch_size
+        if hasattr(self._queue, "lease_batch"):
+            return self._queue.lease_batch(limit, lease_timeout_seconds)
+        return self.pop_batch(limit)
+
+    def ack_batch(self, urls: list[str]) -> None:
+        """Acknowledge completed execution of leased targets."""
+        if hasattr(self._queue, "ack_batch"):
+            self._queue.ack_batch(urls)
+
+    def release_batch(self, urls: list[str]) -> None:
+        """Release leased targets back to available pool on downstream dispatch/worker failure."""
+        if hasattr(self._queue, "release_batch"):
+            self._queue.release_batch(urls)
+
     def pop_batch(self, batch_size: int | None = None) -> list[str]:
         """Pop the next batch of prioritized candidate targets (Tier 3 Priority Engine)."""
         limit = batch_size if batch_size is not None else self._batch_size

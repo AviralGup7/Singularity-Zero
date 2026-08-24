@@ -173,6 +173,7 @@ class ScanTarget:
     bid_calculator: BidCalculator | None = None
     created_at: float = field(default_factory=time.time)
     last_boosted_at: float | None = None
+    lease_expires_at: float = 0.0
 
     @property
     def effective_priority(self) -> float:
@@ -421,8 +422,49 @@ class CorrelationPriorityQueue:
             if not self._targets:
                 return []
             self._refresh_heap()
-            sorted_unscanned = sorted([t for t in self._targets if not t.scanned], key=lambda t: t.effective_priority, reverse=True)
+            now = time.time()
+            sorted_unscanned = sorted(
+                [t for t in self._targets if not t.scanned and t.lease_expires_at <= now],
+                key=lambda t: t.effective_priority,
+                reverse=True,
+            )
             return [t.url for t in sorted_unscanned[:limit]]
+
+    def lease_batch(self, limit: int = 10, lease_timeout_seconds: float = 60.0) -> list[str]:
+        """Lease the top N unscanned targets, marking them in-flight until lease expires."""
+        with self._lock:
+            if not self._targets:
+                return []
+            self._refresh_heap()
+            now = time.time()
+            available = sorted(
+                [t for t in self._targets if not t.scanned and t.lease_expires_at <= now],
+                key=lambda t: t.effective_priority,
+                reverse=True,
+            )
+            leased_urls: list[str] = []
+            for target in available[:limit]:
+                target.lease_expires_at = now + lease_timeout_seconds
+                leased_urls.append(target.url)
+            return leased_urls
+
+    def ack_batch(self, urls: list[str]) -> None:
+        """Acknowledge completed execution of targets, marking them scanned."""
+        with self._lock:
+            for url in urls:
+                target = self._url_map.get(url)
+                if target:
+                    target.scanned = True
+                    target.lease_expires_at = 0.0
+                    self._pop_count += 1
+
+    def release_batch(self, urls: list[str]) -> None:
+        """Release leased targets back to available pool if execution failed before execution."""
+        with self._lock:
+            for url in urls:
+                target = self._url_map.get(url)
+                if target and not target.scanned:
+                    target.lease_expires_at = 0.0
 
     def push(self, target: ScanTarget) -> None:
         """Add a new target to the queue.

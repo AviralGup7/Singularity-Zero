@@ -53,6 +53,32 @@ class TestPriorityEngineBoundaries:
         assert not hasattr(coordinator, "dispatch_to_worker")
         assert not hasattr(coordinator, "mutate_crdt")
 
+    def test_candidate_lease_ack_release_lifecycle(self):
+        """Candidates can be leased, preventing duplicate peek/dispatch, and released on failure."""
+        urls = ["https://example.com/a", "https://example.com/b", "https://example.com/c"]
+        coordinator = AdaptiveScanCoordinator(urls=urls)
+
+        # Lease 2 candidates
+        leased = coordinator.lease_batch(batch_size=2, lease_timeout_seconds=30.0)
+        assert len(leased) == 2
+
+        # In-flight candidates are not returned by subsequent peek
+        remaining_peek = coordinator.peek_batch(batch_size=10)
+        assert len(remaining_peek) == 1
+        assert remaining_peek[0] not in leased
+
+        # Release first leased candidate (simulating downstream dispatch failure)
+        coordinator.release_batch([leased[0]])
+        re_peek = coordinator.peek_batch(batch_size=10)
+        assert len(re_peek) == 2
+        assert leased[0] in re_peek
+
+        # Acknowledge remaining leased candidate (simulating completed execution)
+        coordinator.ack_batch([leased[1]])
+        final_peek = coordinator.peek_batch(batch_size=10)
+        assert len(final_peek) == 2
+        assert leased[1] not in final_peek
+
 
 class TestStateAuthorityAndIdempotency:
     """Invariant 2: State Authority is sole writer; duplicate results are idempotent."""
