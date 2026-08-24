@@ -30,22 +30,28 @@ MODULE_META: dict[str, Any] = {
         "priority_queue",
     ),
     "public_api": (
+        "ActionSpec",
         "AdaptiveScanCoordinator",
         "AttackPlan",
         "AttackStep",
         "BudgetSnapshot",
         "CorrelationPriorityQueue",
         "DEFAULT_SELECTOR_CONFIG",
+        "ExecutionRequest",
+        "ExecutionResult",
         "Finding",
         "FindingDecision",
         "HuntBudget",
         "HuntBudgetEnforcer",
         "HuntMode",
+        "ResourceLimits",
         "ScanPlan",
         "ScanResult",
         "ScanTarget",
+        "ScopeToken",
         "StageRequest",
         "StageResult",
+        "TargetSpec",
         "annotate_finding_decisions",
         "classify_finding",
         "filter_reportable_findings",
@@ -68,7 +74,14 @@ def health_check() -> dict[str, Any]:
         from src.decision.adaptive_scan import AdaptiveScanCoordinator  # noqa: F401
         from src.decision.attack_selection import select_validation_actions  # noqa: F401
         from src.decision.hunt_budget import HuntBudgetEnforcer  # noqa: F401
-        from src.decision.models import FindingDecision, ScanPlan, ScanResult, StageResult  # noqa: F401
+        from src.decision.models import (  # noqa: F401
+            ExecutionRequest,
+            ExecutionResult,
+            FindingDecision,
+            ScanPlan,
+            ScanResult,
+            StageResult,
+        )
         from src.decision.prioritization import classify_finding  # noqa: F401
         from src.decision.priority_queue import CorrelationPriorityQueue  # noqa: F401
 
@@ -114,15 +127,21 @@ from src.decision.attack_selection import (
 )
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer, HuntMode
 from src.decision.models import (
+    ActionSpec,
     AttackPlan,
     AttackStep,
     BudgetSnapshot,
+    ExecutionRequest,
+    ExecutionResult,
     Finding,
     FindingDecision,
+    ResourceLimits,
     ScanPlan,
     ScanResult,
+    ScopeToken,
     StageRequest,
     StageResult,
+    TargetSpec,
 )
 from src.decision.prioritization import (
     annotate_finding_decisions,
@@ -132,22 +151,28 @@ from src.decision.prioritization import (
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
 
 __all__ = [
+    "ActionSpec",
     "AdaptiveScanCoordinator",
     "AttackPlan",
     "AttackStep",
     "BudgetSnapshot",
     "CorrelationPriorityQueue",
     "DEFAULT_SELECTOR_CONFIG",
+    "ExecutionRequest",
+    "ExecutionResult",
     "Finding",
     "FindingDecision",
     "HuntBudget",
     "HuntBudgetEnforcer",
     "HuntMode",
+    "ResourceLimits",
     "ScanPlan",
     "ScanResult",
     "ScanTarget",
+    "ScopeToken",
     "StageRequest",
     "StageResult",
+    "TargetSpec",
     "annotate_finding_decisions",
     "classify_finding",
     "filter_reportable_findings",

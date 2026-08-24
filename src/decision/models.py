@@ -16,6 +16,7 @@ and deserialization support for backward compatibility:
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -468,15 +469,337 @@ class StageResult:
         return cls.from_mapping(data)
 
 
+
+@dataclass(frozen=True, slots=True)
+class TargetSpec:
+    """Immutable target specification for execution."""
+
+    host: str
+    port: int = 443
+    scheme: str = "https"
+    path: str = "/"
+    query_params: tuple[tuple[str, str], ...] = ()
+    headers: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def url(self) -> str:
+        base = f"{self.scheme}://{self.host}"
+        if (self.scheme == "https" and self.port != 443) or (self.scheme == "http" and self.port != 80):
+            base = f"{base}:{self.port}"
+        p = self.path if self.path.startswith("/") else f"/{self.path}"
+        return f"{base}{p}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "host": self.host,
+            "port": self.port,
+            "scheme": self.scheme,
+            "path": self.path,
+            "query_params": dict(self.query_params),
+            "headers": dict(self.headers),
+            "url": self.url,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | str | None) -> TargetSpec:
+        if isinstance(data, str):
+            from urllib.parse import urlparse
+            parsed = urlparse(data if "://" in data else f"https://{data}")
+            host = parsed.hostname or data
+            scheme = parsed.scheme or "https"
+            port = parsed.port or (80 if scheme == "http" else 443)
+            path = parsed.path or "/"
+            return cls(host=host, port=port, scheme=scheme, path=path)
+        if not data:
+            return cls(host="")
+        qp = data.get("query_params") or {}
+        qp_tuple = tuple((str(k), str(v)) for k, v in qp.items()) if isinstance(qp, Mapping) else ()
+        hdrs = data.get("headers") or {}
+        hdrs_tuple = tuple((str(k), str(v)) for k, v in hdrs.items()) if isinstance(hdrs, Mapping) else ()
+        return cls(
+            host=str(data.get("host", "")),
+            port=int(data.get("port", 443)),
+            scheme=str(data.get("scheme", "https")),
+            path=str(data.get("path", "/")),
+            query_params=qp_tuple,
+            headers=hdrs_tuple,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | str | None) -> TargetSpec:
+        return cls.from_mapping(data)
+
+
+@dataclass(frozen=True, slots=True)
+class ActionSpec:
+    """Immutable single executable action specification."""
+
+    action_id: str
+    action_type: str  # "probe", "exploit", "mutate", "fingerprint", "nuclei"
+    tool_or_detector: str
+    payload: tuple[tuple[str, Any], ...] = ()
+    priority: int = 100
+    max_retries: int = 3
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "action_id": self.action_id,
+            "action_type": self.action_type,
+            "tool_or_detector": self.tool_or_detector,
+            "payload": dict(self.payload),
+            "priority": self.priority,
+            "max_retries": self.max_retries,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> ActionSpec:
+        payload = data.get("payload") or {}
+        payload_tuple = tuple(payload.items()) if isinstance(payload, Mapping) else ()
+        return cls(
+            action_id=str(data.get("action_id") or uuid.uuid4().hex[:12]),
+            action_type=str(data.get("action_type", "probe")),
+            tool_or_detector=str(data.get("tool_or_detector", "")),
+            payload=payload_tuple,
+            priority=int(data.get("priority", 100)),
+            max_retries=int(data.get("max_retries", 3)),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ActionSpec:
+        return cls.from_mapping(data)
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceLimits:
+    """Immutable resource boundaries and quotas for execution."""
+
+    timeout_seconds: float = 300.0
+    max_memory_mb: int = 512
+    max_concurrency: int = 4
+    max_bandwidth_kbps: int = 0
+    max_payload_bytes: int = 1_048_576
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "timeout_seconds": self.timeout_seconds,
+            "max_memory_mb": self.max_memory_mb,
+            "max_concurrency": self.max_concurrency,
+            "max_bandwidth_kbps": self.max_bandwidth_kbps,
+            "max_payload_bytes": self.max_payload_bytes,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> ResourceLimits:
+        if not data:
+            return cls()
+        return cls(
+            timeout_seconds=float(data.get("timeout_seconds", 300.0)),
+            max_memory_mb=int(data.get("max_memory_mb", 512)),
+            max_concurrency=int(data.get("max_concurrency", 4)),
+            max_bandwidth_kbps=int(data.get("max_bandwidth_kbps", 0)),
+            max_payload_bytes=int(data.get("max_payload_bytes", 1_048_576)),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> ResourceLimits:
+        return cls.from_mapping(data)
+
+
+@dataclass(frozen=True, slots=True)
+class ScopeToken:
+    """Immutable cryptographically verifiable scope assertion."""
+
+    scope_hash: str
+    allowed_domains: tuple[str, ...] = ()
+    allowed_cidrs: tuple[str, ...] = ()
+    forbidden_paths: tuple[str, ...] = ()
+    issuer_signature: str = ""
+    expires_at: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scope_hash": self.scope_hash,
+            "allowed_domains": list(self.allowed_domains),
+            "allowed_cidrs": list(self.allowed_cidrs),
+            "forbidden_paths": list(self.forbidden_paths),
+            "issuer_signature": self.issuer_signature,
+            "expires_at": self.expires_at,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> ScopeToken:
+        if not data:
+            return cls(scope_hash="")
+        return cls(
+            scope_hash=str(data.get("scope_hash", "")),
+            allowed_domains=tuple(str(d) for d in (data.get("allowed_domains") or ())),
+            allowed_cidrs=tuple(str(c) for c in (data.get("allowed_cidrs") or ())),
+            forbidden_paths=tuple(str(p) for p in (data.get("forbidden_paths") or ())),
+            issuer_signature=str(data.get("issuer_signature", "")),
+            expires_at=float(data.get("expires_at", 0.0)),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> ScopeToken:
+        return cls.from_mapping(data)
+
+
+class PlacementStatus:
+    """Outcomes from Actor Scheduler placement decisions."""
+
+    LEASED = "LEASED"
+    DEFERRED = "PLACEMENT_DEFERRED"
+    REJECTED = "PLACEMENT_REJECTED"
+    WORKER_UNAVAILABLE = "WORKER_UNAVAILABLE"
+    CIRCUIT_OPEN = "CIRCUIT_OPEN"
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionRequest:
+    """Formal contract of intent handed off from Decision to Execution."""
+
+    request_id: str
+    tenant_id: str
+    target: TargetSpec
+    stage: str
+    actions: tuple[ActionSpec, ...] = ()
+    resource_limits: ResourceLimits = field(default_factory=ResourceLimits)
+    scope_token: ScopeToken = field(default_factory=lambda: ScopeToken(scope_hash=""))
+    deadline: float = 0.0
+    correlation_id: str = ""
+    metadata: tuple[tuple[str, Any], ...] = ()
+    execution_id: str = ""
+    job_id: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
+            "tenant_id": self.tenant_id,
+            "target": self.target.to_dict(),
+            "stage": self.stage,
+            "actions": [a.to_dict() for a in self.actions],
+            "resource_limits": self.resource_limits.to_dict(),
+            "scope_token": self.scope_token.to_dict(),
+            "deadline": self.deadline,
+            "correlation_id": self.correlation_id,
+            "metadata": dict(self.metadata),
+            "execution_id": self.execution_id,
+            "job_id": self.job_id,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> ExecutionRequest:
+        target_raw = data.get("target")
+        target = TargetSpec.from_mapping(target_raw) if isinstance(target_raw, (Mapping, str)) else TargetSpec(host="")
+        actions_raw = data.get("actions") or ()
+        actions = tuple(
+            ActionSpec.from_mapping(a) if isinstance(a, Mapping) else a for a in actions_raw
+        )
+        limits_raw = data.get("resource_limits")
+        limits = ResourceLimits.from_mapping(limits_raw) if isinstance(limits_raw, Mapping) else ResourceLimits()
+        scope_raw = data.get("scope_token")
+        scope = ScopeToken.from_mapping(scope_raw) if isinstance(scope_raw, Mapping) else ScopeToken(scope_hash="")
+        meta = data.get("metadata") or {}
+        meta_tuple = tuple(meta.items()) if isinstance(meta, Mapping) else ()
+        req_id = str(data.get("request_id") or uuid.uuid4().hex)
+        return cls(
+            request_id=req_id,
+            tenant_id=str(data.get("tenant_id", "default")),
+            target=target,
+            stage=str(data.get("stage", "")),
+            actions=actions,
+            resource_limits=limits,
+            scope_token=scope,
+            deadline=float(data.get("deadline", 0.0)),
+            correlation_id=str(data.get("correlation_id", "") or req_id),
+            metadata=meta_tuple,
+            execution_id=str(data.get("execution_id", "")),
+            job_id=str(data.get("job_id", "")),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ExecutionRequest:
+        return cls.from_mapping(data)
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionResult:
+    """Formal outcome returned by Execution Worker."""
+
+    request_id: str
+    tenant_id: str
+    outcome: str  # "COMPLETED", "FAILED", "TIMED_OUT", "REJECTED", "SKIPPED"
+    duration_seconds: float = 0.0
+    findings: tuple[Finding, ...] = ()
+    artifacts: tuple[tuple[str, Any], ...] = ()
+    state_deltas: tuple[tuple[str, Any], ...] = ()
+    resource_consumption: tuple[tuple[str, Any], ...] = ()
+    error: str = ""
+    execution_id: str = ""
+    job_id: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
+            "tenant_id": self.tenant_id,
+            "outcome": self.outcome,
+            "duration_seconds": round(self.duration_seconds, 3),
+            "findings": [f.to_dict() for f in self.findings],
+            "artifacts": dict(self.artifacts),
+            "state_deltas": dict(self.state_deltas),
+            "resource_consumption": dict(self.resource_consumption),
+            "error": self.error,
+            "execution_id": self.execution_id,
+            "job_id": self.job_id,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> ExecutionResult:
+        raw_findings = data.get("findings") or []
+        findings = tuple(
+            Finding.from_mapping(f) if isinstance(f, Mapping) else f for f in raw_findings
+        )
+        artifacts = data.get("artifacts") or {}
+        artifacts_tuple = tuple(artifacts.items()) if isinstance(artifacts, Mapping) else ()
+        deltas = data.get("state_deltas") or {}
+        deltas_tuple = tuple(deltas.items()) if isinstance(deltas, Mapping) else ()
+        rc = data.get("resource_consumption") or {}
+        rc_tuple = tuple(rc.items()) if isinstance(rc, Mapping) else ()
+        return cls(
+            request_id=str(data.get("request_id", "")),
+            tenant_id=str(data.get("tenant_id", "default")),
+            outcome=str(data.get("outcome", "COMPLETED")).upper(),
+            duration_seconds=float(data.get("duration_seconds", 0.0)),
+            findings=findings,
+            artifacts=artifacts_tuple,
+            state_deltas=deltas_tuple,
+            resource_consumption=rc_tuple,
+            error=str(data.get("error", "")),
+            execution_id=str(data.get("execution_id", "")),
+            job_id=str(data.get("job_id", "")),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ExecutionResult:
+        return cls.from_mapping(data)
+
+
 __all__ = [
+    "ActionSpec",
     "AttackPlan",
     "AttackStep",
     "BudgetSnapshot",
+    "ExecutionRequest",
+    "ExecutionResult",
     "Finding",
     "FindingDecision",
+    "PlacementStatus",
+    "ResourceLimits",
     "ScanPlan",
     "ScanResult",
     "ScanTarget",
+    "ScopeToken",
     "StageRequest",
     "StageResult",
+    "TargetSpec",
 ]

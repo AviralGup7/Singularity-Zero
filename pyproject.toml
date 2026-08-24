@@ -108,6 +108,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
+asyncio_mode = "auto"
 addopts = "-q --tb=short --strict-markers --import-mode=importlib -p no:locust"
 timeout = 20
 timeout_method = "thread"

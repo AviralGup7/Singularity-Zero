@@ -18,26 +18,119 @@ This document outlines the architecture, distributed execution model, resilience
 | **3D Cockpit & Real-time Console** | **Production** — React 19 + Three.js instanced attack graph rendering, Zustand stores, WebSockets | `frontend/src/`, `src/websocket_server/` |
 | **Distributed Actor Mesh** | **Production (Single-node & P2P)** — Pykka/Asyncio workers with SWIM gossip discovery and shard balancing | `src/mesh/`, `src/infrastructure/mesh/` |
 | **Attack Graph & Path Prediction** | **Heuristic** — in-process threat-graph dicts and campaign builder. Not a live Kuzu GCN. | `src/intelligence/graph/`, `src/intelligence/campaigns/` |
+| **Formal ExecutionRequest & Contract of Intent** | **Production** — Immutable `ExecutionRequest` / `ExecutionResult` handoff, cryptographic `ScopeToken` authorization, and stateless worker execution | `src/decision/models.py`, `src/decision/authorization.py`, `src/execution/request_executor.py`, `src/core/contracts/execution_request.py` |
 
 ---
 
 ## 🏛️ Core Principles & Execution Planes
 
-### 1. The Distributed Execution Plane
-- **Actor-Based Stage Scheduling**: Tasks are scheduled as asynchronous stage actors managed by `ActorScheduler` (`src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`). The scheduler continuously evaluates dependency readiness futures and greedily dispatches runnable stages into worker pools without waiting for static tier synchronization bubbles.
-- **CRDT Hybrid Logical Clock (HLC) Engine**: Frontier assets (subdomains, live hosts, endpoints, parameters, findings) are stored in Conflict-Free Replicated Data Types (`LWW-Sets`) indexed by Hybrid Logical Clocks. HLCs provide causal state consistency in $O(1)$ space per node, avoiding the unbounded network and memory overhead of classic vector clocks.
-- **Durable Write-Ahead Logging (WAL)**: All state transitions emit immutable deltas recorded in a journal ledger (`src/frontier/journal.py`). When cluster checkpoints are enabled, snapshots are dual-committed to Redis Streams and local Append-Only Files (AOF), ensuring instantaneous recovery and resume from interrupted runs (`--resume-from <checkpoint_id>`).
-- **Resilience & Circuit Breaker Isolation**: Tool binaries use `src/pipeline/services/circuit_breaker.py`. HTTP 429 `Retry-After` parsing lives in `src/resilience/retry_after.py`. Do not treat `src/resilience/` as a full breaker framework.
+### 1. The Unified 7-Layer Control Plane ("What Runs Next?")
 
-### 2. Cognitive Vulnerability Analysis & Validation
+To prevent split-brain control flow, scheduling decisions follow a strict, unidirectional authority chain:
+
+```text
+                    ┌────────────────────────┐
+                    │   1. DAG Graph Builder │ "What is legally possible?"
+                    └───────────┬────────────┘
+                                │ (Legal Dependency & Readiness Graph)
+                                ▼
+                    ┌────────────────────────┐
+                    │   2. Stage Planner     │ "Which stage runs next?"
+                    └───────────┬────────────┘
+                                │ (Active Stage Scope & Budget Allocation)
+                                ▼
+                    ┌────────────────────────┐
+                    │   3. Priority Engine   │ "Which work candidate deserves execution?"
+                    └───────────┬────────────┘
+                                │ (Ordered Candidate Queue: candidate -> score)
+                                ▼
+                    ┌────────────────────────┐
+                    │ 4. Speculative         │ "What exact request contract are we asking to run?"
+                    │    Dispatcher          │
+                    └───────────┬────────────┘
+                                │ (ExecutionRequest with Authorization Context)
+                                ▼
+                    ┌────────────────────────┐
+                    │ 5. Authorization &     │ "Is this request cryptographically authorized & budgeted?"
+                    │    Resource Gate       │
+                    └───────────┬────────────┘
+                                │ (Signed AuthorizedExecutionTicket)
+                                ▼
+                    ┌────────────────────────┐
+                    │ 6. Actor Scheduler     │ "Where and when does this run?"
+                    └───────────┬────────────┘
+                                │ (Placement: LEASED, DEFERRED, REJECTED, CIRCUIT_OPEN)
+                                ▼
+                    ┌────────────────────────┐
+                    │ 7. Executor / Sandbox  │ "DO IT (Stateless execution inside isolated sandbox)"
+                    └───────────┬────────────┘
+                                │
+                                ▼
+                         ExecutionResult
+                                │
+                   ┌────────────┼────────────┐
+                   ▼            ▼            ▼
+                Findings   StateDeltas     Logs
+                                │
+                                ▼
+                    ┌────────────────────────┐
+                    │    State Authority     │ (Single-source-of-truth State Merge Engine)
+                    └───────────┬────────────┘
+                           ┌────┴────┐
+                           ▼         ▼
+                          WAL       CRDT (LWW-Set / HLC)
+                                     │
+                                     ▼
+                               Actor Gossip
+```
+
+---
+
+### 2. State Authority vs. Worker Separation
+
+- **Workers Produce; State Authority Commits**: Execution Workers never directly mutate the Frontier CRDTs, WAL, or persistent stores. Workers return an immutable `ExecutionResult` containing `state_deltas`.
+- **Single State Authority**: The `State Authority` validates received deltas, verifies sequence versions, appends to the Write-Ahead Log (WAL), and performs the deterministic CRDT merge ($O(1)$ space with Hybrid Logical Clocks).
+
+```text
+Worker ──────► ExecutionResult(state_deltas) ──────► State Authority ──────► WAL & CRDT Store
+```
+
+---
+
+### 3. Authorization & Resource Gate
+
+- **Speculative Dispatcher Role**: The Dispatcher translates ranked work into an immutable `ExecutionRequest` carrying context (`ScopeToken`, `TenantID`, `Capabilities`, `Deadline`, `ResourceLimits`). It does **not** grant execution authority.
+- **Authorization Gate Role**: The execution boundary evaluates the request against cryptographic domain constraints, CIDRs, and active hunt budgets, issuing a signed `AuthorizedExecutionTicket` prior to placement on workers.
+
+---
+
+### 4. Actor Scheduler Placement & Failure Semantics
+
+- **Placement Semantics**:
+  - `LEASED`: Request placed onto available worker slot.
+  - `PLACEMENT_DEFERRED`: Concurrency cap reached; request held in scheduler queue.
+  - `PLACEMENT_REJECTED`: Policy, budget, or scope constraint exceeded.
+  - `WORKER_UNAVAILABLE`: Worker host crashed or unreachable.
+  - `CIRCUIT_OPEN`: Target or tool tripped circuit breaker; request fast-failed.
+- **Execution Identity & Idempotency**: Every `ExecutionRequest` carries `request_id`, `execution_id`, `stage_id`, and `job_id`. Duplicate execution attempts are recognized and deduplicated, guaranteeing safe retries across worker crashes.
+
+---
+
+### 5. Authoritative Budget Controller
+
+- Stage budgets are owned by a single `BudgetController`.
+- **Flow**:
+  1. *Stage Planner*: Allocates initial stage budget.
+  2. *Dispatcher / Scheduler*: Reserves budget for in-flight tasks.
+  3. *Execution*: Deducts monotonic elapsed time and request counts upon `ExecutionResult` ingestion.
+
+---
+
+### 6. Cognitive Vulnerability Analysis & Validation
+
 - **Differential State Probing**: `src/analysis/intelligence/differential_prober.py` compares responses across differing authentication roles and tenant boundaries using normalized Levenshtein distance, automatically discovering Insecure Direct Object References (IDOR) and Broken Access Controls (BAC).
-- **PoC Validation Sandbox**: WASM verification is opt-in (`FEATURE_WASM_PLUGINS`) and is not a production default. Dynamic Python plugins use a JSON child-process boundary (`src/core/plugins/sandbox.py`), not `src/sandbox/`.
-- **Adaptive Closed-Loop Learning**: The ML severity engine (`src/learning/`) extracts operator triage feedback in real time. False positives flagged by security analysts update the FP-rules repository (`src/learning/fp_rules.py`) and retrain severity calibration weights, suppressing duplicate noise across subsequent scan executions.
-
-### 3. High-Throughput Hardware Acceleration
-- **SIMD-Vectorized Processing**: URL parsing, domain filtering, and parameter mutation employ vectorized NumPy routines, filtering millions of candidate URLs in sub-second intervals.
-- **Probabilistic Bloom Filtering**: MurmurHash3-backed Bloom filters accelerate cluster-wide URL and asset membership tests, preventing redundant scanning and saving gigabytes of working RAM.
-- **Binary Wire Protocol**: High-throughput telemetry and mesh event streams utilize MessagePack (`msgpack`) zero-copy binary serialization alongside standard JSON payloads.
+- **PoC Validation Sandbox**: Dynamic Python plugins use a JSON child-process boundary with AST pre-validation (`src/core/plugins/sandbox.py`), preventing lateral execution on the host runner.
+- **Adaptive Closed-Loop Learning**: Operator triage signals update the false-positive rules matrix (`src/learning/fp_rules.py`) and adjust severity calibration weights, suppressing duplicate alerts across subsequent scan runs.
 
 ---
 
@@ -54,5 +147,5 @@ The frontend serves as an interactive command and telemetry console:
 ## 🔒 Governance, Multi-Tenancy & Integrity
 
 - **Tenant Isolation**: Thread-safe and async-safe context propagation via `TenantContext` (`contextvars`) ensures that all database queries, Redis keys, pub/sub channels, and file outputs are isolated per tenant ID.
-- **Supply-Chain Integrity**: Nuclei templates and scanning rules are validated at startup against Ed25519 cryptographic signatures and SHA-256 baseline manifests.
+- **Supply-Chain Integrity**: Nuclei templates and scanning rules are validated at startup against cryptographic signatures and SHA-256 baseline manifests.
 - **Contract Enforcement**: FastAPI endpoints strictly enforce Pydantic v2 validation models on the backend and Zod schema contracts on the frontend.

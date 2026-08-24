@@ -56,24 +56,27 @@ This document provides a **non-marketing, engineering-focused** map of the Cyber
 | **Real-Time Telemetry & WebSockets** | `src/websocket_server/`, `src/realtime/` | High-throughput WebSocket server with MessagePack/JSON serialization, heartbeats, channel-based event multiplexing, and backpressure shedding. |
 | **Dashboard & API Layer** | `src/dashboard/fastapi/`, `src/console/` | FastAPI REST services exposing OpenAPI 3.1 contracts, JWT RBAC security, audit logging, live stage metrics, and operator console handlers. |
 | **Closed-Loop Active Learning** | `src/learning/`, `src/intelligence/`, `src/intel/` | Adaptive ML severity classifier (XGBoost/Scikit-Learn with pure NumPy fallback), automated false-positive suppression, and Nuclei tag prioritization retrained from analyst triage signals. |
+| **Decision & Attack Planning** | `src/decision/` | Adaptive attack selection, priority queues, and hunt budgets. Emits formal `ExecutionRequest` contracts of intent. |
+| **Execution Request Worker** | `src/execution/request_executor.py` | Stateless execution of authorized requests with strict resource budgets and sandbox supervision, emitting `ExecutionResult`. |
+| **Scope & Policy Authorization** | `src/decision/authorization.py` | Cryptographic `ScopeToken` validation (domain wildcards, CIDRs, forbidden paths) issuing signed `AuthorizedExecutionTicket` leases. |
 | **Reporting & Compliance** | `src/reporting/` | Multi-format vulnerability report generator (SARIF 2.1.0, JSON, Markdown, CSV, cryptographically signed PDF) and compliance mappings (SOC 2, ISO 27001, PCI-DSS). |
 
 ---
 
 ## Core System Invariants
 
-1. **Immutable Stage Contracts & Deltas**:
-   - Pipeline stages accept immutable `StageInput` objects and must return `StageOutput` containing state deltas.
-   - Direct mutations of shared global state are strictly forbidden; all state transitions flow through the `Frontier` merge engine.
-2. **Centralized Security & Input Sanitization**:
+1. **Immutable Stage Contracts & State Authority**:
+   - Pipeline stages accept immutable `StageInput` / `ExecutionRequest` contracts and must return `StageOutput` / `ExecutionResult` containing state deltas.
+   - Workers are strictly forbidden from directly writing to CRDTs or storage; all state mutations are validated and committed exclusively by the `State Authority` via the Write-Ahead Log (WAL).
+2. **Centralized Authorization Gate**:
+   - The Speculative Dispatcher mints requests carrying authorization context, which must pass the independent `Authorization & Resource Gate` (`src/decision/authorization.py`) before worker placement.
+3. **Sensitive Credential Scrubbing**:
    - Hostname and target validation: `src/recon/domain_validation.py` and `src/core/utils/url_validation.py`.
    - Sensitive credential scrubbing and header masking: `src/core/security/sensitive_names.py`.
-   - Cryptographic vaults and token verification: `src/core/security/` and `src/auth/`.
-3. **Resilience & Graceful Degradation**:
-   - All network-bound stages are governed by `src/resilience/circuit_breaker.py`.
-   - If an external dependency or tool fails, the orchestrator triggers self-healing strategies, logs structured diagnostics, and safely marks dependent stages without aborting unrelated scan branches.
-4. **Execution Sandboxing**:
-   - Potentially dangerous exploit verification scripts execute inside the WASM / subprocess sandbox (`src/sandbox/`), preventing breakout or lateral execution on the host runner.
+4. **Resilience & Graceful Degradation**:
+   - Subprocess and tool executions are gated by `src/pipeline/services/circuit_breaker.py` with HTTP 429 `Retry-After` enforcement (`src/resilience/retry_after.py`).
+5. **Execution Sandboxing**:
+   - Dynamic plugin and exploit verification runs inside process/WASM sandboxes with AST validation (`src/core/plugins/sandbox.py`).
 
 ---
 

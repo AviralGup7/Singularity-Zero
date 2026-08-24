@@ -113,6 +113,13 @@ from src.core.contracts.state_schema import (  # noqa: F401
     StateSchemaRegistry,
     register_state_schema,
 )
+from src.core.contracts.execution_request import (  # noqa: F401
+    ExecutionAuthorizerProtocol,
+    ExecutionRequestProtocol,
+    ExecutionResultProtocol,
+    ExecutionSchedulerProtocol,
+    ExecutionWorkerProtocol,
+)
 from src.core.contracts.task_envelope import (  # noqa: F401
     TASK_ENVELOPE_VERSION,
     TaskEnvelope,

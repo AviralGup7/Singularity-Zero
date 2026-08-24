@@ -150,6 +150,51 @@ class AdaptiveScanCoordinator:
     def budget_enforcer(self) -> HuntBudgetEnforcer | None:
         return self._budget_enforcer
 
+    @property
+    def remaining(self) -> int:
+        """Remaining target count in the priority queue."""
+        if hasattr(self._queue, "remaining"):
+            return self._queue.remaining
+        return 0
+
+    @property
+    def total(self) -> int:
+        """Total target count initialized in the priority queue."""
+        if hasattr(self._queue, "total"):
+            return self._queue.total
+        return len(self._results)
+
+    def pop_batch(self, batch_size: int | None = None) -> list[str]:
+        """Pop the next batch of prioritized candidate targets (Tier 3 Priority Engine)."""
+        limit = batch_size if batch_size is not None else self._batch_size
+        batch_urls: list[str] = []
+        for _ in range(limit):
+            target = self._queue.pop()
+            if target is None:
+                break
+            url = getattr(target, "url", str(target))
+            batch_urls.append(url)
+        return batch_urls
+
+    def boost_from_findings(self, findings: list[dict[str, Any]]) -> int:
+        """Boost correlated targets in the priority queue from discovered findings."""
+        if not findings:
+            return 0
+        if hasattr(self._queue, "boost_from_findings"):
+            return self._queue.boost_from_findings(findings)
+        return 0
+
+    def should_terminate(self) -> bool:
+        """Check if queue is exhausted or meets early-termination low-risk thresholds."""
+        if hasattr(self._queue, "remaining") and self._queue.remaining == 0:
+            return True
+        if self._early_terminate and hasattr(self._queue, "should_terminate_early"):
+            return self._queue.should_terminate_early(
+                min_items=self._early_terminate_min,
+                threshold_ratio=self._early_terminate_ratio,
+            )
+        return False
+
     async def run(
         self, save_delta_fn: Callable[[list[str], list[dict[str, Any]]], None] | None = None
     ) -> ScanBatchResult:

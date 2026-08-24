@@ -5,6 +5,7 @@ from src.execution import (
     active_manifest,
     exploiters,
     isolated,
+    request_executor,
     scenario_engine,
 )
 
@@ -116,9 +117,11 @@ register_module_meta(MODULE_META)
 
 # Re-export submodules so consumers can do `from src.execution import active_manifest`.
 __all__ = [
+    "ExecutionRequestWorker",
     "active_manifest",
     "exploiters",
     "isolated",
+    "request_executor",
     "scenario_engine",
     "validators",
 ]
@@ -130,6 +133,8 @@ def __getattr__(name: str) -> Any:
     This avoids ``from X import *`` while preserving backward compatibility for any
     consumer that does ``from src.execution import SomeSymbol``.
     """
+    if name in _REQUEST_EXECUTOR_NAMES:
+        return getattr(request_executor, name)
     if name in _ACTIVE_MANIFEST_NAMES:
         return getattr(active_manifest, name)
     if name in _EXPLOITERS_NAMES:
@@ -146,6 +151,12 @@ def __getattr__(name: str) -> Any:
             )
         return getattr(validators, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+_REQUEST_EXECUTOR_NAMES = (
+    "ActionHandler",
+    "ExecutionRequestWorker",
+)
 
 
 _ACTIVE_MANIFEST_NAMES = (

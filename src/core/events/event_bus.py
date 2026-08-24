@@ -291,21 +291,30 @@ class EventBus:
         et_str = getattr(event_type, "value", str(event_type))
         return [sub.handler for sub in self._subscriptions.get(et_str, [])]
 
-    async def publish(self, event: Event) -> bool:
-        """Publish an event (non-blocking)."""
-        try:
-            self._queue.put_nowait(event)
-            self._metrics["published"] += 1
-            return True
-        except asyncio.QueueFull:
-            self._metrics["failed"] += 1
-            return False
+    async def publish(self, event: Any) -> bool:
+        """Publish an event."""
+        if self._running:
+            try:
+                self._queue.put_nowait(event)
+                self._metrics["published"] += 1
+                return True
+            except asyncio.QueueFull:
+                self._metrics["failed"] += 1
+                return False
+        # Direct dispatch fallback when background loop is not started
+        return await self.publish_and_wait(event)
 
-    async def publish_and_wait(self, event: Event, timeout: float = 5.0) -> bool:
+    async def publish_and_wait(self, event: Any, timeout: float = 5.0) -> bool:
         """Publish and wait for all handlers to complete."""
         self._metrics["published"] += 1
         tasks = []
-        for et in [event.type, "*"]:
+        et_val = str(
+            getattr(getattr(event, "event_type", None), "value", None)
+            or getattr(event, "type", "")
+            or getattr(event, "event_type", "")
+            or ""
+        )
+        for et in [et_val, "*"]:
             for sub in self._subscriptions.get(et, []):
                 if sub.filter_fn is None or sub.filter_fn(event):
                     tasks.append(asyncio.create_task(self._safe_handle(sub, event)))

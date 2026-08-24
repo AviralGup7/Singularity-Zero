@@ -55,8 +55,11 @@ class KEVRecord:
         try:
             import datetime
 
-            return datetime.datetime.fromisoformat(self.due_date).timestamp()
-        except ValueError:
+            dt = datetime.datetime.fromisoformat(self.due_date)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            return dt.timestamp()
+        except (ValueError, OSError, OverflowError):
             return 0.0
 
     def days_until_due(self, now: float | None = None) -> float | None:

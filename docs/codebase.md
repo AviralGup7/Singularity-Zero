@@ -89,11 +89,13 @@ src/
 │   ├── services/         # Dashboard business logic services (jobs, findings, analytics)
 │   └── eta_engine.py     # Live job duration and completion estimation engine
 │
-├── decision/             # 🎯 Adaptive attack planning and scan budgeting
+├── decision/             # 🎯 Adaptive attack planning, scan budgeting, and contract of intent
 │   ├── attack_selection/ # Attack path ranking and payload selection heuristics
 │   ├── prioritization/   # Target vulnerability scoring and queue prioritization
 │   ├── adaptive_scan.py  # Closed-loop scan depth and concurrency adaptation
+│   ├── authorization.py  # ScopeToken verification and AuthorizedExecutionTicket issuer
 │   ├── hunt_budget.py    # Request and execution budget allocations
+│   ├── models.py         # Domain models (ExecutionRequest, TargetSpec, ActionSpec, ScopeToken, ExecutionResult)
 │   └── planner.py        # Dynamic attack DAG planner
 │
 ├── detection/            # 🔍 Signature detection, rule catalog, and finding management
@@ -110,6 +112,7 @@ src/
 │   ├── auth/             # Execution authentication token exchange
 │   ├── exploiters/       # Exploit execution modules
 │   ├── remediators/      # Automated remediation advice generators
+│   ├── request_executor.py # Stateless ExecutionRequestWorker executing against contracts of intent
 │   ├── scenario_engine.py# Multi-stage scenario validation and replay
 │   └── waf_probe_adapter.py # Adapter for WAF probe responses
 │

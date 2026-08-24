@@ -81,13 +81,26 @@ def is_blank_page(image_path: Path, threshold_pct: float = 0.5) -> bool:
 def compute_phash(image_path: Path) -> str:
     """Compute an 8x8 DCT-based perceptual hash of an image."""
     import numpy as np
-    from scipy.fft import dct
+
+    try:
+        from scipy.fft import dct
+
+        def _dct_2d(arr: np.ndarray) -> np.ndarray:
+            return dct(dct(arr, axis=0, norm="ortho"), axis=1, norm="ortho")
+    except ImportError:
+        def _dct_2d(arr: np.ndarray) -> np.ndarray:
+            # Pure NumPy DCT-II implementation (ortho norm)
+            n = arr.shape[0]
+            k = np.arange(n).reshape(-1, 1)
+            i = np.arange(n).reshape(1, -1)
+            t = np.cos(np.pi * k * (2 * i + 1) / (2 * n)) * np.sqrt(2 / n)
+            t[0, :] /= np.sqrt(2)
+            return t @ arr @ t.T
 
     with Image.open(image_path) as img:
         processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
         pixels = np.array(processed, dtype=float)
-        # 2D Discrete Cosine Transform
-        dct_val = dct(dct(pixels, axis=0, norm="ortho"), axis=1, norm="ortho")
+        dct_val = _dct_2d(pixels)
         dct_low = dct_val[:8, :8]
         dct_low_flat = dct_low.flatten()
         median_val = np.median(dct_low_flat[1:])

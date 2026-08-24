@@ -11,6 +11,8 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from typing import Any, cast
+
 try:
     import redis.asyncio as redis
 except ImportError:
