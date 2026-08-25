@@ -289,7 +289,7 @@ The architecture is formally validated by 46 automated invariant, chaos, and adv
 
 ### 7.17 Leaked API Key Verification Harness & Storage Tiering (`src/api_tests/`, `src/output/`)
 - **Leaked API Key Validation Harness (`src/api_tests/apitester/`)**: Standalone verification engine validating candidate credentials against 50+ SaaS APIs (AWS STS, Stripe, GitHub, Twilio, SendGrid, Slack, OpenAI, Anthropic, Datadog) to verify token validity, account IDs, and privilege levels.
-- **Storage Tiering & Pruning Lifecycle (`src/output/storage_tiering.py`, `src/output/output_history.py`)**: Automated retention management moving historical scans from NVMe cache to compressed long-term archive storage and reconstructing search indices.
+- **Storage Tiering & Pruning Lifecycle (`src/pipeline/storage_tiering.py`, `src/pipeline/output_history.py`)**: Automated retention management moving historical scans from NVMe cache to compressed long-term archive storage and reconstructing search indices.
 
 ### 7.18 Binary MessagePack WebSocket Streaming & Client-Side Physics Workers (`src/websocket_server/`, `frontend/src/workers/`)
 - **Binary MessagePack Telemetry Protocol (`src/websocket_server/protocol.py`)**: High-throughput binary serialization for WebSocket event streams with fallback to JSON.
