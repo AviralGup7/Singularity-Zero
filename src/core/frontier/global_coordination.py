@@ -16,6 +16,7 @@ from typing import Any
 from src.core.contracts.command_envelope import (
     CommandEnvelope,
 )
+from src.core.frontier.failure_model import BudgetInconsistencyError
 from src.core.frontier.lease_status import (
     LeaseStatus,
     is_outstanding,
@@ -93,6 +94,20 @@ class GlobalBudgetAggregate:
         """Verify universal budget conservation equation: Total = Consumed + Outstanding + Available."""
         return self.total_budget == (self.consumed + self.outstanding_reserved + self.available)
 
+    def require_conservation(self) -> None:
+        """I5/I34: fail-closed if the conservation equation does not hold.
+
+        Callers must not retry or roll back the log. Outstanding RESERVED/EXPIRED
+        subleases may be compensated (I28).
+        """
+        if self.verify_conservation():
+            return
+        raise BudgetInconsistencyError(
+            "BUDGET_INCONSISTENCY: "
+            f"Total={self.total_budget} Consumed={self.consumed} "
+            f"Outstanding={self.outstanding_reserved} Available={self.available}"
+        )
+
     def allocate_quota_slab(
         self,
         slab_id: str,
@@ -117,6 +132,7 @@ class GlobalBudgetAggregate:
             status="ALLOCATED",
         )
         self.version += 1
+        self.require_conservation()
         return True, "QUOTA_SLAB_ALLOCATED"
 
     def reclaim_quota_slab(
@@ -146,6 +162,7 @@ class GlobalBudgetAggregate:
             status="RECLAIMED",
         )
         self.version += 1
+        self.require_conservation()
         return True, "QUOTA_SLAB_RECLAIMED"
 
     def reserve_sublease(
@@ -171,6 +188,7 @@ class GlobalBudgetAggregate:
             status=LeaseStatus.RESERVED.value,
         )
         self.version += 1
+        self.require_conservation()
         return True, "SUBLEASE_RESERVED"
 
     def settle_return(
@@ -218,6 +236,7 @@ class GlobalBudgetAggregate:
             status=target.value,
         )
         self.version += 1
+        self.require_conservation()
         return True, f"SUBLEASE_{target.value}"
 
     def expire_sublease(

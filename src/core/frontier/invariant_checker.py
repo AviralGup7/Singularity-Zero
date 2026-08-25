@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from src.core.frontier.failure_model import FailureClass, FsmInvariantError, semantics_for
 from src.core.frontier.global_coordination import GlobalBudgetAggregate
 from src.core.frontier.projection_stream import ProjectionCheckpointVector
 from src.core.frontier.raft_fsm import PartitionFSM
@@ -276,4 +277,16 @@ class InvariantChecker:
             passed=all_passed,
             passed_invariants=tuple(passed_invariants),
             failed_invariants=tuple(failed_invariants),
+        )
+
+    @staticmethod
+    def enforce(report: InvariantAuditReport) -> None:
+        """I34: a failed FSM/log audit is fail-closed. Do not retry or patch state."""
+        if report.passed:
+            return
+        recovery = semantics_for(FailureClass.FSM_INVARIANT_VIOLATION)
+        reasons = "; ".join(f"{name}: {msg}" for name, msg in report.failed_invariants)
+        raise FsmInvariantError(
+            f"FSM_INVARIANT_VIOLATION ({recovery.invariant}): {reasons}. "
+            f"operator_action={recovery.operator_action}"
         )

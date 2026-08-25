@@ -23,6 +23,7 @@ from src.core.frontier.causal_identity import (
     derive_event_id_from_wal,
     mint_causal_identity,
 )
+from src.core.frontier.failure_model import FailureClass, must_not
 from src.core.frontier.global_invariants import (
     I32_EVENTBUS_NON_AUTHORITY,
     assert_settlement_causality,
@@ -152,9 +153,10 @@ def dispatch_committed_findings(
         try:
             outbox.append_events(envelopes)
         except Exception as exc:
+            must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
             logger.warning(
                 "%s: durable outbox append failed after COMMITTED settlement "
-                "(authoritative state unchanged): %s",
+                "(authoritative state unchanged; retry allowed, no compensate): %s",
                 I32_EVENTBUS_NON_AUTHORITY,
                 exc,
             )
@@ -179,9 +181,10 @@ def dispatch_committed_findings(
             )
             ledger.record(delivery_id)
         except Exception as exc:
+            must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
             logger.warning(
                 "%s: EventBus delivery failed after COMMITTED settlement "
-                "(authoritative state unchanged): %s",
+                "(authoritative state unchanged; retry allowed, no compensate): %s",
                 I32_EVENTBUS_NON_AUTHORITY,
                 exc,
             )

@@ -31,6 +31,7 @@ from src.core.contracts.command_envelope import (
     CommittedEntry,
     EventEnvelope,
 )
+from src.core.frontier.failure_model import AuthorityLostError, ReplicaDivergenceError
 from src.core.frontier.outbox import DurableOutboxLedger
 from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.raft_transport import (
@@ -213,6 +214,10 @@ class ReplicatedPartitionLog:
     ) -> tuple[CommandReceipt, tuple[EventEnvelope, ...]]:
         """Propose a command, enforce quorum durability, advance commitIndex, apply to FSM, and issue receipt."""
         with self._lock:
+            if not self.is_leader:
+                raise AuthorityLostError(
+                    "AUTHORITY_LOSS: refusing mutation; this node is not the partition leader"
+                )
             # 0. Command Admission Clock-Skew & Drift Validation (I22')
             now_admission = time.time()
             if cmd.created_at_unix > now_admission + 10.0:
@@ -302,8 +307,9 @@ class ReplicatedPartitionLog:
                     ack_count,
                     self.quorum_size,
                 )
-                raise RuntimeError(
-                    f"QUORUM_LOST: Proposal {cmd.command_id} rejected. Only {ack_count}/{self.quorum_size} nodes acknowledged."
+                raise AuthorityLostError(
+                    f"QUORUM_LOST: Proposal {cmd.command_id} rejected. "
+                    f"Only {ack_count}/{self.quorum_size} nodes acknowledged."
                 )
 
             # 5. Step D: Quorum Reached -> Advance commitIndex & Commit in Leader WAL
@@ -345,7 +351,12 @@ class ReplicatedPartitionLog:
 
             # 9. Backward Compatibility for in-memory follower_fsms (e.g. integration tests)
             for f_fsm in follower_fsms:
-                f_fsm.apply(temp_entry)
+                f_hash, _, _ = f_fsm.apply(temp_entry)
+                if f_hash != post_state_hash:
+                    raise ReplicaDivergenceError(
+                        f"REPLICATION_DIVERGENCE: follower FSM hash {f_hash} "
+                        f"!= leader {post_state_hash} at index {next_index}"
+                    )
 
             # 10. Step H: Issue Certified CommandReceipt (Leader Only)
             receipt_payload = receipt_bind_payload(
