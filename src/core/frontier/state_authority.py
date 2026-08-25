@@ -250,6 +250,7 @@ class StateAuthority:
         with self._lock:
             exec_id = getattr(stage_output, "stage_name", stage_name)
             state_delta = _to_mutable(dict(stage_output.state_delta))
+            committed_findings = _dict_findings_from_delta(state_delta)
             validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
             if validation_errors:
                 raise ValueError(
