@@ -392,19 +392,23 @@ class HuntBudgetEnforcer:
             )
         return cls(budget=budget)
 
-    def reserve_requests(self, count: int = 1) -> bool:
-        """Atomically reserve a request quota before dispatching to workers.
-
-        Returns True if reservation succeeded, False if capacity is exceeded.
-        """
+    def reserve_with_identity(self, count: int = 1) -> dict[str, str] | None:
+        """Reserve quota and return I30 causal identity, or None if exhausted."""
         if count <= 0:
-            return True
+            self._authority_revision += 1
+            return {
+                "reservation_id": "res_zero",
+                "command_id": "cmd_zero",
+                "authority_revision": str(self._authority_revision),
+            }
         with self._lock:
             if self._budget.max_requests is not None:
                 if (
                     self._requests_reserved + self._requests_consumed + count
                 ) > self._budget.max_requests:
-                    return False
+                    return None
+            command_id = ""
+            sl_id = ""
             if self._global_budget is not None:
                 from src.core.frontier.commands import reserve_global_budget
 
@@ -418,10 +422,28 @@ class HuntBudgetEnforcer:
                 ).to_envelope()
                 ok, _msg = self._global_budget.apply_command(env)
                 if not ok:
-                    return False
+                    return None
                 self._open_subleases.append((sl_id, int(count)))
+                command_id = str(getattr(env, "command_id", "") or "")
+            else:
+                self._sublease_seq += 1
+                sl_id = f"hunt_{self._budget.label}_{self._sublease_seq}"
             self._requests_reserved += int(count)
-            return True
+            self._authority_revision += 1
+            return {
+                "reservation_id": sl_id,
+                "command_id": command_id or f"cmd_{sl_id}",
+                "authority_revision": str(
+                    getattr(self._global_budget, "version", None) or self._authority_revision
+                ),
+            }
+
+    def reserve_requests(self, count: int = 1) -> bool:
+        """Atomically reserve a request quota before dispatching to workers.
+
+        Returns True if reservation succeeded, False if capacity is exceeded.
+        """
+        return self.reserve_with_identity(count) is not None
 
     def commit_requests(self, count: int = 1) -> None:
         """Commit reserved requests upon ExecutionResult ingestion."""
