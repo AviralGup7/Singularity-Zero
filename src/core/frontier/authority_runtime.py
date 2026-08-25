@@ -7,8 +7,19 @@ Network transport is optional via ``transport=``.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
+
+_CURRENT_HUNT_BUDGET: ContextVar[Any] = ContextVar("pipeline_hunt_budget", default=None)
+
+
+def get_current_hunt_budget() -> Any | None:
+    return _CURRENT_HUNT_BUDGET.get()
+
+
+def set_current_hunt_budget(enforcer: Any | None) -> None:
+    _CURRENT_HUNT_BUDGET.set(enforcer)
 
 from src.core.frontier.global_coordination import GlobalBudgetAggregate, PlacementAuthority
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
@@ -69,6 +80,7 @@ class PipelineAuthorityRuntime:
         orchestrator._global_budget = self.global_budget
         orchestrator._policy_gate = self.policy_gate
         orchestrator._qos_broker = self.qos
+        set_current_hunt_budget(self.hunt_budget)
 
 
 def attach_pipeline_authority(orchestrator: Any, run_id: str, config: Any) -> PipelineAuthorityRuntime:

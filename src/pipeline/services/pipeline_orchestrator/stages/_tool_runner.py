@@ -44,6 +44,10 @@ async def run_scanner(
     )
     from src.execution.request_executor import ExecutionRequestWorker
 
+    if budget_enforcer is None:
+        from src.core.frontier.authority_runtime import get_current_hunt_budget
+
+        budget_enforcer = get_current_hunt_budget()
     enforcer = budget_enforcer or HuntBudgetEnforcer(HuntBudget(max_requests=1000), label=stage_name)
     authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)

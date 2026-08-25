@@ -125,10 +125,13 @@ async def run_nuclei_stage(
 
         nuclei_output_file = str(ctx.output_store.run_dir / "nuclei.jsonl")
 
+        from src.core.frontier.authority_runtime import get_current_hunt_budget
         from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 
-        enforcer = getattr(ctx, "budget_enforcer", None) or HuntBudgetEnforcer(
-            HuntBudget(max_requests=5000), label="nuclei"
+        enforcer = (
+            getattr(ctx, "budget_enforcer", None)
+            or get_current_hunt_budget()
+            or HuntBudgetEnforcer(HuntBudget(max_requests=5000), label="nuclei")
         )
         authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
         worker = ExecutionRequestWorker(authorizer=authorizer)

@@ -175,12 +175,15 @@ async def run_active_scanning_adaptive(
     batch_size = int(analysis_settings.get("adaptive_batch_size", 20))
     concurrency = int(analysis_settings.get("adaptive_concurrency", 5))
 
-    budget_enforcer: HuntBudgetEnforcer | None = None
-    try:
-        cfg_mapping = config if isinstance(config, dict) else (getattr(config, "__dict__", None) or {})
-        budget_enforcer = HuntBudgetEnforcer.from_config(cfg_mapping, label="active_scan")
-    except Exception as exc:
-        logger.debug("Failed to build HuntBudgetEnforcer from config: %s", exc)
+    from src.core.frontier.authority_runtime import get_current_hunt_budget
+
+    budget_enforcer: HuntBudgetEnforcer | None = getattr(ctx, "budget_enforcer", None) or get_current_hunt_budget()
+    if budget_enforcer is None:
+        try:
+            cfg_mapping = config if isinstance(config, dict) else (getattr(config, "__dict__", None) or {})
+            budget_enforcer = HuntBudgetEnforcer.from_config(cfg_mapping, label="active_scan")
+        except Exception as exc:
+            logger.debug("Failed to build HuntBudgetEnforcer from config: %s", exc)
 
     import uuid
     from src.decision.authorization import ExecutionAuthorizer

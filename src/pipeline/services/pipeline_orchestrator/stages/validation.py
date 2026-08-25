@@ -80,8 +80,12 @@ async def run_validation(
     )
     from src.execution.request_executor import ExecutionRequestWorker
 
-    enforcer = getattr(ctx, "budget_enforcer", None) or HuntBudgetEnforcer(
-        HuntBudget(max_requests=200), label="validation"
+    from src.core.frontier.authority_runtime import get_current_hunt_budget
+
+    enforcer = (
+        getattr(ctx, "budget_enforcer", None)
+        or get_current_hunt_budget()
+        or HuntBudgetEnforcer(HuntBudget(max_requests=200), label="validation")
     )
     authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)

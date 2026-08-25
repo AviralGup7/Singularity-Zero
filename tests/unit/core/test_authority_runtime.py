@@ -60,6 +60,15 @@ def test_authorizer_uses_runtime_hunt_budget() -> None:
         raise AssertionError("expected budget exhaustion")
 
 
+def test_hunt_budget_contextvar_is_set_on_attach() -> None:
+    from src.core.frontier.authority_runtime import get_current_hunt_budget
+
+    rt = PipelineAuthorityRuntime(run_id="run-ctx")
+    orch = SimpleNamespace()
+    rt.attach_to(orch)
+    assert get_current_hunt_budget() is rt.hunt_budget
+
+
 def test_network_raft_transport_unknown_peer() -> None:
     t = NetworkRaftTransport()
     from src.core.frontier.raft_transport import RequestVoteRequest

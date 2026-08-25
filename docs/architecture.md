@@ -6,35 +6,37 @@ This document constitutes the **Authoritative System Architecture Specification 
 
 Canonical invariant set is **I1–I29** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
 
-| **Coverage-Guided & Protocol Fuzzing** | **Production** — Integrated `CorpusManager` & `CoverageTracker` edge feedback, native process `ForkServer` isolation/crash containment, and protocol fuzzers (HTTP/2, QUIC, gRPC, GraphQL) | `src/fuzzing/` |
-| **Bayesian Decision & Adaptive Flow Control** | **Production** — Multi-Armed Bayesian Bandit with Thompson Sampling/UCB1, `HuntBudgetEnforcer` multi-axis quota reservations, closed-loop `AdaptivePIDController`, and Bulkhead isolation | `src/decision/`, `src/infrastructure/flow_control/` |
-| **Multi-Cloud Recon & Threat Intelligence** | **Production** — Multi-cloud storage & serverless discovery (AWS, Azure, GCP, Firebase, Wasabi, OCI, Backblaze) and normalized `ThreatIntelEnricher` (CISA KEV, EPSS, CVSS v4, MISP, Shodan, OTX, VT) | `src/recon/cloud_recon/`, `src/intelligence/` |
-| **WAF Evasion & AST Taint Analysis** | **Production** — Hidden Markov Model WAF evader (`hmm_evader.py`), JS AST sink taint analyzer, prototype pollution walker, WASM introspector, and dynamic headless browser DOM-XSS engine | `src/detection/` |
-| **P2P Mesh, Ghost Actors & Task Auction** | **Production** — SWIM Gossip protocol engine, heartbeat failure detection, Ghost Actor VFS, Bloom mesh target synchronization, and distributed task auction bidding (`bidder.py`, `balancer.py`) | `src/infrastructure/mesh/`, `src/infrastructure/frontier/` |
-| **Reporting, Bounty Platforms & Compliance** | **Production** — 12+ bug bounty platform clients (H1, Bugcrowd, Intigriti, Synack, YesWeHack, Google VRP, etc.) and evidence-backed compliance mapping for SOC 2, ISO 27001, PCI-DSS v4.0, and NIST 800-53 | `src/reporting/` |
-| **Job Lifecycle, Watchdog & Notifications** | **Production** — Job state machine transitions, deadlock/hang detection (`Watchdog`), scan dry-run simulation, and central event-driven notification bridge with snooze, digest aggregation, and escalation policies | `src/jobs/`, `src/notifications/` |
-| **Authoritative State Authority & Settlement** | **Production** — Single authoritative WAL commit point, 5-stage untrusted claim validation, epoch fencing, and independent projection engines (`StateProjection`, `BudgetProjection`, `LeaseProjection`, `FindingsProjection`) | `src/core/frontier/state_authority.py` |
-| **Command Envelopes & Event Upcasters** | **Production** — Strongly-typed `CommandEnvelope`, `EventEnvelope`, causation/correlation ID tracking, aggregate versioning, and `SchemaUpcasterRegistry` for backward-compatible replay | `src/core/contracts/command_envelope.py` |
-| **Raft Consensus, Transport & Durable WAL** | **Production** — `RaftTransportProtocol`, RPC envelopes (`AppendEntries`, `RequestVote`), majority quorum ($N // 2 + 1$), election failover, crash-safe `PartitionWAL` with CRC-64 + fsync, deterministic `PartitionFSM`, and durable `DurableOutboxLedger` | `src/core/frontier/raft_transport.py`, `src/core/frontier/replicated_log.py`, `src/core/frontier/outbox.py` |
-| **Global Coordination & Cross-Partition Sagas** | **Production** — P-0000 `GlobalBudgetAggregate` (strict integer conservation: $\text{Total} = \text{Consumed} + \text{Outstanding} + \text{Available}$, `expire_sublease` orphaned budget reclamation), `PlacementAuthority`, and `DurableRunSagaEngine` | `src/core/frontier/global_coordination.py`, `src/core/frontier/run_saga.py` |
-| **Durable Outbox & Projection Watermarks** | **Production** — `DurableOutboxLedger` disk append, `CommittedLogConsumer`, Level 3 `CheckpointState` projection validation (`verify_checkpoint_against_fsm`), and `ProjectionCheckpointVector` with gap and corruption detection | `src/core/frontier/outbox.py`, `src/core/checkpoint/`, `src/core/frontier/projection_stream.py` |
-| **Canonical Target Identity Engine** | **Production** — Deterministic IDNA Punycode normalization, POSIX traversal resolution, query sorting, default port stripping, and DNS snapshot pinning | `src/core/contracts/canonical_target.py` |
-| **DAG Pipeline Orchestrator** | **Production** — Async DAG builder, actor scheduler, stage lifecycle, speculative dispatch, checkpoint persistence, and resume flows | `src/pipeline/services/pipeline_orchestrator/`, `src/pipeline/engine.py` |
-| **Resilience & Circuit Breaking** | **Production** — Tool breaker in `src/pipeline/services/circuit_breaker.py`; Retry-After parser in `src/resilience/retry_after.py` | `src/pipeline/services/circuit_breaker.py`, `src/resilience/retry_after.py` |
-| **Unified Hierarchical Cache** | **Production** — In-memory LRU + SQLite/Redis tiered cache with single-flight request coalescing and stale-while-revalidate | `src/pipeline/unified_cache/`, `src/cache/` |
-| **Frontier State & CRDT Engine** | **Production** — LWW-Set CRDTs keyed by Hybrid Logical Clocks (HLC) for eventually consistent discovery knowledge | `src/frontier/`, `src/core/frontier/state.py` |
-| **ML Policy Governance & Raft Durability** | **Production** — `PolicyGovernanceGate` with shadow evaluation against feedback runaway, canary promotion, atomic rollback to `parent_policy_id`, and `PromotePolicyCommand`/`RollbackPolicyCommand` committed into `PartitionFSM` | `src/learning/policy_governance.py`, `src/core/frontier/raft_fsm.py` |
-| **Prioritized QoS Telemetry Broker** | **Production** — 5-tier QoS backpressure router (P0 Bounded Control with Secondary Spooling, P1 Lifecycle, P2 Coalesced Findings, P3 Telemetry Aggregates, P4 Debug Shedding) | `src/realtime/prioritized_broker.py` |
-| **Deterministic Replay Engine** | **Production** — Pure sequential WAL log replay from arbitrary offsets for exact projection state reconstruction and post-replay invariant verification | `src/core/frontier/replay_engine.py` |
-| **Tamper-Evident Audit Ledger** | **Production** — Cryptographic HMAC-SHA256 chained audit trail for administrative, authentication, and scan events | `src/auth/audit.py`, `src/console/audit.py` |
-| **Active & Passive Analyzers** | **Production** — Multi-stage detectors for SQLi, XSS, SSRF, IDOR/BAC, JWT forgery, CSP bypass, and HTTP/2 smuggling | `src/analysis/active/`, `src/analysis/passive/` |
-| **Cognitive Differential Prober & IDOR Analysis** | **Production** — Cross-role normalized Levenshtein diffing for automatic Broken Object Level Authorization discovery | `src/analysis/intelligence/differential_prober.py` |
-| **Process / WASM Isolation Sandbox** | **Production (OS Process Sandbox)** — OS-native resource caging (POSIX rlimits, CPU timeout, env scrubbing); WASM executor is feature-flagged (`FEATURE_WASM_PLUGINS`) | `src/sandbox/process_sandbox.py`, `src/execution/frontier/wasm.py` |
-| **3D Threat Cockpit & Real-time Console** | **Production** — React 19 + Three.js instanced attack graph rendering, Zustand stores, virtualized log streams, and WebSockets | `frontend/src/`, `src/websocket_server/` |
-| **Actor Mesh & P2P Gossip** | **Production (Single-Node Runtime)** — Pykka/Asyncio workers with authenticated AES-256-GCM SWIM gossip discovery protocol over UDP | `src/mesh/`, `src/infrastructure/mesh/` |
-| **Algorithmic Multi-Hop Attack Path Engine** | **Production** — Graph engine synthesizing Dijkstra shortest attack paths to critical assets | `src/intelligence/graph/attack_graph.py` |
-| **Formal Execution Contracts & Mandatory Budget** | **Production** — Immutable `ExecutionRequest` / `RawExecutionClaim` / `ExecutionResultContract` handoff, mandatory committed budget reservation precondition (`INVARIANT-002`), cryptographic `ScopeToken` authorization, and stateless worker execution | `src/decision/models.py`, `src/decision/authorization.py`, `src/execution/request_executor.py`, `src/core/contracts/execution_request.py` |
-| **Enterprise Ticketing Sinks & AI Explainability** | **Production** — Jira (v3/v2), ServiceNow (Table API), DefectDojo (v2) clients, and persona-based root cause analysis (`/api/findings/{id}/ai-explain`, `/api/reports/ai-summary`) | `src/reporting/platforms/`, `src/analysis/intelligence/finding_explainer.py` |
+| Subsystem | Status | Paths |
+|---|---|---|
+| **Coverage-Guided & Protocol Fuzzing** | **LIBRARY** — Integrated `CorpusManager` & `CoverageTracker` edge feedback, native process `ForkServer` isolation/crash containment, and protocol fuzzers (HTTP/2, QUIC, gRPC, GraphQL) | `src/fuzzing/` |
+| **Bayesian Decision & Adaptive Flow Control** | **LIVE** (HuntBudget on CLI authority runtime; PID/bandit attached, not pacing every probe) — Multi-Armed Bayesian Bandit with Thompson Sampling/UCB1, `HuntBudgetEnforcer` multi-axis quota reservations, closed-loop `AdaptivePIDController`, and Bulkhead isolation | `src/decision/`, `src/infrastructure/flow_control/` |
+| **Multi-Cloud Recon & Threat Intelligence** | **LIVE** (recon stages); ThreatIntelEnricher **LIBRARY** — Multi-cloud storage & serverless discovery (AWS, Azure, GCP, Firebase, Wasabi, OCI, Backblaze) and normalized `ThreatIntelEnricher` (CISA KEV, EPSS, CVSS v4, MISP, Shodan, OTX, VT) | `src/recon/cloud_recon/`, `src/intelligence/` |
+| **WAF Evasion & AST Taint Analysis** | **LIBRARY** (`src/detection/waf/hmm_evader.py`, `ast/js_sink_analyzer.py`, `browser/`) — Hidden Markov Model WAF evader (`hmm_evader.py`), JS AST sink taint analyzer, prototype pollution walker, WASM introspector, and dynamic headless browser DOM-XSS engine | `src/detection/` |
+| **P2P Mesh, Ghost Actors & Task Auction** | **LIVE** with Redis; else single-node — SWIM Gossip protocol engine, heartbeat failure detection, Ghost Actor VFS, Bloom mesh target synchronization, and distributed task auction bidding (`bidder.py`, `balancer.py`) | `src/infrastructure/mesh/`, `src/infrastructure/frontier/` |
+| **Reporting, Bounty Platforms & Compliance** | **LIVE** reporting stage; platform HTTP clients **LIBRARY** — 12+ bug bounty platform clients (H1, Bugcrowd, Intigriti, Synack, YesWeHack, Google VRP, etc.) and evidence-backed compliance mapping for SOC 2, ISO 27001, PCI-DSS v4.0, and NIST 800-53 | `src/reporting/` |
+| **Job Lifecycle, Watchdog & Notifications** | **LIVE** job SM; JobWatchdog **LIBRARY** (MemoryJobStore) — Job state machine transitions, deadlock/hang detection (`Watchdog`), scan dry-run simulation, and central event-driven notification bridge with snooze, digest aggregation, and escalation policies | `src/jobs/`, `src/notifications/` |
+| **Authoritative State Authority & Settlement** | **LIVE** (`PipelineAuthorityRuntime` + stage `commit_stage_output`; 5-stage `settle_claim` for worker claims) — Single authoritative WAL commit point, 5-stage untrusted claim validation, epoch fencing, and independent projection engines (`StateProjection`, `BudgetProjection`, `LeaseProjection`, `FindingsProjection`) | `src/core/frontier/state_authority.py` |
+| **Command Envelopes & Event Upcasters** | **LIVE** envelopes + upcast on load; typed constructors **LIBRARY** — Strongly-typed `CommandEnvelope`, `EventEnvelope`, causation/correlation ID tracking, aggregate versioning, and `SchemaUpcasterRegistry` for backward-compatible replay | `src/core/contracts/command_envelope.py` |
+| **Raft Consensus, Transport & Durable WAL** | **LIVE** single-node quorum-1; `NetworkRaftTransport` **LIBRARY** (no default cluster) — `RaftTransportProtocol`, RPC envelopes (`AppendEntries`, `RequestVote`), majority quorum ($N // 2 + 1$), election failover, crash-safe `PartitionWAL` with CRC-64 + fsync, deterministic `PartitionFSM`, and durable `DurableOutboxLedger` | `src/core/frontier/raft_transport.py`, `src/core/frontier/replicated_log.py`, `src/core/frontier/outbox.py` |
+| **Global Coordination & Cross-Partition Sagas** | **LIVE** GlobalBudget via HuntBudget adapter; sagas **LIBRARY** — P-0000 `GlobalBudgetAggregate` (strict integer conservation: $\text{Total} = \text{Consumed} + \text{Outstanding} + \text{Available}$, `expire_sublease` orphaned budget reclamation), `PlacementAuthority`, and `DurableRunSagaEngine` | `src/core/frontier/global_coordination.py`, `src/core/frontier/run_saga.py` |
+| **Durable Outbox & Projection Watermarks** | **LIBRARY** (Raft outbox); scan journal is FrontierWAL — `DurableOutboxLedger` disk append, `CommittedLogConsumer`, Level 3 `CheckpointState` projection validation (`verify_checkpoint_against_fsm`), and `ProjectionCheckpointVector` with gap and corruption detection | `src/core/frontier/outbox.py`, `src/core/checkpoint/`, `src/core/frontier/projection_stream.py` |
+| **Canonical Target Identity Engine** | **LIVE** (authorizer) — Deterministic IDNA Punycode normalization, POSIX traversal resolution, query sorting, default port stripping, and DNS snapshot pinning | `src/core/contracts/canonical_target.py` |
+| **DAG Pipeline Orchestrator** | **LIVE** (`GraphBuilder`/`build_pipeline_graph`) — Async DAG builder, actor scheduler, stage lifecycle, speculative dispatch, checkpoint persistence, and resume flows | `src/pipeline/services/pipeline_orchestrator/`, `src/pipeline/engine.py` |
+| **Resilience & Circuit Breaking** | **LIVE** — Tool breaker in `src/pipeline/services/circuit_breaker.py`; Retry-After parser in `src/resilience/retry_after.py` | `src/pipeline/services/circuit_breaker.py`, `src/resilience/retry_after.py` |
+| **Unified Hierarchical Cache** | **LIVE** facade; `cache.py` re-exports unified — In-memory LRU + SQLite/Redis tiered cache with single-flight request coalescing and stale-while-revalidate | `src/pipeline/unified_cache/`, `src/cache/` |
+| **Frontier State & CRDT Engine** | **LIVE** projection after settlement WAL — LWW-Set CRDTs keyed by Hybrid Logical Clocks (HLC) for eventually consistent discovery knowledge | `src/frontier/`, `src/core/frontier/state.py` |
+| **ML Policy Governance & Raft Durability** | **LIVE** gate fail-closed without log; CLI attaches log — `PolicyGovernanceGate` with shadow evaluation against feedback runaway, canary promotion, atomic rollback to `parent_policy_id`, and `PromotePolicyCommand`/`RollbackPolicyCommand` committed into `PartitionFSM` | `src/learning/policy_governance.py`, `src/core/frontier/raft_fsm.py` |
+| **Prioritized QoS Telemetry Broker** | **LIVE** constructed on authority runtime; dashboard WS still JSON-first — 5-tier QoS backpressure router (P0 Bounded Control with Secondary Spooling, P1 Lifecycle, P2 Coalesced Findings, P3 Telemetry Aggregates, P4 Debug Shedding) | `src/realtime/prioritized_broker.py` |
+| **Deterministic Replay Engine** | **LIBRARY** — Pure sequential WAL log replay from arbitrary offsets for exact projection state reconstruction and post-replay invariant verification | `src/core/frontier/replay_engine.py` |
+| **Tamper-Evident Audit Ledger** | **LIVE** HMAC chain on `AuthAuditLog`; durable store `infrastructure/security/audit.py` — Cryptographic HMAC-SHA256 chained audit trail for administrative, authentication, and scan events | `src/auth/audit.py`, `src/console/audit.py` |
+| **Active & Passive Analyzers** | **LIVE** — Multi-stage detectors for SQLi, XSS, SSRF, IDOR/BAC, JWT forgery, CSP bypass, and HTTP/2 smuggling | `src/analysis/active/`, `src/analysis/passive/` |
+| **Cognitive Differential Prober & IDOR Analysis** | **LIBRARY** — Cross-role normalized Levenshtein diffing for automatic Broken Object Level Authorization discovery | `src/analysis/intelligence/differential_prober.py` |
+| **Process / WASM Isolation Sandbox** | **LIVE** rlimits; I29/seccomp when filter passed; WASM flagged — OS-native resource caging (POSIX rlimits, CPU timeout, env scrubbing); WASM executor is feature-flagged (`FEATURE_WASM_PLUGINS`) | `src/sandbox/process_sandbox.py`, `src/execution/frontier/wasm.py` |
+| **3D Threat Cockpit & Real-time Console** | **LIVE** — React 19 + Three.js instanced attack graph rendering, Zustand stores, virtualized log streams, and WebSockets | `frontend/src/`, `src/websocket_server/` |
+| **Actor Mesh & P2P Gossip** | **LIVE** single-node; Redis enables Ghost mesh — Pykka/Asyncio workers with authenticated AES-256-GCM SWIM gossip discovery protocol over UDP | `src/mesh/`, `src/infrastructure/mesh/` |
+| **Algorithmic Multi-Hop Attack Path Engine** | **LIBRARY** (Dijkstra); pipeline uses endpoint_attack_graph — Graph engine synthesizing Dijkstra shortest attack paths to critical assets | `src/intelligence/graph/attack_graph.py` |
+| **Formal Execution Contracts & Mandatory Budget** | **LIVE** — Immutable `ExecutionRequest` / `RawExecutionClaim` / `ExecutionResultContract` handoff, mandatory committed budget reservation precondition (`INVARIANT-002`), cryptographic `ScopeToken` authorization, and stateless worker execution | `src/decision/models.py`, `src/decision/authorization.py`, `src/execution/request_executor.py`, `src/core/contracts/execution_request.py` |
+| **Enterprise Ticketing Sinks & AI Explainability** | **LIVE** routes; explanations are templates not LLMs — Jira (v3/v2), ServiceNow (Table API), DefectDojo (v2) clients, and persona-based root cause analysis (`/api/findings/{id}/ai-explain`, `/api/reports/ai-summary`) | `src/reporting/platforms/`, `src/analysis/intelligence/finding_explainer.py` |
 
 ---
 
@@ -113,7 +115,11 @@ graph TD
         
         IdenticalState --> DeduplicatedStream["Deduplicated Committed Outbox Ledger"]
         DeduplicatedStream --> EffectWorkers["Asynchronous Effect Workers"]
-        DeduplicatedStream --> Level3Pro## 6. The 29 Formal & Boundary System Invariants
+        DeduplicatedStream --> Level3Proj["Level 3 Projections"]
+    end
+```
+
+## 6. The 29 Formal & Boundary System Invariants
 
 1. **I1 (Hash-Chain Continuity)**: $H_n = \text{SHA256}(H_{n-1} \mathbin{\Vert} \text{CanonicalEncode}(E_n))$.
 2. **I2 (Log Monotonicity)**: Index $K_n > K_{n-1}$, Term $T_n \ge T_{n-1}$.
@@ -173,7 +179,7 @@ graph TD
 
 ### 7.5 Enterprise Integrations & AI Explainability
 - Native platform adapters for Jira (REST API v3 ADF / v2), ServiceNow (Table API), and DefectDojo (v2 REST API).
-- AI persona generators in `src/analysis/intelligence/finding_explainer.py` for Developer, Auditor, and Executive stakeholders.
+- Persona text in `src/analysis/intelligence/finding_explainer.py` is **template copy**, not a model API.
 
 ### 7.6 State Authority, Settlement Model & Recovery Architecture
 - **Production Settlement Engine**:
@@ -248,7 +254,7 @@ The architecture is formally validated by 46 automated invariant, chaos, and adv
   - `api_specs/`: Reverse-engineers OpenAPI/Swagger, WSDL, and GraphQL schemas from live endpoint traffic.
 
 ### 7.12 WAF Evasion Modeling, Static AST Taint & Dynamic Browser Runtime (`src/detection/`)
-- **Hidden Markov Model WAF Evader (`hmm_evader.py`)**:
+- **Hidden Markov Model WAF Evader (`src/detection/waf/hmm_evader.py`)**:
   - Evaluates target WAF state transitions (Cloudflare, AWS WAF, Akamai, Imperva) and dynamically selects payload encoding, chunking, and header mutations.
 - **Static JavaScript AST Taint Analysis (`js_sink_analyzer.py`)**:
   - Traverses client-side JavaScript Abstract Syntax Trees to track untrusted sources (`location.search`, `document.referrer`, `postMessage`) flowing into dangerous sinks (`eval`, `innerHTML`, `document.write`).

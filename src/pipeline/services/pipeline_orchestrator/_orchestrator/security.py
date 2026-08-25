@@ -459,6 +459,11 @@ async def run_secured(
             logger.debug("Recovery lock release failed (non-fatal): %s", exc)
         recovery_lock = None
 
+    runtime = getattr(orchestrator, "_authority_runtime", None)
+    if runtime is not None and ctx is not None:
+        ctx.budget_enforcer = runtime.hunt_budget
+        ctx.authority_runtime = runtime
+
     stage_methods = orchestrator._build_stage_methods()
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
     from src.pipeline.stage_plan import constrain_remaining_stages
