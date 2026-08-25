@@ -182,3 +182,40 @@ def test_verify_report_shows_journal_ahead(tmp_path: Path, monkeypatch: pytest.M
     assert state.verify_report["journal_ahead"]["subdomains"] == 1
     assert state.verify_report["journal_ahead"]["urls"] == 1
     assert state.execute_stages is True
+    assert state.recovery_phase == "ready"
+
+
+@pytest.mark.unit
+def test_i35_newer_checkpoint_schema_starts_fresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = CheckpointState(
+        pipeline_run_id="run-future",
+        completed_stages=["recon"],
+        checkpoint_version=2,
+    )
+    payload = {
+        "scope_entries": ["example.com"],
+        "stage_status": {"recon": "completed"},
+        "target_name": "example",
+        "checkpoint_version": 2,
+        "schema_version": 99,
+    }
+    monkeypatch.setattr(
+        "src.core.recovery.manager.attempt_recovery",
+        lambda *a, **k: (True, checkpoint),
+    )
+    monkeypatch.setattr(
+        "src.core.recovery.manager.create_checkpoint_manager",
+        lambda *a, **k: _FakeCheckpointMgr(payload),
+    )
+    manager = RecoveryManager(
+        tmp_path,
+        "example",
+        stage_order=["recon", "scan"],
+        wal_factory=_FakeWal,
+    )
+    state = manager.recover()
+    assert state.can_recover is False
+    assert state.source == "none"
+    assert state.recovery_phase == "fresh"

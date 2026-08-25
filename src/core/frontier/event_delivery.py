@@ -131,6 +131,14 @@ def dispatch_committed_findings(
     assert_settlement_causality(settle_res)
     identity = _identity_from_settle(settle_res, stage_name)
     ledger = delivery_ledger if delivery_ledger is not None else get_delivery_ledger()
+    if outbox is not None and hasattr(outbox, "read_all_events"):
+        try:
+            existing = outbox.read_all_events()
+            reconcile_delivery_against_outbox(
+                ledger, [str(getattr(evt, "event_id", "") or "") for evt in existing]
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("I35 delivery/outbox reconcile skipped", exc_info=True)
     published = 0
     envelopes: list[EventEnvelope] = []
     dict_findings: list[dict[str, Any]] = []
@@ -191,9 +199,23 @@ def dispatch_committed_findings(
     return published
 
 
+def reconcile_delivery_against_outbox(
+    ledger: DeliveryLedger,
+    outbox_event_ids: Sequence[str],
+) -> int:
+    """I35: delivery ahead of outbox is a cache bug — discard extras.
+
+    Returns the number of DeliveryIds removed. Missing deliveries are
+    left unrecorded so the next ``dispatch_committed_findings`` replays.
+    """
+    allowed = [derive_delivery_id(str(event_id), 1) for event_id in outbox_event_ids if event_id]
+    return ledger.discard_unknown(allowed)
+
+
 __all__ = [
     "DeliveryLedger",
     "dispatch_committed_findings",
     "get_delivery_ledger",
+    "reconcile_delivery_against_outbox",
     "reset_delivery_ledger",
 ]

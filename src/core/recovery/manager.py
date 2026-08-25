@@ -68,6 +68,10 @@ class ReconstructedState:
     execute_stages: bool = True
     snapshot_last_wal_id: str | None = None
     snapshot_applied_wal_ids: frozenset[str] = field(default_factory=frozenset)
+    recovery_phase: str = "fresh"
+    recovery_windows: tuple[str, ...] = ()
+    snapshot_stale: bool = False
+    protocol_notes: tuple[str, ...] = ()
 
 
 class RecoveryManager:
@@ -82,6 +86,8 @@ class RecoveryManager:
         storage_config: dict[str, Any] | None = None,
         stage_order: list[str] | tuple[str, ...] = (),
         min_checkpoint_version: int = 2,
+        max_checkpoint_version: int = 2,
+        reader_schema_version: int = 2,
         wal_factory: Any | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
@@ -145,6 +151,43 @@ class RecoveryManager:
         if mode is WalReplayMode.VERIFY:
             logger.info("Recovery Manager verify: %s", verify_report)
 
+        verdict = self._evaluate_protocol(
+            payload=payload,
+            checkpoint=checkpoint,
+            wal_state=wal_state,
+            snapshot_cursor=snapshot_cursor,
+            snapshot_applied=snapshot_applied,
+        )
+        discard_snapshot = bool(verdict.discard_snapshot)
+        if verdict.phase.value == "fresh":
+            return self._fresh(mode)
+        if discard_snapshot:
+            # Keep the run id so the existing journal is reused; do not restore ctx.
+            logger.warning(
+                "Recovery Manager: I35 discarding snapshot for run=%s windows=%s",
+                run_id,
+                [window.value for window in verdict.windows],
+            )
+            return ReconstructedState(
+                run_id=run_id,
+                can_recover=False,
+                source="wal",
+                mode=mode,
+                checkpoint_mgr=checkpoint_mgr,
+                remaining_stages=list(self.stage_order),
+                wal=wal,
+                wal_state=wal_state,
+                wal_counts=wal_counts,
+                verify_report=verify_report,
+                execute_stages=mode is not WalReplayMode.DRY_RUN,
+                snapshot_last_wal_id=snapshot_cursor,
+                snapshot_applied_wal_ids=snapshot_applied,
+                recovery_phase=verdict.phase.value,
+                recovery_windows=tuple(window.value for window in verdict.windows),
+                snapshot_stale=True,
+                protocol_notes=verdict.notes,
+            )
+
         return ReconstructedState(
             run_id=run_id,
             can_recover=True,
@@ -163,6 +206,10 @@ class RecoveryManager:
             execute_stages=mode is not WalReplayMode.DRY_RUN,
             snapshot_last_wal_id=snapshot_cursor,
             snapshot_applied_wal_ids=snapshot_applied,
+            recovery_phase=verdict.phase.value,
+            recovery_windows=tuple(window.value for window in verdict.windows),
+            snapshot_stale=verdict.snapshot_stale,
+            protocol_notes=verdict.notes,
         )
 
     def _fresh(self, mode: WalReplayMode) -> ReconstructedState:
@@ -251,7 +298,76 @@ class RecoveryManager:
                 self.min_checkpoint_version,
             )
             return False
+        if payload_version > self.max_checkpoint_version:
+            logger.warning(
+                "Recovery Manager: I35 refusing run=%s checkpoint_version %s > reader %s",
+                run_id,
+                payload_version,
+                self.max_checkpoint_version,
+            )
+            return False
+        schema_raw = payload.get("schema_version")
+        if schema_raw is not None:
+            try:
+                schema_version = int(schema_raw)
+            except (TypeError, ValueError):
+                schema_version = 0
+            if schema_version > self.reader_schema_version:
+                logger.warning(
+                    "Recovery Manager: I35 refusing run=%s schema_version %s > reader %s",
+                    run_id,
+                    schema_version,
+                    self.reader_schema_version,
+                )
+                return False
         return True
+
+    def _evaluate_protocol(
+        self,
+        *,
+        payload: dict[str, Any],
+        checkpoint: CheckpointState,
+        wal_state: Any,
+        snapshot_cursor: str | None,
+        snapshot_applied: frozenset[str],
+    ) -> Any:
+        from src.core.frontier.recovery_protocol import (
+            ObservedDurableState,
+            RecoveryPlane,
+            run_recovery_protocol,
+        )
+
+        try:
+            schema_version = int(payload.get("schema_version", 0) or 0)
+        except (TypeError, ValueError):
+            schema_version = 0
+        if schema_version <= 0:
+            try:
+                schema_version = int(getattr(checkpoint, "schema_version", 0) or 0)
+            except (TypeError, ValueError):
+                schema_version = 0
+        try:
+            snapshot_index = int(getattr(checkpoint, "authoritative_log_index", 0) or 0)
+        except (TypeError, ValueError):
+            snapshot_index = 0
+        wal_ids = frozenset(str(item) for item in snapshot_applied if item)
+        cursor = str(snapshot_cursor or "").strip()
+        if cursor:
+            wal_ids = wal_ids | {cursor}
+        return run_recovery_protocol(
+            ObservedDurableState(
+                plane=RecoveryPlane.FRONTIER,
+                snapshot_present=True,
+                wal_present=wal_state is not None,
+                snapshot_schema_version=schema_version,
+                reader_schema_version=self.reader_schema_version,
+                snapshot_log_index=snapshot_index,
+                wal_commit_index=max(snapshot_index, 1 if wal_state is not None else 0),
+                snapshot_last_wal_id=cursor,
+                wal_ids=wal_ids,
+                snapshot_semantically_old=True,
+            )
+        )
 
     def _open_wal(self, run_id: str) -> Any:
         factory = self._wal_factory

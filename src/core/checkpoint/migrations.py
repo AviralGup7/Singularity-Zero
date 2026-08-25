@@ -88,6 +88,14 @@ class CheckpointMigrationRegistry:
         except (TypeError, ValueError):
             current_version = 1
 
+        if current_version > self.LATEST_VERSION:
+            from src.core.frontier.recovery_protocol import UnsupportedSchemaError
+
+            raise UnsupportedSchemaError(
+                f"I35: checkpoint schema_version {current_version} is newer than "
+                f"reader {self.LATEST_VERSION}; refuse to interpret"
+            )
+
         while current_version < self.LATEST_VERSION:
             migration_fn = self._migrations.get(current_version)
             if not migration_fn:

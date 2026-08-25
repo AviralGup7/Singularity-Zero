@@ -206,6 +206,15 @@ class ReplicatedPartitionLog:
                     if self.fsm.last_applied_index < entry.raft_index:
                         self.fsm.apply(entry)
                         self.last_applied = entry.raft_index
+            # I35: crash between WAL commit and outbox append reconstructs
+            # the outbox from stored emitted_events (EventId is the dedupe key).
+            self._rebuild_outbox_from_committed()
+
+    def _rebuild_outbox_from_committed(self) -> int:
+        """Rebuild DurableOutbox from committed WAL entries (I35)."""
+        from src.core.frontier.recovery_protocol import rebuild_outbox_from_committed_entries
+
+        return rebuild_outbox_from_committed_entries(self.entries, self.outbox)
 
     def propose_and_commit(
         self,
