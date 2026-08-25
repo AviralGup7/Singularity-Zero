@@ -105,6 +105,43 @@ def test_i31_i32_outbox_then_bus_and_bus_failure_does_not_raise(tmp_path) -> Non
     assert events[0].causation_id == "wal_abc"
 
 
+def test_i30_consume_requires_recorded_reservation() -> None:
+    enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=10), label="i30c")
+    auth = ExecutionAuthorizer(budget_enforcer=enforcer)
+    ticket = auth.authorize(_req())
+    enforcer._issued_identities.clear()
+    assert auth.consume_ticket(ticket) is False
+
+
+def test_i30_authorize_fails_closed_without_identity_api() -> None:
+    from src.decision.authorization import ScopeAuthorizationError
+
+    class _LegacyEnforcer:
+        def reserve_requests(self, count: int = 1) -> bool:
+            return True
+
+    auth = ExecutionAuthorizer(budget_enforcer=_LegacyEnforcer())
+    with pytest.raises(ScopeAuthorizationError, match="I30"):
+        auth.authorize(_req())
+
+
+def test_i31_event_bus_refuses_unauthoritative_finding() -> None:
+    from src.core.events.event_bus import EventBus, EventType
+
+    bus = EventBus()
+    seen: list[object] = []
+    bus.subscribe(EventType.FINDING_CREATED, seen.append)
+    bus.emit(EventType.FINDING_CREATED, source="ghost", data={"title": "nope"})
+    assert seen == []
+    assert bus.dropped_status()["dropped_unauthoritative"] == 1
+    bus.emit(
+        EventType.FINDING_CREATED,
+        source="settlement.subdomains",
+        data={"title": "ok", "wal_id": "wal_1", "authoritative": True},
+    )
+    assert len(seen) == 1
+
+
 def test_i31_dispatch_refuses_uncommitted() -> None:
     with pytest.raises(SettlementCausalityError):
         dispatch_committed_findings(

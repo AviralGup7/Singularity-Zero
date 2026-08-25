@@ -147,6 +147,7 @@ class EventBus:
             "failed": 0,
             "dlq_size": 0,
             "dropped_fanout": 0,
+            "dropped_unauthoritative": 0,
         }
         self._depth: contextvars.ContextVar[int] = contextvars.ContextVar(
             "event_bus_depth", default=0
@@ -197,6 +198,22 @@ class EventBus:
         trace_id: str | None = None,
     ) -> PipelineEvent:
         """Create and publish a pipeline event."""
+        et_value = str(getattr(event_type, "value", event_type) or "")
+        if et_value == EventType.FINDING_CREATED.value and not self._finding_is_authoritative(data):
+            self._metrics["dropped_unauthoritative"] = (
+                int(self._metrics.get("dropped_unauthoritative", 0)) + 1
+            )
+            logger.warning(
+                "I31/I32: refused FINDING_CREATED without COMMITTED wal_id "
+                "(EventBus is not authority; source=%s)",
+                source,
+            )
+            return PipelineEvent(
+                event_type=event_type,
+                source=source,
+                data=dict(data or {}),
+                correlation_id=correlation_id or str(uuid.uuid4()),
+            )
         enriched = dict(data or {})
         if trace_id:
             enriched["trace_id"] = trace_id
@@ -221,7 +238,16 @@ class EventBus:
 
     def dropped_status(self) -> dict[str, int]:
         """Counters for events dropped by the live emit path."""
-        return {"dropped_fanout": int(self._metrics.get("dropped_fanout", 0))}
+        return {
+            "dropped_fanout": int(self._metrics.get("dropped_fanout", 0)),
+            "dropped_unauthoritative": int(self._metrics.get("dropped_unauthoritative", 0)),
+        }
+
+    def _finding_is_authoritative(self, data: dict[str, Any] | None) -> bool:
+        """I31: FINDING_CREATED must carry a durable wal_id and authoritative flag."""
+        payload = data or {}
+        wal_id = str(payload.get("wal_id") or "").strip()
+        return bool(wal_id) and payload.get("authoritative") is True
 
     def publish_sync(self, event: Any) -> list[Any]:
         """Synchronous publish fallback."""

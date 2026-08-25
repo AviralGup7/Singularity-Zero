@@ -157,7 +157,6 @@ async def run_parallel_group(
             from src.core.checkpoint import StageCheckpointGuard
 
             started = time.time()
-            findings_before = len(ctx.result.reportable_findings)
             try:
                 logger.info(
                     "Starting pipeline stage: %s (target=%s)",
@@ -278,18 +277,8 @@ async def run_parallel_group(
                 **stage_progress_kwargs,
             )
 
-            findings_after = len(ctx.result.reportable_findings)
-            new_findings = max(0, findings_after - findings_before)
-            if new_findings:
-                orchestrator._emit_event(
-                    EventType.FINDING_CREATED,
-                    source=f"stage.{name}",
-                    data={
-                        "stage": name,
-                        "new_findings": new_findings,
-                        "total_findings": findings_after,
-                    },
-                )
+            # FINDING_CREATED is emitted only by _merge_stage_output after
+            # COMMITTED settlement (I31). Do not invent events from a count delta.
 
             stage_output_contract = orchestrator._build_stage_output_contract(name, elapsed, ctx)
             if raw_state.upper() == StageStatus.FAILED.value:

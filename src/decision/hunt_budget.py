@@ -316,6 +316,7 @@ class HuntBudgetEnforcer:
         self._run_id = run_id
         self._sublease_seq = 0
         self._authority_revision = 0
+        self._issued_identities: dict[str, dict[str, str]] = {}
         self._open_subleases: list[tuple[str, int]] = []
         self._start = time.monotonic()
         self._requests_emitted = 0
@@ -393,14 +394,13 @@ class HuntBudgetEnforcer:
         return cls(budget=budget)
 
     def reserve_with_identity(self, count: int = 1) -> dict[str, str] | None:
-        """Reserve quota and return I30 causal identity, or None if exhausted."""
+        """Reserve quota and return I30 causal identity, or None if exhausted.
+
+        A ticket may only be issued from this identity. Fake / zero ids are
+        never minted: count<=0 or a rejected GlobalBudget command returns None.
+        """
         if count <= 0:
-            self._authority_revision += 1
-            return {
-                "reservation_id": "res_zero",
-                "command_id": "cmd_zero",
-                "authority_revision": str(self._authority_revision),
-            }
+            return None
         with self._lock:
             if self._budget.max_requests is not None:
                 if (
@@ -425,18 +425,32 @@ class HuntBudgetEnforcer:
                     return None
                 self._open_subleases.append((sl_id, int(count)))
                 command_id = str(getattr(env, "command_id", "") or "")
+                if not command_id:
+                    return None
             else:
                 self._sublease_seq += 1
                 sl_id = f"hunt_{self._budget.label}_{self._sublease_seq}"
+                command_id = f"cmd_{sl_id}"
             self._requests_reserved += int(count)
             self._authority_revision += 1
-            return {
+            revision = str(
+                getattr(self._global_budget, "version", None) or self._authority_revision
+            )
+            identity = {
                 "reservation_id": sl_id,
-                "command_id": command_id or f"cmd_{sl_id}",
-                "authority_revision": str(
-                    getattr(self._global_budget, "version", None) or self._authority_revision
-                ),
+                "command_id": command_id,
+                "authority_revision": revision,
             }
+            self._issued_identities[sl_id] = dict(identity)
+            return identity
+
+    def has_reservation(self, reservation_id: str) -> bool:
+        """True if this enforcer recorded the reservation (I30 authoritative record)."""
+        rid = str(reservation_id or "").strip()
+        if not rid:
+            return False
+        with self._lock:
+            return rid in self._issued_identities
 
     def reserve_requests(self, count: int = 1) -> bool:
         """Atomically reserve a request quota before dispatching to workers.
@@ -510,6 +524,7 @@ class HuntBudgetEnforcer:
             self._requests_emitted = 0
             self._requests_reserved = 0
             self._requests_consumed = 0
+            self._issued_identities.clear()
             self._productive_findings = 0
             self._high_confidence_findings = 0
             self._terminated_early = False

@@ -25,7 +25,11 @@ def test_critical_finding_events_are_not_dropped_at_depth() -> None:
     findings: list[str] = []
 
     def progress_handler(event: object) -> None:
-        bus.emit(EventType.FINDING_CREATED, source="nested", data={"n": len(findings)})
+        bus.emit(
+            EventType.FINDING_CREATED,
+            source="nested",
+            data={"n": len(findings), "wal_id": "wal_fanout", "authoritative": True},
+        )
 
     def finding_handler(event: object) -> None:
         findings.append("ok")

@@ -281,16 +281,21 @@ class ExecutionAuthorizer:
             )
 
         req_count = len(request.actions) if request.actions else 1
-        identity: dict[str, Any] | None = None
-        if hasattr(enforcer, "reserve_with_identity"):
-            identity = enforcer.reserve_with_identity(req_count)
-            if identity is None:
-                raise ScopeAuthorizationError(
-                    f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
-                )
-        elif not hasattr(enforcer, "reserve_requests") or not enforcer.reserve_requests(req_count):
+        if not hasattr(enforcer, "reserve_with_identity"):
+            raise ScopeAuthorizationError(
+                "I30: budget enforcer cannot issue an authoritative reservation identity"
+            )
+        identity = enforcer.reserve_with_identity(req_count)
+        if not isinstance(identity, dict):
             raise ScopeAuthorizationError(
                 f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
+            )
+        reservation_id = str(identity.get("reservation_id") or "").strip()
+        authority_revision = str(identity.get("authority_revision") or "").strip()
+        command_id = str(identity.get("command_id") or "").strip()
+        if not (reservation_id and authority_revision and command_id):
+            raise ScopeAuthorizationError(
+                "I30: reservation identity missing reservation_id, authority_revision, or command_id"
             )
 
         # 6. Generate Ticket with Nonce & HMAC binding (I30 causal quartet)
@@ -298,9 +303,6 @@ class ExecutionAuthorizer:
         nonce = uuid.uuid4().hex
         expires_at = request.deadline if request.deadline > 0 else (now + limits.timeout_seconds)
         scope_token_hash = _scope_token_binding(token)
-        reservation_id = str((identity or {}).get("reservation_id") or f"res_{ticket_id}")
-        authority_revision = str((identity or {}).get("authority_revision") or f"rev_{ticket_id}")
-        command_id = str((identity or {}).get("command_id") or f"cmd_authz_{ticket_id}")
         signature = self._generate_signature(
             ticket_id=ticket_id,
             request_id=request.request_id,
@@ -387,6 +389,10 @@ class ExecutionAuthorizer:
                 assert_authorization_causality(ticket)
             except AuthorizationCausalityError:
                 return False
+            enforcer = self._budget_enforcer
+            if enforcer is not None and hasattr(enforcer, "has_reservation"):
+                if not enforcer.has_reservation(ticket.budget_reservation_id):
+                    return False
             if not self.verify_ticket(ticket):
                 return False
             self._consumed_tickets.add(ticket.ticket_id)
