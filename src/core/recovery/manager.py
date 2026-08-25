@@ -96,6 +96,8 @@ class RecoveryManager:
         self.storage_config = storage_config
         self.stage_order = list(stage_order)
         self.min_checkpoint_version = min_checkpoint_version
+        self.max_checkpoint_version = max_checkpoint_version
+        self.reader_schema_version = reader_schema_version
         self._wal_factory = wal_factory
 
     def recover(

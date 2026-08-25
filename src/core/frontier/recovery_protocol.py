@@ -818,7 +818,7 @@ def run_recovery_protocol(observed: ObservedDurableState) -> RecoveryVerdict:
         windows.append(delivery_window)
         if delivery_window is CrashWindow.DELIVERY_AHEAD_OF_OUTBOX:
             discarded_delivery = tuple(
-                sorted(set(observed.delivered_ids) - set(observed.outbox_event_ids))
+                sorted(set(observed.delivered_event_ids) - set(observed.outbox_event_ids))
             )
             notes.append("discard delivery ids not in outbox")
             replay_delivery = True

@@ -61,6 +61,20 @@ class DeliveryLedger:
         with self._lock:
             self._delivered.clear()
 
+    def delivered_ids(self) -> frozenset[str]:
+        with self._lock:
+            return frozenset(self._delivered)
+
+    def discard_unknown(self, allowed_delivery_ids: Sequence[str]) -> int:
+        """Drop DeliveryIds that are not in the outbox-derived allowlist (I35)."""
+        allowed = {str(item).strip() for item in allowed_delivery_ids if str(item or "").strip()}
+        with self._lock:
+            unknown = self._delivered - allowed
+            if not unknown:
+                return 0
+            self._delivered -= unknown
+            return len(unknown)
+
 
 _delivery_ledger = DeliveryLedger()
 
