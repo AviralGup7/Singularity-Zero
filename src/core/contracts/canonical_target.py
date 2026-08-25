@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import posixpath
 import re
 import socket
 import urllib.parse
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -260,3 +262,67 @@ def canonicalize_target(
         identity_hash=identity_hash,
         dns_snapshot=dns_snap,
     )
+
+
+def canonical_state_encode(version: str, state: Any) -> bytes:
+    """Canonical State Serialization Algorithm (Axiom 7 / Contract Section 7).
+
+    Rules:
+    - Schema version header: version:SCHEMA_VERSION
+    - Maps/Dicts: strictly sorted lexicographically by keys
+    - Sets/Frozensets: deterministically sorted by elements
+    - Lists/Tuples: sequence order preserved
+    - Strings: Unicode NFC normalized
+    - Numbers: exact integers (NaN, +inf, -inf rejected; -0.0 -> +0.0)
+    """
+    import math
+    import unicodedata
+
+    def _normalize(val: Any) -> Any:
+        if isinstance(val, (str, bytes)):
+            if isinstance(val, bytes):
+                return val.decode("utf-8", errors="replace")
+            return unicodedata.normalize("NFC", val)
+        if isinstance(val, (int, bool)):
+            return val
+        if isinstance(val, float):
+            if math.isnan(val) or math.isinf(val):
+                raise ValueError(f"Invalid non-finite float in canonical state encoding: {val}")
+            if val == 0.0:
+                return 0.0
+            return val
+        if isinstance(val, (dict, Mapping)):
+            sorted_items = sorted((_normalize(k), _normalize(v)) for k, v in val.items())
+            return dict(sorted_items)
+        if isinstance(val, (set, frozenset)):
+            normalized_list = [_normalize(item) for item in val]
+            try:
+                normalized_list.sort()
+            except TypeError:
+                normalized_list.sort(key=str)
+            return normalized_list
+        if isinstance(val, (list, tuple)):
+            return [_normalize(item) for item in val]
+        if hasattr(val, "to_dict") and callable(val.to_dict):
+            return _normalize(val.to_dict())
+        return str(val)
+
+    normalized_tree = {
+        "__schema_version__": version,
+        "__state__": _normalize(state),
+    }
+
+    encoded_json = json.dumps(
+        normalized_tree,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return encoded_json.encode("utf-8")
+
+
+def compute_canonical_state_hash(version: str, state: Any) -> str:
+    """Compute deterministic SHA-256 state hash using canonical state encoding."""
+    encoded_bytes = canonical_state_encode(version, state)
+    return hashlib.sha256(encoded_bytes).hexdigest()
+

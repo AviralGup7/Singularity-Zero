@@ -125,7 +125,9 @@ markers = [
     "timeout: per-test timeout override (pytest-timeout)",
 ]
 
-filterwarnings = []
+filterwarnings = [
+    "ignore::pytest.PytestConfigWarning",
+]
 
 [tool.coverage.run]
 source = ["src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure.queue", "src.infrastructure.execution_engine", "src.infrastructure.cache", "src.infrastructure.observability", "src.infrastructure.security", "src.infrastructure.notifications", "src.dashboard.fastapi", "src.websocket_server", "src.learning", "src.exploitation"]

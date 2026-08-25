@@ -49,6 +49,12 @@ pytest tests/architecture/
 # Run integration tests
 pytest tests/integration/
 
+# Run Target Architecture Invariants Suite (All 16 Formal Invariants)
+pytest tests/integration/test_target_architecture_invariants.py
+
+# Run Deterministic Replay & Schema Upcasting Suite
+pytest tests/integration/test_deterministic_replay.py
+
 # Run regression test suite
 pytest tests/regression/
 

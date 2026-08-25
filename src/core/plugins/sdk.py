@@ -295,12 +295,7 @@ def _extract_manifest(tree: ast.AST) -> dict[str, Any] | None:
 
 
 def _is_safe_ast_literal(node: ast.AST) -> bool:
-    classes: list[type[ast.AST]] = [ast.Constant]
-    for name in ("Num", "Str", "Bytes", "NameConstant"):
-        cls = getattr(ast, name, None)
-        if cls is not None:
-            classes.append(cls)
-    if isinstance(node, tuple(classes)):
+    if isinstance(node, ast.Constant):
         return True
     if isinstance(node, ast.Dict):
         return all(

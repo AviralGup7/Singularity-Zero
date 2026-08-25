@@ -73,8 +73,18 @@ src/
 │   └── runtime.py        # Operator console execution runtime
 │
 ├── core/                 # 🏛️ Foundational domain models, contracts, and core utilities
-│   ├── contracts/        # Immutable Pydantic models, CanonicalTargetIdentity, and CommandEnvelope schemas
-│   ├── frontier/         # Low-level frontier state, CRDTs, PartitionRouter, ReplayEngine, and WAL StateAuthority
+│   ├── contracts/        # Immutable models: CommandEnvelope, CommittedEntry, CommandReceipt, CanonicalTargetIdentity, ExecutionAuthorizationTuple
+│   ├── frontier/         # Partitioned Raft core & coordination:
+│   │   ├── raft_fsm.py   # Pure deterministic PartitionFSM, aggregates, idempotency index, CertifiedSnapshot
+│   │   ├── replicated_log.py # Per-partition SHA-256 hash-chained log & leader-signed receipts
+│   │   ├── global_coordination.py # P-0000 GlobalBudgetAggregate, GlobalRunAggregate, PlacementAuthority
+│   │   ├── run_saga.py   # DurableRunSagaEngine multi-partition workflow coordinator
+│   │   ├── projection_stream.py # ProjectionCheckpointVector & CommittedLogConsumer with gap detection
+│   │   ├── invariant_checker.py # 16 Formal System Invariants machine-checkable verification suite
+│   │   ├── state_authority.py # Authoritative state and settlement coordinator
+│   │   ├── partition_authority.py # Partition router & lease fencing validator
+│   │   ├── replay_engine.py # Deterministic WAL replay & schema upcaster runner
+│   │   └── state.py      # NeuralState & CRDT LWW-set representations
 │   ├── models/           # Shared domain entities (Job, Finding, Target, Evidence)
 │   ├── security/         # Cryptographic primitives, Ed25519 signatures, AES-GCM vault
 │   ├── utils/            # Shared helpers (HTTP pools, timezones, streaming, URL validator)

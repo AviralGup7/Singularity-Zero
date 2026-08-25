@@ -55,6 +55,54 @@ class ExecutionFinding:
 
 
 @dataclass(frozen=True, slots=True)
+class ExecutionAuthorizationTuple:
+    """Necessary & sufficient cryptographic execution authorization capability (Contract Section 1A)."""
+
+    capability_id: str
+    execution_id: str
+    worker_id: str
+    worker_epoch: int
+    target_policy_id: str
+    dns_snapshot_id: str
+    sublease_id: str
+    policy_version: str
+    key_id: str
+    expires_at: float
+    signature: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "capability_id": self.capability_id,
+            "execution_id": self.execution_id,
+            "worker_id": self.worker_id,
+            "worker_epoch": self.worker_epoch,
+            "target_policy_id": self.target_policy_id,
+            "dns_snapshot_id": self.dns_snapshot_id,
+            "sublease_id": self.sublease_id,
+            "policy_version": self.policy_version,
+            "key_id": self.key_id,
+            "expires_at": self.expires_at,
+            "signature": self.signature,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> ExecutionAuthorizationTuple:
+        return cls(
+            capability_id=str(data.get("capability_id", "")),
+            execution_id=str(data.get("execution_id", "")),
+            worker_id=str(data.get("worker_id", "")),
+            worker_epoch=int(data.get("worker_epoch", 1)),
+            target_policy_id=str(data.get("target_policy_id", "")),
+            dns_snapshot_id=str(data.get("dns_snapshot_id", "")),
+            sublease_id=str(data.get("sublease_id", "")),
+            policy_version=str(data.get("policy_version", "v1.0")),
+            key_id=str(data.get("key_id", "K-PRIMARY")),
+            expires_at=float(data.get("expires_at", 0.0)),
+            signature=str(data.get("signature", "")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class CandidateLease:
     """Strongly-typed lease token binding a candidate target to a specific execution, worker, and epoch."""
 
@@ -67,6 +115,9 @@ class CandidateLease:
     epoch: int = 1
     partition_id: str = "P0"
     fencing_token: str = ""
+    status: str = "ACTIVE"  # REQUESTED, ISSUED, ACTIVE, SETTLEMENT_PENDING, SETTLED, CANCELLED, EXPIRED
+    units_reserved: int = 1
+    units_consumed: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +130,9 @@ class CandidateLease:
             "epoch": self.epoch,
             "partition_id": self.partition_id,
             "fencing_token": self.fencing_token or f"{self.partition_id}:{self.epoch}:{self.lease_id}",
+            "status": self.status,
+            "units_reserved": self.units_reserved,
+            "units_consumed": self.units_consumed,
         }
 
     @classmethod
@@ -93,6 +147,9 @@ class CandidateLease:
             epoch=int(data.get("epoch", 1)),
             partition_id=str(data.get("partition_id", "P0")),
             fencing_token=str(data.get("fencing_token", "")),
+            status=str(data.get("status", "ACTIVE")),
+            units_reserved=int(data.get("units_reserved", 1)),
+            units_consumed=int(data.get("units_consumed", 0)),
         )
 
     @classmethod
