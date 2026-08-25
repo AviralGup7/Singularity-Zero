@@ -99,6 +99,18 @@ class GlobalBudgetAggregate:
         if not sublease:
             return False, f"Sublease {sublease_id} not found"
 
+        if sublease.status == "CLOSED":
+            return False, f"Sublease {sublease_id} is already closed (duplicate settlement rejected)"
+
+        if units_consumed < 0 or units_returned < 0:
+            return False, "Negative units not allowed in budget settlement"
+
+        if units_consumed + units_returned != sublease.units_allocated:
+            return False, (
+                f"Budget conservation invariant violated: units_consumed ({units_consumed}) + "
+                f"units_returned ({units_returned}) != units_allocated ({sublease.units_allocated})"
+            )
+
         # Update global accounting
         self.consumed += units_consumed
         self.available += units_returned
@@ -111,6 +123,35 @@ class GlobalBudgetAggregate:
         )
         self.version += 1
         return True, "SUBLEASE_CLOSED"
+
+    def expire_sublease(
+        self,
+        sublease_id: str,
+        units_consumed: int = 0,
+    ) -> tuple[bool, str]:
+        """Expire an outstanding sub-lease and return unconsumed units to available (INVARIANT-005)."""
+        sublease = self.subleases.get(sublease_id)
+        if not sublease:
+            return False, f"Sublease {sublease_id} not found"
+
+        if sublease.status in ("CLOSED", "EXPIRED"):
+            return False, f"Sublease {sublease_id} is already {sublease.status}"
+
+        if units_consumed < 0 or units_consumed > sublease.units_allocated:
+            return False, f"Invalid units_consumed: {units_consumed}"
+
+        units_returned = sublease.units_allocated - units_consumed
+        self.consumed += units_consumed
+        self.available += units_returned
+        self.subleases[sublease_id] = GlobalSubLease(
+            sublease_id=sublease.sublease_id,
+            run_id=sublease.run_id,
+            partition_id=sublease.partition_id,
+            units_allocated=sublease.units_allocated,
+            status="EXPIRED",
+        )
+        self.version += 1
+        return True, "SUBLEASE_EXPIRED_AND_RECLAIMED"
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -34,8 +34,11 @@ class ExecutionRequestWorker:
     def __init__(self, authorizer: Any | None = None, worker_id: str = "worker_node_1") -> None:
         if authorizer is None:
             from src.decision.authorization import ExecutionAuthorizer
+            from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 
-            self._authorizer = ExecutionAuthorizer()
+            self._authorizer = ExecutionAuthorizer(
+                budget_enforcer=HuntBudgetEnforcer(HuntBudget(max_requests=1000), label=worker_id)
+            )
         else:
             self._authorizer = authorizer
 

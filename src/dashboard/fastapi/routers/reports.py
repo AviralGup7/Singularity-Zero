@@ -24,14 +24,17 @@ from src.reporting.platform_clients import (
     AppleClient,
     AWSClient,
     BugcrowdClient,
+    DefectDojoClient,
     GoogleVRPClient,
     GovDefenseClient,
     HackerOneClient,
     IntigritiClient,
+    JiraClient,
     MetaClient,
     MozillaClient,
     MSRCAgent,
     OpenBugBountyClient,
+    ServiceNowClient,
     SubmissionResult,
     SynackClient,
     YesWeHackClient,
@@ -389,6 +392,9 @@ def _get_clients() -> dict[str, Any]:
             "msrc": MSRCAgent,
             "mozilla": MozillaClient,
             "govdefense": GovDefenseClient,
+            "jira": JiraClient,
+            "servicenow": ServiceNowClient,
+            "defectdojo": DefectDojoClient,
         }
         for platform, factory in factories.items():
             try:
@@ -398,6 +404,55 @@ def _get_clients() -> dict[str, Any]:
                 _PLATFORM_INIT_ERRORS[platform] = str(exc)
                 _PLATFORM_CLIENTS[platform] = None
     return _PLATFORM_CLIENTS
+
+
+@router.get(
+    "/ai-summary",
+    summary="Get AI executive summary for a scan run",
+    responses={
+        404: {"description": "No findings found for the given target and run"},
+        401: {"description": "Unauthorized"},
+    },
+)
+async def get_ai_report_summary(
+    target: str,
+    run_id: str | None = None,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    """Return executive AI summary and risk posture for a scan run."""
+    from src.analysis.intelligence.finding_explainer import generate_executive_run_summary
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
+    tenant_id = (_auth or {}).get("tenant_id", "default") if isinstance(_auth, dict) else "default"
+    if not is_target_owned_by_tenant(target, tenant_id):
+        raise HTTPException(
+            status_code=403, detail="Access denied to requested target infrastructure"
+        )
+    output_root: Path = services.query.output_root
+    target_dir = get_safe_target_dir(output_root, target)
+
+    if run_id:
+        run_dir = (target_dir / run_id).resolve()
+    else:
+        run_dir = _get_latest_run_dir_safe(output_root, target)
+
+    if run_dir is None or not run_dir.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"No run artifacts found for target '{target}'",
+        )
+
+    findings_path = run_dir / "findings.json"
+    findings: list[dict[str, Any]] = []
+    if findings_path.is_file():
+        try:
+            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+        except Exception:
+            findings = []
+
+    resolved_run_id = run_id or run_dir.name
+    return generate_executive_run_summary(findings, target=target, run_id=resolved_run_id)
 
 
 def _get_submission_lock(finding_id: str, platform: str) -> threading.Lock:

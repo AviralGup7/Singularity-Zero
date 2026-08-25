@@ -1,6 +1,6 @@
 # Performance Models & Hardware Benchmarks
 
-The Singularity-Zero pipeline is optimized for maximum hardware utilization using SIMD instructions, Actor migration, and WebAssembly.
+The pipeline is optimized for high-throughput execution using asynchronous DAG scheduling, NumPy bit-packed Bloom filters (`src/core/frontier/bloom.py`), compiled Cython state radix sort (`_state_cython.pyx`), and multi-tier hierarchical caching.
 
 ---
 

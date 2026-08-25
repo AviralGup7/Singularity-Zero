@@ -55,7 +55,7 @@ async def get_finding_remediation(
     "/{finding_id}/explain",
     response_model=dict[str, Any],
     responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
-    summary="Get ML explainability analysis (SHAP) for a finding",
+    summary="Get ML explainability analysis for a finding",
 )
 async def explain_finding_severity(
     finding_id: str,
@@ -66,14 +66,21 @@ async def explain_finding_severity(
     finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
-    return {"finding_id": finding_id, "explanation": "ML explainability module removed."}
+    from src.analysis.intelligence.finding_explainer import generate_finding_explanations
+
+    res = generate_finding_explanations(finding)
+    return {
+        "finding_id": finding_id,
+        "explanation": res["personas"]["auditor"],
+        "details": res,
+    }
 
 
 @router.get(
     "/{finding_id}/ai-explain",
     response_model=dict[str, Any],
     responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
-    summary="Get AI persona-tailored (Developer/Auditor) explanations for a finding",
+    summary="Get AI persona-tailored (Developer/Auditor/Executive) explanations for a finding",
 )
 async def explain_finding_ai(
     finding_id: str,
@@ -84,4 +91,6 @@ async def explain_finding_ai(
     finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
-    return {"finding_id": finding_id, "explanations": "AI explanation module removed."}
+    from src.analysis.intelligence.finding_explainer import generate_finding_explanations
+
+    return generate_finding_explanations(finding)

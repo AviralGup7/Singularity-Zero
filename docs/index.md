@@ -8,10 +8,10 @@ Welcome to the Cyber Security Test Pipeline documentation portal. This hub index
 
 - **[🚀 Getting Started Guide](getting-started.md)**: Environment setup, dependency installation, scope configuration, and running your first scan.
 - **[📂 Codebase Map](codebase.md)**: Exhaustive structural map covering all 35 modules in `src/`, plus `frontend/src/`, `tests/`, `configs/`, `deploy/`, and `scripts/`.
-- **[🎯 Target Architecture Specification](TARGET_ARCHITECTURE.md)**: Authoritative target blueprint featuring Partitioned Raft State Machine, 7-phase commit lifecycle, cross-partition sagas, and 16 formal system invariants.
+- **[🏛️ System Architecture Specification & Engineering Contract](architecture.md)**: Unified master blueprint containing the 10 Non-Negotiable System Axioms, 6-Level Authority Hierarchy, 7-Layer Control Plane, 16 Formal Invariants, Raft consensus protocol, and operational lifecycles.
 - **[📋 Formal Command & State Transition Specification](FORMAL_COMMAND_SPECIFICATION.md)**: Complete transition matrix, schemas, preconditions, budget equations, and recovery semantics for all system commands.
 - **[🏗️ Architecture Overview](architecture-overview.md)**: Engineering-focused map of subsystems, data flows, and design patterns.
-- **[🏛️ System Architecture Deep Dive](architecture.md)**: The 10 Laws of Distributed Correctness, 7-Layer Control Plane, Partitioned Single-Writer Authority, 5-Stage Claim Settlement, Out-of-Band Policy Governance, Prioritized QoS Telemetry, and Deterministic Replay.
+- **[🔍 Architecture Gap Analysis](GAP_ANALYSIS.md)**: Technical audit of open gaps, in-memory simulations, and roadmap alignment.
 - **[📄 ExecutionRequest Contract of Intent](architecture/execution-request-contract.md)**: Formal handoff protocol (`Decision` → `Authorization` → `Scheduling` → `Worker`), scope token verification, and stateless execution.
 - **[⚡ Cache Unification Design](architecture/cache-unification.md)**: Single-flight coalesced multi-tiered caching architecture.
 

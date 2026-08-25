@@ -177,8 +177,86 @@ This document defines the **Formal Command & State Transition Contract** for all
 
 ---
 
+### 1.7 `PromotePolicyCommand`
+- **Authority Partition**: Target Partition ($P_x$ or `P-0000`)
+- **Input Schema**:
+  ```json
+  {
+    "command_id": "cmd-promote-01",
+    "command_type": "PromotePolicyCommand",
+    "aggregate_id": "policy_active",
+    "payload": {
+      "policy_id": "policy_v2_alpha",
+      "artifact_hash": "sha256_hash_abc123",
+      "policy_version": "v2.0",
+      "parent_policy_id": "policy_v1_base"
+    },
+    "expected_aggregate_version": 0
+  }
+  ```
+- **FSM Read-Set**: `PartitionFSM.aggregates["policy_active"]`
+- **Preconditions**:
+  1. `policy_id` is non-empty string.
+  2. `artifact_hash` corresponds to validated external artifact.
+- **Deterministic State Transition**:
+  - `aggregates["policy_active"] = PolicyAggregate(active_policy_id=policy_id, artifact_hash=artifact_hash, status="ACTIVE")`
+  - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
+- **Emitted Domain Event**: `PolicyPromotedEvent(policy_id, artifact_hash, policy_version)`
+- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="POLICY_PROMOTED")`
+
+---
+
+### 1.8 `RollbackPolicyCommand`
+- **Authority Partition**: Target Partition ($P_x$ or `P-0000`)
+- **Input Schema**:
+  ```json
+  {
+    "command_id": "cmd-rollback-01",
+    "command_type": "RollbackPolicyCommand",
+    "aggregate_id": "policy_active",
+    "payload": {
+      "parent_policy_id": "policy_v1_base"
+    },
+    "expected_aggregate_version": 1
+  }
+  ```
+- **Preconditions**:
+  1. Valid `parent_policy_id` exists in current policy state payload or command payload.
+- **Deterministic State Transition**:
+  - `aggregates["policy_active"].state_payload["active_policy_id"] = parent_policy_id`
+  - `aggregates["policy_active"].status = "ROLLED_BACK"`
+  - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
+- **Emitted Domain Event**: `PolicyRolledBackEvent(active_policy_id=parent_policy_id)`
+- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="POLICY_ROLLED_BACK")`
+
+---
+
+### 1.9 `ExpireSubLeaseCommand`
+- **Authority Partition**: `P-0000` (Global Coordination)
+- **Input Schema**:
+  ```json
+  {
+    "command_id": "cmd-expire-sl-01",
+    "sublease_id": "sublease_R101_P0412",
+    "units_consumed": 0
+  }
+  ```
+- **Preconditions**:
+  1. `sublease_id in subleases` and `sublease.status in ("ISSUED", "ACTIVE")`.
+- **Deterministic State Transition**:
+  - `units_returned = sublease.units_allocated - units_consumed`
+  - $\text{consumed}' = \text{consumed} + \text{units\_consumed}$
+  - $\text{available}' = \text{available} + \text{units\_returned}$
+  - `subleases[sublease_id].status = "EXPIRED"`
+  - $\text{version}' = \text{version} + 1$
+- **Universal Invariant Verification (INVARIANT-001 & INVARIANT-005)**:
+  $$\Delta \text{TotalBudget} \equiv \Delta \text{Consumed} + \Delta \text{OutstandingReserved} + \Delta \text{Available} = 0$$
+
+---
+
 ## 2. Recovery & Replay Invariants
 
 1. **Replay Invariant**: Replaying from certified snapshot $S$ through committed index $K$ yields identical state hash:
    $$\text{SHA256}(\text{CanonicalEncode}(\text{FSM at } K)) == \text{Receipt.state\_hash\_at\_commit}$$
 2. **Crash Resilience**: Any node crash during phase 1–3 of Raft replication causes zero state mutations; upon recovery, uncommitted proposals are truncated and committed entries are replayed from the replicated log.
+3. **Checkpoint Projection Invariance (INVARIANT-007)**: Checkpoint files are Level 3 materialized read projections and can never override or contradict the authoritative Raft FSM state. Stale or diverging checkpoints are rejected during recovery screening.

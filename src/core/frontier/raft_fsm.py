@@ -257,8 +257,14 @@ class PartitionFSM:
             return self._handle_lease_timeout(cmd, current_version, raft_term, raft_index)
         elif cmd_type == "AllocateSubLeaseCommand":
             return self._handle_allocate_sublease(cmd, current_version, raft_term, raft_index)
+        elif cmd_type == "ExpireSubLeaseCommand":
+            return self._handle_expire_sublease(cmd, current_version, raft_term, raft_index)
         elif cmd_type == "SyncKeyRevocationCommand":
             return self._handle_sync_key_revocation(cmd, current_version, raft_term, raft_index)
+        elif cmd_type == "PromotePolicyCommand":
+            return self._handle_promote_policy(cmd, current_version, raft_term, raft_index)
+        elif cmd_type == "RollbackPolicyCommand":
+            return self._handle_rollback_policy(cmd, current_version, raft_term, raft_index)
         else:
             result = CommandResult(
                 status="REJECTED",
@@ -616,6 +622,69 @@ class PartitionFSM:
             result_payload={"units_allocated": allocated_units},
         ), (event,)
 
+    def _handle_expire_sublease(
+        self,
+        cmd: CommandEnvelope,
+        current_version: int,
+        raft_term: int,
+        raft_index: int,
+    ) -> tuple[CommandResult, tuple[EventEnvelope, ...]]:
+        sublease_id = str(cmd.payload.get("sublease_id") or cmd.aggregate_id)
+        sublease = self.subleases.get(sublease_id)
+        if not sublease:
+            return CommandResult(
+                status="REJECTED",
+                aggregate_id=cmd.aggregate_id,
+                resulting_aggregate_version=current_version,
+                result_code="SUBLEASE_NOT_FOUND",
+                error_message=f"Sublease {sublease_id} not found",
+            ), ()
+
+        if sublease.status in ("CLOSED", "EXPIRED"):
+            return CommandResult(
+                status="NO_OP",
+                aggregate_id=cmd.aggregate_id,
+                resulting_aggregate_version=current_version,
+                result_code="ALREADY_EXPIRED",
+            ), ()
+
+        units_consumed = int(cmd.payload.get("units_consumed", 0))
+        new_version = current_version + 1
+        self.subleases[sublease_id] = SubLeaseRecord(
+            sublease_id=sublease.sublease_id,
+            run_id=sublease.run_id,
+            partition_id=sublease.partition_id,
+            units_allocated=sublease.units_allocated,
+            units_consumed=units_consumed,
+            status="EXPIRED",
+        )
+
+        evt_id = EventEnvelope.derive_event_id(self.partition_id, raft_index, 0)
+        event = EventEnvelope(
+            event_id=evt_id,
+            event_type="SubLeaseExpiredEvent",
+            aggregate_id=sublease_id,
+            aggregate_version=new_version,
+            payload={
+                "sublease_id": sublease_id,
+                "units_consumed": units_consumed,
+                "units_returned": sublease.units_allocated - units_consumed,
+            },
+            correlation_id=cmd.correlation_id,
+            causation_id=cmd.causation_id,
+            partition_id=self.partition_id,
+            raft_term=raft_term,
+            raft_index=raft_index,
+        )
+
+        return CommandResult(
+            status="SUCCESS",
+            aggregate_id=sublease_id,
+            resulting_aggregate_version=new_version,
+            result_code="SUBLEASE_EXPIRED",
+            result_payload={"units_returned": sublease.units_allocated - units_consumed},
+        ), (event,)
+
     def _handle_sync_key_revocation(
         self,
         cmd: CommandEnvelope,
@@ -648,4 +717,113 @@ class PartitionFSM:
             resulting_aggregate_version=new_version,
             result_code="KEY_REVOCATION_SYNCED",
             result_payload={"new_revocation_epoch": new_epoch},
+        ), (event,)
+
+    def _handle_promote_policy(
+        self,
+        cmd: CommandEnvelope,
+        current_version: int,
+        raft_term: int,
+        raft_index: int,
+    ) -> tuple[CommandResult, tuple[EventEnvelope, ...]]:
+        payload = cmd.payload
+        policy_id = str(payload.get("policy_id", ""))
+        artifact_hash = str(payload.get("artifact_hash", ""))
+        policy_version = str(payload.get("policy_version", "v1.0"))
+        parent_policy_id = str(payload.get("parent_policy_id", ""))
+
+        new_version = current_version + 1
+        self.aggregates[cmd.aggregate_id] = AggregateState(
+            aggregate_id=cmd.aggregate_id,
+            aggregate_type="PolicyAggregate",
+            version=new_version,
+            state_payload={
+                "active_policy_id": policy_id,
+                "artifact_hash": artifact_hash,
+                "policy_version": policy_version,
+                "parent_policy_id": parent_policy_id,
+                "status": "ACTIVE",
+            },
+            status="ACTIVE",
+        )
+
+        evt_id = EventEnvelope.derive_event_id(self.partition_id, raft_index, 0)
+        event = EventEnvelope(
+            event_id=evt_id,
+            event_type="PolicyPromotedEvent",
+            aggregate_id=cmd.aggregate_id,
+            aggregate_version=new_version,
+            payload={
+                "policy_id": policy_id,
+                "artifact_hash": artifact_hash,
+                "policy_version": policy_version,
+            },
+            correlation_id=cmd.correlation_id,
+            causation_id=cmd.causation_id,
+            partition_id=self.partition_id,
+            raft_term=raft_term,
+            raft_index=raft_index,
+        )
+
+        return CommandResult(
+            status="SUCCESS",
+            aggregate_id=cmd.aggregate_id,
+            resulting_aggregate_version=new_version,
+            result_code="POLICY_PROMOTED",
+            result_payload={"active_policy_id": policy_id},
+        ), (event,)
+
+    def _handle_rollback_policy(
+        self,
+        cmd: CommandEnvelope,
+        current_version: int,
+        raft_term: int,
+        raft_index: int,
+    ) -> tuple[CommandResult, tuple[EventEnvelope, ...]]:
+        agg = self.aggregates.get(cmd.aggregate_id)
+        parent_policy_id = str(
+            cmd.payload.get("parent_policy_id")
+            or (agg.state_payload.get("parent_policy_id") if agg else "")
+        )
+        if not parent_policy_id:
+            return CommandResult(
+                status="REJECTED",
+                aggregate_id=cmd.aggregate_id,
+                resulting_aggregate_version=current_version,
+                result_code="NO_PARENT_POLICY",
+                error_message="No parent policy available for rollback",
+            ), ()
+
+        new_version = current_version + 1
+        self.aggregates[cmd.aggregate_id] = AggregateState(
+            aggregate_id=cmd.aggregate_id,
+            aggregate_type="PolicyAggregate",
+            version=new_version,
+            state_payload={
+                "active_policy_id": parent_policy_id,
+                "status": "ROLLED_BACK",
+            },
+            status="ACTIVE",
+        )
+
+        evt_id = EventEnvelope.derive_event_id(self.partition_id, raft_index, 0)
+        event = EventEnvelope(
+            event_id=evt_id,
+            event_type="PolicyRolledBackEvent",
+            aggregate_id=cmd.aggregate_id,
+            aggregate_version=new_version,
+            payload={"active_policy_id": parent_policy_id},
+            correlation_id=cmd.correlation_id,
+            causation_id=cmd.causation_id,
+            partition_id=self.partition_id,
+            raft_term=raft_term,
+            raft_index=raft_index,
+        )
+
+        return CommandResult(
+            status="SUCCESS",
+            aggregate_id=cmd.aggregate_id,
+            resulting_aggregate_version=new_version,
+            result_code="POLICY_ROLLED_BACK",
+            result_payload={"active_policy_id": parent_policy_id},
         ), (event,)

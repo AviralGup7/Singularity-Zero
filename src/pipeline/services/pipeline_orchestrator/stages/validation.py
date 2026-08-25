@@ -70,6 +70,7 @@ async def run_validation(
 
     import uuid
     from src.decision.authorization import ExecutionAuthorizer
+    from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
     from src.decision.models import (
         ActionSpec,
         ExecutionRequest,
@@ -79,7 +80,10 @@ async def run_validation(
     )
     from src.execution.request_executor import ExecutionRequestWorker
 
-    authorizer = ExecutionAuthorizer()
+    enforcer = getattr(ctx, "budget_enforcer", None) or HuntBudgetEnforcer(
+        HuntBudget(max_requests=200), label="validation"
+    )
+    authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)
 
     for attempt in range(1, 3):

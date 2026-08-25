@@ -210,14 +210,19 @@ class ExecutionAuthorizer:
                         f"Target path '{target_path}' matches forbidden path '{forbidden}'"
                     )
 
-        # 5. Atomic Budget Reservation
+        # 5. Mandatory Atomic Budget Reservation (INVARIANT-002)
         enforcer = budget_enforcer or self._budget_enforcer
-        if enforcer is not None and hasattr(enforcer, "reserve_requests"):
-            req_count = len(request.actions) if request.actions else 1
-            if not enforcer.reserve_requests(req_count):
-                raise ScopeAuthorizationError(
-                    f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
-                )
+        if enforcer is None:
+            raise ScopeAuthorizationError(
+                "Mandatory budget enforcer not configured: cannot issue AuthorizedExecutionTicket "
+                "without committed budget reservation (INVARIANT-002)"
+            )
+        
+        req_count = len(request.actions) if request.actions else 1
+        if not hasattr(enforcer, "reserve_requests") or not enforcer.reserve_requests(req_count):
+            raise ScopeAuthorizationError(
+                f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
+            )
 
         # 6. Generate Ticket with Nonce & HMAC binding
         ticket_id = f"tkt_{uuid.uuid4().hex[:16]}"

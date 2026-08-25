@@ -53,7 +53,8 @@ def test_budget_invariant_prevents_overcommit() -> None:
 
 
 def test_single_use_ticket_replay_resistance() -> None:
-    authorizer = ExecutionAuthorizer(secret_key="test-key")
+    enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=100))
+    authorizer = ExecutionAuthorizer(secret_key="test-key", budget_enforcer=enforcer)
     req = ExecutionRequest(
         request_id="req_test_1",
         tenant_id="tenant_a",

@@ -54,30 +54,122 @@ class TelemetryEvent:
         }
 
 
+class BrokerSaturationError(RuntimeError):
+    """Raised when broker capacity is completely exhausted under strict lossless backpressure."""
+
+
 class PrioritizedRealtimeBroker:
-    """Multi-lane QoS event broker managing prioritized backpressure and shedding."""
+    """Multi-lane QoS event broker managing prioritized backpressure, durable disk spooling, and shedding."""
 
     def __init__(
         self,
+        p0_capacity: int = 1000,
         p1_capacity: int = 1000,
         p2_capacity: int = 500,
         p4_capacity: int = 200,
+        max_p0_spool: int = 100000,
+        spool_dir: str | None = None,
     ) -> None:
-        self._p0_queue: collections.deque[TelemetryEvent] = collections.deque()  # Unbounded
+        import json
+        from pathlib import Path
+
+        self.p0_capacity = p0_capacity
+        self.max_p0_spool = max_p0_spool
+        self._spool_path: Path | None = None
+        if spool_dir is not None:
+            sd = Path(spool_dir)
+            sd.mkdir(parents=True, exist_ok=True)
+            self._spool_path = sd / "p0_telemetry_spool.jsonl"
+
+        self._p0_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p0_capacity)
+        self._p0_memory_spool: collections.deque[TelemetryEvent] = collections.deque(maxlen=max_p0_spool)
         self._p1_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p1_capacity)
         self._p2_map: dict[str, TelemetryEvent] = {}  # Coalesced findings
         self._p3_aggregates: dict[str, dict[str, Any]] = {}  # 1s bucket aggregates
         self._p4_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p4_capacity)
         
+        self._spool_file_count = 0
         self._dropped_counts: dict[QoSClass, int] = collections.defaultdict(int)
         self._lock = threading.RLock()
+
+        # Rehydrate any un-drained disk spooled events on startup
+        if self._spool_path is not None and self._spool_path.exists():
+            self._rehydrate_disk_spool()
+
+    def _rehydrate_disk_spool(self) -> None:
+        import json
+        if self._spool_path is None or not self._spool_path.exists():
+            return
+        with open(self._spool_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    event = TelemetryEvent(
+                        event_id=data["event_id"],
+                        qos=QoSClass(data["qos"]),
+                        topic=data["topic"],
+                        payload=data["payload"],
+                        timestamp_unix=data.get("timestamp_unix", time.time()),
+                        dedup_key=data.get("dedup_key", ""),
+                    )
+                    if len(self._p0_queue) < self.p0_capacity:
+                        self._p0_queue.append(event)
+                    else:
+                        self._p0_memory_spool.append(event)
+                except Exception as exc:
+                    logger.warning("Corrupt line in P0 disk spool: %s", exc)
+        # Clear rehydrated file
+        try:
+            self._spool_path.unlink()
+        except OSError:
+            pass
+
+    def _persist_to_disk_spool(self, event: TelemetryEvent) -> bool:
+        import json
+        import os
+        if self._spool_path is None:
+            return False
+        try:
+            line = json.dumps(event.to_dict()) + "\n"
+            with open(self._spool_path, "a", encoding="utf-8") as f:
+                f.write(line)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    pass
+            self._spool_file_count += 1
+            return True
+        except Exception as exc:
+            logger.error("Failed to append P0 event to disk spool: %s", exc)
+            return False
 
     def publish(self, event: TelemetryEvent) -> bool:
         """Enqueue an event according to its QoS backpressure rules."""
         with self._lock:
             if event.qos == QoSClass.P0_CONTROL:
-                self._p0_queue.append(event)
-                return True
+                # 1. First buffer in bounded memory queue
+                if len(self._p0_queue) < self.p0_capacity:
+                    self._p0_queue.append(event)
+                    return True
+
+                # 2. Memory queue full: Persist to durable disk spool if enabled
+                if self._spool_path is not None:
+                    if self._persist_to_disk_spool(event):
+                        return True
+
+                # 3. Secondary memory spool buffer
+                if len(self._p0_memory_spool) < self.max_p0_spool:
+                    self._p0_memory_spool.append(event)
+                    return True
+
+                # 4. Memory and spool exhausted: Apply strict producer backpressure (NEVER silent drop)
+                self._dropped_counts[QoSClass.P0_CONTROL] += 1
+                logger.critical("P0 broker memory and disk spool fully saturated; applying backpressure")
+                return False
 
             elif event.qos == QoSClass.P1_LIFECYCLE:
                 if len(self._p1_queue) >= (self._p1_queue.maxlen or 1000):
@@ -86,13 +178,11 @@ class PrioritizedRealtimeBroker:
                 return True
 
             elif event.qos == QoSClass.P2_FINDINGS:
-                # Coalesce / deduplicate by dedup_key or event_id
                 key = event.dedup_key or event.event_id
                 self._p2_map[key] = event
                 return True
 
             elif event.qos == QoSClass.P3_TELEMETRY:
-                # Aggregate metrics into 1s sliding window bucket
                 bucket_key = event.topic
                 current = self._p3_aggregates.get(bucket_key, {})
                 for k, v in event.payload.items():
@@ -116,9 +206,11 @@ class PrioritizedRealtimeBroker:
         """Drain events strictly in priority order (P0 -> P1 -> P2 -> P3 -> P4)."""
         batch: list[TelemetryEvent] = []
         with self._lock:
-            # 1. Drain P0 (highest priority)
+            # 1. Drain P0 (highest priority: memory queue -> memory spool -> disk spool)
             while self._p0_queue and len(batch) < max_events:
                 batch.append(self._p0_queue.popleft())
+            while self._p0_memory_spool and len(batch) < max_events:
+                batch.append(self._p0_memory_spool.popleft())
 
             # 2. Drain P1
             while self._p1_queue and len(batch) < max_events:
@@ -157,10 +249,12 @@ class PrioritizedRealtimeBroker:
     def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
-                "p0_depth": len(self._p0_queue),
+                "p0_depth": len(self._p0_queue) + len(self._p0_memory_spool) + self._spool_file_count,
+                "p0_memory_depth": len(self._p0_queue),
+                "p0_spool_depth": len(self._p0_memory_spool) + self._spool_file_count,
                 "p1_depth": len(self._p1_queue),
-                "p2_coalesced_depth": len(self._p2_map),
-                "p3_metrics_depth": len(self._p3_aggregates),
+                "p2_depth": len(self._p2_map),
+                "p3_depth": len(self._p3_aggregates),
                 "p4_depth": len(self._p4_queue),
-                "dropped_counts": {k.name: v for k, v in self._dropped_counts.items()},
+                "dropped_counts": {int(k): v for k, v in self._dropped_counts.items()},
             }

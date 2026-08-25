@@ -70,9 +70,9 @@ Dynamic plugins execute inside a multi-tier sandbox:
 1. **AST Validation (Pre-Execution)**:
    The plugin loader inspects the Python Abstract Syntax Tree (AST) before loading, blocking dangerous primitives (`eval`, `exec`, raw file writes, dynamic `__import__`).
 2. **Process Isolation (`sandbox: "process"`)**:
-   Plugins execute within isolated child processes communicating via JSON IPC over stdin/stdout with strict execution timeouts and memory quotas.
+   Plugins execute within isolated child processes via `ProcessSandbox` (`src/sandbox/process_sandbox.py`) with environment variable scrubbing, execution timeouts, and POSIX memory quotas.
 3. **WebAssembly Isolation (`sandbox: "wasm"`)**:
-   Binary validators and untrusted WASM modules execute inside an isolated `wasmtime` runtime (`src/sandbox/`), preventing host filesystem or network access.
+   Binary validators and untrusted WASM modules execute inside an isolated `wasmtime` runtime (`src/execution/frontier/wasm.py`) when `FEATURE_WASM_PLUGINS=true` is enabled.
 
 ---
 

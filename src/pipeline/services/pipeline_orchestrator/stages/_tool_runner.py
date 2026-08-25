@@ -30,9 +30,11 @@ async def run_scanner(
     cwd: str | Path | None = None,
     stage_name: str = "tool_scan",
     tenant_id: str = "default",
+    budget_enforcer: Any | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run authorized scanner subprocess under formal contract of intent."""
     from src.decision.authorization import ExecutionAuthorizer
+    from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
     from src.decision.models import (
         ActionSpec,
         ExecutionRequest,
@@ -42,7 +44,8 @@ async def run_scanner(
     )
     from src.execution.request_executor import ExecutionRequestWorker
 
-    authorizer = ExecutionAuthorizer()
+    enforcer = budget_enforcer or HuntBudgetEnforcer(HuntBudget(max_requests=1000), label=stage_name)
+    authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)
 
     tool_name = cmd[0] if cmd else "scanner"

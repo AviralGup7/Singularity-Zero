@@ -40,15 +40,17 @@ class PolicyEvaluationResult:
 
 
 class PolicyGovernanceGate:
-    """Governs policy lifecycle, evaluation, and safe atomic promotion/rollback."""
+    """Governs policy lifecycle, evaluation, and safe atomic promotion/rollback via Raft."""
 
     def __init__(
         self,
         max_boost_multiplier: float = 5.0,
         max_suppression_pct: float = 0.80,
+        replicated_log: Any | None = None,
     ) -> None:
         self.max_boost_multiplier = max_boost_multiplier
         self.max_suppression_pct = max_suppression_pct
+        self.replicated_log = replicated_log
         self._active_policy: VersionedPolicy | None = None
         self._policy_history: dict[str, VersionedPolicy] = {}
         self._lock = threading.RLock()
@@ -96,16 +98,41 @@ class PolicyGovernanceGate:
         )
 
     def promote_policy(self, policy: VersionedPolicy) -> bool:
-        """Atomically promote a safe policy to ACTIVE."""
+        """Atomically promote a safe policy to ACTIVE via Raft FSM commit."""
+        import uuid
+        from src.core.contracts.command_envelope import CommandEnvelope
+
         with self._lock:
             eval_res = self.evaluate_candidate(policy)
             if not eval_res.is_safe:
                 logger.warning("Policy %s rejected by governance gate: %s", policy.policy_id, eval_res.rejection_reasons)
                 return False
 
+            parent_id = self._active_policy.policy_id if self._active_policy else ""
+
+            # If Raft log is configured, propose and commit authoritative command
+            if self.replicated_log is not None:
+                cmd = CommandEnvelope(
+                    command_id=f"cmd_promote_{uuid.uuid4().hex[:8]}",
+                    command_type="PromotePolicyCommand",
+                    aggregate_id="policy_active",
+                    payload={
+                        "policy_id": policy.policy_id,
+                        "artifact_hash": policy.compute_signature(),
+                        "policy_version": policy.version,
+                        "parent_policy_id": parent_id,
+                    },
+                    correlation_id="governance_gate",
+                    causation_id=f"promote_{policy.policy_id}",
+                )
+                receipt, _ = self.replicated_log.propose_and_commit(cmd)
+                if receipt.result_code != "POLICY_PROMOTED":
+                    logger.error("Raft promotion failed for policy %s: %s", policy.policy_id, receipt.result_code)
+                    return False
+
             promoted = VersionedPolicy.from_mapping({
                 **policy.to_dict(),
-                "parent_policy_id": self._active_policy.policy_id if self._active_policy else "",
+                "parent_policy_id": parent_id,
                 "status": "ACTIVE",
             })
             self._policy_history[promoted.policy_id] = promoted
@@ -114,7 +141,10 @@ class PolicyGovernanceGate:
             return True
 
     def rollback(self) -> VersionedPolicy | None:
-        """Atomically rollback active policy to its parent version."""
+        """Atomically rollback active policy to its parent version via Raft FSM commit."""
+        import uuid
+        from src.core.contracts.command_envelope import CommandEnvelope
+
         with self._lock:
             if not self._active_policy:
                 return None
@@ -122,6 +152,21 @@ class PolicyGovernanceGate:
             if not parent_id or parent_id not in self._policy_history:
                 logger.warning("No valid parent policy found for rollback from %s", self._active_policy.policy_id)
                 return None
+
+            # If Raft log is configured, propose and commit authoritative rollback command
+            if self.replicated_log is not None:
+                cmd = CommandEnvelope(
+                    command_id=f"cmd_rollback_{uuid.uuid4().hex[:8]}",
+                    command_type="RollbackPolicyCommand",
+                    aggregate_id="policy_active",
+                    payload={"parent_policy_id": parent_id},
+                    correlation_id="governance_gate",
+                    causation_id="rollback_trigger",
+                )
+                receipt, _ = self.replicated_log.propose_and_commit(cmd)
+                if receipt.result_code != "POLICY_ROLLED_BACK":
+                    logger.error("Raft rollback failed to %s: %s", parent_id, receipt.result_code)
+                    return None
 
             parent = self._policy_history[parent_id]
             rolled_back = VersionedPolicy.from_mapping({

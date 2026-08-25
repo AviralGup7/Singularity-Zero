@@ -48,12 +48,50 @@ def _count_failed_stages(state: CheckpointState) -> int:
     return failed
 
 
+def verify_checkpoint_against_fsm(state: CheckpointState, authoritative_fsm: Any) -> bool:
+    """Verify that a checkpoint projection is consistent with the authoritative Raft FSM.
+
+    Enforces Axiom 1 and INVARIANT-007: Checkpoints are materialized read projections
+    and may never override or contradict the authoritative Raft FSM state.
+    """
+    if authoritative_fsm is None:
+        return True
+    
+    fsm_applied_index = getattr(authoritative_fsm, "last_applied_index", 0)
+    chk_log_index = getattr(state, "authoritative_log_index", 0)
+    
+    # Checkpoint claiming a future log index that the FSM has not applied is invalid
+    if chk_log_index > fsm_applied_index:
+        logger.warning(
+            "Checkpoint index %d is ahead of authoritative FSM index %d – rejected",
+            chk_log_index,
+            fsm_applied_index,
+        )
+        return False
+
+    # If state hash is present, check against FSM state hash
+    chk_state_hash = getattr(state, "authoritative_state_hash", "")
+    if chk_state_hash and hasattr(authoritative_fsm, "get_state_hash"):
+        fsm_state_hash = authoritative_fsm.get_state_hash()
+        if chk_log_index == fsm_applied_index and fsm_state_hash and chk_state_hash != fsm_state_hash:
+            logger.warning(
+                "Checkpoint state hash mismatch at index %d: %s != FSM %s – rejected",
+                chk_log_index,
+                chk_state_hash,
+                fsm_state_hash,
+            )
+            return False
+
+    return True
+
+
 def attempt_recovery(
     output_dir: Any,
     target_name: str,
     force_fresh: bool = False,
     storage_config: dict[str, Any] | None = None,
     local_node_id: str = "",
+    authoritative_fsm: Any | None = None,
 ) -> tuple[bool, CheckpointState | None]:
     """Scan for recoverable checkpoints across all runs for this target.
 
@@ -104,6 +142,9 @@ def attempt_recovery(
             continue
         if not _validate_checkpoint_state(state):
             logger.warning("Skipping corrupted checkpoint: run=%s", run_id)
+            continue
+        if not verify_checkpoint_against_fsm(state, authoritative_fsm):
+            logger.warning("Skipping checkpoint inconsistent with FSM: run=%s", run_id)
             continue
         completed_count = len(state.completed_stages) if hasattr(state, "completed_stages") else 0
         failed_count = _count_failed_stages(state)

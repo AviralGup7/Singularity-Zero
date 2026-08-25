@@ -35,7 +35,7 @@ src/
 │   ├── behavior/         # Application behavioral profiling and baseline modeling
 │   ├── bug_bounty/       # Bug-bounty platform scope integration and report formatting
 │   ├── checks/           # Modular security check definitions
-│   ├── intelligence/     # Lateral graph, IDOR/BAC prober, semantic deduplication, CSI
+│   ├── intelligence/     # Lateral graph, IDOR/BAC prober, finding_explainer (AI personas), semantic deduplication, CSI
 │   ├── json/             # JSON parsing and schema extraction
 │   ├── plugins/          # Third-party and built-in analysis plugins
 │   ├── plugin_runtime/   # Dynamic plugin executor and lifecycle management
@@ -75,8 +75,10 @@ src/
 ├── core/                 # 🏛️ Foundational domain models, contracts, and core utilities
 │   ├── contracts/        # Immutable models: CommandEnvelope, CommittedEntry, CommandReceipt, CanonicalTargetIdentity, ExecutionAuthorizationTuple
 │   ├── frontier/         # Partitioned Raft core & coordination:
+│   │   ├── raft_transport.py # Raft RPC protocol (AppendEntries/RequestVote) & InMemoryRaftTransport router
+│   │   ├── outbox.py     # DurableOutboxLedger & CommittedOutboxStream with CRC-64 persistence & deduplication
 │   │   ├── raft_fsm.py   # Pure deterministic PartitionFSM, aggregates, idempotency index, CertifiedSnapshot
-│   │   ├── replicated_log.py # Per-partition SHA-256 hash-chained log & leader-signed receipts
+│   │   ├── replicated_log.py # Per-partition Raft log, PartitionWAL (CRC-64 + fsync), quorum validation, leader receipts
 │   │   ├── global_coordination.py # P-0000 GlobalBudgetAggregate, GlobalRunAggregate, PlacementAuthority
 │   │   ├── run_saga.py   # DurableRunSagaEngine multi-partition workflow coordinator
 │   │   ├── projection_stream.py # ProjectionCheckpointVector & CommittedLogConsumer with gap detection

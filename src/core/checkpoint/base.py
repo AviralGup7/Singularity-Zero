@@ -91,6 +91,12 @@ class CheckpointState:
     (Chain Bug #23).
     """
 
+    authoritative_log_index: int = 0
+    """Committed Raft log index corresponding to this checkpoint projection."""
+
+    authoritative_state_hash: str = ""
+    """Deterministic canonical FSM state hash at the time of projection."""
+
     def to_dict(self) -> dict[str, Any]:
         """Convert state to a JSON-serializable dictionary."""
         raw = asdict(self)

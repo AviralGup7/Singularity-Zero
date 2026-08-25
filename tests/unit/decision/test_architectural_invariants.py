@@ -166,7 +166,8 @@ class TestAuthorizationGateDefenseInDepth:
 
     def test_gate_authorizes_valid_request(self):
         """Authorizer validates in-scope ExecutionRequest and issues signed ticket."""
-        authorizer = ExecutionAuthorizer()
+        enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=100))
+        authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
         token = ScopeToken(scope_hash="h1", allowed_domains=("example.com", "*.example.com"))
         req = ExecutionRequest(
             request_id="req-1",
