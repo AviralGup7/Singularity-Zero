@@ -26,10 +26,10 @@ This document defines the **Formal Command & State Transition Contract** for all
 - **Deterministic State Transition**:
   - $\text{available}' = \text{available} - \text{units}$
   - $\text{outstanding\_reserved}' = \text{outstanding\_reserved} + \text{units}$
-  - `subleases[sublease_id] = GlobalSubLease(status="ISSUED", units=units)`
+  - `subleases[sublease_id] = GlobalSubLease(status="RESERVED", units=units)`
   - $\text{version}' = \text{version} + 1$
 - **Emitted Domain Event**: `GlobalSubLeaseReservedEvent(run_id, partition_id, sublease_id, units)`
-- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="SUBLEASE_ISSUED")`
+- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="SUBLEASE_RESERVED")`
 - **Failure Modes**:
   - `INSUFFICIENT_GLOBAL_BUDGET`: `available < units` $\rightarrow$ `REJECTED`, $\Delta \text{version} = 0$.
   - `VERSION_CONFLICT`: version mismatch $\rightarrow$ `REJECTED`, $\Delta \text{version} = 0$.
@@ -139,16 +139,16 @@ This document defines the **Formal Command & State Transition Contract** for all
 - **FSM Read-Set**: `GlobalBudgetAggregate(P-0000)` (`subleases[sublease_id]`, `consumed`, `available`).
 - **Preconditions**:
   1. `sublease_id in subleases`
-  2. `sublease.status in ("ISSUED", "ACTIVE", "SETTLEMENT_PENDING")`
+  2. `sublease.status in ("RESERVED", "ACTIVE")` (or normalized legacy aliases)
 - **Deterministic State Transition**:
   - $\text{consumed}' = \text{consumed} + \text{units\_consumed}$
   - $\text{available}' = \text{available} + \text{units\_returned}$
-  - `subleases[sublease_id].status = "CLOSED"`
+  - `subleases[sublease_id].status = "CONSUMED"`
   - $\text{version}' = \text{version} + 1$
 - **Universal Invariant Verification**:
   $$\Delta \text{TotalBudget} = \Delta \text{Consumed} + \Delta \text{OutstandingReserved} + \Delta \text{Available} = 3 - 5 + 2 = 0$$
 - **Emitted Domain Event**: `SubLeaseReconciledEvent(sublease_id, units_consumed, units_returned)`
-- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="SUBLEASE_CLOSED")`
+- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="SUBLEASE_CONSUMED")`
 
 ---
 
@@ -254,9 +254,62 @@ This document defines the **Formal Command & State Transition Contract** for all
 
 ---
 
+### 1.10 Typed Formal Command Constructors (`src/core/frontier/commands.py`)
+
+To prevent runtime schema divergence and hand-crafted payload dictionaries, typed command constructors wrap `TypedCommand` and export to standard `CommandEnvelope` instances:
+
+| Constructor | Envelope Command Type | Aggregate ID | Target Partition | Primary Parameters |
+|---|---|---|---|---|
+| `reserve_global_budget(...)` | `ReserveGlobalBudgetCommand` | `"global_budget"` | `P-0000` | `run_id`, `partition_id`, `units`, `sublease_id` |
+| `allocate_sublease(...)` | `AllocateSubLeaseCommand` | `sublease_id` | $P_x$ | `sublease_id`, `run_id`, `units_allocated`, `partition_id` |
+| `settlement_return(...)` | `SettlementReturnCommand` | `"global_budget"` | `P-0000` | `sublease_id`, `units_consumed`, `units_returned` |
+| `promote_policy(...)` | `PromotePolicyCommand` | `"policy_active"` | `P-0000` / $P_x$ | `policy_id`, `artifact_hash`, `policy_version`, `parent_policy_id`, `generation` |
+| `rollback_policy(...)` | `RollbackPolicyCommand` | `"policy_active"` | `P-0000` / $P_x$ | `parent_policy_id`, `target_generation` |
+
+---
+
+### 1.11 Canonical Lease Lifecycle & Invariant I28 (`src/core/frontier/lease_status.py`)
+
+All sub-leases follow a finite state machine with strict transition guards:
+
+```text
+(absent) ──reserve──► RESERVED ──allocate──► ACTIVE ──settle(consumed>0)──► CONSUMED
+             │              │                    │
+             │              ├──expire────────────┴──► EXPIRED
+             │              └──compensate────────────► COMPENSATED
+             └──expire──────────────────────────────► EXPIRED
+```
+
+- **Outstanding States**: `RESERVED`, `ACTIVE`
+- **Terminal States**: `CONSUMED`, `EXPIRED`, `COMPENSATED`
+- **Compensation Rules**: `COMPENSATED` is legal *only* from `RESERVED` or `EXPIRED`. Attempting to compensate an already terminal lease is an idempotent no-op.
+- **Legacy Aliases**: Automatically normalized on read (`ISSUED` $\rightarrow$ `RESERVED`, `CLOSED` $\rightarrow$ `CONSUMED`, `SETTLEMENT_PENDING` $\rightarrow$ `ACTIVE`, `REQUESTED` $\rightarrow$ `RESERVED`).
+
+---
+
+### 1.12 Schema Versioning & Upcasting Pipeline (`src/core/contracts/command_envelope.py`)
+
+Every `CommandEnvelope` carries a `schema_version: int` (default `1`).
+- Deserialization via `CommandEnvelope.from_dict(raw)` invokes `GLOBAL_UPCASTER_REGISTRY`.
+- Upcasters execute sequentially to transform payloads from schema version $v_i \rightarrow v_{i+1}$ without requiring database rewrites or historical log mutations.
+
+---
+
+### 1.13 In-Process Pipeline Authority Runtime (`src/core/frontier/authority_runtime.py`)
+
+Single-node CLI and dashboard executions instantiate `PipelineAuthorityRuntime`, which hosts all authority objects within the process:
+- **Partition Log**: Single-node leader Raft instance (`P-0000`, quorum 1).
+- **Budget Enforcer**: `HuntBudgetEnforcer` attached to `GlobalBudgetAggregate`.
+- **Policy Gate**: `PolicyGovernanceGate` attached to authoritative replicated log.
+- **QoS & Flow Control**: `PrioritizedRealtimeBroker` (P0–P4 lanes) + `AdaptivePIDController` + `BayesianParameterBandit`.
+- **Binding**: `attach_pipeline_authority(orchestrator, run_id, config)` sets properties on `PipelineOrchestrator`.
+
+---
+
 ## 2. Recovery & Replay Invariants
 
 1. **Replay Invariant**: Replaying from certified snapshot $S$ through committed index $K$ yields identical state hash:
    $$\text{SHA256}(\text{CanonicalEncode}(\text{FSM at } K)) == \text{Receipt.state\_hash\_at\_commit}$$
-2. **Crash Resilience**: Any node crash during phase 1–3 of Raft replication causes zero state mutations; upon recovery, uncommitted proposals are truncated and committed entries are replayed from the replicated log.
-3. **Checkpoint Projection Invariance (INVARIANT-007)**: Checkpoint files are Level 3 materialized read projections and can never override or contradict the authoritative Raft FSM state. Stale or diverging checkpoints are rejected during recovery screening.
+2. **Crash Resilience (Invariant I15)**: Any CRC-64 mismatch or corrupted record in `PartitionWAL` or `DurableOutboxLedger` aborts recovery fail-closed (`WALCorruptionError`) with zero state mutations.
+3. **Receipt Authenticity (Invariant I13)**: Command receipts are signed via HMAC-SHA256 over canonical bind payloads containing `(command_id, partition_id, raft_term, raft_index, entry_hash, previous_state_hash, state_hash_at_commit, signer_key_id)`.
+4. **Checkpoint Projection Invariance (INVARIANT-007)**: Checkpoint files are Level 3 materialized read projections and can never override or contradict the authoritative Raft FSM state. Stale or diverging checkpoints are rejected during recovery screening.

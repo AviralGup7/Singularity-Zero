@@ -114,10 +114,11 @@ graph TD
         LeaderOnlySign --> ClientReceipt["Client / Worker Receipt Delivery"]
         
         IdenticalState --> DeduplicatedStream["Deduplicated Committed Outbox Ledger"]
-        DeduplicatedStream --> EffectWorkers["Asynchronous Effect Workers"]
         DeduplicatedStream --> Level3Proj["Level 3 Projections"]
     end
 ```
+
+---
 
 ## 6. The 29 Formal & Boundary System Invariants
 

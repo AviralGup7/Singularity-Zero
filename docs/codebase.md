@@ -75,20 +75,26 @@ src/
 ├── core/                 # 🏛️ Foundational domain models, contracts, and core utilities
 │   ├── contracts/        # Immutable models: CommandEnvelope, CommittedEntry, CommandReceipt, CanonicalTargetIdentity, ExecutionAuthorizationTuple
 │   ├── frontier/         # Partitioned Raft core & coordination:
-│   │   ├── raft_transport.py # Raft RPC protocol (AppendEntries/RequestVote) & InMemoryRaftTransport router
-│   │   ├── outbox.py     # DurableOutboxLedger & CommittedOutboxStream with CRC-64 persistence & deduplication
-│   │   ├── raft_fsm.py   # Pure deterministic PartitionFSM, aggregates, idempotency index, CertifiedSnapshot
-│   │   ├── replicated_log.py # Per-partition Raft log, PartitionWAL (CRC-64 + fsync), quorum validation, leader receipts
+│   │   ├── authority_runtime.py # In-process PipelineAuthorityRuntime bundle & CLI binding
+│   │   ├── commands.py       # Typed formal commands (reserve_global_budget, allocate_sublease, etc.)
 │   │   ├── global_coordination.py # P-0000 GlobalBudgetAggregate, GlobalRunAggregate, PlacementAuthority
-│   │   ├── run_saga.py   # DurableRunSagaEngine multi-partition workflow coordinator
-│   │   ├── projection_stream.py # ProjectionCheckpointVector & CommittedLogConsumer with gap detection
 │   │   ├── invariant_checker.py # 16 Formal System Invariants machine-checkable verification suite
-│   │   ├── state_authority.py # Authoritative state and settlement coordinator
+│   │   ├── lease_status.py   # Canonical LeaseStatus FSM, transition validators & I28 lifecycle
+│   │   ├── outbox.py         # DurableOutboxLedger & CommittedOutboxStream with CRC-64 persistence & deduplication
 │   │   ├── partition_authority.py # Partition router & lease fencing validator
-│   │   ├── replay_engine.py # Deterministic WAL replay & schema upcaster runner
-│   │   └── state.py      # NeuralState & CRDT LWW-set representations
+│   │   ├── projection_stream.py # ProjectionCheckpointVector & CommittedLogConsumer with gap detection
+│   │   ├── raft_fsm.py       # Pure deterministic PartitionFSM, aggregates, idempotency index, CertifiedSnapshot
+│   │   ├── raft_transport.py # Raft RPC protocol & InMemoryRaftTransport / NetworkRaftTransport routers
+│   │   ├── receipt_crypto.py # HMAC-SHA256 command receipt signing & constant-time verification (I13)
+│   │   ├── replicated_log.py # Per-partition Raft log, PartitionWAL (CRC-64 + fsync), quorum validation, leader receipts
+│   │   ├── replay_engine.py  # Deterministic WAL replay & schema upcaster runner
+│   │   ├── run_saga.py       # DurableRunSagaEngine multi-partition workflow coordinator
+│   │   ├── state_authority.py # Authoritative state and settlement coordinator
+│   │   ├── state.py          # NeuralState & CRDT LWW-set representations
+│   │   └── wal_errors.py     # Fail-closed WALCorruptionError definition
 │   ├── models/           # Shared domain entities (Job, Finding, Target, Evidence)
-│   ├── security/         # Cryptographic primitives, Ed25519 signatures, AES-GCM vault
+│   ├── security/         # Cryptographic primitives, Ed25519 signatures, AES-GCM vault, canonical Merkle roots
+│   ├── storage/          # CAS content-addressable storage store (CASStore)
 │   ├── utils/            # Shared helpers (HTTP pools, timezones, streaming, URL validator)
 │   ├── concurrency_governor.py # Dynamic thread and task concurrency throttler
 │   └── tenant_context.py # contextvars-based multi-tenant isolation
@@ -227,6 +233,8 @@ src/
 │   ├── self_healing/     # Dynamic failure recovery, stage skipping, and re-routing
 │   ├── services/         # Orchestrator core services:
 │   │   └── pipeline_orchestrator/ # DAG builder, actor scheduler, stage executors
+│   ├── storage_tiering.py# Artifact retention: hot NVMe cache → gzip compressed archive & pruning
+│   ├── output_history.py # Historical and active scan run search indexer
 │   └── unified_cache/    # Integrated cross-stage result caching
 │
 ├── realtime/             # 📡 Real-time telemetry, WebSocket hub, and PrioritizedRealtimeBroker (P0-P4 QoS)

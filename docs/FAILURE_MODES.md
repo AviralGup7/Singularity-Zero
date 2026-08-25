@@ -38,3 +38,28 @@ In automated security testing, distinguishing between a secure target and a degr
 - **Symptom**: Severity predictions fallback to static baseline or standard logistic regression.
 - **Root Cause**: Compiled machine learning dependencies (`xgboost`, `scikit-learn`) unavailable in runtime environment.
 - **Remediation**: The system automatically utilizes pure-NumPy fallback routines (`src/learning/`) ensuring inference continuity without crashing.
+
+### 5. Partition WAL Corruption (`WALCorruptionError` - Invariant I15)
+- **Symptom**: Log coordinator crashes on startup with `WALCorruptionError: CRC-64 mismatch in PartitionWAL ...`.
+- **Root Cause**: Incomplete flush, partial disk write, or external modification of physical `.aof` WAL records.
+- **Remediation**: In accordance with fail-closed invariant I15, corrupt WAL segments are never partially applied. Restore from the latest certified snapshot (`CertifiedSnapshot`) or discard the corrupt uncommitted tail after verifying integrity.
+
+### 6. Policy Governance Gate Fail-Closed Rejection
+- **Symptom**: `PolicyGovernanceGate` returns `False` / `None` and logs `Policy promotion rejected: no authoritative replicated log (fail-closed)`.
+- **Root Cause**: Attempting to promote or roll back an adaptive DRL policy in standalone mode without an active `replicated_log` Raft authority attached.
+- **Remediation**: Ensure `PipelineAuthorityRuntime` is attached to the orchestrator or provide an initialized `ReplicatedPartitionLog` instance to the gate.
+
+### 7. Process Sandbox Egress Boundary Violation (Invariant I29)
+- **Symptom**: Exploit validation fails with `EgressViolationError: Destination host ... violates scope boundary`.
+- **Root Cause**: Tool subprocess attempted to open network sockets to disallowed external hosts or internal cloud metadata addresses (`169.254.169.254`, `metadata.google.internal`).
+- **Remediation**: Verify the `ScopeToken` allowed domains configuration. Subprocess egress to non-whitelisted destinations is strictly blocked by design.
+
+### 8. Illegal Lease Transition Rejection (Invariant I28)
+- **Symptom**: `ValueError: Illegal lease transition (I28): <src> -> <dst>` or compensation failure.
+- **Root Cause**: A worker or saga attempted an out-of-order state change (e.g. attempting to compensate an already `CONSUMED` lease or transitioning from `CONSUMED` back to `ACTIVE`).
+- **Remediation**: Inspect execution sequence. Sub-lease compensations are only allowed from `RESERVED` or `EXPIRED` states. Duplicate compensations are automatically handled as idempotent no-ops.
+
+### 9. HMAC Command Receipt Verification Failure (Invariant I13)
+- **Symptom**: `verify_receipt_signature()` returns `False` or receipt validation fails during audit.
+- **Root Cause**: Mismatched `AUTHORITY_SIGNING_KEY` / `APP_SECRET_KEY` between cluster nodes, or tampered receipt payload attributes.
+- **Remediation**: Ensure all cluster nodes share the identical `AUTHORITY_SIGNING_KEY` and `AUTHORITY_SIGNING_KEY_ID` environment variables.

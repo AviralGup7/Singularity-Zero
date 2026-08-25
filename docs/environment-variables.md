@@ -16,6 +16,9 @@ This document serves as the authoritative single source of truth for all environ
 | `REDIS_TLS_CA_CERTS` | string | (None) | Path to CA bundle file for Redis mTLS connections. |
 | `SEC_ENCRYPTION_KEY` | string | (None) | Master 256-bit AES encryption key for securing cached secrets and credentials. |
 | `SEC_API_KEY_PEPPER` | string | (None) | Cryptographic pepper for Argon2id hashing of API keys. |
+| `AUTHORITY_SIGNING_KEY` | string | (None) | Master secret key used for signing HMAC-SHA256 Raft command receipts (Invariant I13). Falls back to `APP_SECRET_KEY`. |
+| `AUTHORITY_SIGNING_KEY_ID` | string | `authority-hmac-v1` | Key identifier string bound into certified command receipts. |
+| `PIPELINE_GLOBAL_BUDGET_UNITS` | integer | `10000` | Total units allocated to `GlobalBudgetAggregate` (P-0000) for sub-lease distribution. |
 
 ---
 
