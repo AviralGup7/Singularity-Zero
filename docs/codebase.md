@@ -175,14 +175,16 @@ src/
 │   ├── eta.py            # Real-time job ETA and progress computation
 │   └── history.py        # Historic scan execution retrieval and filtering
 │
-├── learning/             # 🎓 Closed-loop feedback, false-positive suppression, and ML tuning
-│   ├── config/           # ML model hyperparameters and feature configuration
-│   ├── models/           # Scikit-Learn/XGBoost classifier definitions and weights
+├── learning/             # 🎓 Closed-loop feedback, threshold auto-tuning, and policy calibration
+│   ├── config/           # Calibration hyperparameters and feature configurations
+│   ├── models/           # Calibrated severity scoring models and feature weights
 │   ├── repositories/     # Triage label and feedback persistence repositories
 │   ├── baseline_tracker.py # Scan target baseline variance tracking
-│   ├── feedback_loop.py  # Closed-loop triage signal retraining
+│   ├── feedback_loop.py  # Closed-loop triage signal and threshold adaptation
 │   ├── finding_deduplicator.py # Semantic finding deduplication (TF-IDF/Cosine)
-│   └── nuclei_tag_optimizer.py # Dynamic Nuclei template tag ranking
+│   ├── nuclei_tag_optimizer.py # Dynamic Bayesian Beta-Binomial Nuclei template tag ranking
+│   ├── threshold_tuner.py# PI-controller automatic threshold calibration
+│   └── versioned_policy.py# Immutable VersionedPolicy container for priority queue tuning
 │
 ├── mesh/                 # 🕸️ Actor Mesh interfaces and distributed state sharing
 ├── notifications/        # 📬 Notification routing, escalation policies, and digest grouping
