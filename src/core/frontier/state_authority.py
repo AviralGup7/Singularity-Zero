@@ -42,7 +42,7 @@ def _dict_findings_from_delta(state_delta: Mapping[str, Any] | None) -> tuple[di
     findings: list[dict[str, Any]] = []
     for item in raw:
         if isinstance(item, dict):
-            findings.append(item)
+            findings.append(dict(item))
         elif isinstance(item, Mapping) and not isinstance(item, (str, bytes)):
             findings.append(dict(item))
     return tuple(findings)

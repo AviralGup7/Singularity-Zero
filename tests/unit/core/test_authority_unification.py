@@ -107,7 +107,9 @@ def test_commit_stage_output_returns_dict_findings_only() -> None:
     )
     result = coord.settle_stage_output(ctx, "subdomains", output)
     assert result.status == "COMMITTED"
-    assert result.committed_findings == ({"title": "ok", "severity": "info"},)
+    assert len(result.committed_findings) == 1
+    assert result.committed_findings[0]["title"] == "ok"
+    assert result.committed_findings[0]["severity"] == "info"
 
 
 def test_partition_wal_crc_mismatch_fail_closed(tmp_path: Path) -> None:
