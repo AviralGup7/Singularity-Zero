@@ -37,42 +37,22 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 
 ## Atlas Index
 
-Live survivors first. `RETIRED` rows stay so ids are never reused.
+Live charts only. Retired ids are one-line headings after the last live chart (never reuse).
 
-| Id | Status | Chart | Absorbed / source |
-|---|---|---|---|
-| F-001 | live | Documentation portal map | [index.md](index.md) |
-| F-002 | live | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md) — absorbed F-021 |
-| F-003 | live | Authority plane (L0–L5, Raft, commands, policy) | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) — absorbed F-012, F-014, F-016 |
-| F-004 | live | Live scan: CLI, recover, DAG, authorize, I29, settle | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md) — absorbed F-005, F-010, F-013, F-015, F-017, F-029 |
-| F-005 | RETIRED | → F-004 settlement subgraph | was settlement / FINDING_CREATED |
-| F-006 | live | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) — absorbed F-011 |
-| F-007 | live | Application state machines (job, stage, finding) | `src/jobs/status.py`, `stage_status.py`, `finding_lifecycle.py` — absorbed F-008, F-027 |
-| F-008 | RETIRED | → F-007 stage CAS | was stage status |
-| F-009 | live | Resilience: breaker, QoS, PID | [architecture.md](architecture.md), [performance.md](performance.md) — absorbed F-024, F-030 |
-| F-010 | RETIRED | → F-004 authorize / I29 | was execution authorization |
-| F-011 | RETIRED | → F-006 budget | was global budget |
-| F-012 | RETIRED | → F-003 policy | was policy governance |
-| F-013 | RETIRED | → F-004 I29 | was sandbox egress |
-| F-014 | RETIRED | → F-003 Raft | was Raft commit |
-| F-015 | RETIRED | → F-004 recovery | was recovery / replay |
-| F-016 | RETIRED | → F-003 commands | was formal command path |
-| F-017 | RETIRED | → F-004 CLI | was CLI entrypoints |
-| F-018 | live | Failure-mode decision tree | [FAILURE_MODES.md](FAILURE_MODES.md) |
-| F-019 | live | Operator surface: UI, API gate, EventBus, metrics | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md) — absorbed F-023, F-026, F-031 |
-| F-020 | live | Tests and CI shards | [testing.md](testing.md) |
-| F-021 | RETIRED | → F-002 regions | was multi-region |
-| F-022 | live | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
-| F-023 | RETIRED | → F-019 EventBus | was unused vs live bus |
-| F-024 | RETIRED | → F-009 QoS | was QoS lanes |
-| F-025 | live | Non-authoritative planes: cache, config, storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) — absorbed F-028, F-032 |
-| F-026 | RETIRED | → F-019 observability | was observability stack |
-| F-027 | RETIRED | → F-007 finding SM | was finding lifecycle |
-| F-028 | RETIRED | → F-025 config trees | was three config trees |
-| F-029 | RETIRED | → F-004 stage DAG | was pipeline DAG |
-| F-030 | RETIRED | → F-009 performance | was performance / backpressure |
-| F-031 | RETIRED | → F-019 API gate | was API security |
-| F-032 | RETIRED | → F-025 storage | was storage tiering |
+| Id | Chart | Source |
+|---|---|---|
+| F-001 | Documentation portal map | [index.md](index.md) |
+| F-002 | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md) |
+| F-003 | Authority plane | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
+| F-004 | Live scan path | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md) |
+| F-006 | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
+| F-007 | Application state machines | `src/jobs/status.py`, `stage_status.py`, `finding_lifecycle.py` |
+| F-009 | Resilience: breaker, QoS, PID | [architecture.md](architecture.md), [performance.md](performance.md) |
+| F-018 | Failure-mode decision tree | [FAILURE_MODES.md](FAILURE_MODES.md) |
+| F-019 | Operator surface | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md) |
+| F-020 | Tests and CI shards | [testing.md](testing.md) |
+| F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
+| F-025 | Non-authoritative planes | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) |
 
 ---
 
@@ -210,11 +190,7 @@ flowchart TD
     WAL -->|REJECTED / DEDUPLICATED| Silent["no FINDING_CREATED"]
 ```
 
-## F-005 — RETIRED — Settlement and FINDING_CREATED
-
-**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
-
-See the survivor chart **F-004**.
+## F-005 — RETIRED → F-004
 
 ## F-006 — Leases and global budget
 
@@ -281,11 +257,7 @@ flowchart TD
 
 Illegal stage: COMPLETED→FAILED, COMPLETED→SKIPPED*, FAILED→COMPLETED, SKIPPED*→COMPLETED.
 
-## F-008 — RETIRED — Stage status CAS
-
-**RETIRED.** Overlapped / nested under [F-007](#f-007). Id kept; do not reuse.
-
-See the survivor chart **F-007**.
+## F-008 — RETIRED → F-007
 
 ## F-009 — Resilience: breaker, QoS, PID
 
@@ -316,53 +288,21 @@ flowchart TD
 
 One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN.
 
-## F-010 — RETIRED — Execution authorization
+## F-010 — RETIRED → F-004
 
-**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
+## F-011 — RETIRED → F-006
 
-See the survivor chart **F-004**.
+## F-012 — RETIRED → F-003
 
-## F-011 — RETIRED — Global budget conservation
+## F-013 — RETIRED → F-004
 
-**RETIRED.** Overlapped / nested under [F-006](#f-006). Id kept; do not reuse.
+## F-014 — RETIRED → F-003
 
-See the survivor chart **F-006**.
+## F-015 — RETIRED → F-004
 
-## F-012 — RETIRED — Policy governance
+## F-016 — RETIRED → F-003
 
-**RETIRED.** Overlapped / nested under [F-003](#f-003). Id kept; do not reuse.
-
-See the survivor chart **F-003**.
-
-## F-013 — RETIRED — I29 sandbox egress
-
-**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
-
-See the survivor chart **F-004**.
-
-## F-014 — RETIRED — Raft commit and apply
-
-**RETIRED.** Overlapped / nested under [F-003](#f-003). Id kept; do not reuse.
-
-See the survivor chart **F-003**.
-
-## F-015 — RETIRED — Recovery and replay
-
-**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
-
-See the survivor chart **F-004**.
-
-## F-016 — RETIRED — Formal command path
-
-**RETIRED.** Overlapped / nested under [F-003](#f-003). Id kept; do not reuse.
-
-See the survivor chart **F-003**.
-
-## F-017 — RETIRED — CLI and runtime entrypoints
-
-**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
-
-See the survivor chart **F-004**.
+## F-017 — RETIRED → F-004
 
 ## F-018 — Failure-mode decision tree
 
@@ -443,11 +383,7 @@ flowchart TD
 
 ---
 
-## F-021 — RETIRED — Multi-region replication
-
-**RETIRED.** Overlapped / nested under [F-002](#f-002). Id kept; do not reuse.
-
-See the survivor chart **F-002**.
+## F-021 — RETIRED → F-002
 
 ## F-022 — Gap-analysis status
 
@@ -466,17 +402,9 @@ flowchart LR
 
 ---
 
-## F-023 — RETIRED — Live EventBus vs unused bus
+## F-023 — RETIRED → F-019
 
-**RETIRED.** Overlapped / nested under [F-019](#f-019). Id kept; do not reuse.
-
-See the survivor chart **F-019**.
-
-## F-024 — RETIRED — QoS broker lanes
-
-**RETIRED.** Overlapped / nested under [F-009](#f-009). Id kept; do not reuse.
-
-See the survivor chart **F-009**.
+## F-024 — RETIRED → F-009
 
 ## F-025 — Non-authoritative planes
 
@@ -505,54 +433,27 @@ flowchart TD
     Hot --> Index
 ```
 
-## F-026 — RETIRED — Observability stack
+## F-026 — RETIRED → F-019
 
-**RETIRED.** Overlapped / nested under [F-019](#f-019). Id kept; do not reuse.
+## F-027 — RETIRED → F-007
 
-See the survivor chart **F-019**.
+## F-028 — RETIRED → F-025
 
-## F-027 — RETIRED — Finding lifecycle
+## F-029 — RETIRED → F-004
 
-**RETIRED.** Overlapped / nested under [F-007](#f-007). Id kept; do not reuse.
+## F-030 — RETIRED → F-009
 
-See the survivor chart **F-007**.
+## F-031 — RETIRED → F-019
 
-## F-028 — RETIRED — Three config trees (kept separate)
-
-**RETIRED.** Overlapped / nested under [F-025](#f-025). Id kept; do not reuse.
-
-See the survivor chart **F-025**.
-
-## F-029 — RETIRED — Pipeline stage DAG
-
-**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
-
-See the survivor chart **F-004**.
-
-## F-030 — RETIRED — Performance and backpressure
-
-**RETIRED.** Overlapped / nested under [F-009](#f-009). Id kept; do not reuse.
-
-See the survivor chart **F-009**.
-
-## F-031 — RETIRED — API security & request gate
-
-**RETIRED.** Overlapped / nested under [F-019](#f-019). Id kept; do not reuse.
-
-See the survivor chart **F-019**.
-
-## F-032 — RETIRED — Storage tiering & archival lifecycle
-
-**RETIRED.** Overlapped / nested under [F-025](#f-025). Id kept; do not reuse.
-
-See the survivor chart **F-025**.
+## F-032 — RETIRED → F-025
 
 ## Changelog
 
 | Date | Change | Kind |
 |---|---|---|
-| 2026-08-25 | Initial atlas F-001–F-030 created. Maintenance contract recorded. | add |
-| 2026-08-25 | Added api-reference.md to F-001; added DEGRADED terminal status to F-008; added F-031 (API security gate) and F-032 (storage tiering & archival). | edit |
-| 2026-08-25 | Merged overlapping per-doc charts into 11 survivors (F-002/003/004/006/007/009/019/025). Retired F-005, F-008, F-010–F-017, F-021, F-023–F-024, F-026–F-032 as headings only. Still one file. | edit |
+| 2026-08-25 | F-001–F-030 created | add |
+| 2026-08-25 | F-001/F-008 edit; F-031 F-032 added | edit |
+| 2026-08-25 | Merged into 11 survivors; retired absorbed ids | edit |
+| 2026-08-25 | Compacted retired headings and changelog (live charts unchanged) | edit |
 
-Do not delete this changelog. Append a row for every later edit.
+Append a row for every later edit. Do not delete this table.
