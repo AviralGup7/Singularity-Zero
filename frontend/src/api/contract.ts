@@ -8,6 +8,42 @@
  */
 
 export type FindingStatusApi = 'open' | 'closed' | 'accepted' | 'false_positive';
+export type FindingLifecycleSurface = 'candidate' | 'reportable' | 'false_positive';
+export type FindingLifecycleStateApi =
+  | 'candidate'
+  | 'detected'
+  | 'validated'
+  | 'exploitable'
+  | 'reportable'
+  | 'false_positive';
+
+const LIFECYCLE_ALIASES: Record<string, FindingLifecycleStateApi> = {
+  candidate: 'candidate',
+  detected: 'candidate',
+  heuristic_candidate: 'candidate',
+  open: 'candidate',
+  new: 'candidate',
+  active: 'candidate',
+  validated: 'validated',
+  exploitable: 'exploitable',
+  reportable: 'reportable',
+  false_positive: 'false_positive',
+  'false-positive': 'false_positive',
+  fp: 'false_positive',
+};
+
+export function canonicalizeFindingLifecycle(value: unknown): FindingLifecycleStateApi {
+  const key = asString(value).trim().toLowerCase();
+  if (!key) return 'candidate';
+  return LIFECYCLE_ALIASES[key] ?? 'candidate';
+}
+
+export function surfaceFindingLifecycle(value: unknown): FindingLifecycleSurface {
+  const state = canonicalizeFindingLifecycle(value);
+  if (state === 'reportable') return 'reportable';
+  if (state === 'false_positive') return 'false_positive';
+  return 'candidate';
+}
 
 export const FINDING_STATUS_TO_API: Record<string, FindingStatusApi> = {
   open: 'open',
@@ -156,6 +192,12 @@ export function normalizeFindingRecord(raw: unknown): Record<string, unknown> | 
     description: asString(rec.description || rec.title),
     severity: asString(rec.severity || 'info').toLowerCase(),
     status,
+    lifecycle_state: canonicalizeFindingLifecycle(
+      rec.lifecycle_state ?? rec.lifecycleState ?? (status === 'false_positive' ? 'false_positive' : 'candidate'),
+    ),
+    lifecycle_surface: surfaceFindingLifecycle(
+      rec.lifecycle_state ?? rec.lifecycleState ?? (status === 'false_positive' ? 'false_positive' : 'candidate'),
+    ),
     timestamp,
     confidence: asNumber(rec.confidence, 0),
     assignedTo: rec.assignedTo ?? rec.assignee ?? '',

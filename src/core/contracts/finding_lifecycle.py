@@ -3,6 +3,15 @@ from typing import Any
 
 
 class FindingLifecycleState(StrEnum):
+    """Canonical finding lifecycle.
+
+    Surface machine (F-007): CANDIDATE → REPORTABLE | FALSE_POSITIVE.
+    VALIDATED and EXPLOITABLE are refinements of CANDIDATE (still not
+    reportable). DETECTED is a legacy alias of CANDIDATE.
+    REPORTABLE and FALSE_POSITIVE are sticky.
+    """
+
+    CANDIDATE = "candidate"
     DETECTED = "detected"
     VALIDATED = "validated"
     EXPLOITABLE = "exploitable"
@@ -10,14 +19,45 @@ class FindingLifecycleState(StrEnum):
     FALSE_POSITIVE = "false_positive"
 
 
+_CANDIDATE_CLASS: frozenset[FindingLifecycleState] = frozenset(
+    {
+        FindingLifecycleState.CANDIDATE,
+        FindingLifecycleState.DETECTED,
+        FindingLifecycleState.VALIDATED,
+        FindingLifecycleState.EXPLOITABLE,
+    }
+)
+
 _STICKY_STATES: frozenset[FindingLifecycleState] = frozenset(
     {FindingLifecycleState.REPORTABLE, FindingLifecycleState.FALSE_POSITIVE}
 )
 
+_ALIASES: dict[str, FindingLifecycleState] = {
+    "candidate": FindingLifecycleState.CANDIDATE,
+    "detected": FindingLifecycleState.CANDIDATE,
+    "heuristic_candidate": FindingLifecycleState.CANDIDATE,
+    "open": FindingLifecycleState.CANDIDATE,
+    "new": FindingLifecycleState.CANDIDATE,
+    "active": FindingLifecycleState.CANDIDATE,
+    "validated": FindingLifecycleState.VALIDATED,
+    "exploitable": FindingLifecycleState.EXPLOITABLE,
+    "reportable": FindingLifecycleState.REPORTABLE,
+    "false_positive": FindingLifecycleState.FALSE_POSITIVE,
+    "false-positive": FindingLifecycleState.FALSE_POSITIVE,
+    "fp": FindingLifecycleState.FALSE_POSITIVE,
+}
+
 _ALLOWED_TRANSITIONS: dict[FindingLifecycleState, set[FindingLifecycleState]] = {
+    FindingLifecycleState.CANDIDATE: {
+        FindingLifecycleState.VALIDATED,
+        FindingLifecycleState.EXPLOITABLE,
+        FindingLifecycleState.REPORTABLE,
+        FindingLifecycleState.FALSE_POSITIVE,
+    },
     FindingLifecycleState.DETECTED: {
         FindingLifecycleState.VALIDATED,
         FindingLifecycleState.EXPLOITABLE,
+        FindingLifecycleState.REPORTABLE,
         FindingLifecycleState.FALSE_POSITIVE,
     },
     FindingLifecycleState.VALIDATED: {
@@ -36,19 +76,55 @@ _ALLOWED_TRANSITIONS: dict[FindingLifecycleState, set[FindingLifecycleState]] = 
 
 def normalize_lifecycle_state(value: str | None) -> FindingLifecycleState:
     lowered = str(value or "").strip().lower()
+    aliased = _ALIASES.get(lowered)
+    if aliased is not None:
+        return aliased
     for state in FindingLifecycleState:
         if lowered == state.value:
             return state
-    return FindingLifecycleState.DETECTED
+    return FindingLifecycleState.CANDIDATE
+
+
+def surface_lifecycle_state(value: str | FindingLifecycleState | None) -> FindingLifecycleState:
+    """F-007 surface: CANDIDATE | REPORTABLE | FALSE_POSITIVE."""
+    state = (
+        value
+        if isinstance(value, FindingLifecycleState)
+        else normalize_lifecycle_state(str(value) if value is not None else None)
+    )
+    if state in _STICKY_STATES:
+        return state
+    if state in _CANDIDATE_CLASS:
+        return FindingLifecycleState.CANDIDATE
+    return FindingLifecycleState.CANDIDATE
 
 
 def can_transition(current: FindingLifecycleState, target: FindingLifecycleState) -> bool:
     """Return True if a transition from ``current`` to ``target`` is allowed.
 
     Self-transitions (current == target) are always allowed so callers can
-    safely re-apply lifecycle inference without raising.
+    safely re-apply lifecycle inference without raising. CANDIDATE and DETECTED
+    are the same surface bucket.
     """
     if current == target:
+        return True
+    if (
+        current in _CANDIDATE_CLASS
+        and target in _CANDIDATE_CLASS
+        and surface_lifecycle_state(current) == surface_lifecycle_state(target)
+    ):
+        # Refinement inside CANDIDATE (detected → validated → exploitable).
+        if current is FindingLifecycleState.EXPLOITABLE and target in {
+            FindingLifecycleState.CANDIDATE,
+            FindingLifecycleState.DETECTED,
+            FindingLifecycleState.VALIDATED,
+        }:
+            return False
+        if current is FindingLifecycleState.VALIDATED and target in {
+            FindingLifecycleState.CANDIDATE,
+            FindingLifecycleState.DETECTED,
+        }:
+            return False
         return True
     return target in _ALLOWED_TRANSITIONS.get(current, set())
 
@@ -113,7 +189,7 @@ def infer_lifecycle_state(finding: dict[str, Any]) -> str:
         "response_similarity_match",
     }:
         return FindingLifecycleState.VALIDATED.value
-    return FindingLifecycleState.DETECTED.value
+    return FindingLifecycleState.CANDIDATE.value
 
 
 def apply_lifecycle(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -124,9 +200,23 @@ def apply_lifecycle(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         source = normalize_lifecycle_state(current) if current is not None else None
         if source in _STICKY_STATES:
             item["lifecycle_state"] = source.value
+            item["lifecycle_surface"] = source.value
             normalized.append(item)
             continue
         inferred = infer_lifecycle_state(item)
-        item["lifecycle_state"] = transition_state(current, inferred)
+        stamped = transition_state(current, inferred)
+        item["lifecycle_state"] = stamped
+        item["lifecycle_surface"] = surface_lifecycle_state(stamped).value
         normalized.append(item)
     return normalized
+
+
+__all__ = [
+    "FindingLifecycleState",
+    "apply_lifecycle",
+    "can_transition",
+    "infer_lifecycle_state",
+    "normalize_lifecycle_state",
+    "surface_lifecycle_state",
+    "transition_state",
+]

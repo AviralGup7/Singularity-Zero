@@ -11,6 +11,7 @@ from src.core.contracts.finding_lifecycle import (
     can_transition,
     infer_lifecycle_state,
     normalize_lifecycle_state,
+    surface_lifecycle_state,
     transition_state,
 )
 
@@ -19,13 +20,15 @@ from src.core.contracts.finding_lifecycle import (
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("detected", FindingLifecycleState.DETECTED),
+        ("detected", FindingLifecycleState.CANDIDATE),
+        ("candidate", FindingLifecycleState.CANDIDATE),
         ("VALIDATED", FindingLifecycleState.VALIDATED),
         ("exploitable", FindingLifecycleState.EXPLOITABLE),
         ("reportable", FindingLifecycleState.REPORTABLE),
-        ("", FindingLifecycleState.DETECTED),
-        (None, FindingLifecycleState.DETECTED),
-        ("nope", FindingLifecycleState.DETECTED),
+        ("false_positive", FindingLifecycleState.FALSE_POSITIVE),
+        ("", FindingLifecycleState.CANDIDATE),
+        (None, FindingLifecycleState.CANDIDATE),
+        ("nope", FindingLifecycleState.CANDIDATE),
     ],
 )
 def test_normalize_lifecycle_state(value, expected: FindingLifecycleState) -> None:
@@ -37,8 +40,10 @@ def test_normalize_lifecycle_state(value, expected: FindingLifecycleState) -> No
     ("current", "target", "allowed"),
     [
         (FindingLifecycleState.DETECTED, FindingLifecycleState.VALIDATED, True),
+        (FindingLifecycleState.CANDIDATE, FindingLifecycleState.REPORTABLE, True),
+        (FindingLifecycleState.CANDIDATE, FindingLifecycleState.FALSE_POSITIVE, True),
         (FindingLifecycleState.DETECTED, FindingLifecycleState.EXPLOITABLE, True),
-        (FindingLifecycleState.DETECTED, FindingLifecycleState.REPORTABLE, False),
+        (FindingLifecycleState.DETECTED, FindingLifecycleState.REPORTABLE, True),
         (FindingLifecycleState.VALIDATED, FindingLifecycleState.REPORTABLE, True),
         (FindingLifecycleState.EXPLOITABLE, FindingLifecycleState.REPORTABLE, True),
         (FindingLifecycleState.REPORTABLE, FindingLifecycleState.DETECTED, False),
@@ -87,16 +92,27 @@ def test_infer_lifecycle_validated_for_unknown_validation_state() -> None:
 
 
 @pytest.mark.unit
-def test_infer_lifecycle_detected_default() -> None:
-    assert infer_lifecycle_state({}) == "detected"
-    assert infer_lifecycle_state({"validation_state": "passive_only"}) == "detected"
+def test_infer_lifecycle_candidate_default() -> None:
+    assert infer_lifecycle_state({}) == "candidate"
+    assert infer_lifecycle_state({"validation_state": "passive_only"}) == "candidate"
 
 
 @pytest.mark.unit
 def test_apply_lifecycle_stamps_state() -> None:
     findings = apply_lifecycle([{"severity": "low"}, {"verified": True}])
-    assert findings[0]["lifecycle_state"] == "detected"
+    assert findings[0]["lifecycle_state"] == "candidate"
+    assert findings[0]["lifecycle_surface"] == "candidate"
     assert findings[1]["lifecycle_state"] == "exploitable"
+    assert findings[1]["lifecycle_surface"] == "candidate"
+
+
+@pytest.mark.unit
+def test_surface_lifecycle_collapses_candidate_class() -> None:
+    assert surface_lifecycle_state("detected") is FindingLifecycleState.CANDIDATE
+    assert surface_lifecycle_state("validated") is FindingLifecycleState.CANDIDATE
+    assert surface_lifecycle_state("exploitable") is FindingLifecycleState.CANDIDATE
+    assert surface_lifecycle_state("reportable") is FindingLifecycleState.REPORTABLE
+    assert surface_lifecycle_state("false_positive") is FindingLifecycleState.FALSE_POSITIVE
 
 
 @pytest.mark.unit

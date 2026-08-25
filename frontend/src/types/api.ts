@@ -404,7 +404,7 @@ export interface Finding {
   cve?: string;
   cwe?: string;
   target?: string;
-  status?: 'open' | 'closed' | 'accepted' | 'reviewed';
+  status?: 'open' | 'closed' | 'accepted' | 'reviewed' | 'false_positive';
   cvss_score?: number;
   cvss_vector?: string;
   cvss_explanation?: string;

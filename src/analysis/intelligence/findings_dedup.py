@@ -25,10 +25,12 @@ _VALIDATION_STATE_RANKS: dict[str, int] = {
 
 _LIFECYCLE_RANKS: dict[str, int] = {
     "": 0,
+    "candidate": 1,
     "detected": 1,
     "validated": 2,
     "exploitable": 3,
     "reportable": 4,
+    "false_positive": 5,
 }
 
 

@@ -11,6 +11,7 @@ import type {
   MigrationEvent,
 } from '../types/api';
 
+import { normalizeFinding } from '../telemetry/normalizer';
 import {
   mergeTelemetry,
   normalizeStageEntry,
@@ -128,8 +129,10 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
   if (event.event_type === 'finding_batch') {
     const data = event.data as Record<string, unknown>;
     if (Array.isArray(data.findings)) {
-   
-      ctx.setStreamingFindings((prev) => [...prev, ...(data.findings as Finding[])]);
+      const incoming = data.findings
+        .map((item) => normalizeFinding(item))
+        .filter((item): item is Finding => Boolean(item?.id));
+      ctx.setStreamingFindings((prev) => [...prev, ...incoming]);
     }
   }
 

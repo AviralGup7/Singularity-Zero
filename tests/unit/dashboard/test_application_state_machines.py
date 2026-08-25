@@ -180,7 +180,9 @@ def test_finding_reportable_and_false_positive_are_sticky() -> None:
 @pytest.mark.unit
 def test_finding_illegal_transition_does_not_raise() -> None:
     assert transition_state("reportable", "detected") == "reportable"
+    assert transition_state("reportable", "candidate") == "reportable"
     assert FindingLifecycleState.FALSE_POSITIVE.value == "false_positive"
+    assert FindingLifecycleState.CANDIDATE.value == "candidate"
 
 
 @pytest.mark.unit

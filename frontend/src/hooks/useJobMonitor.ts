@@ -12,6 +12,7 @@ import { useSSEProgress } from './useSSEProgress';
 import type { SseEvent } from './useSSEProgress';
 import { processJobMonitorSseEvent } from './useJobMonitorSse';
 import type { Job } from '../types/api';
+import { normalizeJob, normalizeTelemetryPayload } from '../telemetry/normalizer';
 import {
   mergeStageProgressLists,
   mergeTelemetry,
@@ -99,6 +100,8 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       if (!jobData) {
         bufferDispatch({ type: 'SET_ERROR', payload: 'Job not found' });
       } else {
+        const envelope = normalizeTelemetryPayload('rest', jobData);
+        const normalizedJob = envelope.job ?? normalizeJob(jobData) ?? jobData;
         const logs = logsData?.logs.filter((_, i) => {
           const id = `${logsData.job_id}-${i}`;
           if (seenPollIdsRef.current.has(id)) return false;
@@ -114,19 +117,23 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           return true;
         }) || [];
 
-        dispatch({ type: 'SET_JOB_DATA', payload: jobData, logs, source: 'polling' });
+        dispatch({ type: 'SET_JOB_DATA', payload: normalizedJob, logs, source: 'polling' });
 
-        const synthesizedCurrent = synthesizeCurrentStageEntry(jobData);
+        const synthesizedCurrent = synthesizeCurrentStageEntry(normalizedJob);
         if (synthesizedCurrent) {
           bufferDispatch({ type: 'UPDATE_STAGE_PROGRESS', payload: synthesizedCurrent, source: 'polling' });
         }
 
-        if (Array.isArray(jobData.stage_progress)) {
-          bufferDispatch({ type: 'SET_STAGE_PROGRESS_LIST', payload: jobData.stage_progress, source: 'polling' });
+        if (envelope.stages.length) {
+          bufferDispatch({ type: 'SET_STAGE_PROGRESS_LIST', payload: envelope.stages, source: 'polling' });
+        } else if (Array.isArray(normalizedJob.stage_progress)) {
+          bufferDispatch({ type: 'SET_STAGE_PROGRESS_LIST', payload: normalizedJob.stage_progress, source: 'polling' });
         }
 
-        if (jobData.progress_telemetry) {
-          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: jobData.progress_telemetry, source: 'polling' });
+        if (Object.keys(envelope.telemetry).length) {
+          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: envelope.telemetry, source: 'polling' });
+        } else if (normalizedJob.progress_telemetry) {
+          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: normalizedJob.progress_telemetry, source: 'polling' });
         }
       }
     } catch (err) {
@@ -187,13 +194,12 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   // --- WebSocket (log streaming) ---
   const handleWsMessage = useCallback(
     (data: unknown) => {
-      const msg = data as Record<string, unknown>;
-      const msgType = typeof msg.type === 'string' ? msg.type : '';
-      if ((msgType === 'log' || msg.log_line) && typeof (msg.line || msg.log_line) === 'string') {
-        bufferDispatch({ type: 'ADD_LOG_LINE', payload: (msg.line || msg.log_line) as string });
+      const envelope = normalizeTelemetryPayload('ws', data);
+      for (const line of envelope.logLines) {
+        bufferDispatch({ type: 'ADD_LOG_LINE', payload: line });
       }
-      if (msg.job_update) {
-        bufferDispatch({ type: 'UPDATE_JOB', payload: msg.job_update as Partial<Job>, source: 'realtime' });
+      if (envelope.job) {
+        bufferDispatch({ type: 'UPDATE_JOB', payload: envelope.job, source: 'realtime' });
       }
     },
     [bufferDispatch]
