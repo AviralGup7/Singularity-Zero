@@ -53,6 +53,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
 | F-025 | Non-authoritative planes | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) |
+| F-033 | Global invariants I30–I32 | `src/core/frontier/global_invariants.py`, `event_delivery.py` |
 
 ---
 
@@ -179,15 +180,16 @@ flowchart TD
     DAG --> Req["ExecutionRequest + ScopeToken"]
     Req --> Budget{"HuntBudget reserve"}
     Budget -->|exhausted| Rej["ScopeAuthorizationError"]
-    Budget -->|ok| Ticket["AuthorizedExecutionTicket"]
+    Budget -->|ok| Ticket["AuthorizedExecutionTicket I30 binds scope+reservation+revision+command"]
     Ticket --> SB["ProcessSandbox I29 metadata-guard"]
     SB -->|out of scope| Viol["EgressViolationError"]
     SB --> Out["StageOutput / RawExecutionClaim"]
     Out --> Coord["SettlementCoordinator 5-stage"]
     Coord --> Thaw["_to_mutable"]
     Thaw --> WAL["append SettlementIntent"]
-    WAL -->|COMMITTED| Emit["EventBus FINDING_CREATED"]
-    WAL -->|REJECTED / DEDUPLICATED| Silent["no FINDING_CREATED"]
+    WAL -->|COMMITTED + wal_id I31| Outbox["DurableOutbox FINDING_CREATED"]
+    Outbox --> Emit["EventBus notify I32"]
+    WAL -->|REJECTED / DEDUPLICATED / no wal_id| Silent["no FINDING_CREATED"]
 ```
 
 ## F-005 — RETIRED → F-004
@@ -349,8 +351,10 @@ flowchart TD
     WS -->|drop| REST
     Norm --> Stores["Zustand stores"]
     Stores --> Pages["Jobs / Findings / Cockpit"]
-    Settle["Settlement COMMITTED"] --> LiveBus["event_bus.EventBus"]
+    Settle["Settlement COMMITTED"] --> Outbox["L2 DurableOutbox"]
+    Outbox --> LiveBus["event_bus.EventBus in-process notify"]
     LiveBus --> Fan["fan-out cap 5"]
+    LiveBus -.->|"delivery fail ≠ uncommit I32"| Settle
     Unused["events.bus UNUSED"] --> PerfSuite["perfection suite only"]
     App["pipeline + dashboard"] --> Prom["Prometheus"]
     App --> Logs["JSON logs + HMAC audit"]
@@ -446,6 +450,36 @@ flowchart TD
 ## F-031 — RETIRED → F-019
 
 ## F-032 — RETIRED → F-025
+
+## F-033 — Global invariants I30–I32
+
+Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/event_delivery.py`.
+
+```mermaid
+flowchart TD
+    subgraph I30["I30 authorization causality"]
+        Scope["ScopeToken hash"]
+        Res["BudgetReservation id"]
+        Rev["AuthorityRevision"]
+        Cmd["CommandId"]
+        Scope --> Ticket["AuthorizedExecutionTicket"]
+        Res --> Ticket
+        Rev --> Ticket
+        Cmd --> Ticket
+        Ticket -->|"missing any binding"| Reject["AuthorizationCausalityError"]
+    end
+    subgraph I31["I31 settlement causality"]
+        Intent["SettlementIntent"] --> Durable["WAL wal_id COMMITTED"]
+        Durable -->|"yes"| Finding["FINDING_CREATED allowed"]
+        Durable -->|"no"| NoEmit["no EventBus finding"]
+    end
+    subgraph I32["I32 EventBus is not authority"]
+        Finding --> Outbox["DurableOutbox append"]
+        Outbox --> Bus["EventBus dispatcher"]
+        Bus --> Consumers["in-process observers"]
+        Bus -.->|"handler/outbox fail"| Still["authoritative state unchanged"]
+    end
+```
 
 ## Changelog
 
