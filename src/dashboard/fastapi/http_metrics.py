@@ -1,7 +1,5 @@
 """HTTP request metrics middleware for per-endpoint latency tracking.
 
-import logging
-logger = logging.getLogger(__name__)
 Provides Prometheus histograms for request latency decomposed by
 method, route template, and status code. Includes cardinality controls
 to prevent label explosion from high-cardinality path parameters.
@@ -28,6 +26,7 @@ from src.dashboard.fastapi.http_metrics_policy import (
     normalize_http_metrics_path,
     should_enable_http_metrics,
 )
+from src.infrastructure.observability.cardinality import HTTP_METHODS, HTTP_STATUS_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +54,7 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
     - `cyber_pipeline_http_request_duration_seconds` (histogram by method, route, status)
     - `cyber_pipeline_http_requests_total` (counter by method, route, status)
     - `cyber_pipeline_http_request_errors_total` (counter by method, route, status_class)
+    - `cyber_pipeline_http_requests_in_flight` (gauge by method)
 
     Route templates are normalized to prevent cardinality explosion.
     Maximum of 256 unique route templates are tracked; additional routes
@@ -105,8 +105,22 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
         return template
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        method = request.method
+        method = HTTP_METHODS.get(request.method.upper())
         route = self._resolve_route(request)
+
+        inflight = None
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+
+            inflight = get_metrics().gauge(
+                "http_requests_in_flight",
+                "Number of HTTP requests currently being processed",
+                labels={"method": method},
+            )
+            inflight.inc()
+        except Exception:
+            logger.debug("Metrics tracking error", exc_info=True)
+            inflight = None
 
         start = time.monotonic()
         status_code = 500
@@ -118,16 +132,20 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
             status_code = 500
             raise
         finally:
+            if inflight is not None:
+                try:
+                    inflight.dec()
+                except Exception:
+                    logger.debug("Metrics tracking error", exc_info=True)
             duration = time.monotonic() - start
             status_label = str(status_code)
-            status_class = f"{status_code // 100}xx"
+            status_class = HTTP_STATUS_CLASSES.get(f"{status_code // 100}xx")
 
             try:
                 from src.infrastructure.observability.metrics import get_metrics
 
                 metrics = get_metrics()
 
-                # Per-endpoint latency histogram
                 metrics.histogram(
                     "http_request_duration_seconds",
                     "HTTP request latency in seconds by method, route, and status",
@@ -135,26 +153,17 @@ class HTTPMetricsMiddleware(BaseHTTPMiddleware):
                     labels={"method": method, "route": route, "status": status_label},
                 ).observe(duration)
 
-                # Request rate counter
                 metrics.counter(
                     "http_requests_total",
                     "Total HTTP requests by method, route, and status",
                     labels={"method": method, "route": route, "status": status_label},
                 ).inc()
 
-                # Error rate counter (by status class for cardinality control)
                 if status_code >= 400:
                     metrics.counter(
                         "http_request_errors_total",
                         "Total HTTP error requests by method, route, and status class",
                         labels={"method": method, "route": route, "status_class": status_class},
                     ).inc()
-
-                # In-flight gauge
-                metrics.gauge(
-                    "http_requests_in_flight",
-                    "Number of HTTP requests currently being processed",
-                    labels={"method": method},
-                )
             except Exception:
                 logger.debug("Metrics tracking error", exc_info=True)

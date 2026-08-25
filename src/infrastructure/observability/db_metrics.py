@@ -101,7 +101,9 @@ class DBMetricsCollector:
 
         duration = time.monotonic() - start
 
-        # Classify the operation type
+        # Classify the operation type, then pin it to the documented allowlist.
+        from src.infrastructure.observability.cardinality import DB_OPERATIONS
+
         stmt_upper = statement.strip().upper() if statement else ""
         if stmt_upper.startswith("SELECT"):
             op_type = "select"
@@ -115,6 +117,7 @@ class DBMetricsCollector:
             op_type = "ddl"
         else:
             op_type = "other"
+        op_type = DB_OPERATIONS.get(op_type)
 
         try:
             from src.infrastructure.observability.metrics import get_metrics

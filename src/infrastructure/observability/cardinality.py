@@ -192,6 +192,12 @@ HTTP_STATUS_CLASSES = LabelAllowlist(
     name="http_status_classes",
 )
 
+DB_OPERATIONS = LabelAllowlist(
+    allowed={"select", "insert", "update", "delete", "ddl", "other"},
+    fallback="other",
+    name="db_operations",
+)
+
 JOB_TYPES = BoundedLabelSet(
     max_size=32,
     fallback="__other__",
