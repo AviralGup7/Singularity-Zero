@@ -77,13 +77,17 @@ class PolicyGovernanceGate:
         if hasattr(policy, "thresholds") and isinstance(policy.thresholds, dict):
             for t_name, t_val in policy.thresholds.items():
                 if not (0.0 <= float(t_val) <= 1.0):
-                    reasons.append(f"Threshold bounds violation: '{t_name}' ({t_val}) not in range [0.0, 1.0]")
+                    reasons.append(
+                        f"Threshold bounds violation: '{t_name}' ({t_val}) not in range [0.0, 1.0]"
+                    )
                     anomaly_score += 0.5
 
         # Check 1: Excessive Boost Multiplier
         for target, boost in policy.target_boosts:
             if boost > self.max_boost_multiplier:
-                reasons.append(f"Target boost for '{target}' ({boost:.2f}x) exceeds limit ({self.max_boost_multiplier:.2f}x)")
+                reasons.append(
+                    f"Target boost for '{target}' ({boost:.2f}x) exceeds limit ({self.max_boost_multiplier:.2f}x)"
+                )
                 anomaly_score += 0.5
             elif boost < 0.0:
                 reasons.append(f"Negative boost for '{target}' ({boost:.2f}x) is invalid")
@@ -94,7 +98,9 @@ class PolicyGovernanceGate:
             total_rules = len(policy.target_boosts) + len(policy.target_suppressions)
             supp_pct = len(policy.target_suppressions) / total_rules
             if supp_pct > self.max_suppression_pct:
-                reasons.append(f"Policy suppresses {supp_pct:.1%} of targets (exceeds {self.max_suppression_pct:.1%})")
+                reasons.append(
+                    f"Policy suppresses {supp_pct:.1%} of targets (exceeds {self.max_suppression_pct:.1%})"
+                )
                 anomaly_score += 0.4
 
         # Check 3: Signature verification
@@ -123,12 +129,22 @@ class PolicyGovernanceGate:
         with self._lock:
             eval_res = self.evaluate_candidate(policy)
             if not eval_res.is_safe:
-                logger.warning("Policy %s rejected by governance gate: %s", policy.policy_id, eval_res.rejection_reasons)
+                logger.warning(
+                    "Policy %s rejected by governance gate: %s",
+                    policy.policy_id,
+                    eval_res.rejection_reasons,
+                )
                 return False
 
             parent_id = self._active_policy.policy_id if self._active_policy else ""
 
-            # If Raft log is configured, propose and commit authoritative command
+            if self.replicated_log is None:
+                logger.error(
+                    "Policy promotion of %s rejected: no authoritative replicated log (fail-closed)",
+                    policy.policy_id,
+                )
+                return False
+
             if self.replicated_log is not None:
                 cmd = CommandEnvelope(
                     command_id=f"cmd_promote_{uuid.uuid4().hex[:8]}",
@@ -145,14 +161,20 @@ class PolicyGovernanceGate:
                 )
                 receipt, _ = self.replicated_log.propose_and_commit(cmd)
                 if receipt.result_code != "POLICY_PROMOTED":
-                    logger.error("Raft promotion failed for policy %s: %s", policy.policy_id, receipt.result_code)
+                    logger.error(
+                        "Raft promotion failed for policy %s: %s",
+                        policy.policy_id,
+                        receipt.result_code,
+                    )
                     return False
 
-            promoted = VersionedPolicy.from_mapping({
-                **policy.to_dict(),
-                "parent_policy_id": parent_id,
-                "status": "ACTIVE",
-            })
+            promoted = VersionedPolicy.from_mapping(
+                {
+                    **policy.to_dict(),
+                    "parent_policy_id": parent_id,
+                    "status": "ACTIVE",
+                }
+            )
             self._policy_history[promoted.policy_id] = promoted
             self._active_policy = promoted
             logger.info("Policy %s (v%s) promoted to ACTIVE", promoted.policy_id, promoted.version)
@@ -168,10 +190,18 @@ class PolicyGovernanceGate:
                 return None
             parent_id = self._active_policy.parent_policy_id
             if not parent_id or parent_id not in self._policy_history:
-                logger.warning("No valid parent policy found for rollback from %s", self._active_policy.policy_id)
+                logger.warning(
+                    "No valid parent policy found for rollback from %s",
+                    self._active_policy.policy_id,
+                )
                 return None
 
-            # If Raft log is configured, propose and commit authoritative rollback command
+            if self.replicated_log is None:
+                logger.error(
+                    "Policy rollback rejected: no authoritative replicated log (fail-closed)"
+                )
+                return None
+
             if self.replicated_log is not None:
                 cmd = CommandEnvelope(
                     command_id=f"cmd_rollback_{uuid.uuid4().hex[:8]}",
@@ -187,10 +217,16 @@ class PolicyGovernanceGate:
                     return None
 
             parent = self._policy_history[parent_id]
-            rolled_back = VersionedPolicy.from_mapping({
-                **parent.to_dict(),
-                "status": "ACTIVE",
-            })
+            rolled_back = VersionedPolicy.from_mapping(
+                {
+                    **parent.to_dict(),
+                    "status": "ACTIVE",
+                }
+            )
             self._active_policy = rolled_back
-            logger.info("Rolled back active policy to parent %s (v%s)", rolled_back.policy_id, rolled_back.version)
+            logger.info(
+                "Rolled back active policy to parent %s (v%s)",
+                rolled_back.policy_id,
+                rolled_back.version,
+            )
             return rolled_back

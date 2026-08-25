@@ -1,11 +1,25 @@
 """Unit tests for ML Policy Governance, Shadow Evaluation, and Atomic Rollback."""
 
+from src.core.frontier.replicated_log import ReplicatedPartitionLog
 from src.learning.policy_governance import PolicyGovernanceGate
 from src.learning.versioned_policy import VersionedPolicy
 
 
+def _gate(**kwargs: object) -> PolicyGovernanceGate:
+    log = ReplicatedPartitionLog(partition_id="P-0000", is_leader=True)
+    kwargs.setdefault("replicated_log", log)
+    return PolicyGovernanceGate(**kwargs)  # type: ignore[arg-type]
+
+
+def test_promote_without_log_is_fail_closed() -> None:
+    gate = PolicyGovernanceGate()
+    policy = VersionedPolicy(policy_id="pol_nolog", version="1.0.0")
+    assert gate.promote_policy(policy) is False
+    assert gate.active_policy is None
+
+
 def test_policy_governance_allows_safe_policy() -> None:
-    gate = PolicyGovernanceGate(max_boost_multiplier=5.0, max_suppression_pct=0.80)
+    gate = _gate(max_boost_multiplier=5.0, max_suppression_pct=0.80)
     policy = VersionedPolicy(
         policy_id="pol_test_1",
         version="1.0.0",
@@ -24,7 +38,7 @@ def test_policy_governance_allows_safe_policy() -> None:
 
 
 def test_policy_governance_blocks_runaway_boost() -> None:
-    gate = PolicyGovernanceGate(max_boost_multiplier=5.0)
+    gate = _gate(max_boost_multiplier=5.0)
     # Dangerous 20.0x boost indicates positive-feedback runaway
     bad_policy = VersionedPolicy(
         policy_id="pol_bad_boost",
@@ -41,7 +55,7 @@ def test_policy_governance_blocks_runaway_boost() -> None:
 
 
 def test_policy_governance_atomic_rollback() -> None:
-    gate = PolicyGovernanceGate()
+    gate = _gate()
     pol_v1 = VersionedPolicy(
         policy_id="pol_v1",
         version="1.0.0",
