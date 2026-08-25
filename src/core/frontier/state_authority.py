@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def _dict_findings_from_delta(state_delta: Mapping[str, Any] | None) -> tuple[dict[str, Any], ...]:
-    """Extract dict findings for EventBus projection. Non-dicts are dropped."""
+    """Extract mapping findings for EventBus projection. Non-mappings are dropped."""
     if not state_delta:
         return ()
     raw = state_delta.get("reportable_findings")
@@ -39,7 +39,13 @@ def _dict_findings_from_delta(state_delta: Mapping[str, Any] | None) -> tuple[di
         raw = state_delta.get("findings")
     if not isinstance(raw, (list, tuple)):
         return ()
-    return tuple(item for item in raw if isinstance(item, dict))
+    findings: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            findings.append(item)
+        elif isinstance(item, Mapping) and not isinstance(item, (str, bytes)):
+            findings.append(dict(item))
+    return tuple(findings)
 
 
 @dataclass(frozen=True, slots=True)
