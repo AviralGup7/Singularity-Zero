@@ -3,12 +3,13 @@
 Legal transitions:
 
     (absent) ──reserve──► RESERVED ──allocate──► ACTIVE ──settle(consumed>0)──► CONSUMED
-                 │              │                    │
-                 │              ├──expire────────────┴──► EXPIRED
-                 │              └──compensate────────────► COMPENSATED
-                 └──expire──────────────────────────────► EXPIRED
+                             │                      │
+                             ├──expire──────────────┴──► EXPIRED
+                             ├──compensate────────────────────────► COMPENSATED
+                             └──settle(consumed>0)────────────────► CONSUMED
+    EXPIRED ──compensate──► COMPENSATED
 
-COMPENSATED is permitted only from RESERVED or EXPIRED. Duplicate compensation
+COMPENSATED is permitted only from RESERVED or EXPIRED. ACTIVE cannot compensate. Duplicate compensation
 is an idempotent no-op. Legacy aliases (ISSUED, CLOSED, SETTLEMENT_PENDING,
 REQUESTED) are normalized on read.
 """

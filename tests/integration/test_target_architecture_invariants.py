@@ -160,7 +160,12 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
             command_id="cmd_auth_02",
             command_type="AuthorizeExecutionCommand",
             aggregate_id="exec_time",
-            payload={"capability_id": "cap-time", "sublease_id": "sub_time", "units_requested": 5},
+            payload={
+                "capability_id": "cap-time",
+                "sublease_id": "sub_time",
+                "units_requested": 5,
+                "expires_at": 1769999999.0,
+            },
             correlation_id="R-102",
             causation_id="cmd_alloc_02",
         )

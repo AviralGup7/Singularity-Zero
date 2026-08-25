@@ -329,6 +329,7 @@ class PartitionFSM:
 
         # Mutating transition
         new_version = current_version + 1
+        expires_at = float(payload.get("expires_at", 0.0) or 0.0)
         self.aggregates[cmd.aggregate_id] = AggregateState(
             aggregate_id=cmd.aggregate_id,
             aggregate_type="ExecutionAggregate",
@@ -337,6 +338,7 @@ class PartitionFSM:
                 "capability_id": cap_id,
                 "sublease_id": sublease_id,
                 "units_reserved": requested_units,
+                "expires_at": expires_at,
                 "status": "RUNNING",
             },
             status="RUNNING",
@@ -580,12 +582,13 @@ class PartitionFSM:
         expires_at = float(agg.state_payload.get("expires_at", 0.0))
         max_skew = float(cmd.payload.get("max_skew", 0.5))
 
-        if expires_at > 0.0 and observed_at < (expires_at + max_skew):
+        if expires_at <= 0.0 or observed_at < (expires_at + max_skew):
             return CommandResult(
                 status="REJECTED",
                 aggregate_id=cmd.aggregate_id,
                 resulting_aggregate_version=current_version,
                 result_code="NOT_YET_EXPIRED",
+                error_message="LeaseTimeoutCommand requires expires_at > 0 and observed_at >= expires_at + max_skew",
             ), ()
 
         # Pessimistic Lease Reconciliation (Axiom 4)

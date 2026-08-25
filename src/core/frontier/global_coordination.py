@@ -173,11 +173,10 @@ class GlobalBudgetAggregate:
         units: int,
     ) -> tuple[bool, str]:
         """Atomically reserve units from available into an outstanding sub-lease."""
+        if units <= 0:
+            return False, "NON_POSITIVE_UNITS"
         if units > self.available:
-            return (
-                False,
-                f"Insufficient available budget: requested {units} > available {self.available}",
-            )
+            return False, "INSUFFICIENT_GLOBAL_BUDGET"
 
         self.available -= units
         self.subleases[sublease_id] = GlobalSubLease(

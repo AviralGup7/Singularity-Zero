@@ -51,6 +51,16 @@ def test_global_budget_rejects_duplicate_settlement():
     assert budget.verify_conservation()
 
 
+def test_global_budget_rejects_insufficient_with_standard_code():
+    budget = GlobalBudgetAggregate(total_budget=10)
+    ok, msg = budget.reserve_sublease("sl-x", run_id="R", partition_id="P-0000", units=50)
+    assert ok is False
+    assert msg == "INSUFFICIENT_GLOBAL_BUDGET"
+    ok0, msg0 = budget.reserve_sublease("sl-0", run_id="R", partition_id="P-0000", units=0)
+    assert ok0 is False
+    assert msg0 == "NON_POSITIVE_UNITS"
+
+
 def test_global_budget_rejects_negative_units():
     budget = GlobalBudgetAggregate(total_budget=1000)
     budget.reserve_sublease("sl-4", run_id="R-4", partition_id="P-0100", units=100)
