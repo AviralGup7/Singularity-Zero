@@ -30,6 +30,19 @@ from src.core.frontier.state import NeuralState
 logger = logging.getLogger(__name__)
 
 
+def _to_mutable(value: Any) -> Any:
+    """Deep-copy mappings/sequences so FrontierWAL can msgpack them.
+
+    ``StageOutput`` freezes ``state_delta`` into ``MappingProxyType``;
+    a shallow ``dict()`` leaves nested proxies and WAL append fails.
+    """
+    if isinstance(value, Mapping):
+        return {k: _to_mutable(v) for k, v in value.items()}
+    if isinstance(value, (tuple, list, set, frozenset)):
+        return [_to_mutable(item) for item in value]
+    return value
+
+
 def _dict_findings_from_delta(state_delta: Mapping[str, Any] | None) -> tuple[dict[str, Any], ...]:
     """Extract mapping findings for EventBus projection. Non-mappings are dropped."""
     if not state_delta:
@@ -200,7 +213,7 @@ class StateAuthority:
             if intent.execution_id and intent.execution_id in self._committed_execution_ids:
                 return "DEDUPLICATED"
 
-            envelope = intent.to_dict()
+            envelope = _to_mutable(intent.to_dict())
             wal_id: str | None = None
             if self.wal is not None:
                 if hasattr(self.wal, "log_delta"):
@@ -237,13 +250,6 @@ class StateAuthority:
     ) -> SettlementResult:
         """Authoritatively merge a full StageOutput into pipeline context state."""
         from src.core.contracts.state_schema import GLOBAL_STATE_SCHEMA_REGISTRY
-
-        def _to_mutable(value: Any) -> Any:
-            if isinstance(value, Mapping):
-                return {k: _to_mutable(v) for k, v in value.items()}
-            if isinstance(value, (tuple, list, set, frozenset)):
-                return [_to_mutable(item) for item in value]
-            return value
 
         with self._lock:
             exec_id = getattr(stage_output, "stage_name", stage_name)
@@ -291,13 +297,6 @@ class StateAuthority:
         """Level-3 ctx projection. Must run only after a durable WAL append."""
         from src.core.models.stage_result import StageStatus
         from src.core.models.stage_status import resolve_skip_status
-
-        def _to_mutable(value: Any) -> Any:
-            if isinstance(value, Mapping):
-                return {k: _to_mutable(v) for k, v in value.items()}
-            if isinstance(value, (tuple, list, set, frozenset)):
-                return [_to_mutable(item) for item in value]
-            return value
 
         state_delta = _to_mutable(dict(stage_output.state_delta))
         if wal_id and hasattr(ctx.result, "_neural_state"):
@@ -377,7 +376,7 @@ class SettlementIntent:
             "policy_version": self.policy_version,
             "outcome": self.outcome,
             "stage_name": self.stage_name,
-            "state_delta": dict(self.state_delta),
+            "state_delta": _to_mutable(self.state_delta),
             "budget_action": self.budget_action,
             "budget_request_count": self.budget_request_count,
             "lease_action": self.lease_action,
@@ -899,7 +898,7 @@ class SettlementCoordinator:
         if exec_id and self.state_authority.is_committed(exec_id):
             return SettlementResult(execution_id=exec_id, status="DEDUPLICATED")
 
-        state_delta = dict(getattr(stage_output, "state_delta", {}) or {})
+        state_delta = _to_mutable(getattr(stage_output, "state_delta", {}) or {})
         committed_findings = _dict_findings_from_delta(state_delta)
         outcome = (
             "FAILED" if getattr(stage_output.outcome, "value", "") == "failed" else "COMPLETED"

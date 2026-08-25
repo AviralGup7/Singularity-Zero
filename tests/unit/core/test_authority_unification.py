@@ -194,6 +194,25 @@ def test_process_sandbox_default_filter_blocks_metadata() -> None:
     sandbox.check_egress("api.example.com")
 
 
+def test_settle_stage_output_serializes_frozen_stage_delta(tmp_path: Path) -> None:
+    from src.infrastructure.frontier.wal import FrontierWAL
+
+    wal = FrontierWAL(None, "run-freeze", aof_dir=tmp_path / "wal")
+    auth = StateAuthority(wal=wal)
+    coord = SettlementCoordinator(state_authority=auth)
+    ctx = PipelineContext(result=StageResult(), run_id="run-freeze")
+    output = StageOutput(
+        stage_name="subdomains",
+        outcome=StageOutcome.COMPLETED,
+        duration_seconds=0.1,
+        state_delta={"reportable_findings": [{"title": "ok", "severity": "info"}]},
+    )
+    result = coord.settle_stage_output(ctx, "subdomains", output)
+    assert result.status == "COMMITTED"
+    assert result.wal_id
+    assert result.committed_findings[0]["title"] == "ok"
+
+
 def test_settle_stage_output_is_idempotent_by_execution_id() -> None:
     auth = StateAuthority()
     coord = SettlementCoordinator(state_authority=auth)

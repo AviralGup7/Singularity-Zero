@@ -8,7 +8,7 @@ purity). This module is the only factory the scan path should call.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.core.frontier.authority_runtime import PipelineAuthorityRuntime
 from src.decision.authorization import ExecutionAuthorizer
@@ -56,7 +56,7 @@ def resolve_execution_authorizer(
     """Prefer the live CLI authorizer so every stage shares one budget."""
     runtime = getattr(ctx, "authority_runtime", None) if ctx is not None else None
     if runtime is not None and getattr(runtime, "authorizer", None) is not None:
-        return runtime.authorizer
+        return cast(ExecutionAuthorizer, runtime.authorizer)
     enforcer = budget_enforcer
     if enforcer is None and ctx is not None:
         enforcer = getattr(ctx, "budget_enforcer", None)

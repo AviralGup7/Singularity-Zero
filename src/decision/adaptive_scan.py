@@ -443,8 +443,17 @@ class AdaptiveScanCoordinator:
 
         async def scan_one(url: str) -> ScanResult:
             start = time.monotonic()
+            probe = self._probe_fn
+            if probe is None:
+                return ScanResult(
+                    target=url,
+                    success=False,
+                    findings=[],
+                    duration_ms=0.0,
+                    error="probe_fn not set",
+                )
             try:
-                findings = await self._probe_fn(url)
+                findings = await probe(url)
                 duration_ms = (time.monotonic() - start) * 1000
                 return ScanResult(
                     target=url,
