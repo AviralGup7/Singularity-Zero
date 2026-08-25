@@ -14,6 +14,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+import enum
+
 logger = logging.getLogger(__name__)
 
 SENSITIVE_ENV_PREFIXES = (
@@ -30,6 +32,13 @@ SENSITIVE_ENV_PREFIXES = (
 )
 
 
+class SandboxClass(enum.StrEnum):
+    """Distinguishes lightweight native fuzzer workloads from heavy browser DOM runtimes."""
+
+    NATIVE = "native"
+    DOM = "dom"
+
+
 @dataclass(frozen=True, slots=True)
 class SandboxResourceLimits:
     """Resource constraints enforced on sandboxed subprocesses."""
@@ -38,6 +47,26 @@ class SandboxResourceLimits:
     max_cpu_seconds: int = 30
     timeout_seconds: float = 30.0
     allow_network: bool = True
+    sandbox_class: SandboxClass = SandboxClass.NATIVE
+
+    @classmethod
+    def for_class(cls, sandbox_class: SandboxClass) -> SandboxResourceLimits:
+        """Construct tailored resource limits per sandbox workload class."""
+        if sandbox_class == SandboxClass.DOM:
+            return cls(
+                max_memory_mb=2048,
+                max_cpu_seconds=120,
+                timeout_seconds=120.0,
+                allow_network=True,
+                sandbox_class=SandboxClass.DOM,
+            )
+        return cls(
+            max_memory_mb=256,
+            max_cpu_seconds=30,
+            timeout_seconds=30.0,
+            allow_network=True,
+            sandbox_class=SandboxClass.NATIVE,
+        )
 
 
 @dataclass(frozen=True, slots=True)

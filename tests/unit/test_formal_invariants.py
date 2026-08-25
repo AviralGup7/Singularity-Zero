@@ -317,3 +317,335 @@ class TestFormalSystemInvariants(unittest.TestCase):
         receipt_stale, events_stale = self.p0001_log.propose_and_commit(cmd_stale)
         self.assertEqual(receipt_stale.result_code, "KEY_REVOKED")
         self.assertEqual(len(events_stale), 0)
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I22': Temporal Invariant via Admission Gate & Clock-Free FSM
+    # -------------------------------------------------------------------------
+    def test_invariant_i22_prime_temporal_monotonicity_admission(self) -> None:
+        """INVARIANT-I22': Clock-skew gating at admission and pure clock-free FSM."""
+        import time
+
+        now = time.time()
+        # Normal command succeeds
+        cmd_valid = CommandEnvelope(
+            command_id="cmd_time_valid",
+            command_type="AllocateSubLeaseCommand",
+            aggregate_id="sub_time_1",
+            payload={"sublease_id": "sub_time_1", "units_allocated": 10, "run_id": "R1"},
+            correlation_id="corr_time_1",
+            causation_id="caus_time_1",
+            created_at_unix=now,
+        )
+        receipt, _ = self.p0001_log.propose_and_commit(cmd_valid)
+        self.assertEqual(receipt.result_code, "SUBLEASE_ALLOCATED")
+
+        # Future clock drift (> 10s) rejected on admission
+        cmd_future = CommandEnvelope(
+            command_id="cmd_time_future",
+            command_type="AllocateSubLeaseCommand",
+            aggregate_id="sub_time_2",
+            payload={"sublease_id": "sub_time_2", "units_allocated": 10, "run_id": "R1"},
+            correlation_id="corr_time_2",
+            causation_id="caus_time_2",
+            created_at_unix=now + 50.0,
+        )
+        with self.assertRaises(ValueError):
+            self.p0001_log.propose_and_commit(cmd_future)
+
+        # Backward clock skew (> 5s behind last committed) rejected on admission
+        cmd_skew = CommandEnvelope(
+            command_id="cmd_time_skew",
+            command_type="AllocateSubLeaseCommand",
+            aggregate_id="sub_time_3",
+            payload={"sublease_id": "sub_time_3", "units_allocated": 10, "run_id": "R1"},
+            correlation_id="corr_time_3",
+            causation_id="caus_time_3",
+            created_at_unix=now - 20.0,
+        )
+        with self.assertRaises(ValueError):
+            self.p0001_log.propose_and_commit(cmd_skew)
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I23: Partition Budget Isolation
+    # -------------------------------------------------------------------------
+    def test_invariant_i23_partition_budget_isolation(self) -> None:
+        """INVARIANT-I23: Cross-partition balance bleeding and negative balances strictly prohibited."""
+        # 1. Foreign partition sublease allocation rejected
+        cmd_foreign = CommandEnvelope(
+            command_id="cmd_foreign_part",
+            command_type="AllocateSubLeaseCommand",
+            aggregate_id="sub_foreign",
+            payload={
+                "sublease_id": "sub_foreign",
+                "partition_id": "P-9999",  # Foreign partition mismatch
+                "units_allocated": 50,
+                "run_id": "R1",
+            },
+            correlation_id="corr_part_1",
+            causation_id="caus_part_1",
+        )
+        receipt_for, _ = self.p0001_log.propose_and_commit(cmd_foreign)
+        self.assertEqual(receipt_for.result_code, "PARTITION_MISMATCH")
+
+        # 2. Negative allocation rejected
+        cmd_neg = CommandEnvelope(
+            command_id="cmd_neg_alloc",
+            command_type="AllocateSubLeaseCommand",
+            aggregate_id="sub_neg",
+            payload={
+                "sublease_id": "sub_neg",
+                "partition_id": "P-0001",
+                "units_allocated": -100,
+                "run_id": "R1",
+            },
+            correlation_id="corr_part_2",
+            causation_id="caus_part_2",
+        )
+        receipt_neg, _ = self.p0001_log.propose_and_commit(cmd_neg)
+        self.assertEqual(receipt_neg.result_code, "NEGATIVE_BUDGET_ALLOCATION")
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I24: Persisted Mesh BootID + Monotonic Nonce Safety
+    # -------------------------------------------------------------------------
+    def test_invariant_i24_mesh_boot_id_nonce_safety(self) -> None:
+        """INVARIANT-I24: Mesh node messages strictly require monotonically increasing nonces under BootID."""
+        from src.infrastructure.mesh.gossip.engine import GossipEngine
+        from src.infrastructure.mesh.gossip.models import MeshNode
+
+        node = MeshNode(id="node_test_1", host="127.0.0.1", port=9000)
+        engine = GossipEngine(local_node=node, secret="mesh_secret_test")
+
+        peer_id = "peer_node_a"
+        boot_1 = "boot_session_1"
+
+        # Nonce 1 accepted
+        self.assertTrue(engine.validate_incoming_nonce(peer_id, boot_1, 1))
+        # Nonce 2 accepted
+        self.assertTrue(engine.validate_incoming_nonce(peer_id, boot_1, 2))
+        # Replayed Nonce 2 rejected (I24)
+        self.assertFalse(engine.validate_incoming_nonce(peer_id, boot_1, 2))
+        # Regressing Nonce 1 rejected (I24)
+        self.assertFalse(engine.validate_incoming_nonce(peer_id, boot_1, 1))
+
+        # Node reboots with fresh boot_id: Nonce sequence safely resets
+        boot_2 = "boot_session_2"
+        self.assertTrue(engine.validate_incoming_nonce(peer_id, boot_2, 1))
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I25' & I25b: Local Partition Policy Rollback & Watermark Bounds
+    # -------------------------------------------------------------------------
+    def test_invariant_i25_policy_rollback_and_watermark(self) -> None:
+        """INVARIANT-I25', I25b: Rollback revokes newer generations; claims under revoked generations fail."""
+        # 1. Promote policy to Generation 2
+        cmd_p2 = CommandEnvelope(
+            command_id="cmd_prom_gen2",
+            command_type="PromotePolicyCommand",
+            aggregate_id="policy_agg",
+            payload={"policy_id": "pol_v2", "artifact_hash": "h2", "generation": 2},
+            correlation_id="corr_p25_1",
+            causation_id="caus_p25_1",
+        )
+        self.p0001_log.propose_and_commit(cmd_p2)
+        self.assertEqual(self.p0001_fsm.policy_watermark, 2)
+
+        # 2. Authorize execution
+        cmd_alloc = CommandEnvelope(
+            command_id="cmd_alloc_p25",
+            command_type="AllocateSubLeaseCommand",
+            aggregate_id="sub_p25",
+            payload={"sublease_id": "sub_p25", "units_allocated": 100, "run_id": "R1"},
+            correlation_id="corr_p25_2",
+            causation_id="caus_p25_2",
+        )
+        self.p0001_log.propose_and_commit(cmd_alloc)
+
+        cmd_auth = CommandEnvelope(
+            command_id="cmd_auth_p25",
+            command_type="AuthorizeExecutionCommand",
+            aggregate_id="exec_p25",
+            payload={"sublease_id": "sub_p25", "units_requested": 10, "capability_id": "cap_p25"},
+            correlation_id="corr_p25_3",
+            causation_id="caus_p25_3",
+        )
+        self.p0001_log.propose_and_commit(cmd_auth)
+
+        # 3. Rollback policy back to Generation 1 (revokes Generation 2)
+        cmd_rb = CommandEnvelope(
+            command_id="cmd_rb_gen1",
+            command_type="RollbackPolicyCommand",
+            aggregate_id="policy_agg",
+            payload={"parent_policy_id": "pol_v1", "target_generation": 1},
+            correlation_id="corr_p25_4",
+            causation_id="caus_p25_4",
+        )
+        self.p0001_log.propose_and_commit(cmd_rb)
+        self.assertEqual(self.p0001_fsm.policy_watermark, 1)
+        self.assertIn(2, self.p0001_fsm.revoked_policy_generations)
+
+        # 4. Submit claim signed under revoked Generation 2 -> REJECTED (I25')
+        cmd_claim_rev = CommandEnvelope(
+            command_id="cmd_claim_rev",
+            command_type="SubmitExecutionClaim",
+            aggregate_id="exec_p25",
+            payload={"capability_id": "cap_p25", "policy_generation": 2, "units_consumed": 5},
+            correlation_id="corr_p25_5",
+            causation_id="caus_p25_5",
+        )
+        receipt_rev, _ = self.p0001_log.propose_and_commit(cmd_claim_rev)
+        self.assertEqual(receipt_rev.result_code, "POLICY_GENERATION_REVOKED")
+
+        # 5. Submit claim with generation exceeding watermark -> REJECTED (I25b)
+        cmd_claim_high = CommandEnvelope(
+            command_id="cmd_claim_high",
+            command_type="SubmitExecutionClaim",
+            aggregate_id="exec_p25",
+            payload={"capability_id": "cap_p25", "policy_generation": 99, "units_consumed": 5},
+            correlation_id="corr_p25_6",
+            causation_id="caus_p25_6",
+        )
+        receipt_high, _ = self.p0001_log.propose_and_commit(cmd_claim_high)
+        self.assertEqual(receipt_high.result_code, "POLICY_GENERATION_EXCEEDS_WATERMARK")
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I26: Multi-Raft Quota Slab Conservation
+    # -------------------------------------------------------------------------
+    def test_invariant_i26_quota_slab_conservation(self) -> None:
+        """INVARIANT-I26: Quota slab allocation and reclamation preserves exact integer conservation."""
+        gb = self.global_budget
+        self.assertTrue(gb.verify_conservation())
+
+        # Allocate 1000 units to a partition quota slab
+        ok, _ = gb.allocate_quota_slab("slab_p1", "P-0001", 1000)
+        self.assertTrue(ok)
+        self.assertTrue(gb.verify_conservation())
+        self.assertEqual(gb.available, 4000)
+        self.assertEqual(gb.outstanding_reserved, 1000)
+
+        # Reclaim 600 consumed, 400 unused
+        ok_rec, _ = gb.reclaim_quota_slab("slab_p1", consumed_units=600)
+        self.assertTrue(ok_rec)
+        self.assertTrue(gb.verify_conservation())
+        self.assertEqual(gb.consumed, 600)
+        self.assertEqual(gb.available, 4400)
+        self.assertEqual(gb.outstanding_reserved, 0)
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I27: Bounded Claims (64KB) & CAS Merkle Root Verification
+    # -------------------------------------------------------------------------
+    def test_invariant_i27_bounded_claims_and_cas_merkle(self) -> None:
+        """INVARIANT-I27: 64KB bound validation & CAS Merkle root verification."""
+        from src.core.contracts.execution_request import ClaimSizeExceededError, RawExecutionClaim
+        from src.core.frontier.state_authority import SettlementCoordinator, StateAuthority
+        from src.core.storage.cas_store import get_global_cas_store
+
+        cas = get_global_cas_store()
+        blob1 = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html>test</html>"
+        h1 = cas.store_blob(blob1)
+        root = cas.compute_merkle_root([h1])
+        self.assertTrue(cas.verify_merkle_root([h1], root))
+
+        # 1. Bounded size check
+        oversized_findings = tuple({"data": "x" * 1000} for _ in range(100))
+        claim_large = RawExecutionClaim(
+            request_id="req_lg",
+            tenant_id="t1",
+            candidate_id="cand_lg",
+            execution_id="exec_lg",
+            lease_id="lease_lg",
+            epoch=1,
+            worker_id="w_lg",
+            outcome="COMPLETED",
+            duration_seconds=1.0,
+            findings=oversized_findings,
+        )
+        with self.assertRaises(ClaimSizeExceededError):
+            claim_large.validate_bounds()
+
+        # 2. Settle claim with valid CAS Merkle root
+        state_auth = StateAuthority()
+        coordinator = SettlementCoordinator(state_authority=state_auth)
+        valid_claim = RawExecutionClaim(
+            request_id="req_cas_valid",
+            tenant_id="t1",
+            candidate_id="cand_1",
+            execution_id="exec_cas_valid",
+            lease_id="lease_1",
+            epoch=1,
+            worker_id="w1",
+            outcome="COMPLETED",
+            duration_seconds=0.5,
+            evidence_hashes=(h1,),
+            cas_merkle_root=root,
+        )
+        res_valid = coordinator.settle_claim(valid_claim)
+        self.assertEqual(res_valid.status, "COMMITTED")
+
+        # 3. Tampered Merkle root fails closed (I27)
+        tampered_claim = RawExecutionClaim(
+            request_id="req_cas_bad",
+            tenant_id="t1",
+            candidate_id="cand_1",
+            execution_id="exec_cas_bad",
+            lease_id="lease_1",
+            epoch=1,
+            worker_id="w1",
+            outcome="COMPLETED",
+            duration_seconds=0.5,
+            evidence_hashes=(h1,),
+            cas_merkle_root="0000000000000000000000000000000000000000000000000000000000000000",
+        )
+        res_bad = coordinator.settle_claim(tampered_claim)
+        self.assertEqual(res_bad.status, "REJECTED")
+        self.assertIn("CAS evidence integrity verification failed", res_bad.error)
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I28: Hardened Lease State Machine Transitions
+    # -------------------------------------------------------------------------
+    def test_invariant_i28_hardened_lease_transitions(self) -> None:
+        """INVARIANT-I28: Safe lease compensation and idempotent duplicate recovery."""
+        gb = self.global_budget
+        gb.reserve_sublease("sl_comp", "run_comp", "P-0001", 200)
+
+        # 1. Compensate unconsumed sublease
+        ok, msg = self.saga_engine.compensate_sublease("run_comp", "P-0001", "sl_comp")
+        self.assertTrue(ok)
+        self.assertEqual(msg, "SUBLEASE_COMPENSATED_SUCCESS")
+        self.assertTrue(gb.verify_conservation())
+        self.assertEqual(gb.available, 5000)
+
+        # 2. Duplicate compensation is idempotent no-op
+        ok2, msg2 = self.saga_engine.compensate_sublease("run_comp", "P-0001", "sl_comp")
+        self.assertTrue(ok2)
+        self.assertIn("already in terminal state", msg2)
+
+    # -------------------------------------------------------------------------
+    # INVARIANT-I29: Scope-Derived Network Egress Enforcement
+    # -------------------------------------------------------------------------
+    def test_invariant_i29_scope_derived_network_egress(self) -> None:
+        """INVARIANT-I29: Outbound destinations derived from ScopeToken; cloud metadata blocked unconditionally."""
+        from src.sandbox.network_isolation import EgressViolationError, NetworkEgressFilter
+
+        token = ScopeToken(
+            scope_hash="hash_sec_1",
+            allowed_domains=("api.example.com", "*.target.internal"),
+            allowed_cidrs=("10.0.0.0/8",),
+        )
+        egress = NetworkEgressFilter.from_scope_token(token)
+
+        # Authorized destinations succeed
+        self.assertTrue(egress.is_destination_allowed("api.example.com"))
+        self.assertTrue(egress.is_destination_allowed("sub.target.internal"))
+        self.assertTrue(egress.is_destination_allowed("10.1.2.3"))
+
+        # Unauthorized domain blocked
+        self.assertFalse(egress.is_destination_allowed("evil.com"))
+        with self.assertRaises(EgressViolationError):
+            egress.validate_destination_or_raise("evil.com")
+
+        # Cloud Metadata endpoints unconditionally blocked (I29)
+        self.assertFalse(egress.is_destination_allowed("169.254.169.254"))
+        self.assertFalse(egress.is_destination_allowed("metadata.google.internal"))
+        self.assertFalse(egress.is_destination_allowed("fd00:ec2::254"))
+        with self.assertRaises(EgressViolationError):
+            egress.validate_destination_or_raise("169.254.169.254")
+

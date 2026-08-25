@@ -619,6 +619,17 @@ class SettlementCoordinator:
         with self._lock:
             exec_id = claim.execution_id or ""
 
+            # 0. Enforce 64 KB bound
+            if hasattr(claim, "validate_bounds"):
+                try:
+                    claim.validate_bounds()
+                except Exception as exc:
+                    return SettlementResult(
+                        execution_id=exec_id,
+                        status="REJECTED",
+                        error=f"Claim bound validation failed: {exc}",
+                    )
+
             # 1. Deduplication check
             if exec_id and self.state_authority.is_committed(exec_id):
                 return SettlementResult(
@@ -628,8 +639,14 @@ class SettlementCoordinator:
                     committed_deltas_count=len(claim.state_deltas),
                 )
 
-            # 2. Ticket / Nonce verification if ticket supplied
+            # 2. Ticket / Epoch / Nonce / Policy verification if ticket supplied
             if ticket is not None:
+                if hasattr(ticket, "epoch") and claim.ticket_epoch != ticket.epoch:
+                    return SettlementResult(
+                        execution_id=exec_id,
+                        status="REJECTED",
+                        error=f"Epoch mismatch: claim.ticket_epoch ({claim.ticket_epoch}) != ticket.epoch ({ticket.epoch})",
+                    )
                 if hasattr(ticket, "nonce") and claim.ticket_nonce:
                     if ticket.nonce != claim.ticket_nonce:
                         return SettlementResult(
@@ -637,8 +654,25 @@ class SettlementCoordinator:
                             status="REJECTED",
                             error="Ticket nonce mismatch: Potential replay attack detected",
                         )
+                if hasattr(ticket, "policy_generation") and claim.policy_generation != ticket.policy_generation:
+                    return SettlementResult(
+                        execution_id=exec_id,
+                        status="REJECTED",
+                        error=f"Policy generation mismatch: claim ({claim.policy_generation}) != ticket ({ticket.policy_generation})",
+                    )
 
-            # 3. Partition Fencing / Epoch check if partition router supplied
+            # 3. CAS Merkle Root & Evidence Integrity Verification (Invariant I27)
+            if claim.cas_merkle_root and claim.evidence_hashes:
+                from src.core.storage.cas_store import get_global_cas_store
+                cas_store = get_global_cas_store()
+                if not cas_store.verify_merkle_root(claim.evidence_hashes, claim.cas_merkle_root):
+                    return SettlementResult(
+                        execution_id=exec_id,
+                        status="REJECTED",
+                        error="CAS evidence integrity verification failed (I27): Merkle root mismatch or missing blob",
+                    )
+
+            # 4. Partition Fencing / Epoch check if partition router supplied
             if self.partition_router is not None and claim.candidate_id:
                 partition = self.partition_router.route_and_get_partition(claim.candidate_id)
                 fencing_ok, reason = partition.validate_claim_fencing(claim)

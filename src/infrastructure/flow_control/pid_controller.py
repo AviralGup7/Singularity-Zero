@@ -22,15 +22,18 @@ class PIDTuning:
     max_concurrency: int = 50
     min_delay_ms: float = 10.0
     max_delay_ms: float = 2000.0
+    i_max: float = 500.0       # Anti-windup integral clamp bound
+    iir_alpha: float = 0.2     # Derivative low-pass IIR filter coefficient (0.0 to 1.0)
 
 
 class AdaptivePIDController:
-    """Closed-loop controller dynamically tuning scan concurrency and throttle delays."""
+    """Closed-loop controller dynamically tuning scan concurrency and throttle delays with anti-windup & IIR filtering."""
 
     def __init__(self, tuning: PIDTuning | None = None) -> None:
         self.tuning = tuning or PIDTuning()
         self._integral: float = 0.0
         self._last_error: float = 0.0
+        self._filtered_derivative: float = 0.0
         self._last_time: float = time.time()
         self._current_concurrency: int = 10
         self._current_delay_ms: float = 50.0
@@ -43,6 +46,14 @@ class AdaptivePIDController:
     def current_delay_ms(self) -> float:
         return self._current_delay_ms
 
+    @property
+    def integral(self) -> float:
+        return self._integral
+
+    @property
+    def filtered_derivative(self) -> float:
+        return self._filtered_derivative
+
     def observe(self, observed_latency_ms: float, error_occurred: bool = False) -> tuple[int, float]:
         """Feed latest observation into the PID loop and compute adjusted concurrency & delay."""
         now = time.time()
@@ -53,15 +64,25 @@ class AdaptivePIDController:
         effective_latency = observed_latency_ms * (2.5 if error_occurred else 1.0)
         error = self.tuning.target_latency_ms - effective_latency
 
-        # PID terms
-        self._integral = max(-1000.0, min(1000.0, self._integral + (error * dt)))
-        derivative = (error - self._last_error) / dt
+        # Saturation freeze (anti-windup): freeze integral accumulation if saturated
+        is_max_saturated = (self._current_concurrency >= self.tuning.max_concurrency and error > 0)
+        is_min_saturated = (self._current_concurrency <= self.tuning.min_concurrency and error < 0)
+
+        if not (is_max_saturated or is_min_saturated):
+            self._integral += error * dt
+            # Clamp integral accumulator to [-Imax, Imax]
+            self._integral = max(-self.tuning.i_max, min(self.tuning.i_max, self._integral))
+
+        # Derivative with low-pass IIR filter
+        raw_derivative = (error - self._last_error) / dt
+        alpha = self.tuning.iir_alpha
+        self._filtered_derivative = (alpha * raw_derivative) + ((1.0 - alpha) * self._filtered_derivative)
         self._last_error = error
 
         control_signal = (
             (self.tuning.kp * error)
             + (self.tuning.ki * self._integral)
-            + (self.tuning.kd * derivative)
+            + (self.tuning.kd * self._filtered_derivative)
         )
 
         # Scale concurrency: positive control signal -> target fast, increase concurrency

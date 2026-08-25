@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import threading
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -195,8 +196,16 @@ class ReplicatedPartitionLog:
     ) -> tuple[CommandReceipt, tuple[EventEnvelope, ...]]:
         """Propose a command, enforce quorum durability, advance commitIndex, apply to FSM, and issue receipt."""
         with self._lock:
-            if self.role != "LEADER":
-                raise RuntimeError(f"Node {self.node_id} is not leader (current role: {self.role})")
+            # 0. Command Admission Clock-Skew & Drift Validation (I22')
+            now_admission = time.time()
+            if cmd.created_at_unix > now_admission + 10.0:
+                raise ValueError(
+                    f"Clock drift rejected: command timestamp {cmd.created_at_unix} is in future relative to admission clock {now_admission}"
+                )
+            if self.entries and cmd.created_at_unix < self.entries[-1].command.created_at_unix - 5.0:
+                raise ValueError(
+                    f"Clock skew rejected: command timestamp {cmd.created_at_unix} violates monotonic admission threshold (< {self.entries[-1].command.created_at_unix - 5.0})"
+                )
 
             next_index = self.commit_index + 1
             prev_hash = self._last_entry_hash

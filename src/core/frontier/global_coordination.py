@@ -44,27 +44,106 @@ class GlobalSubLease:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class QuotaSlab:
+    """Multi-Raft budget slab allocated by P-0000 to a partition leader (Invariant I26)."""
+
+    slab_id: str
+    partition_id: str
+    allocated_units: int
+    consumed_units: int = 0
+    status: str = "ALLOCATED"  # "ALLOCATED", "EXHAUSTED", "RECLAIMED"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "slab_id": self.slab_id,
+            "partition_id": self.partition_id,
+            "allocated_units": self.allocated_units,
+            "consumed_units": self.consumed_units,
+            "status": self.status,
+        }
+
+
 class GlobalBudgetAggregate:
-    """Enforces Universal Budget Conservation (Axiom 4)."""
+    """Enforces Universal Budget Conservation and Multi-Raft Quota Slabs (Axiom 4, Invariants I5, I26)."""
 
     def __init__(self, total_budget: int = 10000) -> None:
         self.total_budget: int = int(total_budget)
         self.consumed: int = 0
         self.available: int = int(total_budget)
         self.subleases: dict[str, GlobalSubLease] = {}
+        self.quota_slabs: dict[str, QuotaSlab] = {}
         self.version: int = 1
 
     @property
     def outstanding_reserved(self) -> int:
-        return sum(
+        sublease_res = sum(
             sl.units_allocated
             for sl in self.subleases.values()
             if sl.status in ("REQUESTED", "ISSUED", "ACTIVE", "SETTLEMENT_PENDING")
         )
+        slab_res = sum(
+            slab.allocated_units - slab.consumed_units
+            for slab in self.quota_slabs.values()
+            if slab.status == "ALLOCATED"
+        )
+        return sublease_res + slab_res
 
     def verify_conservation(self) -> bool:
         """Verify universal budget conservation equation: Total = Consumed + Outstanding + Available."""
         return self.total_budget == (self.consumed + self.outstanding_reserved + self.available)
+
+    def allocate_quota_slab(
+        self,
+        slab_id: str,
+        partition_id: str,
+        units: int,
+    ) -> tuple[bool, str]:
+        """Atomically allocate a budget quota slab to a partition leader (I26)."""
+        if units <= 0:
+            return False, "Slab units must be strictly positive"
+        if units > self.available:
+            return False, f"Insufficient available budget: requested {units} > available {self.available}"
+
+        self.available -= units
+        self.quota_slabs[slab_id] = QuotaSlab(
+            slab_id=slab_id,
+            partition_id=partition_id,
+            allocated_units=units,
+            consumed_units=0,
+            status="ALLOCATED",
+        )
+        self.version += 1
+        return True, "QUOTA_SLAB_ALLOCATED"
+
+    def reclaim_quota_slab(
+        self,
+        slab_id: str,
+        consumed_units: int = 0,
+    ) -> tuple[bool, str]:
+        """Reclaim remaining unconsumed quota from a slab back into available budget (I26)."""
+        slab = self.quota_slabs.get(slab_id)
+        if not slab:
+            return False, f"Quota slab {slab_id} not found"
+        if slab.status != "ALLOCATED":
+            return False, f"Quota slab {slab_id} is already {slab.status}"
+
+        consumed = max(slab.consumed_units, consumed_units)
+        if consumed > slab.allocated_units:
+            return False, f"Consumed units {consumed} exceeds slab allocated {slab.allocated_units}"
+
+        unconsumed = slab.allocated_units - consumed
+        self.consumed += consumed
+        self.available += unconsumed
+        self.quota_slabs[slab_id] = QuotaSlab(
+            slab_id=slab.slab_id,
+            partition_id=slab.partition_id,
+            allocated_units=slab.allocated_units,
+            consumed_units=consumed,
+            status="RECLAIMED",
+        )
+        self.version += 1
+        return True, "QUOTA_SLAB_RECLAIMED"
 
     def reserve_sublease(
         self,

@@ -157,6 +157,13 @@ class CandidateLease:
         return cls.from_mapping(data)
 
 
+RAW_CLAIM_MAX_BYTES: int = 64 * 1024  # 64 KB Hard Envelope Limit
+
+
+class ClaimSizeExceededError(ValueError):
+    """Raised when RawExecutionClaim exceeds the 64 KB maximum envelope bound."""
+
+
 @dataclass(frozen=True, slots=True)
 class RawExecutionClaim:
     """Untrusted execution claim emitted by an isolated worker before control-plane verification."""
@@ -177,6 +184,20 @@ class RawExecutionClaim:
     error: str = ""
     policy_version: str = ""
     ticket_nonce: str = ""
+    ticket_id: str = ""
+    ticket_epoch: int = 1
+    policy_generation: int = 1
+    cas_merkle_root: str = ""
+    worker_signature: str = ""
+
+    def validate_bounds(self) -> None:
+        """Validate claim size does not exceed 64 KB hard limit."""
+        import json
+        payload_bytes = len(json.dumps(self.to_dict()).encode("utf-8"))
+        if payload_bytes > RAW_CLAIM_MAX_BYTES:
+            raise ClaimSizeExceededError(
+                f"RawExecutionClaim size {payload_bytes} bytes exceeds 64 KB limit ({RAW_CLAIM_MAX_BYTES} bytes)"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -196,6 +217,11 @@ class RawExecutionClaim:
             "error": self.error,
             "policy_version": self.policy_version,
             "ticket_nonce": self.ticket_nonce,
+            "ticket_id": self.ticket_id,
+            "ticket_epoch": self.ticket_epoch,
+            "policy_generation": self.policy_generation,
+            "cas_merkle_root": self.cas_merkle_root,
+            "worker_signature": self.worker_signature,
         }
 
     @classmethod
@@ -209,13 +235,14 @@ class RawExecutionClaim:
         rc = data.get("resource_consumption") or {}
         rc_tuple = tuple(rc.items()) if isinstance(rc, Mapping) else ()
         ev = data.get("evidence_hashes") or ()
-        return cls(
+        epoch_val = int(data.get("epoch", data.get("ticket_epoch", 1)))
+        claim = cls(
             request_id=str(data.get("request_id", "")),
             tenant_id=str(data.get("tenant_id", "default")),
             candidate_id=str(data.get("candidate_id", "")),
             execution_id=str(data.get("execution_id", "")),
             lease_id=str(data.get("lease_id", "")),
-            epoch=int(data.get("epoch", 1)),
+            epoch=epoch_val,
             worker_id=str(data.get("worker_id", "")),
             outcome=str(data.get("outcome", "COMPLETED")).upper(),
             duration_seconds=float(data.get("duration_seconds", 0.0)),
@@ -226,7 +253,14 @@ class RawExecutionClaim:
             error=str(data.get("error", "")),
             policy_version=str(data.get("policy_version", "")),
             ticket_nonce=str(data.get("ticket_nonce", "")),
+            ticket_id=str(data.get("ticket_id", "")),
+            ticket_epoch=int(data.get("ticket_epoch", epoch_val)),
+            policy_generation=int(data.get("policy_generation", 1)),
+            cas_merkle_root=str(data.get("cas_merkle_root", "")),
+            worker_signature=str(data.get("worker_signature", "")),
         )
+        claim.validate_bounds()
+        return claim
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> RawExecutionClaim:

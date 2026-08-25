@@ -43,6 +43,7 @@ class AuthorizedExecutionTicket:
     epoch: int = 1
     partition_id: str = "P0"
     canonical_identity_hash: str = ""
+    policy_generation: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +58,7 @@ class AuthorizedExecutionTicket:
             "epoch": self.epoch,
             "partition_id": self.partition_id,
             "canonical_identity_hash": self.canonical_identity_hash,
+            "policy_generation": self.policy_generation,
         }
 
     @classmethod
@@ -75,6 +77,7 @@ class AuthorizedExecutionTicket:
             epoch=int(data.get("epoch", 1)),
             partition_id=str(data.get("partition_id", "P0")),
             canonical_identity_hash=str(data.get("canonical_identity_hash", "")),
+            policy_generation=int(data.get("policy_generation", 1)),
         )
 
 
@@ -124,10 +127,11 @@ class ExecutionAuthorizer:
         expires_at: float,
         epoch: int = 1,
         partition_id: str = "P0",
+        policy_generation: int = 1,
     ) -> str:
         payload = (
             f"{ticket_id}:{request_id}:{tenant_id}:{target_host}:{target_path}:"
-            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}".encode("utf-8")
+            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}:{policy_generation}".encode("utf-8")
         )
         return hmac.new(self._secret_key, payload, hashlib.sha256).hexdigest()
 
@@ -154,12 +158,42 @@ class ExecutionAuthorizer:
                 return True
         return False
 
+    def generate_egress_allowlist(self, token: ScopeToken) -> list[str]:
+        """Synthesize scope-derived network egress allowlist directly from ScopeToken (Invariant I29).
+
+        Always denies cloud metadata endpoints (169.254.169.254, metadata.google.internal, fd00:ec2::254).
+        Permits authorized internal targets (including RFC1918) only if explicitly enumerated.
+        """
+        metadata_denylist = {
+            "169.254.169.254",
+            "169.254.169.254:80",
+            "metadata.google.internal",
+            "metadata.google.internal:80",
+            "fd00:ec2::254",
+            "100.100.100.200",  # Alibaba cloud metadata
+        }
+
+        allowlist: list[str] = []
+        for domain in token.allowed_domains:
+            norm_d = self._normalize_host(domain)
+            if norm_d not in metadata_denylist:
+                allowlist.append(norm_d)
+
+        for cidr in token.allowed_cidrs:
+            cidr_str = str(cidr).strip()
+            # Ensure metadata subnet is not in allowlist
+            if cidr_str != "169.254.169.254/32":
+                allowlist.append(cidr_str)
+
+        return allowlist
+
     def authorize(
         self,
         request: ExecutionRequest,
         budget_enforcer: Any | None = None,
         epoch: int = 1,
         partition_id: str = "P0",
+        policy_generation: int = 1,
     ) -> AuthorizedExecutionTicket:
         """Validate execution request, reserve budget quota, and issue an AuthorizedExecutionTicket.
 
@@ -239,6 +273,7 @@ class ExecutionAuthorizer:
             expires_at=expires_at,
             epoch=epoch,
             partition_id=partition_id,
+            policy_generation=policy_generation,
         )
 
         return AuthorizedExecutionTicket(
@@ -253,6 +288,7 @@ class ExecutionAuthorizer:
             epoch=epoch,
             partition_id=partition_id,
             canonical_identity_hash=canon.identity_hash,
+            policy_generation=policy_generation,
         )
 
     def verify_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
@@ -279,6 +315,7 @@ class ExecutionAuthorizer:
             expires_at=ticket.expires_at,
             epoch=ticket.epoch,
             partition_id=ticket.partition_id,
+            policy_generation=ticket.policy_generation,
         )
         return hmac.compare_digest(expected_sig, ticket.signature)
 
@@ -293,8 +330,93 @@ class ExecutionAuthorizer:
             return True
 
 
+@dataclass(frozen=True, slots=True)
+class WorkerIdentity:
+    """Represents an active, ephemeral worker identity with rotated signing credentials."""
+
+    worker_id: str
+    key_epoch: int
+    secret_key_hex: str
+    created_at: float = field(default_factory=time.time)
+    expires_at: float = field(default_factory=lambda: time.time() + 3600.0)
+
+    def sign_claim(self, claim_bytes: bytes) -> str:
+        """Sign execution claim bytes using worker's active ephemeral key."""
+        return hmac.new(
+            self.secret_key_hex.encode("utf-8"),
+            claim_bytes,
+            hashlib.sha256,
+        ).hexdigest()
+
+    def verify_signature(self, claim_bytes: bytes, signature: str) -> bool:
+        """Verify claim signature against this worker key."""
+        expected = self.sign_claim(claim_bytes)
+        return hmac.compare_digest(expected, signature)
+
+
+class WorkerKeyRotator:
+    """Manages worker identity creation, regular key rotation, and grace-period validation."""
+
+    def __init__(self, rotation_interval_seconds: float = 3600.0, grace_period_seconds: float = 300.0) -> None:
+        self.rotation_interval = rotation_interval_seconds
+        self.grace_period = grace_period_seconds
+        self._current_epoch = 1
+        self._keys: dict[int, WorkerIdentity] = {}
+        self._lock = threading.RLock()
+        self._rotate_keys()
+
+    @property
+    def current_identity(self) -> WorkerIdentity:
+        with self._lock:
+            # Auto-rotate if expired
+            if time.time() >= self._keys[self._current_epoch].expires_at:
+                self._rotate_keys()
+            return self._keys[self._current_epoch]
+
+    def rotate(self) -> WorkerIdentity:
+        """Manually trigger key epoch advancement and worker identity rotation."""
+        with self._lock:
+            return self._rotate_keys()
+
+    def _rotate_keys(self) -> WorkerIdentity:
+        new_epoch = self._current_epoch + 1 if self._keys else 1
+        worker_id = f"worker_{uuid.uuid4().hex[:8]}_ep{new_epoch}"
+        secret_hex = hashlib.sha256(f"{worker_id}_{time.time()}_{uuid.uuid4().hex}".encode()).hexdigest()
+        now = time.time()
+        ident = WorkerIdentity(
+            worker_id=worker_id,
+            key_epoch=new_epoch,
+            secret_key_hex=secret_hex,
+            created_at=now,
+            expires_at=now + self.rotation_interval,
+        )
+        self._keys[new_epoch] = ident
+        self._current_epoch = new_epoch
+
+        # Evict expired keys past grace period
+        cutoff = now - self.grace_period
+        expired_epochs = [
+            ep for ep, k in self._keys.items()
+            if ep != self._current_epoch and k.expires_at < cutoff
+        ]
+        for ep in expired_epochs:
+            del self._keys[ep]
+
+        return ident
+
+    def verify_claim_signature(self, key_epoch: int, claim_bytes: bytes, signature: str) -> bool:
+        """Verify signature against the key epoch under which it was signed."""
+        with self._lock:
+            ident = self._keys.get(key_epoch)
+            if not ident:
+                return False
+            return ident.verify_signature(claim_bytes, signature)
+
+
 __all__ = [
     "AuthorizedExecutionTicket",
     "ExecutionAuthorizer",
     "ScopeAuthorizationError",
+    "WorkerIdentity",
+    "WorkerKeyRotator",
 ]

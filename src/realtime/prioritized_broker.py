@@ -42,6 +42,7 @@ class TelemetryEvent:
     payload: Mapping[str, Any]
     timestamp_unix: float = field(default_factory=time.time)
     dedup_key: str = ""
+    traceparent: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -51,6 +52,7 @@ class TelemetryEvent:
             "payload": dict(self.payload),
             "timestamp_unix": self.timestamp_unix,
             "dedup_key": self.dedup_key,
+            "traceparent": self.traceparent,
         }
 
 
@@ -69,12 +71,17 @@ class PrioritizedRealtimeBroker:
         p4_capacity: int = 200,
         max_p0_spool: int = 100000,
         spool_dir: str | None = None,
+        disk_backpressure_pct: float = 85.0,
+        disk_emergency_pct: float = 92.0,
     ) -> None:
         import json
         from pathlib import Path
 
         self.p0_capacity = p0_capacity
         self.max_p0_spool = max_p0_spool
+        self.disk_backpressure_pct = disk_backpressure_pct
+        self.disk_emergency_pct = disk_emergency_pct
+        self._spool_dir = spool_dir
         self._spool_path: Path | None = None
         if spool_dir is not None:
             sd = Path(spool_dir)
@@ -96,6 +103,18 @@ class PrioritizedRealtimeBroker:
         if self._spool_path is not None and self._spool_path.exists():
             self._rehydrate_disk_spool()
 
+    def _get_disk_utilization_pct(self) -> float:
+        """Query disk usage percentage for spool storage directory."""
+        import shutil
+        if self._spool_path is None:
+            return 0.0
+        try:
+            target_path = self._spool_path.parent if self._spool_path.parent.exists() else Path(".")
+            usage = shutil.disk_usage(target_path)
+            return (usage.used / usage.total) * 100.0
+        except Exception:
+            return 0.0
+
     def _rehydrate_disk_spool(self) -> None:
         import json
         if self._spool_path is None or not self._spool_path.exists():
@@ -114,6 +133,7 @@ class PrioritizedRealtimeBroker:
                         payload=data["payload"],
                         timestamp_unix=data.get("timestamp_unix", time.time()),
                         dedup_key=data.get("dedup_key", ""),
+                        traceparent=data.get("traceparent", ""),
                     )
                     if len(self._p0_queue) < self.p0_capacity:
                         self._p0_queue.append(event)
@@ -148,6 +168,7 @@ class PrioritizedRealtimeBroker:
                 "payload": dict(event.payload),
                 "timestamp_unix": event.timestamp_unix,
                 "dedup_key": event.dedup_key,
+                "traceparent": event.traceparent,
             }
             line = json.dumps(framed_record) + "\n"
             with open(self._spool_path, "a", encoding="utf-8") as f:
@@ -164,8 +185,24 @@ class PrioritizedRealtimeBroker:
             return False
 
     def publish(self, event: TelemetryEvent) -> bool:
-        """Enqueue an event according to its QoS backpressure rules."""
+        """Enqueue an event according to its QoS backpressure rules and disk thresholds."""
         with self._lock:
+            disk_pct = self._get_disk_utilization_pct()
+
+            # Under emergency disk pressure (>= 92%), drop P3/P4 and compact P1-P2
+            if disk_pct >= self.disk_emergency_pct:
+                if event.qos in (QoSClass.P3_TELEMETRY, QoSClass.P4_DEBUG):
+                    self._dropped_counts[event.qos] += 1
+                    return False
+                # Compact P3 aggregates
+                self._p3_aggregates.clear()
+
+            # Under disk backpressure (>= 85%), shed P4 debug logs immediately
+            elif disk_pct >= self.disk_backpressure_pct:
+                if event.qos == QoSClass.P4_DEBUG:
+                    self._dropped_counts[QoSClass.P4_DEBUG] += 1
+                    return False
+
             if event.qos == QoSClass.P0_CONTROL:
                 # 1. First buffer in bounded memory queue
                 if len(self._p0_queue) < self.p0_capacity:

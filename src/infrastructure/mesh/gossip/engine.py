@@ -99,6 +99,29 @@ class GossipEngine:
         self.fragmented_envelopes_total = 0
         self.fragmented_fragments_total = 0
 
+        # Invariant I24: Persistent BootID + Monotonic Nonce Safety
+        self.boot_id: str = uuid.uuid4().hex
+        self._nonce_counter: int = 0
+        self._peer_boot_nonces: dict[tuple[str, str], int] = {}
+
+    def validate_incoming_nonce(self, node_id: str, boot_id: str, nonce: int) -> bool:
+        """Validate that incoming packet carries a strictly increasing nonce under the peer's boot_id (I24)."""
+        with self._mesh_lock:
+            key = (node_id, boot_id)
+            if key in self._peer_boot_nonces:
+                last_nonce = self._peer_boot_nonces[key]
+                if nonce <= last_nonce:
+                    logger.warning(
+                        "Mesh Nonce Replay/Regression (I24): peer %s (boot=%s) nonce %d <= last %d",
+                        node_id,
+                        boot_id,
+                        nonce,
+                        last_nonce,
+                    )
+                    return False
+            self._peer_boot_nonces[key] = nonce
+            return True
+
     def _sign(self, data: bytes) -> str:
         """Create HMAC-SHA256 signature."""
         return hmac.new(self._secret, data, hashlib.sha256).hexdigest()
@@ -292,11 +315,17 @@ class GossipEngine:
     def _make_envelope(
         self, message_type: str, payload: dict[str, Any], msg_id: str | None = None
     ) -> bytes:
+        with self._mesh_lock:
+            self._nonce_counter += 1
+            current_nonce = self._nonce_counter
+
         body = {
             "type": message_type,
             "msg_id": msg_id or f"{self.local_node.id}-{uuid.uuid4().hex}",
             "source": asdict(self.local_node),
             "payload": payload,
+            "boot_id": self.boot_id,
+            "nonce": current_nonce,
             "sent_at": time.time(),
         }
         body_json = _canonical_json(body)

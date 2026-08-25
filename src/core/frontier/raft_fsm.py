@@ -129,6 +129,9 @@ class PartitionFSM:
         self.revocation_registry: set[str] = set()
         self.subleases: dict[str, SubLeaseRecord] = {}
         self.key_revocation_epoch: int = 0
+        self.policy_watermark: int = 1
+        self.revoked_policy_generations: set[int] = set()
+        self.last_entry_timestamp: float = 0.0
         self._current_state_hash: str = compute_canonical_state_hash(self.schema_version, self.to_dict())
 
     def get_state_hash(self) -> str:
@@ -159,6 +162,9 @@ class PartitionFSM:
         self.last_applied_index = int(payload.get("last_applied_index", 0))
         self.last_applied_term = int(payload.get("last_applied_term", 0))
         self.key_revocation_epoch = int(payload.get("key_revocation_epoch", 0))
+        self.policy_watermark = int(payload.get("policy_watermark", 1))
+        self.revoked_policy_generations = set(payload.get("revoked_policy_generations", []))
+        self.last_entry_timestamp = float(payload.get("last_entry_timestamp", 0.0))
 
         self.aggregates = {
             k: AggregateState(
@@ -189,6 +195,9 @@ class PartitionFSM:
             "last_applied_index": self.last_applied_index,
             "last_applied_term": self.last_applied_term,
             "key_revocation_epoch": self.key_revocation_epoch,
+            "policy_watermark": self.policy_watermark,
+            "revoked_policy_generations": sorted(list(self.revoked_policy_generations)),
+            "last_entry_timestamp": self.last_entry_timestamp,
             "aggregates": {k: v.to_dict() for k, v in self.aggregates.items()},
             "idempotency_index": {k: v.to_dict() for k, v in self.idempotency_index.items()},
             "revocation_registry": sorted(list(self.revocation_registry)),
@@ -378,14 +387,43 @@ class PartitionFSM:
                 error_message="Execution capability is revoked",
             ), ()
 
+        # Policy Generation & Watermark Validation (I25', I25b)
+        policy_gen = int(payload.get("policy_generation", 1))
+        if policy_gen in self.revoked_policy_generations:
+            return CommandResult(
+                status="REJECTED",
+                aggregate_id=cmd.aggregate_id,
+                resulting_aggregate_version=current_version,
+                result_code="POLICY_GENERATION_REVOKED",
+                error_message=f"Policy generation {policy_gen} is revoked on partition {self.partition_id} (I25')",
+            ), ()
+
+        if policy_gen > self.policy_watermark:
+            return CommandResult(
+                status="REJECTED",
+                aggregate_id=cmd.aggregate_id,
+                resulting_aggregate_version=current_version,
+                result_code="POLICY_GENERATION_EXCEEDS_WATERMARK",
+                error_message=f"Policy generation {policy_gen} exceeds partition watermark {self.policy_watermark} (I25b)",
+            ), ()
+
         consumed_units = int(payload.get("units_consumed", 1))
         reserved_units = int(agg.state_payload.get("units_reserved", 1))
         sublease_id = str(agg.state_payload.get("sublease_id", ""))
 
-        # Update local sublease ledger
+        # Update local sublease ledger & enforce budget non-negativity (I23)
         if sublease_id in self.subleases:
             curr_sub = self.subleases[sublease_id]
             new_consumed = curr_sub.units_consumed + min(consumed_units, reserved_units)
+            if new_consumed > curr_sub.units_allocated:
+                return CommandResult(
+                    status="REJECTED",
+                    aggregate_id=cmd.aggregate_id,
+                    resulting_aggregate_version=current_version,
+                    result_code="SUBLEASE_BALANCE_EXCEEDED",
+                    error_message=f"Consumed units {new_consumed} exceeds allocated {curr_sub.units_allocated} (I23)",
+                ), ()
+
             self.subleases[sublease_id] = SubLeaseRecord(
                 sublease_id=curr_sub.sublease_id,
                 run_id=curr_sub.run_id,
@@ -589,6 +627,26 @@ class PartitionFSM:
         sublease_id = str(payload.get("sublease_id", ""))
         run_id = str(payload.get("run_id", ""))
         allocated_units = int(payload.get("units_allocated", 0))
+        target_part = str(payload.get("partition_id", self.partition_id))
+
+        # Enforce Partition Isolation (I23)
+        if target_part != self.partition_id:
+            return CommandResult(
+                status="REJECTED",
+                aggregate_id=sublease_id,
+                resulting_aggregate_version=current_version,
+                result_code="PARTITION_MISMATCH",
+                error_message=f"Cannot allocate sublease for partition {target_part} on {self.partition_id} (I23)",
+            ), ()
+
+        if allocated_units < 0:
+            return CommandResult(
+                status="REJECTED",
+                aggregate_id=sublease_id,
+                resulting_aggregate_version=current_version,
+                result_code="NEGATIVE_BUDGET_ALLOCATION",
+                error_message="Cannot allocate negative budget units (I23)",
+            ), ()
 
         self.subleases[sublease_id] = SubLeaseRecord(
             sublease_id=sublease_id,
@@ -746,6 +804,9 @@ class PartitionFSM:
                 ), ()
 
         new_version = current_version + 1
+        policy_gen = int(payload.get("generation", self.policy_watermark + 1))
+        self.policy_watermark = max(self.policy_watermark, policy_gen)
+
         self.aggregates[cmd.aggregate_id] = AggregateState(
             aggregate_id=cmd.aggregate_id,
             aggregate_type="PolicyAggregate",
@@ -755,6 +816,7 @@ class PartitionFSM:
                 "artifact_hash": artifact_hash,
                 "policy_version": policy_version,
                 "parent_policy_id": parent_policy_id,
+                "policy_generation": policy_gen,
                 "status": "ACTIVE",
             },
             status="ACTIVE",
@@ -770,6 +832,7 @@ class PartitionFSM:
                 "policy_id": policy_id,
                 "artifact_hash": artifact_hash,
                 "policy_version": policy_version,
+                "policy_generation": policy_gen,
             },
             correlation_id=cmd.correlation_id,
             causation_id=cmd.causation_id,
@@ -783,7 +846,7 @@ class PartitionFSM:
             aggregate_id=cmd.aggregate_id,
             resulting_aggregate_version=new_version,
             result_code="POLICY_PROMOTED",
-            result_payload={"active_policy_id": policy_id},
+            result_payload={"active_policy_id": policy_id, "policy_generation": policy_gen},
         ), (event,)
 
     def _handle_rollback_policy(
@@ -819,6 +882,13 @@ class PartitionFSM:
                 error_message="No parent policy available for rollback",
             ), ()
 
+        target_generation = int(cmd.payload.get("target_generation", max(1, self.policy_watermark - 1)))
+        
+        # Revoke rolled back policy generations on partition (I25')
+        for g in range(target_generation + 1, self.policy_watermark + 1):
+            self.revoked_policy_generations.add(g)
+        self.policy_watermark = min(self.policy_watermark, target_generation)
+
         new_version = current_version + 1
         self.aggregates[cmd.aggregate_id] = AggregateState(
             aggregate_id=cmd.aggregate_id,
@@ -826,6 +896,7 @@ class PartitionFSM:
             version=new_version,
             state_payload={
                 "active_policy_id": parent_policy_id,
+                "policy_generation": target_generation,
                 "status": "ROLLED_BACK",
             },
             status="ACTIVE",
@@ -837,7 +908,11 @@ class PartitionFSM:
             event_type="PolicyRolledBackEvent",
             aggregate_id=cmd.aggregate_id,
             aggregate_version=new_version,
-            payload={"active_policy_id": parent_policy_id},
+            payload={
+                "active_policy_id": parent_policy_id,
+                "target_generation": target_generation,
+                "revoked_generations": list(range(target_generation + 1, self.policy_watermark + 1)),
+            },
             correlation_id=cmd.correlation_id,
             causation_id=cmd.causation_id,
             partition_id=self.partition_id,
@@ -850,5 +925,5 @@ class PartitionFSM:
             aggregate_id=cmd.aggregate_id,
             resulting_aggregate_version=new_version,
             result_code="POLICY_ROLLED_BACK",
-            result_payload={"active_policy_id": parent_policy_id},
+            result_payload={"active_policy_id": parent_policy_id, "policy_generation": target_generation},
         ), (event,)

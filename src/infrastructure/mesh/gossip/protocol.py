@@ -133,6 +133,17 @@ class GossipProtocol:
                 logger.warning("Operation failed in protocol.py: %s", exc, exc_info=True)  # noqa: BLE001
             return
 
+        # Invariant I24: Validate BootID + Monotonic Nonce
+        source = body.get("source")
+        source_id = str(source.get("id", "")) if isinstance(source, dict) else ""
+        boot_id = body.get("boot_id")
+        nonce = body.get("nonce")
+        if source_id and boot_id and nonce is not None:
+            if hasattr(self.engine, "validate_incoming_nonce"):
+                if not self.engine.validate_incoming_nonce(source_id, str(boot_id), int(nonce)):
+                    logger.warning("Dropped packet from %s: stale/replayed nonce under boot_id %s", source_id, boot_id)
+                    return
+
         try:
             self._handle_authenticated(body, addr)
         except Exception as exc:

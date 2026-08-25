@@ -111,13 +111,7 @@ graph TD
         
         IdenticalState --> DeduplicatedStream["Deduplicated Committed Outbox Ledger"]
         DeduplicatedStream --> EffectWorkers["Asynchronous Effect Workers"]
-        DeduplicatedStream --> Level3Projections["Level 3 Materialized Projections"]
-    end
-```
-
----
-
-## 6. The 21 Formal & Boundary System Invariants
+        DeduplicatedStream --> Level3Pro## 6. The 29 Formal & Boundary System Invariants
 
 1. **I1 (Hash-Chain Continuity)**: $H_n = \text{SHA256}(H_{n-1} \mathbin{\Vert} \text{CanonicalEncode}(E_n))$.
 2. **I2 (Log Monotonicity)**: Index $K_n > K_{n-1}$, Term $T_n \ge T_{n-1}$.
@@ -140,9 +134,18 @@ graph TD
 19. **I19 (Lease Terminal Linearization)**: Sublease transitions from `RESERVED` to exactly one terminal state (`CONSUMED` or `EXPIRED`).
 20. **I20 (Policy Version Fencing)**: Policy mutation requires `expected_policy_version == current_policy_version`.
 21. **I21 (Projection Recovery Invariance)**: Sequential outbox replay from checkpoint recovers identical projection state.
+22. **I22' (Temporal Invariant & Admission Skew Gating)**: Clock-skew validation ($\pm 10\text{s}$ future drift, $-5\text{s}$ backward regression) occurs at command admission; `PartitionFSM` remains 100% clock-free and monotonically non-decreasing.
+23. **I23 (Partition Budget Isolation)**: Sublease allocations and consumptions are isolated per partition; negative balances and cross-partition balance bleed are rejected.
+24. **I24 (Persisted Mesh BootID + Monotonic Nonce Safety)**: Mesh gossip messages require monotonic nonces under persistent node `boot_id`; regressing or replayed nonces are rejected.
+25. **I25' (Partition-Local Policy Rollback Revocation)**: Rollbacks record revoked policy generations in the local partition state; claims signed under revoked generations are rejected.
+26. **I25b (Policy Generation Watermark Upper Bound)**: Claims signed under generations $> \text{policy\_watermark}$ are rejected at settlement.
+27. **I26 (Multi-Raft Quota Slab Conservation)**: Budget slabs allocated to partitions preserve exact integer global conservation on $P\text{-}0000$: $\text{Total} = \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$.
+28. **I27 (Bounded Claims & CAS Merkle Evidence)**: Claims are bounded to 64 KB; raw evidence is content-addressed in `CASStore` and cryptographically bound via binary SHA-256 Merkle roots.
+29. **I28 (Hardened Lease State Transitions)**: Leases transition strictly through `UNALLOCATED` $\rightarrow$ `RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED` / `EXPIRED`; `COMPENSATED` is permitted only from `RESERVED`/`EXPIRED` and duplicate compensation is idempotent.
+30. **I29 (Scope-Derived Network Egress Enforcement)**: Outbound worker network destinations are derived strictly from `ScopeToken`; cloud metadata services (`169.254.169.254`, `metadata.google.internal`, etc.) are unconditionally denied.
 
 > [!NOTE]
-> **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{21}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`). Cryptographic properties (e.g. $I_{11}$) hold under standard computational collision resistance assumptions.
+> **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{29}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`, `tests/integration/test_chaos_fault_injection.py`). Cryptographic properties (e.g. $I_{11}, I_{27}$) hold under standard computational collision resistance assumptions.
 
 ---
 
@@ -150,7 +153,7 @@ graph TD
 
 ### 7.1 Authoritative Raft Consensus & WAL Durability
 - **Durability Sequence**:
-  $$\text{Proposal} \longrightarrow \text{Local WAL Persist} \longrightarrow \text{AppendEntries RPC} \longrightarrow \text{Quorum ACKs} \longrightarrow \text{Advance commitIndex} \longrightarrow \text{FSM.Apply} \longrightarrow \text{Durable Outbox} \longrightarrow \text{Leader Receipt}$$
+  $$\text{Proposal} \longrightarrow \text{Admission Clock Skew Gate (I22')} \longrightarrow \text{Local WAL Persist} \longrightarrow \text{AppendEntries RPC} \longrightarrow \text{Quorum ACKs} \longrightarrow \text{Advance commitIndex} \longrightarrow \text{Clock-Free FSM.Apply} \longrightarrow \text{Durable Outbox} \longrightarrow \text{Leader Receipt}$$
 - **Crash Recovery**: `PartitionWAL` replays committed entries from disk with CRC-64 verification, fast-forwarding the FSM to the exact pre-crash state hash.
 
 ### 7.2 Cross-Partition Sagas & Global Coordination ($P\text{-}0000$)
@@ -160,10 +163,10 @@ graph TD
 ### 7.3 Canonical Target Identity & Scope Authorization
 - Normalizes URLs (Punycode, query sort, matrix stripping, traversal collapsing).
 - Pins DNS resolution to eliminate TOCTOU / DNS rebinding SSRF attacks.
-- Issues HMAC-SHA256 signed `AuthorizedExecutionTicket` with single-use nonce consumption.
+- Issues HMAC-SHA256 signed `AuthorizedExecutionTicket` with single-use nonce consumption and policy generation binding.
 
 ### 7.4 Sandboxing & External Execution
-- External tools run inside `ProcessSandbox` with POSIX `setrlimit` bounds, timeouts, and sanitized environments.
+- External tools run inside `ProcessSandbox` with `SandboxClass.NATIVE` (256MB / 30s) or `SandboxClass.DOM` (2048MB / 120s), Linux Seccomp BPF syscall filters, and scope-derived network egress filters (Invariant I29).
 - WASM plugins run in `wasmtime` runtime when `FEATURE_WASM_PLUGINS=true` is enabled.
 
 ### 7.5 Enterprise Integrations & AI Explainability
@@ -173,41 +176,35 @@ graph TD
 ### 7.6 State Authority, Settlement Model & Recovery Architecture
 - **Production Settlement Engine**:
   ```text
-  ExecutionResult / RawExecutionClaim
+  ExecutionResult / RawExecutionClaim (Max 64 KB Bound - I27)
                  ↓
-      SettlementCoordinator (5-Stage Validation: Deduplication, Ticket Nonce, Fencing Epoch)
+      SettlementCoordinator (5-Stage Validation: Deduplication, Ticket Epoch/Nonce, CAS Merkle Root Verification)
                  ↓
-         SettlementIntent (Append to StateAuthority.wal)
+          SettlementIntent (Append to StateAuthority.wal)
                  ↓
       SettlementProjectionEngine (In-Memory Projections: State, Budget, Lease, Findings)
                  ↓
-       StateAuthority.commit (Atomic Merge into NeuralState)
+        StateAuthority.commit (Atomic Merge into NeuralState)
   ```
 - **Crash Recovery & Replay**:
   - On restart, `replay_from_wal()` rehydrates projection state by sequentially reapplying all committed `SettlementIntent` records from the durable WAL.
-  - **Architectural Boundary**: Settlement recovery currently operates as a durable write-ahead reconciliation ledger with idempotent projection rehydration; full Raft FSM WAL-backed projection settlement remains an optional future migration path.
-- **Universal Budget Lifecycle**:
-  ```text
-  AVAILABLE ──(ExecutionAuthorizer.authorize)──▶ RESERVED ──(SettlementCoordinator.settle)──▶ CONSUMED
-     ▲                                              │
-     └─────────────(Timeout / Expire / Cancel)──────┘
-  ```
-  - Every issued `AuthorizedExecutionTicket` strictly requires an authoritative budget reservation (`INVARIANT-002`).
 
-### 7.7 Real-Time QoS Telemetry & Durable P0 Spooling
+### 7.7 Real-Time QoS Telemetry, Durable P0 Spooling & Disk Backpressure
 - **P0 Control Stream Durability**:
   - Tier 1: Bounded in-memory queue (`p0_capacity=1000`).
   - Tier 2: Durable append-only disk journal (`p0_telemetry_spool.jsonl` with `os.fsync`) for memory overflow.
   - Startup Rehydration: `_rehydrate_disk_spool()` recovers un-drained control events across node restarts and crashes.
-  - Strict Lossless Backpressure: If memory and disk spool capacity are exhausted, `publish()` applies explicit producer backpressure (returns `False`) rather than silently dropping oldest events.
+  - Disk Pressure Management: $\ge 85\%$ triggers backpressure and sheds P4 debug frames; $\ge 92\%$ triggers emergency shedding of P3/P4 and compacts P1-P2.
+  - W3C Distributed Tracing: Propagates standard `traceparent` headers across all broker envelopes.
 
 ### 7.8 Executable Invariant Verification Suite
-The architecture is formally validated by 34 automated invariant and adversarial assertions:
-1. `tests/unit/test_hardened_authority_invariants.py` (6 tests): P0 disk spool rehydration, saturation backpressure, Raft policy promotion/rollback, FSM sublease expiry, fail-closed authorizer.
-2. `tests/unit/test_formal_invariants.py` (9 tests): `INVARIANT-001` through `INVARIANT-009` (Budget conservation, mandatory reservation, FSM determinism, WAL commit requirement, lease expiry, policy durability, checkpoint demotion, idempotency, epoch fencing).
-3. `tests/unit/test_distributed_invariants.py` (4 tests): Fencing tokens, replay resistance, budget collision.
+The architecture is formally validated by 46 automated invariant, chaos, and adversarial assertions:
+1. `tests/unit/test_formal_invariants.py` (17 tests): Invariants $\mathbf{I1}$–$\mathbf{I29}$ (`INVARIANT-001` through `INVARIANT-009`, $\mathbf{I22'}, \mathbf{I23}, \mathbf{I24}, \mathbf{I25'}, \mathbf{I25b}, \mathbf{I26}, \mathbf{I27}, \mathbf{I28}, \mathbf{I29}$).
+2. `tests/unit/test_hardened_authority_invariants.py` (6 tests): P0 disk spool rehydration, saturation backpressure, Raft policy promotion/rollback, FSM sublease expiry, fail-closed authorizer.
+3. `tests/unit/test_distributed_invariants.py` (4 tests): Dual-snapshot consistency, crash-recovery invariance, state hash convergence.
 4. `tests/integration/test_target_architecture_invariants.py` (6 tests): Multi-replica FSM consensus, receipts, 5-stage migration, replay.
-5. `tests/unit/decision/test_architectural_invariants.py` (9 tests): Defense-in-depth authorization, host spoofing, path traversal.
+5. `tests/integration/test_end_to_end_architecture_invariants.py` (9 tests): End-to-end multi-partition scan execution with settlement returns.
+6. `tests/integration/test_chaos_fault_injection.py` (4 tests): Clock-skew injection, Byzantine Merkle root tampering, mesh replay flooding, SSRF cloud metadata probes.
 
 ### 7.9 Coverage-Guided Protocol Fuzzing & Native Fork Server (`src/fuzzing/`)
 - **Corpus Evolution & Feedback Loop**:

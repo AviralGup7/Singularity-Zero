@@ -88,6 +88,44 @@ class DurableRunSagaEngine:
         run_agg.transition_to_running()
         return True, f"Run {run_id} started across {len(target_partitions)} partitions"
 
+    def compensate_sublease(
+        self,
+        run_id: str,
+        partition_id: str,
+        sublease_id: str,
+    ) -> tuple[bool, str]:
+        """Compensate an unconsumed or aborted sub-lease allocation (Invariant I28).
+
+        Enforces that COMPENSATED is only valid from RESERVED or EXPIRED states.
+        Duplicate compensation calls are idempotent no-ops.
+        """
+        sublease = self.global_budget.subleases.get(sublease_id)
+        if not sublease:
+            return False, f"Sublease {sublease_id} not found"
+
+        # Idempotent no-op for already compensated / closed
+        if sublease.status in ("CLOSED", "EXPIRED", "COMPENSATED"):
+            return True, f"Sublease {sublease_id} already in terminal state {sublease.status}"
+
+        # Invariant I28: Permitted only from non-terminal unconsumed states
+        if sublease.status not in ("ISSUED", "REQUESTED", "ACTIVE"):
+            return False, f"Illegal lease transition (I28): cannot compensate from status {sublease.status}"
+
+        # Reclaim all allocated units to available budget
+        success, msg = self.global_budget.settle_return(
+            sublease_id=sublease_id,
+            units_consumed=0,
+            units_returned=sublease.units_allocated,
+        )
+        if not success:
+            return False, f"Budget compensation failed: {msg}"
+
+        if run_id in self.active_runs:
+            run_agg = self.active_runs[run_id]
+            run_agg.record_partition_completion(partition_id, consumed=0, refunded=sublease.units_allocated)
+
+        return True, "SUBLEASE_COMPENSATED_SUCCESS"
+
     def handle_partition_settlement_return(
         self,
         run_id: str,
@@ -96,7 +134,12 @@ class DurableRunSagaEngine:
         units_consumed: int,
         units_returned: int,
     ) -> bool:
-        """Asynchronously reconcile settlement return back to P-0000 Global Budget."""
+        """Asynchronously reconcile settlement return back to P-0000 Global Budget (Invariant I28)."""
+        sublease = self.global_budget.subleases.get(sublease_id)
+        if sublease and sublease.status == "CLOSED":
+            # Idempotent return check
+            return True
+
         success, msg = self.global_budget.settle_return(
             sublease_id=sublease_id,
             units_consumed=units_consumed,

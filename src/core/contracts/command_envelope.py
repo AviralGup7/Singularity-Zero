@@ -30,6 +30,8 @@ class CommandEnvelope:
     correlation_id: str
     causation_id: str
     expected_aggregate_version: int | None = None
+    traceparent: str = ""
+    tracestate: str = ""
     created_at_unix: float = field(default_factory=time.time)
     schema_version: int = 1
 
@@ -42,6 +44,8 @@ class CommandEnvelope:
             "correlation_id": self.correlation_id,
             "causation_id": self.causation_id,
             "expected_aggregate_version": self.expected_aggregate_version,
+            "traceparent": self.traceparent,
+            "tracestate": self.tracestate,
             "created_at_unix": self.created_at_unix,
             "schema_version": self.schema_version,
         }
@@ -60,6 +64,8 @@ class CommandEnvelope:
                 if data.get("expected_aggregate_version") is not None
                 else None
             ),
+            traceparent=str(data.get("traceparent", "")),
+            tracestate=str(data.get("tracestate", "")),
             created_at_unix=float(data.get("created_at_unix", time.time())),
             schema_version=int(data.get("schema_version", 1)),
         )
@@ -80,6 +86,8 @@ class EventEnvelope:
     raft_term: int = 1
     raft_index: int = 0
     log_offset: int = 0
+    traceparent: str = ""
+    tracestate: str = ""
     committed_at_unix: float = field(default_factory=time.time)
     schema_version: int = 1
 
@@ -102,6 +110,8 @@ class EventEnvelope:
             "raft_term": self.raft_term,
             "raft_index": self.raft_index,
             "log_offset": self.log_offset,
+            "traceparent": self.traceparent,
+            "tracestate": self.tracestate,
             "committed_at_unix": self.committed_at_unix,
             "schema_version": self.schema_version,
         }
@@ -120,6 +130,8 @@ class EventEnvelope:
             raft_term=int(data.get("raft_term", 1)),
             raft_index=int(data.get("raft_index", data.get("log_offset", 0))),
             log_offset=int(data.get("log_offset", 0)),
+            traceparent=str(data.get("traceparent", "")),
+            tracestate=str(data.get("tracestate", "")),
             committed_at_unix=float(data.get("committed_at_unix", time.time())),
             schema_version=int(data.get("schema_version", 1)),
         )

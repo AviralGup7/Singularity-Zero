@@ -386,3 +386,83 @@ class NeuralBloomFilter:
         with self._lock:
             self.bits = bits
         return bits
+
+
+class GenerationalBloomFilter:
+    """Multi-generational rotating Bloom filter preventing saturation degradation over long scans.
+
+    Maintains an active generation filter and a predecessor generation filter. When the active
+    filter reaches its fill ratio threshold or capacity, generations rotate:
+    - Predecessor filter is replaced by the current active filter
+    - A new, pristine active filter is initialized
+    - Membership queries test both active and predecessor filters
+    """
+
+    def __init__(
+        self,
+        capacity: int = 1000000,
+        error_rate: float = 0.01,
+        fill_ratio_threshold: float = 0.80,
+    ) -> None:
+        self.capacity = capacity
+        self.error_rate = error_rate
+        self.fill_ratio_threshold = fill_ratio_threshold
+        self._current = NeuralBloomFilter(capacity=capacity, error_rate=error_rate)
+        self._previous: NeuralBloomFilter | None = None
+        self._generation = 1
+        self._lock = threading.RLock()
+
+    @property
+    def generation(self) -> int:
+        return self._generation
+
+    def contains(self, item: str) -> bool:
+        """Check if item is present in current or previous generation."""
+        with self._lock:
+            if item in self._current:
+                return True
+            if self._previous is not None and item in self._previous:
+                return True
+            return False
+
+    def __contains__(self, item: str) -> bool:
+        return self.contains(item)
+
+    def add(self, item: str) -> bool:
+        """Add item to active generation, triggering generational rebuild if saturated."""
+        with self._lock:
+            # Check if active generation needs rotation
+            stats = self._current.get_stats()
+            if (
+                stats["fill_ratio"] >= self.fill_ratio_threshold
+                or self._current.element_count >= self.capacity
+            ):
+                self._rotate_generation()
+
+            return self._current.add(item)
+
+    def _rotate_generation(self) -> None:
+        """Rotate active filter into previous and spawn a fresh active filter."""
+        self._previous = self._current
+        self._current = NeuralBloomFilter(capacity=self.capacity, error_rate=self.error_rate)
+        self._generation += 1
+
+    def get_stats(self) -> dict[str, Any]:
+        """Aggregate stats across current and previous generations."""
+        with self._lock:
+            curr_stats = self._current.get_stats()
+            prev_stats = self._previous.get_stats() if self._previous else None
+            return {
+                "generation": self._generation,
+                "current_generation": curr_stats,
+                "previous_generation": prev_stats,
+                "total_elements_estimated": curr_stats["element_count"]
+                + (prev_stats["element_count"] if prev_stats else 0),
+            }
+
+
+__all__ = [
+    "BloomProcessResult",
+    "GenerationalBloomFilter",
+    "NeuralBloomFilter",
+]
