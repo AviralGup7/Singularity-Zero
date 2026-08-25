@@ -51,8 +51,8 @@ This document provides a **non-marketing, engineering-focused** map of the Cyber
 | **Pipeline DAG Orchestrator** | `src/pipeline/`, `src/pipeline/services/pipeline_orchestrator/` | Asynchronous DAG executor (`GraphBuilder`, `ActorScheduler`, `Orchestrator`) handling task dependency resolution, speculative dispatch, checkpoint persistence, and resume flows. |
 | **Resilience & Circuit Breaking** | `src/resilience/` | 3-state Circuit Breaker (`Closed`, `Open`, `Half-Open`) with persistent state, automatic rate-limit detection, and HTTP 429 `Retry-After` sleep overrides. |
 | **Unified Cache** | `src/pipeline/unified_cache/`, `src/cache/` | Tiered caching (in-memory LRU + persistent SQLite/Redis) featuring request coalescing, stale-while-revalidate, and stage result deduplication. |
-| **State Authority & Settlement** | `src/core/frontier/state_authority.py` | Centralized `StateAuthority` (WAL logging, schema validation, CRDT state merge, execution deduplication) and `SettlementCoordinator` (unified state, budget commit/release, and queue lease settlement). |
-| **Frontier State & CRDTs** | `src/frontier/`, `src/core/frontier/` | Conflict-Free Replicated Data Types (LWW-Sets) indexed by Hybrid Logical Clocks (HLCs) providing causal state ordering with $O(1)$ node space complexity, backed by an append-only WAL. |
+| **State Authority & Settlement** | `src/core/frontier/state_authority.py` | Centralized `StateAuthority` (WAL logging, schema validation, CRDT state merge, execution deduplication) and `SettlementCoordinator` (Transactional WAL Settlement Intent + Idempotent Projections for CRDT, Budget, and Queue). |
+| **Frontier State & CRDTs** | `src/frontier/`, `src/core/frontier/` | Conflict-Free Replicated Data Types (LWW-Sets) indexed by Hybrid Logical Clocks (HLCs with $O(1)$ clock comparison overhead, $O(N)$ element space), backed by an append-only WAL. |
 | **Distributed Actor Mesh** | `src/mesh/`, `src/infrastructure/mesh/` | Peer-to-peer clustering via authenticated SWIM gossip, dynamic node capability tracking, and consistent-hashing shard balancing. |
 | **Real-Time Telemetry & WebSockets** | `src/websocket_server/`, `src/realtime/` | High-throughput WebSocket server with MessagePack/JSON serialization, heartbeats, channel-based event multiplexing, and non-lossy critical event backpressure protection. |
 | **Dashboard & API Layer** | `src/dashboard/fastapi/`, `src/console/` | FastAPI REST services exposing OpenAPI 3.1 contracts, JWT RBAC security, audit logging, live stage metrics, and operator console handlers. |
@@ -66,9 +66,9 @@ This document provides a **non-marketing, engineering-focused** map of the Cyber
 
 ## Core System Invariants
 
-1. **Immutable Stage Contracts & State Authority Settlement**:
-   - Pipeline stages accept immutable `StageInput` / `ExecutionRequest` contracts and must return `StageOutput` / `ExecutionResult` containing state deltas.
-   - Workers are strictly forbidden from directly writing to CRDTs or storage; all state mutations are validated, deduplicated by `execution_id`, and committed exclusively through `SettlementCoordinator` ➔ `StateAuthority` via the Write-Ahead Log (WAL).
+1. **Immutable Stage Contracts & Authoritative WAL Settlement**:
+   - Pipeline stages accept immutable `StageInput` / `ExecutionRequest` contracts and return `StageOutput` / `ExecutionResult`.
+   - Workers are strictly forbidden from directly writing to CRDTs or storage; all state mutations, budget allocations, and lease acknowledgements are committed atomically to the Write-Ahead Log (WAL) as a `SettlementIntent` via `SettlementCoordinator` ➔ `StateAuthority`, driving idempotent downstream projections.
 2. **Centralized Authorization Gate & Mandatory Tickets**:
    - The Speculative Dispatcher mints requests carrying authorization context, which must pass the independent `Authorization & Resource Gate` (`src/decision/authorization.py`) to atomically reserve budget and receive an `AuthorizedExecutionTicket`.
    - `ExecutionRequestWorker.execute(ticket)` strictly rejects unauthenticated raw `ExecutionRequest` instances.

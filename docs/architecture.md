@@ -66,22 +66,34 @@ To prevent split-brain control flow, scheduling decisions follow a strict, unidi
                     └───────────┬────────────┘
 ```
 
-### 2. State Authority & Settlement Coordinator Boundary
+### 2. State Authority & Transactional WAL Settlement Intent Boundary
 
-- **Workers Produce; State Authority Commits**: Execution Workers never directly mutate the Frontier CRDTs, WAL, or persistent stores. Workers return an immutable `ExecutionResult` containing `state_deltas`.
-- **Settlement Coordinator (`SettlementCoordinator`)**: The single production settlement path responsible for coordinating:
-  1. **State Settlement**: Commits `ExecutionResult` via `StateAuthority.commit()` / `commit_stage_output()`.
-  2. **Budget Settlement**: Commits reserved quota (`commit_requests()`) on success, or releases it (`release_requests()`) on failure/rejection.
-  3. **Queue Settlement**: Acknowledges candidate leases (`ack_batch()`) on success, or returns them to the queue (`release_batch()`) on failure.
-- **Single State Authority (`StateAuthority`)**: Validates received deltas against `GLOBAL_STATE_SCHEMA_REGISTRY`, appends to the Write-Ahead Log (WAL), verifies sequence versions, performs deduplication on `execution_id`, and executes deterministic CRDT merges ($O(1)$ space with Hybrid Logical Clocks).
+- **Workers Produce; State Authority Commits to WAL**: Execution Workers never directly mutate the Frontier CRDTs, WAL, or persistent stores. Workers return an immutable `ExecutionResult`.
+- **Settlement Coordinator (`SettlementCoordinator`)**: The single production settlement path responsible for:
+  1. **Constructing `SettlementIntent`**: Validates identities (`execution_id`, `lease_id`, `candidate_id`) and creates an immutable `SettlementIntent` containing the atomic settlement decision (state deltas, budget action, and lease action).
+  2. **Authoritative WAL Commit**: Calls `StateAuthority.append_settlement_intent()`, which writes the entire `SettlementIntent` as a single atomic record to the Write-Ahead Log (WAL). This WAL write is the single point of truth.
+  3. **Idempotent Projections**: Forwards the durable intent to independent projection engines (`StateProjection`, `BudgetProjection`, `LeaseProjection`), which advance their independent cursors.
+  4. **Crash Recovery**: If the process restarts or projections lag, `SettlementCoordinator.replay_projections(wal)` reads from the WAL cursor and catches up each projection independently and idempotently.
+- **Single State Authority (`StateAuthority`)**: Validates schema, appends settlement envelopes to the Write-Ahead Log (WAL), verifies sequence versions, performs deduplication on `execution_id`, and executes deterministic CRDT merges. (Hybrid Logical Clocks provide $O(1)$ space clock metadata per comparison, with $O(N)$ LWW-Set total element storage).
 
 ```text
 Worker ──► ExecutionResult ──► SettlementCoordinator
                                      │
-                 ┌───────────────────┼───────────────────┐
-                 ▼                   ▼                   ▼
-           StateAuthority      HuntBudgetEnforcer   PriorityQueue
-           (WAL + CRDT Commit) (commit / release)   (ack / release lease)
+                             (SettlementIntent)
+                                     │
+                                     ▼
+                          StateAuthority.append()
+                                     │
+                                     ▼
+                                ┌─────────┐
+                                │   WAL   │ (Single Authoritative Boundary)
+                                └────┬────┘
+                                     │
+          ┌──────────────────────────┼──────────────────────────┐
+          ▼                          ▼                          ▼
+    StateProjection           BudgetProjection           LeaseProjection
+    (NeuralState CRDT)       (HuntBudgetEnforcer)       (PriorityQueue Lease)
+       [Cursor A]                 [Cursor B]                 [Cursor C]
 ```
 
 ---
