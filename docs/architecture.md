@@ -154,9 +154,10 @@ AVAILABLE ──(lease_batch)──► IN-FLIGHT (CandidateLease) ──(ack_bat
 
 ---
 
-### 7. Immutable Versioned Policy & Decision Provenance
+### 7. Immutable Versioned Policy & Automated Dispatch
 
 - **VersionedPolicy (`src/learning/versioned_policy.py`)**: Immutable, versioned policy container specifying `target_boosts`, `target_suppressions`, and tool configuration parameters.
+- **PolicyAutoDispatcher (`src/learning/policy_dispatcher.py`)**: Bridges `ThresholdTuner`, `NucleiTagOptimizer`, and false-positive suppression rules to automatically mint versioned policies at stage boundaries (`on_stage_completed`) and apply them to `CorrelationPriorityQueue`.
 - **Priority Engine Consumption**: `CorrelationPriorityQueue.apply_versioned_policy(policy)` directly consumes the policy to dynamically boost or suppress candidates.
 - **Provenance Tracking**: `policy_version` is bound to `ExecutionRequest.policy_version` and propagated to `ExecutionResult.policy_version` for auditability.
 
@@ -168,6 +169,22 @@ AVAILABLE ──(lease_batch)──► IN-FLIGHT (CandidateLease) ──(ack_bat
 - **PoC Validation Sandbox**: Dynamic Python plugins use a JSON child-process boundary with AST pre-validation (`src/core/plugins/sandbox.py`), preventing lateral execution on the host runner.
 - **Adaptive Closed-Loop Learning**: Operator triage signals update the false-positive rules matrix (`src/learning/fp_rules.py`) and adjust severity calibration weights, suppressing duplicate alerts across subsequent scan runs.
 
+---
+
+### 9. Zero-Trust Mesh & AES-256-GCM Payload Encryption
+
+- **P2P Gossip Security (`src/infrastructure/mesh/gossip/serializer.py`)**:
+  - **Confidentiality**: UDP gossip message payloads are encrypted using authenticated **AES-256-GCM** with 96-bit random nonces derived from `MESH_SECRET`. Discovered targets, IP assets, and vulnerability metrics are never broadcast in plaintext.
+  - **Integrity & Authenticity**: Envelopes are signed via **HMAC-SHA256**, ensuring tampered or replayed packets are discarded before deserialization.
+
+---
+
+### 10. Algorithmic Multi-Hop Attack Path & Exploit Chain Engine
+
+- **AttackGraphEngine (`src/intelligence/graph/attack_graph.py`)**:
+  - Models entities as `GraphNode` (`asset`, `finding`, `credential`, `impact`) and relationships as `GraphEdge` (`EXPOSES`, `AUTHENTICATES`, `LEADS_TO`, `ESCALATES_TO`).
+  - Implements **Dijkstra's shortest-path algorithm** to synthesize complete lateral attack chains (`AttackChain`) from initial entry points to critical compromise targets.
+  - Computes composite risk weights and serializes graph schemas for 3D Cockpit rendering.
 
 ---
 

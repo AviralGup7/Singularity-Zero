@@ -41,14 +41,15 @@ State durability is guaranteed across boundaries by mirroring Write-Ahead Logs (
 
 ---
 
-## 🛡️ 3. Zero-Trust Network Policies & mTLS
+## 🛡️ 3. Zero-Trust Network Policies & Transport Encryption
 
-Because inter-node P2P Gossip traffic is high-velocity (UDP Port 9008), securing transport is a top-priority hardening requirement:
+Because inter-node P2P Gossip traffic is high-velocity (UDP Port 9008), securing transport is a core architectural requirement:
 
-### Gossip Wire Security Gaps
-- **Gossip signatures** are signed using `MESH_SECRET` (HMAC-SHA256), but the payload is not encrypted. Traffic analysis or sniffing inside a compromised VPC would expose target addresses and findings.
+### Native Wire Encryption & Authentication
+- **Authenticated Encryption**: In-flight gossip payloads are encrypted natively using **AES-256-GCM** with 96-bit random nonces derived from `MESH_SECRET` (`src/infrastructure/mesh/gossip/serializer.py`). Discovered targets, internal IP addresses, and vulnerability findings are never broadcast in plaintext.
+- **HMAC-SHA256 Signatures**: Every envelope includes a cryptographic HMAC-SHA256 signature to guarantee message authenticity and reject tampered packets before decryption.
 
-### Hardening Recommendations:
+### Additional Infrastructure Hardening (Defense-in-Depth):
 1. **WireGuard Overlay Tunnel (Recommended)**:
    - Encapsulate all P2P UDP port 9008 traffic within a WireGuard overlay network.
    - Restrict Gossip listeners to bind strictly to the WireGuard private interface:
