@@ -1,44 +1,63 @@
 # Multi-Region Deployment & Replication Blueprint
 
 > [!NOTE]
-> **Deployment Architecture Blueprint**: This guide details the multi-region active-active deployment pattern utilizing Redis Stream replication relays (`src/infrastructure/frontier/replication.py`), Hybrid Logical Clocks (HLC), and encrypted P2P gossip.
+> **I36 — regions are not authority domains.** The topology still has a Region A and a Region B box. Only one of them is the leader home for a given partition. Live CLI is single-node quorum-1; this document names the consistency model so a second region cannot silently become a second writer. Machine-readable contract: `src/core/frontier/region_model.py`.
 
 ---
 
-## 🏗️ 1. Multi-Region Active-Active Topology
+## 🏗️ 1. Multi-Region Topology (single writer per partition)
 
-Singularity-Zero can be scaled across geographical regions (e.g., `us-east-1`, `eu-west-1`, `ap-southeast-1`) by mirroring state across independent regional instances:
+A region is a **placement / replica / latency boundary**. It is not an independent authority. `P-0000` is the only global writer for budget, placement, and policy watermark. Each data partition has exactly one leader (I7 / I17). WAL order is **per partition**, not a global total order.
 
 ```mermaid
 graph TD
-    subgraph Region-A [us-east-1]
+    subgraph Region-A [us-east-1 leader home]
         A_Gossip[Gossip Mesh Node A1] <-->|SWIM UDP 9008| B_Gossip
-        A_Orch[Pipeline & State Authority] --> A_WAL[FrontierWAL]
-        A_WAL --> A_AOF[(Local AOF Ledger)]
-        A_WAL --> A_Redis[(Redis Stream WAL)]
+        A_Orch[Partition leader + P-0000]
+        A_WAL[PartitionWAL L0]
+        A_Journal[FrontierWAL scan journal]
+        A_Orch --> A_WAL
+        A_Orch --> A_Journal
+        A_Journal --> A_Redis[(Redis Stream journal)]
     end
-    subgraph Region-B [eu-west-1]
+    subgraph Region-B [eu-west-1 replica]
         B_Gossip[Gossip Mesh Node B1]
-        B_Orch[Pipeline & State Authority] --> B_WAL[FrontierWAL]
-        B_WAL --> B_AOF[(Local AOF Ledger)]
-        B_WAL --> B_Redis[(Redis Stream WAL)]
+        B_Orch[Fail-closed for mutations]
+        B_Journal[FrontierWAL replica]
+        B_Journal --> B_Redis[(Redis Stream journal)]
     end
-    A_Redis <-->|Cross-Region WAL Sync (WALReplicationRelay)| B_Redis
+    A_Redis -->|WALReplicationRelay journal only| B_Redis
+    A_WAL -.->|I36 replica must not commit| B_Orch
 ```
 
+| Question | Answer |
+|---|---|
+| Is each region an authority domain? | **No.** |
+| Is there one global authority? | **Yes — `P-0000`. ** |
+| Can two regions independently accept commands? | **No.** Only the current leader home. |
+| WAL ordering? | **Partition-ordered.** |
+| Consistency model? | **Single-writer linearizability per partition.** HLC/LWW is scan-journal only. |
+| Network partition? | Non-leader / minority is **fail-closed** (I34 AUTHORITY_LOSS). |
+| Both regions writable? | **Not for the same partition.** |
+| After healing, who wins? | Higher `placement_version` / ownership epoch. Equal version + divergent hash → fail-closed. **Not LWW.** |
+| Budget reservations span regions? | **No.** Only `P-0000` mutates Available/Outstanding. |
+| Lease acquired in A, settled in B? | **No**, unless B became the same leader via fenced transfer. |
+| Can an execution migrate? | **Yes**, only through `P-0000` 5-stage fence. |
+| After an attempt starts? | **No.** In-flight `AttemptId` stays (I33). |
+
 ### Region-Aware Sharding
-- **Deterministic Consistent Hashing**: Target scopes (URLs, subdomains, API hosts) are distributed across regions using consistent hashing. Each region is assigned a specific hash ring segment, ensuring that a target is fuzzed/scanned strictly within its designated latency boundary.
-- **HLC Causal Convergence**: Multi-region state updates are merged asynchronously using **Hybrid Logical Clocks (HLC)**. Because HLCs maintain monotonic physical/logical sequencing in $O(1)$ constant footprint, regional actors can merge set states (`LWW-Sets`) without ordering conflicts or clock drift hazards.
+- **Deterministic placement**: Target hashes map to one of 1024 virtual partitions (`PlacementAuthority.get_partition_for_target`). The partition's **home region** is recorded on `PlacementAuthority.partition_home`.
+- **HLC / LWW**: Allowed only for the FrontierWAL CRDT **scan journal** (discovered URLs, subdomains). It must not merge PartitionWAL, budget, leases, or settlement intents.
 
 ---
 
-## 🔁 2. Cross-Region WAL Replication & Conflict Resolution
+## 🔁 2. Cross-Region Journal Relay (non-authority)
 
-State durability is guaranteed across boundaries by mirroring Write-Ahead Logs (WAL) and local Append-Only Files (AOF):
+`WALReplicationRelay` (`src/infrastructure/frontier/replication.py`) mirrors the **scan journal** Redis stream. It is not active-active authority.
 
-1. **Redis Stream Fan-Out**: When a regional node commits a state mutation, it writes the delta to the local Redis Stream. `WALReplicationRelay` (`src/infrastructure/frontier/replication.py`) replicates this stream to peer regions asynchronously.
-2. **Differential Reconciliation**: In the event of a cross-region link drop, nodes accumulate mutations locally in AOF logs. Once the link heals, nodes exchange HLC vectors to perform a fast-forward reconciliation.
-3. **Conflict Resolution**: Contested HLC merges are resolved deterministically using Last-Write-Wins (LWW) rules and monotonic tie-breakers.
+1. **Journal fan-out**: Leader-home FrontierWAL deltas may be `XADD`'d to peer streams.
+2. **Reconcile**: `reconcile_with_peer` **refuses** rows that look like `SettlementIntent` / commands. It never calls `StateAuthority.append_settlement_intent`.
+3. **Healing**: Restore the follower from the leader PartitionWAL (I16 / I35). Do not LWW-merge two leaders. Equal `placement_version` with disagreeing state hashes is fail-closed (I11/I36).
 
 ---
 

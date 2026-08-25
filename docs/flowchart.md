@@ -42,7 +42,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | Id | Chart | Source |
 |---|---|---|
 | F-001 | Documentation portal map | [index.md](index.md) |
-| F-002 | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md) |
+| F-002 | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `region_model.py` (I36) |
 | F-003 | Authority plane | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
 | F-004 | Live scan path | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md) |
 | F-006 | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
@@ -87,7 +87,9 @@ flowchart TD
 
 ## F-002 — System topology and regions
 
-Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md). Absorbed F-021.
+Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `src/core/frontier/region_model.py` (I36). Absorbed F-021.
+
+A region is a placement/replica boundary, not a second authority. Only the leader home admits commands. The relay is journal-only.
 
 ```mermaid
 flowchart TD
@@ -97,21 +99,24 @@ flowchart TD
     Orch --> State["WAL / CRDT / Cache / Mesh"]
     Engines --> Sinks["Learning + Reporting"]
     State --> Sinks
-    subgraph RegionA["Region A"]
+    subgraph RegionA["Region A leader home"]
         GA["Gossip A"]
-        OA["Authority + FrontierWAL"]
+        OA["P-0000 + partition leader"]
+        JA["FrontierWAL journal"]
         RA["Redis stream"]
-        OA --> RA
+        OA --> JA --> RA
     end
-    subgraph RegionB["Region B"]
+    subgraph RegionB["Region B replica"]
         GB["Gossip B"]
-        OB["Authority + FrontierWAL"]
+        OB["Fail-closed for mutations"]
+        JB["FrontierWAL replica"]
         RB["Redis stream"]
-        OB --> RB
+        JB --> RB
     end
     State --- OA
     GA <-->|"SWIM UDP AES-256-GCM"| GB
-    RA <-->|"WALReplicationRelay"| RB
+    RA -->|"WALReplicationRelay journal only I36"| RB
+    OB -.->|"must not commit peer settlements"| Forbidden["I36 refuse"]
 ```
 
 ## F-003 — Authority plane
@@ -564,5 +569,6 @@ flowchart TD
 | 2026-08-26 | F-003: attach_pipeline_authority lives in authority_bootstrap | edit |
 | 2026-08-26 | F-006: SETTLEMENT_PENDING is alias of ACTIVE | edit |
 | 2026-08-26 | F-018: I35 recovery protocol state machine | edit |
+| 2026-08-26 | F-002: I36 single-writer regions; relay is journal-only | edit |
 
 Append a row for every later edit. Do not delete this table.

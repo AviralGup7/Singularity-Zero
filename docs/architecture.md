@@ -4,7 +4,7 @@
 
 This document constitutes the **Authoritative System Architecture Specification and Engineering Contract** for the Cyber Security Test Pipeline. Status tags: **LIVE** = constructed on the CLI/dashboard scan path; **LIBRARY** = implemented and tested, not the default multi-node cluster; **UNUSED** = file exists without production callers.
 
-Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I35** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
+Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I36** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
 
 | Subsystem | Status | Paths |
 |---|---|---|
@@ -69,6 +69,7 @@ Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I35** (see 
 | **Task Candidate Recommendation**| Task Auction & Bidder (`src/infrastructure/frontier/`) | None (Scheduling proposal only) |
 | **Materialized Views / Query** | `ProjectionCheckpointVector` Consumers | Projections are derived from WAL, never write |
 | **Local Performance & Sync Aid** | Tiered Cache & Ghost VFS | Ephemeral / reconstructible from WAL snapshots |
+| **Cross-Region Placement** | Leader home at `placement_version` (I36) | `WALReplicationRelay` journal mirror, gossip |
 
 ---
 
@@ -158,6 +159,7 @@ graph TD
 34. **I33 (Causal Identity Chain)**: Every unit of work carries a parent-linked identity `CommandId → ExecutionId → AttemptId → SettlementId → WalId → EventId → DeliveryId`. Child ids are derived from their parent. A non-empty child without its ancestors is illegal. The same attempt always reconstructs the same ids, so retry, WAL replay, outbox append, and EventBus delivery are exactly-once by identity rather than by accident.
 35. **I34 (Failure Recovery Semantics)**: Every classified failure has exactly one declared recovery policy in `src/core/frontier/failure_model.py`: Retry, Rollback, Compensate, Fail-closed, Operator action. Call sites must not invent a forbidden action. WAL corruption / authority loss / replica divergence / FSM invariant → fail-closed, no retry. Event delivery → retry, never rollback (I32). Budget inconsistency → fail-closed new reservations, compensate outstanding (I28).
 36. **I35 (Recovery Protocol)**: Every durable object has a declared authoritative source, reconstructibility, determinism, and idempotency in `src/core/frontier/recovery_protocol.py`. Recovery is a state machine (`UNINITIALIZED → … → READY | FAIL_CLOSED | FRESH`), not a second failure table. Snapshot vs WAL disagreement, truncated WAL, semantically old snapshot, schema newer than the reader, outbox/FSM skew, delivery ahead of outbox, crash between WAL commit and outbox append, crash between outbox and delivery, and crash during compensation each have one resolution. Partition plane is fail-closed; FrontierWAL scan journal may keep a STALE snapshot. Checkpoints and DeliveryLedger are never authority.
+37. **I36 (Region Consistency)**: A region is a placement / replica / latency boundary, not an authority domain. There is one global writer (`P-0000`) and exactly one leader per partition. WAL order is per-partition, not global. Network partition → non-leader is fail-closed (I34). Healing uses `placement_version` / ownership epoch, never LWW merge of two leaders. Budget reservations do not span regional copies. A lease reserved in A cannot be settled in B unless B became the same leader via fenced transfer. Execution may migrate only through `P-0000`, and not while an AttemptId is in flight. Machine-readable contract: `src/core/frontier/region_model.py`. `WALReplicationRelay` is journal-only.
 
 > [!NOTE]
 > **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{29}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`, `tests/integration/test_chaos_fault_injection.py`). Cryptographic properties (e.g. $I_{11}, I_{27}$) hold under standard computational collision resistance assumptions.
