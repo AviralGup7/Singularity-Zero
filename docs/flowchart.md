@@ -65,6 +65,8 @@ Visual graphs for every living document under `docs/`. Charts are the map; the l
 | F-028 | Three config trees (kept separate) | [environment-variables.md](environment-variables.md) |
 | F-029 | Pipeline stage DAG | [codebase.md](codebase.md) |
 | F-030 | Performance and backpressure | [performance.md](performance.md) |
+| F-031 | API security & request gate | [api-reference.md](api-reference.md) |
+| F-032 | Storage tiering & archival lifecycle | [architecture.md](architecture.md) |
 
 ---
 
@@ -89,6 +91,7 @@ flowchart TD
     Index --> Multi["multi-region.md"]
     Index --> Perf["performance.md"]
     Index --> Gloss["glossary.md"]
+    Index --> ApiDoc["api-reference.md"]
     Arch --> ExecReq["architecture/execution-request-contract.md"]
     Arch --> CacheDoc["architecture/cache-unification.md"]
 ```
@@ -233,11 +236,14 @@ stateDiagram-v2
     [*] --> PENDING
     PENDING --> RUNNING
     PENDING --> SKIPPED_DISABLED
+    PENDING --> DEGRADED
     RUNNING --> COMPLETED
+    RUNNING --> DEGRADED
     RUNNING --> FAILED
     RUNNING --> SKIPPED_FAILED
     SKIPPED_DISABLED --> [*]
     SKIPPED_FAILED --> [*]
+    DEGRADED --> [*]
     COMPLETED --> [*]
     FAILED --> [*]
 ```
@@ -678,10 +684,50 @@ flowchart TD
 
 ---
 
+## F-031 — API security & request gate
+
+Source: [api-reference.md](api-reference.md)
+
+```mermaid
+flowchart TD
+    Req["Inbound HTTP Request"] --> Tenant["Extract X-Tenant-ID<br/>(namespace isolation)"]
+    Tenant --> AuthCheck{"Authentication Mode"}
+    AuthCheck -->|Bearer JWT / API Key| SkipCSRF["Exempt from CSRF"]
+    AuthCheck -->|Session Cookie| Mutating{"Mutating Request?<br/>POST / PUT / DELETE"}
+    Mutating -->|Yes| CSRF["Verify X-CSRF-Token == csrf_token cookie"]
+    Mutating -->|No GET| GenCSRF["Issue new csrf_token cookie"]
+    CSRF -->|Valid| Dispatch["Dispatch to Route Handler"]
+    CSRF -->|Invalid / Missing| Reject403["403 CSRF Token Missing/Invalid"]
+    SkipCSRF --> Dispatch
+    GenCSRF --> Dispatch
+```
+
+---
+
+## F-032 — Storage tiering & archival lifecycle
+
+Source: [architecture.md](architecture.md) §7.17, `src/pipeline/storage_tiering.py`, `src/pipeline/output_history.py`
+
+```mermaid
+flowchart TD
+    Scan["Completed Scan Run"] --> Hot["Hot Tier (NVMe / Cache)"]
+    Hot --> Arch["archive_run_dir()"]
+    Arch --> Comp["Gzip compress files > 4KB<br/>(skip .gz / .zip)"]
+    Comp --> Cold["Compressed Archive Tier"]
+    Hot --> Prune{"Age > max_age_seconds<br/>(default: 14 days)"}
+    Prune -->|Yes| DeleteHot["prune_hot_tier() removes old dir"]
+    Prune -->|No| KeepHot["Retain in Hot Tier"]
+    Cold & Hot --> Index["index_runs() parses run_summary.json"]
+    Index --> SearchIndex["Searchable Scan Run Index"]
+```
+
+---
+
 ## Changelog
 
 | Date | Change | Kind |
 |---|---|---|
 | 2026-08-25 | Initial atlas F-001–F-030 created. Maintenance contract recorded. | add |
+| 2026-08-25 | Added api-reference.md to F-001; added DEGRADED terminal status to F-008; added F-031 (API security gate) and F-032 (storage tiering & archival). | edit |
 
 Do not delete this changelog. Append a row for every later edit.
