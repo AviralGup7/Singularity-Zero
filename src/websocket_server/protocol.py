@@ -17,6 +17,11 @@ Message types:
 from __future__ import annotations
 
 import json  # Fix #372: Move to top-level
+
+try:
+    import msgpack
+except ImportError:  # pragma: no cover
+    msgpack = None  # type: ignore[assignment]
 import time
 import uuid
 from enum import StrEnum
@@ -107,6 +112,24 @@ class BaseMessage(BaseModel):
         if model_cls is None:
             raise ValueError(f"Unknown message type: {msg_type}")
 
+        return model_cls.model_validate(raw)
+
+    def to_msgpack(self) -> bytes:
+        """Binary MessagePack encoding; falls back to JSON bytes if msgpack missing."""
+        payload = self.model_dump(mode="json")
+        if msgpack is None:
+            return json.dumps(payload).encode("utf-8")
+        return msgpack.packb(payload, use_bin_type=True)
+
+    @classmethod
+    def from_msgpack(cls, data: bytes) -> BaseMessage:
+        if msgpack is None:
+            return cls.from_json(data.decode("utf-8"))
+        raw = msgpack.unpackb(data, raw=False)
+        msg_type = raw.get("type")
+        model_cls = _MESSAGE_TYPE_MAP.get(str(msg_type))
+        if model_cls is None:
+            raise ValueError(f"Unknown message type: {msg_type}")
         return model_cls.model_validate(raw)
 
 

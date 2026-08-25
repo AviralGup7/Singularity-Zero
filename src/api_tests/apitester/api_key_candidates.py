@@ -11,8 +11,25 @@ TOKEN_PARAM_NAMES = {
 }
 THIRD_PARTY_KEY_PATTERNS = (
     ("stripe_publishable_key", re.compile(r"\bpk_live_[A-Za-z0-9]{16,}\b")),
+    ("stripe_secret_key", re.compile(r"\bsk_live_[A-Za-z0-9]{16,}\b")),
     ("mapbox_token", re.compile(r"\bpk\.[A-Za-z0-9._-]{20,}\b")),
     ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b")),
+    ("github_pat", re.compile(r"\bghp_[A-Za-z0-9]{20,}\b")),
+    ("github_fine_grained", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b")),
+    ("gitlab_pat", re.compile(r"\bglpat-[A-Za-z0-9_\-]{20,}\b")),
+    ("slack_bot", re.compile(r"\bxoxb-[A-Za-z0-9-]{10,}\b")),
+    ("slack_user", re.compile(r"\bxoxp-[A-Za-z0-9-]{10,}\b")),
+    ("twilio_sid", re.compile(r"\bAC[a-f0-9]{32}\b")),
+    ("sendgrid", re.compile(r"\bSG\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}\b")),
+    ("openai", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
+    ("anthropic", re.compile(r"\bsk-ant-[A-Za-z0-9\-_]{20,}\b")),
+    ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    ("datadog", re.compile(r"\b[a-f0-9]{32}\b")),
+    ("heroku", re.compile(r"\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b")),
+    ("mailgun", re.compile(r"\bkey-[0-9a-zA-Z]{32}\b")),
+    ("npm_token", re.compile(r"\bnpm_[A-Za-z0-9]{36}\b")),
+    ("pypi_token", re.compile(r"\bpypi-[A-Za-z0-9_\-]{20,}\b")),
+    ("digitalocean", re.compile(r"\bdop_v1_[a-f0-9]{64}\b")),
 )
 JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
 

@@ -1,7 +1,12 @@
-"""Auth audit trail (in-memory)."""
+"""Auth audit trail.
+
+In-memory ring buffer for session events. HMAC-SHA256 chained records live in
+``src.infrastructure.security.audit`` and are written when a secret is configured.
+"""
 
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -72,3 +77,21 @@ class AuthAuditLog:
 
     def __len__(self) -> int:
         return len(self._items)
+
+    def chained_hmac_records(self, secret: str) -> list[dict[str, object]]:
+        """HMAC-SHA256 hash chain over the in-memory trail (I13-style binding)."""
+        import hashlib
+        import hmac as hmac_mod
+
+        records: list[dict[str, object]] = []
+        prev = "0" * 64
+        key = secret.encode("utf-8")
+        for event in self._items:
+            payload = json.dumps(event.to_dict(), sort_keys=True).encode("utf-8")
+            digest = hmac_mod.new(key, prev.encode("utf-8") + payload, hashlib.sha256).hexdigest()
+            rec = event.to_dict()
+            rec["previous_hash"] = prev
+            rec["hmac_sha256"] = digest
+            records.append(rec)
+            prev = digest
+        return records

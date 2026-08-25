@@ -264,6 +264,14 @@ def _apply_profile_to_definition(
     return merged
 
 
+class GraphBuilder:
+    """Doc-facing name for ``build_pipeline_graph``."""
+
+    @staticmethod
+    def build(profile: dict[str, Any] | None = None) -> Any:
+        return build_pipeline_graph(profile=profile)
+
+
 def build_pipeline_graph(
     registered_stages: list[StageNodeDefinition] | None = None,
     profile: dict[str, Any] | None = None,

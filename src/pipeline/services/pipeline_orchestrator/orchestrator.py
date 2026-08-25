@@ -382,6 +382,9 @@ class PipelineOrchestrator:
 
     @property
     def state_authority(self) -> Any:
+        runtime = getattr(self, "_authority_runtime", None)
+        if runtime is not None:
+            return runtime.state_authority
         if not hasattr(self, "_state_authority_instance") or self._state_authority_instance is None:
             from src.core.frontier.state_authority import StateAuthority
 
@@ -390,6 +393,9 @@ class PipelineOrchestrator:
 
     @property
     def settlement_coordinator(self) -> Any:
+        runtime = getattr(self, "_authority_runtime", None)
+        if runtime is not None:
+            return runtime.settlement
         if (
             not hasattr(self, "_settlement_coordinator_instance")
             or self._settlement_coordinator_instance is None

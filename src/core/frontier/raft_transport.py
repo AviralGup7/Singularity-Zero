@@ -230,3 +230,60 @@ class InMemoryRaftTransport:
                 )
 
         return target.handle_request_vote_rpc(request)
+
+
+class NetworkRaftTransport:
+    """JSON-over-TCP Raft RPC. Peers are ``node_id -> (host, port)``.
+
+    Single-node CLI scans do not need this; InMemoryRaftTransport is quorum-1.
+    This class is the multi-host activation path.
+    """
+
+    def __init__(self, timeout_seconds: float = 2.0) -> None:
+        self._peers: dict[str, tuple[str, int]] = {}
+        self._timeout = timeout_seconds
+        self._lock = threading.RLock()
+
+    def register_peer(self, node_id: str, host: str, port: int) -> None:
+        with self._lock:
+            self._peers[node_id] = (host, int(port))
+
+    def _rpc(self, target_node_id: str, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+        import json
+        import socket
+
+        with self._lock:
+            peer = self._peers.get(target_node_id)
+        if peer is None:
+            return {"success": False, "vote_granted": False, "error_code": "NODE_NOT_FOUND", "term": 0, "node_id": target_node_id, "match_index": 0}
+        host, port = peer
+        body = json.dumps({"method": method, "payload": payload}).encode("utf-8")
+        try:
+            with socket.create_connection((host, port), timeout=self._timeout) as sock:
+                sock.sendall(len(body).to_bytes(4, "big") + body)
+                hdr = sock.recv(4)
+                if len(hdr) < 4:
+                    raise OSError("short header")
+                n = int.from_bytes(hdr, "big")
+                data = b""
+                while len(data) < n:
+                    chunk = sock.recv(n - len(data))
+                    if not chunk:
+                        break
+                    data += chunk
+            return json.loads(data.decode("utf-8"))
+        except OSError as exc:
+            logger.warning("Raft RPC to %s failed: %s", target_node_id, exc)
+            return {"success": False, "vote_granted": False, "error_code": "NODE_UNREACHABLE", "term": 0, "node_id": target_node_id, "match_index": 0}
+
+    def send_append_entries(
+        self, target_node_id: str, request: AppendEntriesRequest
+    ) -> AppendEntriesResponse:
+        raw = self._rpc(target_node_id, "append_entries", request.to_dict())
+        return AppendEntriesResponse.from_dict(raw)
+
+    def send_request_vote(
+        self, target_node_id: str, request: RequestVoteRequest
+    ) -> RequestVoteResponse:
+        raw = self._rpc(target_node_id, "request_vote", request.to_dict())
+        return RequestVoteResponse.from_dict(raw)

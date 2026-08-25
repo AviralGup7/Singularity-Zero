@@ -1,6 +1,6 @@
 # Formal Command & State Transition Specification
 
-This document defines the **Formal Command & State Transition Contract** for all operations in the Cyber Security Test Pipeline, adhering strictly to [TARGET_ARCHITECTURE.md](file:///d:/cyber%20security%20test%20pipeline%20-%20Copy/docs/TARGET_ARCHITECTURE.md).
+This document defines the **Formal Command & State Transition Contract** for all operations in the Cyber Security Test Pipeline. Canonical architecture: [architecture.md](architecture.md).
 
 ---
 

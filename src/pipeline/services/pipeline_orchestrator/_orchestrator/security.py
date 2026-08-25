@@ -313,6 +313,12 @@ async def run_secured(
             run_id,
             aof_dir=wal_aof_dir,
         )
+    try:
+        from src.core.frontier.authority_runtime import attach_pipeline_authority
+
+        attach_pipeline_authority(orchestrator, run_id, config)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Pipeline authority runtime attach failed: %s", exc)
     logger.info(
         "Recovery Manager: WAL journal ready stream=cyber:wal:%s source=%s mode=%s",
         run_id,

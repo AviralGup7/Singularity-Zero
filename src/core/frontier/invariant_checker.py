@@ -1,4 +1,4 @@
-"""Formal System Invariant Verification Engine (Invariants I1 - I16).
+"""Formal System Invariant Verification Engine (Invariants I1–I29).
 
 Implements machine-checkable audit tests for all 16 target system invariants (Contract Section 7 & 9):
 - Validates hash-chain continuity, monotonicity, and idempotency scoping

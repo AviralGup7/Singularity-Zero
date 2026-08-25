@@ -2,7 +2,9 @@
 
 ## 1. Implementation Status & Engineering Ground Truth
 
-This document constitutes the **Authoritative System Architecture Specification and Engineering Contract** for the Cyber Security Test Pipeline. It unifies the operational runtime reality with the formal distributed consensus specifications, 10 Non-Negotiable System Axioms, 7-Layer Control Plane, and 16 Formal System Invariants.
+This document constitutes the **Authoritative System Architecture Specification and Engineering Contract** for the Cyber Security Test Pipeline. Status tags: **LIVE** = constructed on the CLI/dashboard scan path; **LIBRARY** = implemented and tested, not the default multi-node cluster; **UNUSED** = file exists without production callers.
+
+Canonical invariant set is **I1–I29** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
 
 | **Coverage-Guided & Protocol Fuzzing** | **Production** — Integrated `CorpusManager` & `CoverageTracker` edge feedback, native process `ForkServer` isolation/crash containment, and protocol fuzzers (HTTP/2, QUIC, gRPC, GraphQL) | `src/fuzzing/` |
 | **Bayesian Decision & Adaptive Flow Control** | **Production** — Multi-Armed Bayesian Bandit with Thompson Sampling/UCB1, `HuntBudgetEnforcer` multi-axis quota reservations, closed-loop `AdaptivePIDController`, and Bulkhead isolation | `src/decision/`, `src/infrastructure/flow_control/` |
