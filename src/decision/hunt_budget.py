@@ -299,10 +299,23 @@ class HuntBudgetEnforcer:
     axis, that axis never reports as exhausted.
     """
 
-    def __init__(self, budget: HuntBudget | None = None, label: str | None = None) -> None:
+    def __init__(
+        self,
+        budget: HuntBudget | None = None,
+        label: str | None = None,
+        *,
+        global_budget: Any | None = None,
+        partition_id: str = "P-0000",
+        run_id: str = "hunt",
+    ) -> None:
         self._budget = budget or HuntBudget()
         if label is not None:
             self._budget.label = label
+        self._global_budget = global_budget
+        self._partition_id = partition_id
+        self._run_id = run_id
+        self._sublease_seq = 0
+        self._open_subleases: list[tuple[str, int]] = []
         self._start = time.monotonic()
         self._requests_emitted = 0
         self._requests_reserved = 0
@@ -344,7 +357,9 @@ class HuntBudgetEnforcer:
         with self._lock:
             if self._budget.max_requests is None:
                 return float("inf")
-            return max(0, self._budget.max_requests - (self._requests_reserved + self._requests_consumed))
+            return max(
+                0, self._budget.max_requests - (self._requests_reserved + self._requests_consumed)
+            )
 
     @property
     def productive_findings(self) -> int:
@@ -385,8 +400,25 @@ class HuntBudgetEnforcer:
             return True
         with self._lock:
             if self._budget.max_requests is not None:
-                if (self._requests_reserved + self._requests_consumed + count) > self._budget.max_requests:
+                if (
+                    self._requests_reserved + self._requests_consumed + count
+                ) > self._budget.max_requests:
                     return False
+            if self._global_budget is not None:
+                from src.core.frontier.commands import reserve_global_budget
+
+                self._sublease_seq += 1
+                sl_id = f"hunt_{self._budget.label}_{self._sublease_seq}"
+                env = reserve_global_budget(
+                    run_id=self._run_id,
+                    partition_id=self._partition_id,
+                    units=int(count),
+                    sublease_id=sl_id,
+                ).to_envelope()
+                ok, _msg = self._global_budget.apply_command(env)
+                if not ok:
+                    return False
+                self._open_subleases.append((sl_id, int(count)))
             self._requests_reserved += int(count)
             return True
 
@@ -395,6 +427,20 @@ class HuntBudgetEnforcer:
         if count <= 0:
             return
         with self._lock:
+            remaining = int(count)
+            if self._global_budget is not None:
+                from src.core.frontier.commands import settlement_return
+
+                while remaining > 0 and self._open_subleases:
+                    sl_id, units = self._open_subleases.pop(0)
+                    take = min(units, remaining)
+                    env = settlement_return(
+                        sublease_id=sl_id,
+                        units_consumed=take,
+                        units_returned=units - take,
+                    ).to_envelope()
+                    self._global_budget.apply_command(env)
+                    remaining -= take
             self._requests_reserved = max(0, self._requests_reserved - int(count))
             self._requests_consumed += int(count)
             self._requests_emitted = self._requests_consumed
@@ -404,6 +450,20 @@ class HuntBudgetEnforcer:
         if count <= 0:
             return
         with self._lock:
+            remaining = int(count)
+            if self._global_budget is not None:
+                from src.core.frontier.commands import settlement_return
+
+                while remaining > 0 and self._open_subleases:
+                    sl_id, units = self._open_subleases.pop(0)
+                    take = min(units, remaining)
+                    env = settlement_return(
+                        sublease_id=sl_id,
+                        units_consumed=0,
+                        units_returned=units,
+                    ).to_envelope()
+                    self._global_budget.apply_command(env)
+                    remaining -= take
             self._requests_reserved = max(0, self._requests_reserved - int(count))
 
     def record_request(self, count: int = 1) -> None:

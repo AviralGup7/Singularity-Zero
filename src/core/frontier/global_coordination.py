@@ -259,6 +259,35 @@ class GlobalBudgetAggregate:
         self.version += 1
         return True, "SUBLEASE_EXPIRED_AND_RECLAIMED"
 
+    def apply_command(self, envelope: CommandEnvelope) -> tuple[bool, str]:
+        """Apply a typed P-0000 budget command. Version fence is optional."""
+        if (
+            envelope.expected_aggregate_version is not None
+            and envelope.expected_aggregate_version != self.version
+        ):
+            return False, "VERSION_CONFLICT"
+        cmd_type = envelope.command_type
+        payload = envelope.payload
+        if cmd_type == "ReserveGlobalBudgetCommand":
+            return self.reserve_sublease(
+                sublease_id=str(payload.get("sublease_id") or f"sl_{envelope.command_id}"),
+                run_id=str(payload.get("run_id", "")),
+                partition_id=str(payload.get("partition_id", "P-0000")),
+                units=int(payload.get("units", 0)),
+            )
+        if cmd_type == "SettlementReturnCommand":
+            return self.settle_return(
+                sublease_id=str(payload.get("sublease_id", "")),
+                units_consumed=int(payload.get("units_consumed", 0)),
+                units_returned=int(payload.get("units_returned", 0)),
+            )
+        if cmd_type == "ExpireSubLeaseCommand":
+            return self.expire_sublease(
+                sublease_id=str(payload.get("sublease_id") or envelope.aggregate_id),
+                units_consumed=int(payload.get("units_consumed", 0)),
+            )
+        return False, f"UNKNOWN_COMMAND_TYPE:{cmd_type}"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "total_budget": self.total_budget,

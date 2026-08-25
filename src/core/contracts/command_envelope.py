@@ -52,22 +52,28 @@ class CommandEnvelope:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CommandEnvelope:
+        raw = dict(data)
+        raw.setdefault("event_type", str(raw.get("command_type", "")))
+        try:
+            raw = GLOBAL_UPCASTER_REGISTRY.upcast(raw)
+        except Exception:
+            pass
         return cls(
-            command_id=str(data.get("command_id", uuid.uuid4().hex)),
-            command_type=str(data.get("command_type", "")),
-            aggregate_id=str(data.get("aggregate_id", "")),
-            payload=dict(data.get("payload", {})),
-            correlation_id=str(data.get("correlation_id", "")),
-            causation_id=str(data.get("causation_id", "")),
+            command_id=str(raw.get("command_id", uuid.uuid4().hex)),
+            command_type=str(raw.get("command_type", "")),
+            aggregate_id=str(raw.get("aggregate_id", "")),
+            payload=dict(raw.get("payload", {})),
+            correlation_id=str(raw.get("correlation_id", "")),
+            causation_id=str(raw.get("causation_id", "")),
             expected_aggregate_version=(
-                int(data["expected_aggregate_version"])
-                if data.get("expected_aggregate_version") is not None
+                int(raw["expected_aggregate_version"])
+                if raw.get("expected_aggregate_version") is not None
                 else None
             ),
-            traceparent=str(data.get("traceparent", "")),
-            tracestate=str(data.get("tracestate", "")),
-            created_at_unix=float(data.get("created_at_unix", time.time())),
-            schema_version=int(data.get("schema_version", 1)),
+            traceparent=str(raw.get("traceparent", "")),
+            tracestate=str(raw.get("tracestate", "")),
+            created_at_unix=float(raw.get("created_at_unix", time.time())),
+            schema_version=int(raw.get("schema_version", 1)),
         )
 
 
