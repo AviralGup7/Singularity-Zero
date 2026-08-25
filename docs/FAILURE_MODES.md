@@ -19,6 +19,39 @@ Exotic multi-node repair is **not** implemented. The architecture still names th
 
 Why WAL compensate is **No**: I15 never applied the corrupt record, so there is nothing to compensate. Why authority-loss compensate is **No**: outstanding leases expire or compensate through I28 on a live leader, not on step-down.
 
+## I35 Recovery Protocol
+
+I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. Exotic multi-node repair is still not implemented; the outcome is still named.
+
+Recovery is a state machine, not another table:
+
+`UNINITIALIZED → LOAD_SNAPSHOT → VERIFY_SNAPSHOT → LOAD_WAL → RECONCILE_SNAPSHOT_WAL → REPLAY_WAL → RECONSTRUCT_FSM → RECONCILE_OUTBOX → RECONCILE_DELIVERY → VERIFY_INVARIANTS → READY | FAIL_CLOSED | FRESH`
+
+| Durable object | Authoritative source | Reconstructible from | Deterministic | Idempotent |
+|---|---|---|---|---|
+| PartitionWAL | itself (L0, CRC fail-closed) | not reconstructible | Yes | Yes |
+| PartitionFSM | PartitionWAL committed entries | sequential `FSM.Apply` (I16) | Yes | Yes |
+| FrontierWAL | itself (scan journal) | not reconstructible | Yes | Yes |
+| Checkpoint snapshot | none — L3 cache | FrontierWAL + PartitionWAL | Yes | Yes |
+| DurableOutbox | committed `emitted_events` | WAL rebuild by EventId | Yes | Yes |
+| DeliveryLedger | none — process-local cache | empty; replay dispatch | Yes | Yes |
+| GlobalBudget | P-0000 budget commands | sequential reserve/settle/expire | Yes | Yes |
+| SettlementIntent | FrontierWAL envelope (`wal_id`) | journal replay (I31/I33) | Yes | Yes |
+| Policy state | PartitionFSM policy commands | promote/rollback replay | Yes | Yes |
+
+| Crash / disagreement | Partition plane | Frontier / scan journal |
+|---|---|---|
+| Snapshot ahead of WAL | Fail-closed | Discard snapshot; keep journal |
+| Snapshot behind WAL / semantically old | Replay exclusive tail | Replay exclusive tail |
+| WAL truncated after snapshot | Fail-closed | Keep snapshot as STALE; do not invent ids |
+| Schema newer than reader | Fail-closed | Fresh run |
+| Schema older than reader | Forward-migrate | Forward-migrate |
+| Outbox without FSM | Ignore orphan outbox rows | Ignore orphan outbox rows |
+| FSM / WAL committed, outbox missing | Rebuild outbox from committed events | Rebuild outbox |
+| Delivery ahead of outbox | Discard extra DeliveryIds | Discard extra DeliveryIds |
+| Outbox appended, delivery missing | Replay dispatch (I32) | Replay dispatch |
+| Crash during compensation | Idempotent replay of I28 | Idempotent replay of I28 |
+
 ---
 
 ## 🎯 Findings vs. Silent Gaps

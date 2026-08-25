@@ -4,7 +4,7 @@
 
 This document constitutes the **Authoritative System Architecture Specification and Engineering Contract** for the Cyber Security Test Pipeline. Status tags: **LIVE** = constructed on the CLI/dashboard scan path; **LIBRARY** = implemented and tested, not the default multi-node cluster; **UNUSED** = file exists without production callers.
 
-Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I34** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
+Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I35** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
 
 | Subsystem | Status | Paths |
 |---|---|---|
@@ -157,6 +157,7 @@ graph TD
 33. **I32 (EventBus Non-Authority)**: EventBus is an in-process delivery dispatcher after the durable outbox. Outbox or bus failure does not un-commit authoritative state.
 34. **I33 (Causal Identity Chain)**: Every unit of work carries a parent-linked identity `CommandId → ExecutionId → AttemptId → SettlementId → WalId → EventId → DeliveryId`. Child ids are derived from their parent. A non-empty child without its ancestors is illegal. The same attempt always reconstructs the same ids, so retry, WAL replay, outbox append, and EventBus delivery are exactly-once by identity rather than by accident.
 35. **I34 (Failure Recovery Semantics)**: Every classified failure has exactly one declared recovery policy in `src/core/frontier/failure_model.py`: Retry, Rollback, Compensate, Fail-closed, Operator action. Call sites must not invent a forbidden action. WAL corruption / authority loss / replica divergence / FSM invariant → fail-closed, no retry. Event delivery → retry, never rollback (I32). Budget inconsistency → fail-closed new reservations, compensate outstanding (I28).
+36. **I35 (Recovery Protocol)**: Every durable object has a declared authoritative source, reconstructibility, determinism, and idempotency in `src/core/frontier/recovery_protocol.py`. Recovery is a state machine (`UNINITIALIZED → … → READY | FAIL_CLOSED | FRESH`), not a second failure table. Snapshot vs WAL disagreement, truncated WAL, semantically old snapshot, schema newer than the reader, outbox/FSM skew, delivery ahead of outbox, crash between WAL commit and outbox append, crash between outbox and delivery, and crash during compensation each have one resolution. Partition plane is fail-closed; FrontierWAL scan journal may keep a STALE snapshot. Checkpoints and DeliveryLedger are never authority.
 
 > [!NOTE]
 > **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{29}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`, `tests/integration/test_chaos_fault_injection.py`). Cryptographic properties (e.g. $I_{11}, I_{27}$) hold under standard computational collision resistance assumptions.
@@ -204,6 +205,14 @@ graph TD
   ```
 - **Crash Recovery & Replay**:
   - On restart, `replay_from_wal()` rehydrates projection state by sequentially reapplying all committed `SettlementIntent` records from the durable WAL.
+  - **I35 recovery protocol** (`src/core/frontier/recovery_protocol.py`) walks every durable boundary before DAG resume:
+    ```text
+    LOAD_SNAPSHOT → VERIFY_SNAPSHOT → LOAD_WAL
+            → RECONCILE_SNAPSHOT_WAL → REPLAY_WAL → RECONSTRUCT_FSM
+            → RECONCILE_OUTBOX → RECONCILE_DELIVERY → VERIFY_INVARIANTS
+            → READY | FAIL_CLOSED | FRESH
+    ```
+    PartitionWAL is the L0 source and is not reconstructed. PartitionFSM, GlobalBudget, policy, and outbox rebuild from committed entries (`EventId` dedupe). Checkpoint snapshots and the DeliveryLedger are caches. Schema newer than the reader is unreadable. Crash between WAL commit and outbox append rebuilds the outbox; crash between outbox and delivery replays dispatch (I32). Compensation crash replays `compensate_sublease` (I28 idempotent).
 
 ### 7.7 Real-Time QoS Telemetry, Durable P0 Spooling & Disk Backpressure
 - **P0 Control Stream Durability**:

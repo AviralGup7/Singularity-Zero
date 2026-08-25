@@ -48,7 +48,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-006 | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
 | F-007 | Application state machines | `src/jobs/status.py`, `stage_status.py`, `finding_lifecycle.py` |
 | F-009 | Resilience: breaker, QoS, PID | [architecture.md](architecture.md), [performance.md](performance.md) |
-| F-018 | Failure-mode decision tree and recovery model | [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` |
+| F-018 | Failure-mode decision tree and recovery model | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35) |
 | F-019 | Operator surface | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md) |
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
@@ -157,7 +157,7 @@ flowchart TD
     CSTP --> Sys["system doctor / status / setup"]
     Scan --> Runtime["src.pipeline.runtime"]
     Runtime --> Bind["register_process_bindings"]
-    Bind --> Recover["RecoveryManager: snapshot + WAL journal"]
+    Bind --> Recover["RecoveryManager I35 protocol: snapshot + WAL"]
     Recover --> Verify["verify_checkpoint_against_fsm"]
     Recover --> Auth["attach_pipeline_authority"]
     Auth --> Stamp["ctx.budget_enforcer + authorizer"]
@@ -313,9 +313,9 @@ One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN.
 
 ## F-018 — Failure-mode decision tree and recovery model
 
-Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34).
+Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34), `src/core/frontier/recovery_protocol.py` (I35).
 
-Exit codes answer "what result did this scan produce?". The recovery table answers "what is the system allowed to do?" for each class. Exotic multi-node repair is not implemented; the outcome is still named.
+Exit codes answer "what result did this scan produce?". The I34 table answers "what is the system allowed to do?" for each failure class. I35 is the recovery *protocol*: every durable boundary has an authoritative source, and every crash window has one resolution. Exotic multi-node repair is not implemented; the outcome is still named.
 
 ```mermaid
 flowchart TD
@@ -345,6 +345,39 @@ flowchart TD
         FSM["FSM invariant violation"] --> FSMP["Retry no / Rollback no / Compensate no / Fail-closed yes / snapshot plus sequential replay"]
     end
 ```
+
+```mermaid
+flowchart TD
+    U["UNINITIALIZED"] --> LS["LOAD_SNAPSHOT"]
+    U --> LW0["LOAD_WAL"]
+    U --> Fresh["FRESH"]
+    LS --> VS["VERIFY_SNAPSHOT"]
+    VS -->|"schema newer than reader"| Fresh
+    VS -->|"partition unread schema"| Closed["FAIL_CLOSED"]
+    VS --> LW["LOAD_WAL"]
+    LW0 --> Rec
+    LW --> Rec["RECONCILE_SNAPSHOT_WAL"]
+    Rec -->|"snapshot ahead / truncated partition"| Closed
+    Rec -->|"behind or semantically old"| Replay["REPLAY_WAL"]
+    Rec -->|"truncated frontier"| Stale["STALE snapshot then REPLAY_WAL"]
+    Stale --> Replay
+    Replay --> FSMR["RECONSTRUCT_FSM from PartitionWAL"]
+    FSMR --> Out["RECONCILE_OUTBOX"]
+    Out -->|"FSM without outbox"| Rebuild["rebuild by EventId"]
+    Out -->|"outbox without FSM"| Orphan["ignore orphan rows"]
+    Rebuild --> Del
+    Orphan --> Del
+    Out --> Del["RECONCILE_DELIVERY"]
+    Del -->|"delivery ahead"| Drop["discard extra DeliveryIds"]
+    Del -->|"delivery missing"| ReplayD["replay dispatch I32"]
+    Drop --> Inv
+    ReplayD --> Inv["VERIFY_INVARIANTS"]
+    Inv -->|"compensation crash"| Comp["idempotent I28 replay"]
+    Comp --> Ready["READY"]
+    Inv --> Ready
+```
+
+PartitionWAL is never reconstructed. Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
 
 ---
 
@@ -530,5 +563,6 @@ flowchart TD
 | 2026-08-26 | F-019: Norm is frontend/src/telemetry/normalizer.ts | edit |
 | 2026-08-26 | F-003: attach_pipeline_authority lives in authority_bootstrap | edit |
 | 2026-08-26 | F-006: SETTLEMENT_PENDING is alias of ACTIVE | edit |
+| 2026-08-26 | F-018: I35 recovery protocol state machine | edit |
 
 Append a row for every later edit. Do not delete this table.
