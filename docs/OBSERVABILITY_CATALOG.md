@@ -104,23 +104,32 @@ Cyber Security Test Pipeline — Metrics, Alerts, Dashboards, and Cardinality Au
 | `cyber_pipeline_analyzer_duration_seconds` | Histogram | — | Analyzer execution (legacy) |
 | `cyber_pipeline_pipeline_stage_duration_seconds` | Histogram | — | Pipeline stage duration |
 
-### 1.7 WebSocket Metrics (Existing, prometheus_client)
+### 1.7 WebSocket Metrics (MetricsRegistry)
 
 | Metric Name | Type | Labels | Description |
 |---|---|---|---|
-| `cyber_pipeline_ws_active_connections` | Gauge | `user_id` | Active WS connections |
+| `cyber_pipeline_ws_active_connections` | Gauge | — | Active WS connections (no `user_id` label — cardinality) |
 | `cyber_pipeline_ws_messages_broadcast_total` | Counter | `scope` | Messages broadcast |
 | `cyber_pipeline_ws_dispatch_latency_seconds` | Histogram | — | Dispatch latency |
 | `cyber_pipeline_ws_reconnections_total` | Counter | `status` | Reconnections |
-| `cyber_pipeline_ws_dropped_messages_total` | Counter | `scope`, `job_id`, `user_id` | Dropped messages |
+| `cyber_pipeline_ws_dropped_messages_total` | Counter | `scope` | Dropped messages (no `job_id`/`user_id` labels) |
+| `cyber_pipeline_ws_heartbeat_timeouts_total` | Counter | — | Heartbeat timeouts |
+| `cyber_pipeline_ws_redis_fanout_total` | Counter | `direction` | Redis pub/sub fan-out |
+| `cyber_pipeline_ws_backpressure_events_total` | Counter | `scope` | Backpressure notices |
+| `cyber_pipeline_ws_authz_rejections_total` | Counter | `reason`, `channel` | Subscription authz rejections |
 
-### 1.8 Recon Metrics (Existing, prometheus_client)
+Source: `src/websocket_server/metrics.py` via `get_metrics()` (`cyber_pipeline_` prefix). `user_id`/`job_id` stay in `BoundedLabelSet` for other uses, not on these series.
+
+### 1.8 Recon Metrics (MetricsRegistry)
 
 | Metric Name | Type | Labels | Description |
 |---|---|---|---|
 | `cyber_pipeline_recon_provider_requests_total` | Counter | `provider` | Provider requests |
 | `cyber_pipeline_recon_provider_errors_total` | Counter | `provider` | Provider errors |
+| `cyber_pipeline_recon_provider_urls_total` | Counter | `provider` | URLs emitted by a provider |
 | `cyber_pipeline_recon_provider_duration_seconds` | Histogram | `provider` | Provider duration |
+
+Source: `src/recon/collectors/metrics.py` via `get_metrics()`.
 
 ---
 
