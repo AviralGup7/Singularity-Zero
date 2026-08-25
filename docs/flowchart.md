@@ -53,7 +53,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
 | F-025 | Non-authoritative planes | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) |
-| F-033 | Global invariants I30–I32 | `src/core/frontier/global_invariants.py`, `event_delivery.py` |
+| F-033 | Global invariants I30–I33 | `src/core/frontier/global_invariants.py`, `causal_identity.py`, `event_delivery.py` |
 
 ---
 
@@ -451,11 +451,13 @@ flowchart TD
 
 ## F-032 — RETIRED → F-025
 
-## F-033 — Global invariants I30–I32
+## F-033 — Global invariants I30–I33
 
-Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/event_delivery.py`.
+Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`.
 
 EventBus is an **in-process notification dispatcher**, not a durable log and not a source of truth. Authoritative Event → Durable Outbox → Delivery Dispatcher → EventBus → consumers. `EventBus.emit(FINDING_CREATED)` without `wal_id` + `authoritative=True` is refused.
+
+I33 makes replay/retry/dedup proveable: child ids are derived from parents; a FAILED attempt does not close the execution; EventBus DeliveryId is skipped on crash-replay.
 
 ```mermaid
 flowchart TD
@@ -470,16 +472,27 @@ flowchart TD
         Cmd --> Ticket
         Ticket -->|"missing binding or unknown reservation"| Reject["no ticket / consume False"]
     end
+    subgraph I33["I33 causal identity chain"]
+        Cmd --> ExecId["ExecutionId"]
+        ExecId --> AttId["AttemptId retry n"]
+        AttId --> StlId["SettlementId"]
+        StlId --> WalId["WalId"]
+        WalId --> EvtId["EventId"]
+        EvtId --> DlvId["DeliveryId"]
+        AttId -->|"same attempt"| Same["identical reconstructed ids"]
+        AttId -->|"new attempt after FAILED"| Retry["new SettlementId"]
+    end
     subgraph I31["I31 settlement causality"]
         Intent["SettlementIntent"] --> Durable["WAL wal_id COMMITTED"]
         Durable -->|"yes"| Finding["FINDING_CREATED allowed"]
         Durable -->|"no"| NoEmit["EventBus refuses finding"]
     end
     subgraph I32["I32 EventBus is not authority"]
-        Finding --> Outbox["DurableOutbox append"]
-        Outbox --> Bus["EventBus in-process notify"]
+        Finding --> Outbox["DurableOutbox append by EventId"]
+        Outbox --> Bus["EventBus in-process notify by DeliveryId"]
         Bus --> Consumers["observers"]
         Bus -.->|"handler/outbox fail"| Still["authoritative state unchanged"]
+        DlvId -->|"already delivered"| Skip["skip emit"]
     end
 ```
 
