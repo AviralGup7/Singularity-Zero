@@ -48,7 +48,7 @@ def test_global_budget_rejects_duplicate_settlement():
     # Duplicate settlement
     ok2, msg2 = budget.settle_return("sl-3", units_consumed=50, units_returned=50)
     assert ok2 is False
-    assert "already closed" in msg2
+    assert "already consumed" in msg2
     assert budget.verify_conservation()
 
 

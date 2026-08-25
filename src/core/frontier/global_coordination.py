@@ -20,6 +20,13 @@ from src.core.contracts.command_envelope import (
     CommandResult,
     EventEnvelope,
 )
+from src.core.frontier.lease_status import (
+    LeaseStatus,
+    is_outstanding,
+    is_terminal,
+    normalize_lease_status,
+    require_transition,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +39,7 @@ class GlobalSubLease:
     run_id: str
     partition_id: str
     units_allocated: int
-    status: str = "ISSUED"  # "REQUESTED", "ISSUED", "ACTIVE", "SETTLEMENT_PENDING", "CLOSED", "EXPIRED"
+    status: str = LeaseStatus.RESERVED.value
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -78,9 +85,7 @@ class GlobalBudgetAggregate:
     @property
     def outstanding_reserved(self) -> int:
         sublease_res = sum(
-            sl.units_allocated
-            for sl in self.subleases.values()
-            if sl.status in ("REQUESTED", "ISSUED", "ACTIVE", "SETTLEMENT_PENDING")
+            sl.units_allocated for sl in self.subleases.values() if is_outstanding(sl.status)
         )
         slab_res = sum(
             slab.allocated_units - slab.consumed_units
@@ -103,7 +108,10 @@ class GlobalBudgetAggregate:
         if units <= 0:
             return False, "Slab units must be strictly positive"
         if units > self.available:
-            return False, f"Insufficient available budget: requested {units} > available {self.available}"
+            return (
+                False,
+                f"Insufficient available budget: requested {units} > available {self.available}",
+            )
 
         self.available -= units
         self.quota_slabs[slab_id] = QuotaSlab(
@@ -154,18 +162,21 @@ class GlobalBudgetAggregate:
     ) -> tuple[bool, str]:
         """Atomically reserve units from available into an outstanding sub-lease."""
         if units > self.available:
-            return False, f"Insufficient available budget: requested {units} > available {self.available}"
-        
+            return (
+                False,
+                f"Insufficient available budget: requested {units} > available {self.available}",
+            )
+
         self.available -= units
         self.subleases[sublease_id] = GlobalSubLease(
             sublease_id=sublease_id,
             run_id=run_id,
             partition_id=partition_id,
             units_allocated=units,
-            status="ISSUED",
+            status=LeaseStatus.RESERVED.value,
         )
         self.version += 1
-        return True, "SUBLEASE_ISSUED"
+        return True, "SUBLEASE_RESERVED"
 
     def settle_return(
         self,
@@ -178,8 +189,14 @@ class GlobalBudgetAggregate:
         if not sublease:
             return False, f"Sublease {sublease_id} not found"
 
-        if sublease.status == "CLOSED":
-            return False, f"Sublease {sublease_id} is already closed (duplicate settlement rejected)"
+        current = normalize_lease_status(sublease.status)
+        if current is LeaseStatus.CONSUMED:
+            return (
+                False,
+                f"Sublease {sublease_id} is already consumed (duplicate settlement rejected)",
+            )
+        if current is LeaseStatus.COMPENSATED:
+            return True, f"Sublease {sublease_id} already in terminal state {current.value}"
 
         if units_consumed < 0 or units_returned < 0:
             return False, "Negative units not allowed in budget settlement"
@@ -190,7 +207,12 @@ class GlobalBudgetAggregate:
                 f"units_returned ({units_returned}) != units_allocated ({sublease.units_allocated})"
             )
 
-        # Update global accounting
+        target = LeaseStatus.COMPENSATED if units_consumed == 0 else LeaseStatus.CONSUMED
+        try:
+            require_transition(current, target)
+        except ValueError as exc:
+            return False, str(exc)
+
         self.consumed += units_consumed
         self.available += units_returned
         self.subleases[sublease_id] = GlobalSubLease(
@@ -198,10 +220,10 @@ class GlobalBudgetAggregate:
             run_id=sublease.run_id,
             partition_id=sublease.partition_id,
             units_allocated=sublease.units_allocated,
-            status="CLOSED",
+            status=target.value,
         )
         self.version += 1
-        return True, "SUBLEASE_CLOSED"
+        return True, f"SUBLEASE_{target.value}"
 
     def expire_sublease(
         self,
@@ -213,8 +235,13 @@ class GlobalBudgetAggregate:
         if not sublease:
             return False, f"Sublease {sublease_id} not found"
 
-        if sublease.status in ("CLOSED", "EXPIRED"):
-            return False, f"Sublease {sublease_id} is already {sublease.status}"
+        current = normalize_lease_status(sublease.status)
+        try:
+            require_transition(current, LeaseStatus.EXPIRED)
+        except ValueError as exc:
+            return False, str(exc)
+        if current is LeaseStatus.EXPIRED:
+            return False, f"Sublease {sublease_id} is already EXPIRED"
 
         if units_consumed < 0 or units_consumed > sublease.units_allocated:
             return False, f"Invalid units_consumed: {units_consumed}"
@@ -227,7 +254,7 @@ class GlobalBudgetAggregate:
             run_id=sublease.run_id,
             partition_id=sublease.partition_id,
             units_allocated=sublease.units_allocated,
-            status="EXPIRED",
+            status=LeaseStatus.EXPIRED.value,
         )
         self.version += 1
         return True, "SUBLEASE_EXPIRED_AND_RECLAIMED"
@@ -249,7 +276,9 @@ class GlobalRunAggregate:
     def __init__(self, run_id: str, target_partitions: tuple[str, ...] = ()) -> None:
         self.run_id = run_id
         self.target_partitions = target_partitions
-        self.status = "CREATED"  # CREATED, RESERVING, DISPATCHED, RUNNING, RECONCILING, COMPLETED, CANCELLED
+        self.status = (
+            "CREATED"  # CREATED, RESERVING, DISPATCHED, RUNNING, RECONCILING, COMPLETED, CANCELLED
+        )
         self.partition_statuses: dict[str, str] = {p: "PENDING" for p in target_partitions}
         self.total_consumed: int = 0
         self.total_refunded: int = 0
@@ -264,7 +293,10 @@ class GlobalRunAggregate:
         self.total_consumed += consumed
         self.total_refunded += refunded
         self.version += 1
-        if all(st in ("COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT") for st in self.partition_statuses.values()):
+        if all(
+            st in ("COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT")
+            for st in self.partition_statuses.values()
+        ):
             self.status = "COMPLETED"
 
     def record_cancellation(self) -> None:
@@ -301,7 +333,9 @@ class PlacementAuthority:
         current_epoch = self.ownership_epochs.get(aggregate_id, 1)
         new_epoch = current_epoch + 1
         self.ownership_epochs[aggregate_id] = new_epoch
-        self.migration_states[aggregate_id] = f"TRANSFER_PREPARED:{from_partition}->{to_partition}:{new_epoch}"
+        self.migration_states[aggregate_id] = (
+            f"TRANSFER_PREPARED:{from_partition}->{to_partition}:{new_epoch}"
+        )
         self.placement_version += 1
         return new_epoch
 

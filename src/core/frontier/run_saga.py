@@ -19,6 +19,7 @@ from src.core.frontier.global_coordination import (
     GlobalRunAggregate,
     PlacementAuthority,
 )
+from src.core.frontier.lease_status import LeaseStatus, is_terminal, normalize_lease_status
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,10 @@ class DurableRunSagaEngine:
 
         # Invariant I28: Permitted only from non-terminal unconsumed states
         if sublease.status not in ("ISSUED", "REQUESTED", "ACTIVE"):
-            return False, f"Illegal lease transition (I28): cannot compensate from status {sublease.status}"
+            return (
+                False,
+                f"Illegal lease transition (I28): cannot compensate from status {sublease.status}",
+            )
 
         # Reclaim all allocated units to available budget
         success, msg = self.global_budget.settle_return(
@@ -122,7 +126,9 @@ class DurableRunSagaEngine:
 
         if run_id in self.active_runs:
             run_agg = self.active_runs[run_id]
-            run_agg.record_partition_completion(partition_id, consumed=0, refunded=sublease.units_allocated)
+            run_agg.record_partition_completion(
+                partition_id, consumed=0, refunded=sublease.units_allocated
+            )
 
         return True, "SUBLEASE_COMPENSATED_SUCCESS"
 
@@ -136,8 +142,7 @@ class DurableRunSagaEngine:
     ) -> bool:
         """Asynchronously reconcile settlement return back to P-0000 Global Budget (Invariant I28)."""
         sublease = self.global_budget.subleases.get(sublease_id)
-        if sublease and sublease.status == "CLOSED":
-            # Idempotent return check
+        if sublease and is_terminal(sublease.status):
             return True
 
         success, msg = self.global_budget.settle_return(

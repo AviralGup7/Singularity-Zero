@@ -26,6 +26,7 @@ from src.core.contracts.command_envelope import (
     CommittedEntry,
     EventEnvelope,
 )
+from src.core.frontier.lease_status import LeaseStatus, is_terminal, normalize_lease_status
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class SubLeaseRecord:
     partition_id: str
     units_allocated: int
     units_consumed: int
-    status: str  # "ISSUED", "ACTIVE", "SETTLEMENT_PENDING", "CLOSED", "EXPIRED"
+    status: str  # canonical LeaseStatus value
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -59,7 +60,7 @@ class SubLeaseRecord:
             partition_id=str(data.get("partition_id", "P-0000")),
             units_allocated=int(data.get("units_allocated", 0)),
             units_consumed=int(data.get("units_consumed", 0)),
-            status=str(data.get("status", "ACTIVE")),
+            status=normalize_lease_status(data.get("status", LeaseStatus.ACTIVE.value)).value,
         )
 
 
@@ -132,7 +133,9 @@ class PartitionFSM:
         self.policy_watermark: int = 1
         self.revoked_policy_generations: set[int] = set()
         self.last_entry_timestamp: float = 0.0
-        self._current_state_hash: str = compute_canonical_state_hash(self.schema_version, self.to_dict())
+        self._current_state_hash: str = compute_canonical_state_hash(
+            self.schema_version, self.to_dict()
+        )
 
     def get_state_hash(self) -> str:
         """Return the current deterministic canonical state hash."""
@@ -153,9 +156,13 @@ class PartitionFSM:
 
     def load_certified_snapshot(self, snapshot: CertifiedSnapshot) -> bool:
         """Restore FSM state from a certified snapshot after verifying canonical state hash (Invariant I12)."""
-        expected_hash = compute_canonical_state_hash(snapshot.schema_version, snapshot.state_payload)
+        expected_hash = compute_canonical_state_hash(
+            snapshot.schema_version, snapshot.state_payload
+        )
         if expected_hash != snapshot.state_hash:
-            raise ValueError(f"Snapshot integrity violation (I12): expected {expected_hash} != {snapshot.state_hash}")
+            raise ValueError(
+                f"Snapshot integrity violation (I12): expected {expected_hash} != {snapshot.state_hash}"
+            )
 
         payload = snapshot.state_payload
         self.partition_id = str(payload.get("partition_id", self.partition_id))
@@ -177,13 +184,11 @@ class PartitionFSM:
             for k, v in payload.get("aggregates", {}).items()
         }
         self.idempotency_index = {
-            k: CommandResult.from_dict(v)
-            for k, v in payload.get("idempotency_index", {}).items()
+            k: CommandResult.from_dict(v) for k, v in payload.get("idempotency_index", {}).items()
         }
         self.revocation_registry = set(payload.get("revocation_registry", []))
         self.subleases = {
-            k: SubLeaseRecord.from_dict(v)
-            for k, v in payload.get("subleases", {}).items()
+            k: SubLeaseRecord.from_dict(v) for k, v in payload.get("subleases", {}).items()
         }
         self._current_state_hash = compute_canonical_state_hash(self.schema_version, self.to_dict())
         return True
@@ -216,7 +221,11 @@ class PartitionFSM:
         # 1. Idempotency Check (Axiom 6)
         if cmd_id in self.idempotency_index:
             cached_result = self.idempotency_index[cmd_id]
-            logger.debug("PartitionFSM[%s]: Idempotent command %s returning cached result", self.partition_id, cmd_id)
+            logger.debug(
+                "PartitionFSM[%s]: Idempotent command %s returning cached result",
+                self.partition_id,
+                cmd_id,
+            )
             return self._current_state_hash, (), cached_result
 
         # Update applied coordinates
@@ -245,7 +254,10 @@ class PartitionFSM:
         current_version = current_agg.version if current_agg else 0
 
         # Optimistic concurrency check
-        if cmd.expected_aggregate_version is not None and cmd.expected_aggregate_version != current_version:
+        if (
+            cmd.expected_aggregate_version is not None
+            and cmd.expected_aggregate_version != current_version
+        ):
             result = CommandResult(
                 status="REJECTED",
                 aggregate_id=agg_id,
@@ -430,7 +442,9 @@ class PartitionFSM:
                 partition_id=curr_sub.partition_id,
                 units_allocated=curr_sub.units_allocated,
                 units_consumed=new_consumed,
-                status="SETTLEMENT_PENDING",
+                status=LeaseStatus.CONSUMED.value
+                if new_consumed >= curr_sub.units_allocated
+                else LeaseStatus.ACTIVE.value,
             )
 
         new_version = current_version + 1
@@ -654,7 +668,7 @@ class PartitionFSM:
             partition_id=self.partition_id,
             units_allocated=allocated_units,
             units_consumed=0,
-            status="ACTIVE",
+            status=LeaseStatus.ACTIVE.value,
         )
 
         new_version = current_version + 1
@@ -698,7 +712,7 @@ class PartitionFSM:
                 error_message=f"Sublease {sublease_id} not found",
             ), ()
 
-        if sublease.status in ("CLOSED", "EXPIRED"):
+        if is_terminal(sublease.status):
             return CommandResult(
                 status="NO_OP",
                 aggregate_id=cmd.aggregate_id,
@@ -714,7 +728,7 @@ class PartitionFSM:
             partition_id=sublease.partition_id,
             units_allocated=sublease.units_allocated,
             units_consumed=units_consumed,
-            status="EXPIRED",
+            status=LeaseStatus.EXPIRED.value,
         )
 
         evt_id = EventEnvelope.derive_event_id(self.partition_id, raft_index, 0)
@@ -882,8 +896,10 @@ class PartitionFSM:
                 error_message="No parent policy available for rollback",
             ), ()
 
-        target_generation = int(cmd.payload.get("target_generation", max(1, self.policy_watermark - 1)))
-        
+        target_generation = int(
+            cmd.payload.get("target_generation", max(1, self.policy_watermark - 1))
+        )
+
         # Revoke rolled back policy generations on partition (I25')
         for g in range(target_generation + 1, self.policy_watermark + 1):
             self.revoked_policy_generations.add(g)
@@ -911,7 +927,9 @@ class PartitionFSM:
             payload={
                 "active_policy_id": parent_policy_id,
                 "target_generation": target_generation,
-                "revoked_generations": list(range(target_generation + 1, self.policy_watermark + 1)),
+                "revoked_generations": list(
+                    range(target_generation + 1, self.policy_watermark + 1)
+                ),
             },
             correlation_id=cmd.correlation_id,
             causation_id=cmd.causation_id,
@@ -925,5 +943,8 @@ class PartitionFSM:
             aggregate_id=cmd.aggregate_id,
             resulting_aggregate_version=new_version,
             result_code="POLICY_ROLLED_BACK",
-            result_payload={"active_policy_id": parent_policy_id, "policy_generation": target_generation},
+            result_payload={
+                "active_policy_id": parent_policy_id,
+                "policy_generation": target_generation,
+            },
         ), (event,)
