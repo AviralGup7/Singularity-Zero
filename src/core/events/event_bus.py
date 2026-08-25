@@ -112,10 +112,15 @@ class Subscription:
 
 
 class EventBus:
-    """Async event bus with priority dispatch and dead letter queue.
+    """In-process notification dispatcher — not a source of truth (I32).
 
-    Guarantees ported from the shadowed ``src/core/events.py`` module:
-    recursive ``emit``/``publish_sync`` depth is capped, and finding /
+    Authoritative facts are SettlementIntent / PartitionWAL / DurableOutbox.
+    This bus delivers already-committed notifications to in-process observers.
+    A handler exception or fan-out drop does not un-commit settlement.
+
+    Pipeline: Authoritative Event → Durable Outbox → this dispatcher → consumers.
+
+    Recursive ``emit``/``publish_sync`` depth is capped; finding and
     pipeline-terminal events are never dropped by that cap.
     """
 

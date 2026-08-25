@@ -422,21 +422,23 @@ class PipelineOrchestrator:
         if getattr(settle_res, "status", "") != "COMMITTED":
             return settle_res
 
-        stage_trace_id = getattr(stage_output, "trace_id", "") or ""
-        findings = getattr(settle_res, "committed_findings", ()) or ()
-        for finding in findings:
-            if not isinstance(finding, dict):
-                continue
-            self._emit_event(
-                EventType.FINDING_CREATED,
-                source=f"settlement.{stage_name}",
-                data={
-                    "finding": finding,
-                    "trace_id": stage_trace_id,
-                    "wal_id": getattr(settle_res, "wal_id", None),
-                    "execution_id": getattr(settle_res, "execution_id", ""),
-                },
-                trace_id=stage_trace_id,
+        from src.core.frontier.event_delivery import dispatch_committed_findings
+        from src.core.frontier.global_invariants import SettlementCausalityError
+
+        try:
+            dispatch_committed_findings(
+                settle_res=settle_res,
+                stage_name=stage_name,
+                findings=getattr(settle_res, "committed_findings", ()) or (),
+                emit=self._emit_event,
+                event_type=EventType.FINDING_CREATED,
+                outbox=getattr(self, "_committed_outbox", None),
+                trace_id=str(getattr(stage_output, "trace_id", "") or ""),
+            )
+        except SettlementCausalityError:
+            logger.warning(
+                "I31: refusing FINDING_CREATED without durable COMMITTED wal_id for stage %s",
+                stage_name,
             )
         return settle_res
 

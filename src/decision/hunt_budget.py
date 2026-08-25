@@ -315,6 +315,7 @@ class HuntBudgetEnforcer:
         self._partition_id = partition_id
         self._run_id = run_id
         self._sublease_seq = 0
+        self._authority_revision = 0
         self._open_subleases: list[tuple[str, int]] = []
         self._start = time.monotonic()
         self._requests_emitted = 0

@@ -22,6 +22,7 @@ def build_pipeline_authority_runtime(
     scan_wal: Any | None = None,
     raft_wal_dir: Path | str | None = None,
     spool_dir: Path | str | None = None,
+    outbox_dir: Path | str | None = None,
     total_budget: int = 10_000,
     transport: Any | None = None,
     node_id: str = "",
@@ -32,6 +33,7 @@ def build_pipeline_authority_runtime(
         scan_wal=scan_wal,
         raft_wal_dir=raft_wal_dir,
         spool_dir=spool_dir,
+        outbox_dir=outbox_dir,
         total_budget=total_budget,
         transport=transport,
         node_id=node_id,
@@ -77,6 +79,7 @@ def attach_pipeline_authority(
         scan_wal=getattr(orchestrator, "_wal", None),
         raft_wal_dir=output / ".raft",
         spool_dir=output / ".qos",
+        outbox_dir=output / ".outbox",
         total_budget=int(getattr(config, "global_budget_units", 10_000) or 10_000),
     )
     runtime.attach_to(orchestrator)

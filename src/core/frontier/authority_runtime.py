@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.frontier.global_coordination import GlobalBudgetAggregate, PlacementAuthority
+from src.core.frontier.outbox import DurableOutboxLedger
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
 from src.core.frontier.state_authority import SettlementCoordinator, StateAuthority
 from src.infrastructure.flow_control.pid_controller import AdaptivePIDController
@@ -42,6 +43,7 @@ class PipelineAuthorityRuntime:
         scan_wal: Any | None = None,
         raft_wal_dir: Path | str | None = None,
         spool_dir: Path | str | None = None,
+        outbox_dir: Path | str | None = None,
         total_budget: int = 10_000,
         transport: Any | None = None,
         node_id: str = "",
@@ -67,6 +69,7 @@ class PipelineAuthorityRuntime:
         self.qos = PrioritizedRealtimeBroker(
             spool_dir=str(spool_dir) if spool_dir is not None else None
         )
+        self.outbox = DurableOutboxLedger(partition_id="P-0000", outbox_dir=outbox_dir)
         self.pid = AdaptivePIDController()
         self.bandit = bandit
         self.authorizer = authorizer
@@ -80,6 +83,7 @@ class PipelineAuthorityRuntime:
         orchestrator._global_budget = self.global_budget
         orchestrator._policy_gate = self.policy_gate
         orchestrator._qos_broker = self.qos
+        orchestrator._committed_outbox = self.outbox
         orchestrator._execution_authorizer = self.authorizer
         set_current_hunt_budget(self.hunt_budget)
 

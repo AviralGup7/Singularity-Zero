@@ -23,6 +23,15 @@ from src.core.contracts.canonical_target import canonicalize_target
 from src.decision.models import ExecutionRequest, ScopeToken
 
 
+def _scope_token_binding(token: ScopeToken) -> str:
+    """Stable hash of the ScopeToken that authorized the ticket (I30)."""
+    raw = (
+        f"{token.scope_hash}|{','.join(token.allowed_domains)}|"
+        f"{','.join(token.allowed_cidrs)}|{token.issuer_signature}"
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 class ScopeAuthorizationError(ValueError):
     """Raised when an ExecutionRequest violates scope or authorization policy."""
 
@@ -43,6 +52,10 @@ class AuthorizedExecutionTicket:
     partition_id: str = "P0"
     canonical_identity_hash: str = ""
     policy_generation: int = 1
+    scope_token_hash: str = ""
+    budget_reservation_id: str = ""
+    authority_revision: str = ""
+    command_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -58,6 +71,10 @@ class AuthorizedExecutionTicket:
             "partition_id": self.partition_id,
             "canonical_identity_hash": self.canonical_identity_hash,
             "policy_generation": self.policy_generation,
+            "scope_token_hash": self.scope_token_hash,
+            "budget_reservation_id": self.budget_reservation_id,
+            "authority_revision": self.authority_revision,
+            "command_id": self.command_id,
         }
 
     @classmethod
@@ -77,6 +94,10 @@ class AuthorizedExecutionTicket:
             partition_id=str(data.get("partition_id", "P0")),
             canonical_identity_hash=str(data.get("canonical_identity_hash", "")),
             policy_generation=int(data.get("policy_generation", 1)),
+            scope_token_hash=str(data.get("scope_token_hash", "")),
+            budget_reservation_id=str(data.get("budget_reservation_id", "")),
+            authority_revision=str(data.get("authority_revision", "")),
+            command_id=str(data.get("command_id", "")),
         )
 
 
@@ -127,10 +148,15 @@ class ExecutionAuthorizer:
         epoch: int = 1,
         partition_id: str = "P0",
         policy_generation: int = 1,
+        scope_token_hash: str = "",
+        budget_reservation_id: str = "",
+        authority_revision: str = "",
+        command_id: str = "",
     ) -> str:
         payload = (
             f"{ticket_id}:{request_id}:{tenant_id}:{target_host}:{target_path}:"
-            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}:{policy_generation}".encode()
+            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}:{policy_generation}:"
+            f"{scope_token_hash}:{budget_reservation_id}:{authority_revision}:{command_id}".encode()
         )
         return hmac.new(self._secret_key, payload, hashlib.sha256).hexdigest()
 
@@ -255,15 +281,26 @@ class ExecutionAuthorizer:
             )
 
         req_count = len(request.actions) if request.actions else 1
-        if not hasattr(enforcer, "reserve_requests") or not enforcer.reserve_requests(req_count):
+        identity: dict[str, Any] | None = None
+        if hasattr(enforcer, "reserve_with_identity"):
+            identity = enforcer.reserve_with_identity(req_count)
+            if identity is None:
+                raise ScopeAuthorizationError(
+                    f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
+                )
+        elif not hasattr(enforcer, "reserve_requests") or not enforcer.reserve_requests(req_count):
             raise ScopeAuthorizationError(
                 f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
             )
 
-        # 6. Generate Ticket with Nonce & HMAC binding
+        # 6. Generate Ticket with Nonce & HMAC binding (I30 causal quartet)
         ticket_id = f"tkt_{uuid.uuid4().hex[:16]}"
         nonce = uuid.uuid4().hex
         expires_at = request.deadline if request.deadline > 0 else (now + limits.timeout_seconds)
+        scope_token_hash = _scope_token_binding(token)
+        reservation_id = str((identity or {}).get("reservation_id") or f"res_{ticket_id}")
+        authority_revision = str((identity or {}).get("authority_revision") or f"rev_{ticket_id}")
+        command_id = str((identity or {}).get("command_id") or f"cmd_authz_{ticket_id}")
         signature = self._generate_signature(
             ticket_id=ticket_id,
             request_id=request.request_id,
@@ -275,9 +312,15 @@ class ExecutionAuthorizer:
             epoch=epoch,
             partition_id=partition_id,
             policy_generation=policy_generation,
+            scope_token_hash=scope_token_hash,
+            budget_reservation_id=reservation_id,
+            authority_revision=authority_revision,
+            command_id=command_id,
         )
 
-        return AuthorizedExecutionTicket(
+        from src.core.frontier.global_invariants import assert_authorization_causality
+
+        ticket = AuthorizedExecutionTicket(
             ticket_id=ticket_id,
             request_id=request.request_id,
             tenant_id=request.tenant_id,
@@ -290,7 +333,13 @@ class ExecutionAuthorizer:
             partition_id=partition_id,
             canonical_identity_hash=canon.identity_hash,
             policy_generation=policy_generation,
+            scope_token_hash=scope_token_hash,
+            budget_reservation_id=reservation_id,
+            authority_revision=authority_revision,
+            command_id=command_id,
         )
+        assert_authorization_causality(ticket)
+        return ticket
 
     def verify_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
         """Verify ticket signature, expiration, and tampering."""
@@ -317,14 +366,27 @@ class ExecutionAuthorizer:
             epoch=ticket.epoch,
             partition_id=ticket.partition_id,
             policy_generation=ticket.policy_generation,
+            scope_token_hash=ticket.scope_token_hash,
+            budget_reservation_id=ticket.budget_reservation_id,
+            authority_revision=ticket.authority_revision,
+            command_id=ticket.command_id,
         )
         return hmac.compare_digest(expected_sig, ticket.signature)
 
     def consume_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
         """Atomically verify and consume a ticket (single-use replay resistance)."""
+        from src.core.frontier.global_invariants import (
+            AuthorizationCausalityError,
+            assert_authorization_causality,
+        )
+
         with self._lock:
             if ticket.ticket_id in self._consumed_tickets:
                 return False  # Replay detected!
+            try:
+                assert_authorization_causality(ticket)
+            except AuthorizationCausalityError:
+                return False
             if not self.verify_ticket(ticket):
                 return False
             self._consumed_tickets.add(ticket.ticket_id)
