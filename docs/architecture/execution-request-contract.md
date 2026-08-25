@@ -26,14 +26,18 @@ ExecutionResult (findings, state_deltas, resource_consumption, identities)
        │
        ▼  (sole production settlement path)
 Settlement Coordinator (src/core/frontier/state_authority.py)
-       ├── StateAuthority (WAL Append ➔ Schema Validation ➔ CRDT LWW-Set Merge ➔ Idempotent ExecID Commit)
-       ├── HuntBudgetEnforcer (commit_requests / release_requests)
-       └── PriorityQueue (ack_batch / release_batch with CandidateLease validation)
+       │ (Mints immutable SettlementIntent)
+       ▼
+StateAuthority (Single Atomic WAL Append Boundary)
+       │
+       ├── StateProjection (CRDT LWW-Set Deterministic Merge)
+       ├── BudgetProjection (HuntBudgetEnforcer commit / release)
+       └── LeaseProjection (PriorityQueue ack_batch / release_batch with CandidateLease validation)
 ```
 
 ### Key Invariants
 1. **Zero Decision Rediscovery**: Once an `ExecutionRequest` is emitted and authorized, downstream workers execute **solely against the parameters and action payloads defined in the request**. The worker requires zero callbacks or state re-evaluations against the Decision subsystem.
-2. **State Authority Isolation**: Workers never directly touch the Frontier CRDTs or Write-Ahead Log (WAL). Workers emit an `ExecutionResult` containing `state_deltas`, which the Settlement Coordinator passes to the State Authority for durable commit.
+2. **Authoritative WAL Settlement & State Authority Isolation**: Workers never directly touch the Frontier CRDTs or Write-Ahead Log (WAL). Workers emit an `ExecutionResult` containing `state_deltas`. The Settlement Coordinator validates this result, constructs an atomic `SettlementIntent`, and commits it to the WAL via `StateAuthority`. Downstream CRDT, budget, and candidate queue state are updated via idempotent, eventually convergent projections driven by durable cursors.
 3. **Execution Idempotency & Identity Binding**: Every request carries an `execution_id` (unique per dispatch attempt), `job_id`, `candidate_id`, `lease_id`, and `policy_version` to guarantee causal traceability and prevent double-commit or race conditions across worker restarts.
 4. **Mandatory Ticket Execution**: The worker API strictly requires an `AuthorizedExecutionTicket`. Unauthenticated raw `ExecutionRequest` instances are rejected with `outcome="REJECTED"`.
 

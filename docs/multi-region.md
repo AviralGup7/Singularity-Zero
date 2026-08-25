@@ -11,12 +11,16 @@ Singularity-Zero achieves horizontal scalability across multiple geographical re
 ```mermaid
 graph TD
     subgraph Region-A [us-east-1]
-        A_Mesh[Gossip Mesh Node A1] <--> A_Redis[(Redis Stream & HLC LWW-Set)]
-        A_Mesh <--> A_SQLite[(Local AOF & SQLite)]
+        A_Gossip[Gossip Mesh Node A1] <-->|SWIM UDP 9008| B_Gossip
+        A_Orch[Pipeline & State Authority] --> A_WAL[FrontierWAL]
+        A_WAL --> A_AOF[(Local AOF Ledger)]
+        A_WAL --> A_Redis[(Redis Stream WAL)]
     end
     subgraph Region-B [eu-west-1]
-        B_Mesh[Gossip Mesh Node B1] <--> B_Redis[(Redis Stream & HLC LWW-Set)]
-        B_Mesh <--> B_SQLite[(Local AOF & SQLite)]
+        B_Gossip[Gossip Mesh Node B1]
+        B_Orch[Pipeline & State Authority] --> B_WAL[FrontierWAL]
+        B_WAL --> B_AOF[(Local AOF Ledger)]
+        B_WAL --> B_Redis[(Redis Stream WAL)]
     end
     A_Redis <-->|Cross-Region WAL Sync| B_Redis
 ```
