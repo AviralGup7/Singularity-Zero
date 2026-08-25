@@ -163,10 +163,10 @@ AVAILABLE ──(lease_batch)──► IN-FLIGHT (CandidateLease) ──(ack_bat
 
 ---
 
-### 8. Cognitive Vulnerability Analysis & Validation
+### 8. Cognitive Vulnerability Analysis & Native OS Sandbox
 
 - **Differential State Probing**: `src/analysis/intelligence/differential_prober.py` compares responses across differing authentication roles and tenant boundaries using normalized Levenshtein distance, automatically discovering Insecure Direct Object References (IDOR) and Broken Access Controls (BAC).
-- **PoC Validation Sandbox**: Dynamic Python plugins use a JSON child-process boundary with AST pre-validation (`src/core/plugins/sandbox.py`), preventing lateral execution on the host runner.
+- **Native OS Process Sandbox (`src/sandbox/process_sandbox.py`)**: Exploit scripts and external tools execute inside an OS-native resource cage enforcing hard memory limits (`max_memory_mb`), CPU timeouts (`timeout_seconds`), and strict credential environment scrubbing (`AWS_`, `DATABASE_URL`, `TOKEN`).
 - **Adaptive Closed-Loop Learning**: Operator triage signals update the false-positive rules matrix (`src/learning/fp_rules.py`) and adjust severity calibration weights, suppressing duplicate alerts across subsequent scan runs.
 
 ---
@@ -184,7 +184,23 @@ AVAILABLE ──(lease_batch)──► IN-FLIGHT (CandidateLease) ──(ack_bat
 - **AttackGraphEngine (`src/intelligence/graph/attack_graph.py`)**:
   - Models entities as `GraphNode` (`asset`, `finding`, `credential`, `impact`) and relationships as `GraphEdge` (`EXPOSES`, `AUTHENTICATES`, `LEADS_TO`, `ESCALATES_TO`).
   - Implements **Dijkstra's shortest-path algorithm** to synthesize complete lateral attack chains (`AttackChain`) from initial entry points to critical compromise targets.
-  - Computes composite risk weights and serializes graph schemas for 3D Cockpit rendering.
+  - Feeds discovered exploit chains directly into `PolicyAutoDispatcher` to dynamically boost priority for critical entry points in `CorrelationPriorityQueue`.
+
+---
+
+### 11. Cross-Region WAL Replication Relay
+
+- **WALReplicationRelay (`src/infrastructure/frontier/replication.py`)**:
+  - Asynchronously fans out settlement intents and deltas across regional Redis streams (`cyber:wal:{run_id}`).
+  - Automatically pulls and reconciles remote peer deltas on link recovery using idempotent execution tracking.
+
+---
+
+### 12. Dynamic Adaptive Rate Limiter (AIMD Congestion Control)
+
+- **AdaptiveRateLimiter (`src/resilience/adaptive_rate_limiter.py`)**:
+  - Additive-Increase / Multiplicative-Decrease congestion control per target domain.
+  - Throttles concurrent worker slots and triggers exponential backoff upon encountering HTTP 429/503 responses, preventing target exhaustion.
 
 ---
 
