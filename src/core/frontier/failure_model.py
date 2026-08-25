@@ -199,12 +199,18 @@ def semantics_for_exception(exc: BaseException) -> RecoverySemantics | None:
 
 
 def must_not(failure: FailureClass, action: str) -> None:
-    """Raise if a caller is about to perform a forbidden recovery action."""
+    """Assert this failure class forbids ``action``. Raise on policy drift.
+
+    Call this at a site that *refuses* an action (e.g. EventBus must not
+    roll back settlement). If the table later allows that action, this
+    fails closed so the site cannot silently change meaning.
+    """
     sem = semantics_for(failure)
-    if sem.allows(action):
+    if not sem.allows(action):
         return
     raise PermissionError(
-        f"{I34_FAILURE_RECOVERY}: {failure.value} forbids {action} "
+        f"{I34_FAILURE_RECOVERY}: {failure.value} allows {action}; "
+        "this call site requires it to be forbidden "
         f"(retry={sem.retry} rollback={sem.rollback} compensate={sem.compensate} "
         f"fail_closed={sem.fail_closed})"
     )

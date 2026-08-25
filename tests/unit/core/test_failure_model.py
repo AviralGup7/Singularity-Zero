@@ -62,10 +62,11 @@ def test_i34_matrix_covers_every_class_and_forbids_the_wrong_actions() -> None:
 def test_i34_must_not_blocks_forbidden_actions() -> None:
     must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
     must_not(FailureClass.EVENT_DELIVERY_FAILURE, "compensate")
+    must_not(FailureClass.WAL_CORRUPTION, "retry")
     with pytest.raises(PermissionError, match="I34"):
-        must_not(FailureClass.WAL_CORRUPTION, "retry")
+        must_not(FailureClass.EVENT_DELIVERY_FAILURE, "retry")
     with pytest.raises(PermissionError, match="I34"):
-        must_not(FailureClass.EVENT_DELIVERY_FAILURE, "fail_closed")
+        must_not(FailureClass.BUDGET_INCONSISTENCY, "compensate")
 
 
 def test_i34_wal_corruption_is_fail_closed_no_compensate() -> None:
