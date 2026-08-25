@@ -310,6 +310,8 @@ class StateAuthority:
                 execution_id=exec_id,
                 status="COMMITTED",
                 wal_id=wal_id,
+                committed_findings_count=len(committed_findings),
+                committed_findings=committed_findings,
             )
 
 
