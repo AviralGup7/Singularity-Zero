@@ -252,12 +252,17 @@ flowchart TD
         FC --> FF["FALSE_POSITIVE"]
         FR --> FR
         FF --> FF
+        FC -.-> FV["VALIDATED / EXPLOITABLE refine CANDIDATE"]
+        FV --> FR
+        FV --> FF
     end
     Job --> Stage
     Stage --> Finding
 ```
 
 Illegal stage: COMPLETED→FAILED, COMPLETED→SKIPPED*, FAILED→COMPLETED, SKIPPED*→COMPLETED.
+
+Finding surface is CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE. Dashboard `open/closed` is a different axis (ticket status), not this SM.
 
 ## F-008 — RETIRED → F-007
 
@@ -521,5 +526,7 @@ flowchart TD
 | 2026-08-25 | F-033: fail-closed I30 ledger + EventBus refuse unauthoritative FINDING_CREATED | edit |
 | 2026-08-25 | F-033: I33 CommandId→DeliveryId chain after code landed | edit |
 | 2026-08-25 | F-018: I34 recovery model next to the exit-code tree | edit |
+| 2026-08-26 | F-007: CANDIDATE is the finding surface start state | edit |
+| 2026-08-26 | F-019: Norm is frontend/src/telemetry/normalizer.ts | edit |
 
 Append a row for every later edit. Do not delete this table.
