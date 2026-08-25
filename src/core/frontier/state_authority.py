@@ -25,6 +25,12 @@ from src.core.contracts.execution_request import (
     ExecutionResultContract as ExecutionResult,
 )
 from src.core.contracts.pipeline_runtime import StageOutput
+from src.core.frontier.causal_identity import (
+    CausalIdentity,
+    attempt_n_from_output,
+    command_id_from_ctx,
+    mint_causal_identity,
+)
 from src.core.frontier.state import NeuralState
 
 logger = logging.getLogger(__name__)
@@ -72,6 +78,11 @@ class SettlementResult:
     committed_deltas_count: int = 0
     error: str = ""
     committed_findings: tuple[dict[str, Any], ...] = ()
+    command_id: str = ""
+    attempt_id: str = ""
+    settlement_id: str = ""
+    event_ids: tuple[str, ...] = ()
+    delivery_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -82,7 +93,26 @@ class SettlementResult:
             "committed_deltas_count": self.committed_deltas_count,
             "error": self.error,
             "committed_findings": list(self.committed_findings),
+            "command_id": self.command_id,
+            "attempt_id": self.attempt_id,
+            "settlement_id": self.settlement_id,
+            "event_ids": list(self.event_ids),
+            "delivery_ids": list(self.delivery_ids),
         }
+
+    def causal_identity(self) -> CausalIdentity | None:
+        if not self.execution_id:
+            return None
+        try:
+            return mint_causal_identity(
+                execution_id=self.execution_id,
+                command_id=self.command_id,
+                attempt_id=self.attempt_id,
+                settlement_id=self.settlement_id,
+                wal_id=str(self.wal_id or ""),
+            )
+        except Exception:
+            return None
 
 
 class StateAuthority:
@@ -101,6 +131,7 @@ class StateAuthority:
         self.auto_compact_interval = auto_compact_interval
         self._append_count = 0
         self._committed_execution_ids: set[str] = set()
+        self._committed_attempt_ids: set[str] = set()
         self._lock = threading.RLock()
 
     @property
@@ -113,6 +144,12 @@ class StateAuthority:
             return False
         with self._lock:
             return execution_id in self._committed_execution_ids
+
+    def is_attempt_committed(self, attempt_id: str) -> bool:
+        if not attempt_id:
+            return False
+        with self._lock:
+            return attempt_id in self._committed_attempt_ids
 
     def commit(
         self,
@@ -210,6 +247,8 @@ class StateAuthority:
     def append_settlement_intent(self, intent: SettlementIntent) -> str:
         """Atomically append a SettlementIntent to the WAL (the single authoritative settlement point)."""
         with self._lock:
+            if intent.attempt_id and intent.attempt_id in self._committed_attempt_ids:
+                return "DEDUPLICATED"
             if intent.execution_id and intent.execution_id in self._committed_execution_ids:
                 return "DEDUPLICATED"
 
@@ -226,7 +265,11 @@ class StateAuthority:
             if not wal_id:
                 raise RuntimeError("WAL failed to append settlement intent")
 
-            if intent.execution_id:
+            if intent.attempt_id:
+                self._committed_attempt_ids.add(intent.attempt_id)
+            if intent.outcome == "COMPLETED" and intent.execution_id:
+                self._committed_execution_ids.add(intent.execution_id)
+            elif intent.execution_id and not intent.attempt_id:
                 self._committed_execution_ids.add(intent.execution_id)
 
             self._append_count += 1
@@ -345,6 +388,9 @@ class SettlementIntent:
 
     settlement_id: str
     execution_id: str
+    command_id: str = ""
+    attempt_id: str = ""
+    attempt_n: int = 1
     job_id: str = ""
     candidate_id: str = ""
     lease_id: str = ""
@@ -368,6 +414,9 @@ class SettlementIntent:
         return {
             "settlement_id": self.settlement_id,
             "execution_id": self.execution_id,
+            "command_id": self.command_id,
+            "attempt_id": self.attempt_id,
+            "attempt_n": self.attempt_n,
             "job_id": self.job_id,
             "candidate_id": self.candidate_id,
             "lease_id": self.lease_id,
@@ -394,6 +443,9 @@ class SettlementIntent:
         return cls(
             settlement_id=str(mapping.get("settlement_id") or ""),
             execution_id=str(mapping.get("execution_id") or ""),
+            command_id=str(mapping.get("command_id") or ""),
+            attempt_id=str(mapping.get("attempt_id") or ""),
+            attempt_n=max(1, int(mapping.get("attempt_n") or 1)),
             job_id=str(mapping.get("job_id") or ""),
             candidate_id=str(mapping.get("candidate_id") or ""),
             lease_id=str(mapping.get("lease_id") or ""),
@@ -415,6 +467,22 @@ class SettlementIntent:
         )
 
 
+def _intent_already_applied(applied: set[str], intent: SettlementIntent) -> bool:
+    """True if this attempt (or a completed execution) has already been projected."""
+    if intent.attempt_id and intent.attempt_id in applied:
+        return True
+    if intent.execution_id and intent.execution_id in applied:
+        return True
+    return not (intent.attempt_id or intent.execution_id)
+
+
+def _mark_intent_applied(applied: set[str], intent: SettlementIntent) -> None:
+    if intent.attempt_id:
+        applied.add(intent.attempt_id)
+    if intent.execution_id and (intent.outcome == "COMPLETED" or not intent.attempt_id):
+        applied.add(intent.execution_id)
+
+
 class StateProjection:
     """Projection applying authoritative WAL settlement state deltas into NeuralState CRDT."""
 
@@ -426,7 +494,7 @@ class StateProjection:
 
     def apply(self, intent: SettlementIntent, wal_id: str | None = None) -> bool:
         with self._lock:
-            if not intent.execution_id or intent.execution_id in self.applied_execution_ids:
+            if _intent_already_applied(self.applied_execution_ids, intent):
                 if wal_id:
                     self.applied_wal_id = wal_id
                 return False
@@ -437,8 +505,7 @@ class StateProjection:
                     delta["_wal_id"] = wal_id
                 self.state.apply_delta(delta)
 
-            if intent.execution_id:
-                self.applied_execution_ids.add(intent.execution_id)
+            _mark_intent_applied(self.applied_execution_ids, intent)
             if wal_id:
                 self.applied_wal_id = wal_id
             return True
@@ -455,7 +522,7 @@ class BudgetProjection:
 
     def apply(self, intent: SettlementIntent, wal_id: str | None = None) -> bool:
         with self._lock:
-            if not intent.execution_id or intent.execution_id in self.applied_execution_ids:
+            if _intent_already_applied(self.applied_execution_ids, intent):
                 if wal_id:
                     self.applied_wal_id = wal_id
                 return False
@@ -470,8 +537,7 @@ class BudgetProjection:
                 ):
                     self.budget_enforcer.release_requests(intent.budget_request_count)
 
-            if intent.execution_id:
-                self.applied_execution_ids.add(intent.execution_id)
+            _mark_intent_applied(self.applied_execution_ids, intent)
             if wal_id:
                 self.applied_wal_id = wal_id
             return True
@@ -488,7 +554,7 @@ class LeaseProjection:
 
     def apply(self, intent: SettlementIntent, wal_id: str | None = None) -> bool:
         with self._lock:
-            if not intent.execution_id or intent.execution_id in self.applied_execution_ids:
+            if _intent_already_applied(self.applied_execution_ids, intent):
                 if wal_id:
                     self.applied_wal_id = wal_id
                 return False
@@ -512,8 +578,7 @@ class LeaseProjection:
                     elif intent.lease_action == "RELEASE" and hasattr(self.queue, "release_batch"):
                         self.queue.release_batch([lease_obj])
 
-            if intent.execution_id:
-                self.applied_execution_ids.add(intent.execution_id)
+            _mark_intent_applied(self.applied_execution_ids, intent)
             if wal_id:
                 self.applied_wal_id = wal_id
             return True
@@ -535,7 +600,7 @@ class FindingsProjection:
 
     def apply(self, intent: SettlementIntent, wal_id: str | None = None) -> bool:
         with self._lock:
-            if not intent.execution_id or intent.execution_id in self.applied_execution_ids:
+            if _intent_already_applied(self.applied_execution_ids, intent):
                 if wal_id:
                     self.applied_wal_id = wal_id
                 return False
@@ -556,8 +621,7 @@ class FindingsProjection:
                     )
                     self._findings[key] = finding
 
-            if intent.execution_id:
-                self.applied_execution_ids.add(intent.execution_id)
+            _mark_intent_applied(self.applied_execution_ids, intent)
             if wal_id:
                 self.applied_wal_id = wal_id
             return True
@@ -805,12 +869,35 @@ class SettlementCoordinator:
         """Validates intent and appends to the WAL, followed by projection updates."""
         with self._lock:
             exec_id = result.execution_id or ""
+            identity = (
+                mint_causal_identity(
+                    execution_id=exec_id,
+                    command_id=str(getattr(result, "command_id", "") or ""),
+                    attempt_n=max(1, int(getattr(result, "attempt_n", 1) or 1)),
+                )
+                if exec_id
+                else None
+            )
+            if identity is not None:
+                if self.state_authority.is_attempt_committed(identity.attempt_id):
+                    return SettlementResult(
+                        execution_id=exec_id,
+                        status="DEDUPLICATED",
+                        committed_findings_count=len(result.findings),
+                        committed_deltas_count=len(result.state_deltas),
+                        command_id=identity.command_id,
+                        attempt_id=identity.attempt_id,
+                        settlement_id=identity.settlement_id,
+                    )
             if exec_id and self.state_authority.is_committed(exec_id):
                 return SettlementResult(
                     execution_id=exec_id,
                     status="DEDUPLICATED",
                     committed_findings_count=len(result.findings),
                     committed_deltas_count=len(result.state_deltas),
+                    command_id=identity.command_id if identity else "",
+                    attempt_id=identity.attempt_id if identity else "",
+                    settlement_id=identity.settlement_id if identity else "",
                 )
 
             # Convert result findings & deltas
@@ -827,8 +914,13 @@ class SettlementCoordinator:
                 lease_action = "RELEASE"
 
             intent = SettlementIntent(
-                settlement_id=f"stl_{uuid.uuid4().hex[:12]}",
+                settlement_id=(
+                    identity.settlement_id if identity else f"stl_{uuid.uuid4().hex[:12]}"
+                ),
                 execution_id=exec_id,
+                command_id=identity.command_id if identity else "",
+                attempt_id=identity.attempt_id if identity else "",
+                attempt_n=identity.attempt_n if identity else 1,
                 job_id=result.job_id or "",
                 candidate_id=result.candidate_id or (lease.candidate_id if lease else ""),
                 lease_id=result.lease_id or (lease.lease_id if lease else ""),
@@ -856,12 +948,18 @@ class SettlementCoordinator:
                     execution_id=exec_id,
                     status="REJECTED",
                     error=f"WAL settlement append failure: {exc}",
+                    command_id=intent.command_id,
+                    attempt_id=intent.attempt_id,
+                    settlement_id=intent.settlement_id,
                 )
 
             if wal_id == "DEDUPLICATED":
                 return SettlementResult(
                     execution_id=exec_id,
                     status="DEDUPLICATED",
+                    command_id=intent.command_id,
+                    attempt_id=intent.attempt_id,
+                    settlement_id=intent.settlement_id,
                 )
 
             # 2. Drive projections
@@ -877,6 +975,9 @@ class SettlementCoordinator:
                 committed_deltas_count=len(result.state_deltas),
                 error=result.error if status == "REJECTED" else "",
                 committed_findings=committed_findings,
+                command_id=intent.command_id,
+                attempt_id=intent.attempt_id,
+                settlement_id=intent.settlement_id,
             )
 
     def replay_projections(self, wal: Any | None = None) -> dict[str, int]:
@@ -895,8 +996,27 @@ class SettlementCoordinator:
         """Settle a stage through SettlementIntent (WAL) then project onto ctx."""
         run_id = str(getattr(ctx, "run_id", "") or "")
         exec_id = f"{run_id}:{stage_name}" if run_id else str(stage_name)
+        identity = mint_causal_identity(
+            execution_id=exec_id,
+            command_id=command_id_from_ctx(ctx, exec_id),
+            attempt_n=attempt_n_from_output(stage_output),
+        )
+        if self.state_authority.is_attempt_committed(identity.attempt_id):
+            return SettlementResult(
+                execution_id=exec_id,
+                status="DEDUPLICATED",
+                command_id=identity.command_id,
+                attempt_id=identity.attempt_id,
+                settlement_id=identity.settlement_id,
+            )
         if exec_id and self.state_authority.is_committed(exec_id):
-            return SettlementResult(execution_id=exec_id, status="DEDUPLICATED")
+            return SettlementResult(
+                execution_id=exec_id,
+                status="DEDUPLICATED",
+                command_id=identity.command_id,
+                attempt_id=identity.attempt_id,
+                settlement_id=identity.settlement_id,
+            )
 
         state_delta = _to_mutable(getattr(stage_output, "state_delta", {}) or {})
         committed_findings = _dict_findings_from_delta(state_delta)
@@ -904,8 +1024,11 @@ class SettlementCoordinator:
             "FAILED" if getattr(stage_output.outcome, "value", "") == "failed" else "COMPLETED"
         )
         intent = SettlementIntent(
-            settlement_id=f"stl_stage_{uuid.uuid4().hex[:12]}",
+            settlement_id=identity.settlement_id,
             execution_id=exec_id,
+            command_id=identity.command_id,
+            attempt_id=identity.attempt_id,
+            attempt_n=identity.attempt_n,
             stage_name=stage_name,
             outcome=outcome,
             state_delta=state_delta,
@@ -920,9 +1043,18 @@ class SettlementCoordinator:
                 execution_id=exec_id,
                 status="REJECTED",
                 error=f"WAL settlement append failure: {exc}",
+                command_id=identity.command_id,
+                attempt_id=identity.attempt_id,
+                settlement_id=identity.settlement_id,
             )
         if wal_id == "DEDUPLICATED":
-            return SettlementResult(execution_id=exec_id, status="DEDUPLICATED")
+            return SettlementResult(
+                execution_id=exec_id,
+                status="DEDUPLICATED",
+                command_id=identity.command_id,
+                attempt_id=identity.attempt_id,
+                settlement_id=identity.settlement_id,
+            )
 
         self.state_authority.project_stage_output(ctx, stage_name, stage_output, wal_id=wal_id)
         self.projection_engine.apply_intent(intent, wal_id=wal_id)
@@ -935,6 +1067,9 @@ class SettlementCoordinator:
             error=""
             if outcome == "COMPLETED"
             else (stage_output.error or stage_output.reason or ""),
+            command_id=identity.command_id,
+            attempt_id=identity.attempt_id,
+            settlement_id=identity.settlement_id,
         )
 
 

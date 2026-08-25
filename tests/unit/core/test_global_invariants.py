@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.core.frontier.event_delivery import dispatch_committed_findings
+from src.core.frontier.event_delivery import dispatch_committed_findings, reset_delivery_ledger
 from src.core.frontier.global_invariants import (
     AuthorizationCausalityError,
     SettlementCausalityError,
@@ -75,6 +75,7 @@ def test_i31_finding_requires_committed_wal() -> None:
 
 
 def test_i31_i32_outbox_then_bus_and_bus_failure_does_not_raise(tmp_path) -> None:
+    reset_delivery_ledger()
     outbox = DurableOutboxLedger("P-0000", outbox_dir=tmp_path)
     seen: list[dict] = []
 

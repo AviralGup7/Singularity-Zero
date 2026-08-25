@@ -33,6 +33,9 @@ from src.sandbox.process_sandbox import ProcessSandbox, SandboxResourceLimits
 
 
 def test_merge_emits_only_committed_dict_findings() -> None:
+    from src.core.frontier.event_delivery import reset_delivery_ledger
+
+    reset_delivery_ledger()
     bus = EventBus()
     seen: list[PipelineEvent] = []
     bus.subscribe(EventType.FINDING_CREATED, seen.append)

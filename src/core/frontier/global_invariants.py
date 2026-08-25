@@ -1,4 +1,4 @@
-"""Cross-subsystem invariants (I30–I32).
+"""Cross-subsystem invariants (I30–I33).
 
 Local invariants (budget math, lease CAS, Raft CRC) live next to their
 aggregates. These checks bind *across* authorization, settlement, and
@@ -9,6 +9,15 @@ authoritative provenance.
 from __future__ import annotations
 
 from typing import Any
+
+from src.core.frontier.causal_identity import (
+    CAUSAL_CHAIN,
+    I33_CAUSAL_IDENTITY_CHAIN,
+    CausalIdentity,
+    CausalIdentityError,
+    assert_causal_identity_chain,
+    mint_causal_identity,
+)
 
 I30_AUTHORIZATION_CAUSALITY = "I30"
 I31_SETTLEMENT_CAUSALITY = "I31"
@@ -66,11 +75,17 @@ def event_bus_is_not_authority() -> str:
 
 __all__ = [
     "AuthorizationCausalityError",
+    "CAUSAL_CHAIN",
+    "CausalIdentity",
+    "CausalIdentityError",
     "I30_AUTHORIZATION_CAUSALITY",
     "I31_SETTLEMENT_CAUSALITY",
     "I32_EVENTBUS_NON_AUTHORITY",
+    "I33_CAUSAL_IDENTITY_CHAIN",
     "SettlementCausalityError",
     "assert_authorization_causality",
+    "assert_causal_identity_chain",
     "assert_settlement_causality",
     "event_bus_is_not_authority",
+    "mint_causal_identity",
 ]

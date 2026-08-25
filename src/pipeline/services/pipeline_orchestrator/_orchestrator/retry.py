@@ -426,7 +426,11 @@ async def run_stage_with_retry(
                     "transient_errors": metrics.transient_errors,
                     "backoff_seconds": round(metrics.total_backoff_seconds, 2),
                 }
-                stage_output = dataclasses.replace(stage_output, metrics=new_metrics)
+                stage_output = dataclasses.replace(
+                    stage_output,
+                    metrics=new_metrics,
+                    retry_count=max(0, attempt - 1),
+                )
             if attempt > 1:
                 progress_emitter(
                     stage_name,

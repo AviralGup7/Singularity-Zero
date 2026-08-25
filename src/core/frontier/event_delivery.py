@@ -1,17 +1,28 @@
-"""Authoritative event → durable outbox → EventBus dispatcher (I31 / I32).
+"""Authoritative event → durable outbox → EventBus dispatcher (I31 / I32 / I33).
 
 EventBus is an in-process notification mechanism. It is not a durable
 log and not a source of truth. Failure to deliver on the bus must not
 roll back settlement (I32).
+
+Delivery identity (I33): EventId is derived from WalId; DeliveryId is
+derived from EventId. Replaying dispatch after a crash reuses the same
+ids so outbox and consumers can dedupe.
 """
 
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from src.core.contracts.command_envelope import EventEnvelope
+from src.core.frontier.causal_identity import (
+    CausalIdentity,
+    derive_delivery_id,
+    derive_event_id_from_wal,
+    mint_causal_identity,
+)
 from src.core.frontier.global_invariants import (
     I32_EVENTBUS_NON_AUTHORITY,
     assert_settlement_causality,
@@ -20,29 +31,80 @@ from src.core.frontier.global_invariants import (
 logger = logging.getLogger(__name__)
 
 
+class DeliveryLedger:
+    """In-process exactly-once record of EventBus deliveries (I33 DeliveryId)."""
+
+    def __init__(self) -> None:
+        self._delivered: set[str] = set()
+        self._lock = threading.Lock()
+
+    def already_delivered(self, delivery_id: str) -> bool:
+        did = str(delivery_id or "").strip()
+        if not did:
+            return False
+        with self._lock:
+            return did in self._delivered
+
+    def record(self, delivery_id: str) -> bool:
+        """Record a successful delivery. True if this was the first time."""
+        did = str(delivery_id or "").strip()
+        if not did:
+            return False
+        with self._lock:
+            if did in self._delivered:
+                return False
+            self._delivered.add(did)
+            return True
+
+    def clear(self) -> None:
+        with self._lock:
+            self._delivered.clear()
+
+
+_delivery_ledger = DeliveryLedger()
+
+
+def get_delivery_ledger() -> DeliveryLedger:
+    return _delivery_ledger
+
+
+def reset_delivery_ledger() -> None:
+    _delivery_ledger.clear()
+
+
+def _identity_from_settle(settle_res: Any, stage_name: str) -> CausalIdentity:
+    exec_id = str(getattr(settle_res, "execution_id", "") or stage_name)
+    wal_id = str(getattr(settle_res, "wal_id", "") or "")
+    return mint_causal_identity(
+        execution_id=exec_id,
+        command_id=str(getattr(settle_res, "command_id", "") or ""),
+        attempt_id=str(getattr(settle_res, "attempt_id", "") or ""),
+        settlement_id=str(getattr(settle_res, "settlement_id", "") or ""),
+        wal_id=wal_id,
+    )
+
+
 def _finding_event_envelope(
     *,
     finding: Mapping[str, Any],
-    settle_res: Any,
+    identity: CausalIdentity,
     stage_name: str,
     sequence: int,
 ) -> EventEnvelope:
-    wal_id = str(getattr(settle_res, "wal_id", "") or "")
-    exec_id = str(getattr(settle_res, "execution_id", "") or stage_name)
-    event_id = EventEnvelope.derive_event_id(f"settlement:{stage_name}", sequence, sequence)
+    wal_id = identity.wal_id
+    event_id = derive_event_id_from_wal(wal_id, sequence)
+    bound = identity.with_event(event_id).with_delivery(derive_delivery_id(event_id, 1))
     return EventEnvelope(
         event_id=event_id,
         event_type="FINDING_CREATED",
-        aggregate_id=exec_id,
+        aggregate_id=identity.execution_id,
         aggregate_version=1,
         payload={
             "finding": dict(finding),
-            "wal_id": wal_id,
-            "execution_id": exec_id,
-            "authoritative": True,
+            **bound.payload_fields(),
             "stage_name": stage_name,
         },
-        correlation_id=exec_id,
+        correlation_id=identity.command_id or identity.execution_id,
         causation_id=wal_id,
         partition_id="P-0000",
     )
@@ -57,13 +119,17 @@ def dispatch_committed_findings(
     event_type: Any,
     outbox: Any | None = None,
     trace_id: str = "",
+    delivery_ledger: DeliveryLedger | None = None,
 ) -> int:
     """Publish FINDING_CREATED only after durable settlement (I31).
 
     Order: assert causality → append DurableOutbox → EventBus notify.
     Outbox or bus failures are logged; they do not un-commit settlement (I32).
+    Duplicate DeliveryId is skipped so crash-replay of dispatch is a no-op (I33).
     """
     assert_settlement_causality(settle_res)
+    identity = _identity_from_settle(settle_res, stage_name)
+    ledger = delivery_ledger if delivery_ledger is not None else get_delivery_ledger()
     published = 0
     envelopes: list[EventEnvelope] = []
     dict_findings: list[dict[str, Any]] = []
@@ -75,7 +141,7 @@ def dispatch_committed_findings(
         envelopes.append(
             _finding_event_envelope(
                 finding=finding,
-                settle_res=settle_res,
+                identity=identity,
                 stage_name=stage_name,
                 sequence=published,
             )
@@ -93,9 +159,12 @@ def dispatch_committed_findings(
                 exc,
             )
 
-    wal_id = getattr(settle_res, "wal_id", None)
-    exec_id = getattr(settle_res, "execution_id", "")
     for envelope, finding in zip(envelopes, dict_findings, strict=True):
+        event_id = envelope.event_id
+        delivery_id = derive_delivery_id(event_id, 1)
+        if ledger.already_delivered(delivery_id):
+            continue
+        bound = identity.with_event(event_id).with_delivery(delivery_id)
         try:
             emit(
                 event_type,
@@ -103,14 +172,12 @@ def dispatch_committed_findings(
                 data={
                     "finding": finding,
                     "trace_id": trace_id,
-                    "wal_id": wal_id,
-                    "execution_id": exec_id,
-                    "event_id": envelope.event_id,
+                    **bound.payload_fields(),
                     "causation_id": envelope.causation_id,
-                    "authoritative": True,
                 },
                 trace_id=trace_id or None,
             )
+            ledger.record(delivery_id)
         except Exception as exc:
             logger.warning(
                 "%s: EventBus delivery failed after COMMITTED settlement "
@@ -122,5 +189,8 @@ def dispatch_committed_findings(
 
 
 __all__ = [
+    "DeliveryLedger",
     "dispatch_committed_findings",
+    "get_delivery_ledger",
+    "reset_delivery_ledger",
 ]
