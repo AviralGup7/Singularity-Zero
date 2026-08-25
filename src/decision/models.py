@@ -173,7 +173,11 @@ class Finding:
             result["decision"] = self.decision.to_dict()
         if self.validation_actions:
             result["validation_actions"] = [
-                dict(action) if isinstance(action, tuple) else action
+                dict(action)
+                if isinstance(action, Mapping)
+                else dict((action,))
+                if isinstance(action, tuple)
+                else action
                 for action in self.validation_actions
             ]
         return result
@@ -372,13 +376,17 @@ class ScanTarget:
             url=str(data.get("url", "")),
             base_priority=float(data.get("base_priority", 0.0)),
             current_priority=float(data.get("current_priority", 0.0)),
-            effective_priority=float(data.get("effective_priority", data.get("current_priority", 0.0))),
+            effective_priority=float(
+                data.get("effective_priority", data.get("current_priority", 0.0))
+            ),
             bid_score=float(data.get("bid_score", 0.0)),
             findings_count=int(data.get("findings_count", 0)),
             boost_factors=boosts,
             scanned=bool(data.get("scanned", False)),
             created_at=float(data.get("created_at", time.time())),
-            last_boosted_at=float(data["last_boosted_at"]) if data.get("last_boosted_at") is not None else None,
+            last_boosted_at=float(data["last_boosted_at"])
+            if data.get("last_boosted_at") is not None
+            else None,
             metadata=md_tuple,
         )
 
@@ -472,7 +480,6 @@ class StageResult:
         return cls.from_mapping(data)
 
 
-
 @dataclass(frozen=True, slots=True)
 class TargetSpec:
     """Immutable target specification for execution."""
@@ -487,7 +494,9 @@ class TargetSpec:
     @property
     def url(self) -> str:
         base = f"{self.scheme}://{self.host}"
-        if (self.scheme == "https" and self.port != 443) or (self.scheme == "http" and self.port != 80):
+        if (self.scheme == "https" and self.port != 443) or (
+            self.scheme == "http" and self.port != 80
+        ):
             base = f"{base}:{self.port}"
         p = self.path if self.path.startswith("/") else f"/{self.path}"
         return f"{base}{p}"
@@ -507,6 +516,7 @@ class TargetSpec:
     def from_mapping(cls, data: Mapping[str, Any] | str | None) -> TargetSpec:
         if isinstance(data, str):
             from urllib.parse import urlparse
+
             parsed = urlparse(data if "://" in data else f"https://{data}")
             host = parsed.hostname or data
             scheme = parsed.scheme or "https"
@@ -518,7 +528,9 @@ class TargetSpec:
         qp = data.get("query_params") or {}
         qp_tuple = tuple((str(k), str(v)) for k, v in qp.items()) if isinstance(qp, Mapping) else ()
         hdrs = data.get("headers") or {}
-        hdrs_tuple = tuple((str(k), str(v)) for k, v in hdrs.items()) if isinstance(hdrs, Mapping) else ()
+        hdrs_tuple = (
+            tuple((str(k), str(v)) for k, v in hdrs.items()) if isinstance(hdrs, Mapping) else ()
+        )
         return cls(
             host=str(data.get("host", "")),
             port=int(data.get("port", 443)),
@@ -705,15 +717,27 @@ class ExecutionRequest:
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> ExecutionRequest:
         target_raw = data.get("target")
-        target = TargetSpec.from_mapping(target_raw) if isinstance(target_raw, (Mapping, str)) else TargetSpec(host="")
+        target = (
+            TargetSpec.from_mapping(target_raw)
+            if isinstance(target_raw, (Mapping, str))
+            else TargetSpec(host="")
+        )
         actions_raw = data.get("actions") or ()
         actions = tuple(
             ActionSpec.from_mapping(a) if isinstance(a, Mapping) else a for a in actions_raw
         )
         limits_raw = data.get("resource_limits")
-        limits = ResourceLimits.from_mapping(limits_raw) if isinstance(limits_raw, Mapping) else ResourceLimits()
+        limits = (
+            ResourceLimits.from_mapping(limits_raw)
+            if isinstance(limits_raw, Mapping)
+            else ResourceLimits()
+        )
         scope_raw = data.get("scope_token")
-        scope = ScopeToken.from_mapping(scope_raw) if isinstance(scope_raw, Mapping) else ScopeToken(scope_hash="")
+        scope = (
+            ScopeToken.from_mapping(scope_raw)
+            if isinstance(scope_raw, Mapping)
+            else ScopeToken(scope_hash="")
+        )
         meta = data.get("metadata") or {}
         meta_tuple = tuple(meta.items()) if isinstance(meta, Mapping) else ()
         req_id = str(data.get("request_id") or uuid.uuid4().hex)
@@ -806,7 +830,6 @@ class ExecutionResult:
             policy_version=str(data.get("policy_version", "")),
         )
 
-
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ExecutionResult:
         return cls.from_mapping(data)
@@ -833,4 +856,3 @@ __all__ = [
     "StageResult",
     "TargetSpec",
 ]
-

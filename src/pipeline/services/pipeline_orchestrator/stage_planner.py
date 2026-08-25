@@ -14,18 +14,13 @@ logger = logging.getLogger(__name__)
 class ResourceGuardProtocol(Protocol):
     """Protocol defining memory-guard and concurrency capping operations."""
 
-    def check_critical_oom(self) -> None:
-        ...
+    def check_critical_oom(self) -> None: ...
 
     def should_skip_stage(
         self, stage_name: str, target_count: int = 1, url_count: int = 0
-    ) -> tuple[bool, str]:
-        ...
+    ) -> tuple[bool, str]: ...
 
-    def get_concurrency_cap(
-        self, stage_name: str, requested_concurrency: int = 10
-    ) -> int:
-        ...
+    def get_concurrency_cap(self, stage_name: str, requested_concurrency: int = 10) -> int: ...
 
 
 def _get_default_resource_guard() -> Any:
@@ -45,9 +40,7 @@ def _get_default_resource_guard() -> Any:
             ) -> tuple[bool, str]:
                 return False, ""
 
-            def get_concurrency_cap(
-                self, stage_name: str, requested_concurrency: int = 10
-            ) -> int:
+            def get_concurrency_cap(self, stage_name: str, requested_concurrency: int = 10) -> int:
                 return requested_concurrency
 
         return _NoOpResourceGuard()

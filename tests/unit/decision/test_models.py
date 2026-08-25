@@ -1,22 +1,27 @@
 from dataclasses import FrozenInstanceError
-from typing import Any
 
 try:
     import pytest
 except ImportError:
+
     class _PytestMock:
         @staticmethod
         def raises(expected_exc):
             class _RaisesContext:
                 def __enter__(self):
                     return self
+
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     if exc_type is None or not issubclass(exc_type, expected_exc):
                         raise AssertionError(f"Expected exception {expected_exc}, got {exc_type}")
                     return True
+
             return _RaisesContext()
+
     pytest = _PytestMock()  # type: ignore[assignment]
 
+from src.decision.adaptive_scan import AdaptiveScanCoordinator
+from src.decision.attack_selection import select_validation_attack_plans
 from src.decision.models import (
     AttackPlan,
     AttackStep,
@@ -29,8 +34,6 @@ from src.decision.models import (
     StageRequest,
     StageResult,
 )
-from src.decision.attack_selection import select_validation_attack_plans
-from src.decision.adaptive_scan import AdaptiveScanCoordinator
 
 
 class TestFindingDecision:

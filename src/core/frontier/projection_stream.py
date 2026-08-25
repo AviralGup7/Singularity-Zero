@@ -10,12 +10,11 @@ Implements the deterministic Level 3 projection plane (Contract Section 8 & 10):
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from src.core.contracts.canonical_target import (
-    canonical_state_encode,
     compute_canonical_state_hash,
 )
 from src.core.contracts.command_envelope import CommittedEntry, EventEnvelope
@@ -97,7 +96,9 @@ class CommittedLogConsumer:
         # 2. Same Duplicate Check (K == last_applied)
         if incoming_index == curr_ckpt.last_applied_index:
             if entry.entry_hash != curr_ckpt.last_event_hash:
-                raise ValueError(f"Corruption detected at index {incoming_index}: entry hash mismatch")
+                raise ValueError(
+                    f"Corruption detected at index {incoming_index}: entry hash mismatch"
+                )
             return True, "SAME_DUPLICATE_ACKNOWLEDGED"
 
         # 3. Gap Detection (K > last_applied + 1)
@@ -107,7 +108,10 @@ class CommittedLogConsumer:
             )
 
         # 4. Hash-Chain Link Check
-        if curr_ckpt.last_applied_index > 0 and entry.previous_entry_hash != curr_ckpt.last_event_hash:
+        if (
+            curr_ckpt.last_applied_index > 0
+            and entry.previous_entry_hash != curr_ckpt.last_event_hash
+        ):
             raise ValueError(
                 f"CORRUPTED_LOG on {part_id} at {incoming_index}: prev_hash {entry.previous_entry_hash} != {curr_ckpt.last_event_hash}"
             )

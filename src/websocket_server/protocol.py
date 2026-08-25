@@ -119,7 +119,8 @@ class BaseMessage(BaseModel):
         payload = self.model_dump(mode="json")
         if msgpack is None:
             return json.dumps(payload).encode("utf-8")
-        return msgpack.packb(payload, use_bin_type=True)
+        packed = msgpack.packb(payload, use_bin_type=True)
+        return packed if isinstance(packed, bytes) else bytes(packed)
 
     @classmethod
     def from_msgpack(cls, data: bytes) -> BaseMessage:

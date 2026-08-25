@@ -30,8 +30,14 @@ class TestPolicyDispatcherGraph(unittest.TestCase):
         dispatcher = PolicyAutoDispatcher(attack_graph_engine=graph_engine)
 
         queue = CorrelationPriorityQueue()
-        queue.push(ScanTarget(url="https://example.com/api/v1/auth", base_priority=2.0, current_priority=2.0))
-        queue.push(ScanTarget(url="https://example.com/other", base_priority=2.0, current_priority=2.0))
+        queue.push(
+            ScanTarget(
+                url="https://example.com/api/v1/auth", base_priority=2.0, current_priority=2.0
+            )
+        )
+        queue.push(
+            ScanTarget(url="https://example.com/other", base_priority=2.0, current_priority=2.0)
+        )
 
         # Generate policy from graph
         policy = dispatcher.generate_policy()

@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 
 class InvalidStateTransitionError(Exception):
@@ -29,7 +28,9 @@ _VALID_TARGET_TRANSITIONS: dict[TargetState, frozenset[TargetState]] = {
     TargetState.ENQUEUED: frozenset({TargetState.LEASED, TargetState.SUPPRESSED}),
     TargetState.LEASED: frozenset({TargetState.PROBING, TargetState.ENQUEUED, TargetState.FAILED}),
     TargetState.PROBING: frozenset({TargetState.EVALUATING, TargetState.FAILED}),
-    TargetState.EVALUATING: frozenset({TargetState.COMPLETED, TargetState.FAILED, TargetState.SUPPRESSED}),
+    TargetState.EVALUATING: frozenset(
+        {TargetState.COMPLETED, TargetState.FAILED, TargetState.SUPPRESSED}
+    ),
     TargetState.COMPLETED: frozenset(),  # Terminal
     TargetState.FAILED: frozenset({TargetState.ENQUEUED}),  # Retry
     TargetState.SUPPRESSED: frozenset(),  # Terminal
@@ -42,7 +43,9 @@ class TargetTypestate:
 
     url: str
     state: TargetState = TargetState.ENQUEUED
-    history: tuple[tuple[str, float], ...] = field(default_factory=lambda: (("enqueued", time.time()),))
+    history: tuple[tuple[str, float], ...] = field(
+        default_factory=lambda: (("enqueued", time.time()),)
+    )
     reason: str = ""
 
     def transition_to(self, next_state: TargetState, reason: str = "") -> TargetTypestate:
@@ -78,7 +81,9 @@ class FindingState(StrEnum):
 
 _VALID_FINDING_TRANSITIONS: dict[FindingState, frozenset[FindingState]] = {
     FindingState.DISCOVERED: frozenset({FindingState.VERIFYING, FindingState.DROPPED}),
-    FindingState.VERIFYING: frozenset({FindingState.CONFIRMED, FindingState.SUPPRESSED, FindingState.DROPPED}),
+    FindingState.VERIFYING: frozenset(
+        {FindingState.CONFIRMED, FindingState.SUPPRESSED, FindingState.DROPPED}
+    ),
     FindingState.CONFIRMED: frozenset({FindingState.SUPPRESSED}),
     FindingState.SUPPRESSED: frozenset({FindingState.CONFIRMED}),
     FindingState.DROPPED: frozenset(),  # Terminal
@@ -91,7 +96,9 @@ class FindingTypestate:
 
     finding_id: str
     state: FindingState = FindingState.DISCOVERED
-    history: tuple[tuple[str, float], ...] = field(default_factory=lambda: (("discovered", time.time()),))
+    history: tuple[tuple[str, float], ...] = field(
+        default_factory=lambda: (("discovered", time.time()),)
+    )
     reason: str = ""
 
     def transition_to(self, next_state: FindingState, reason: str = "") -> FindingTypestate:

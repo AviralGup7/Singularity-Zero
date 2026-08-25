@@ -12,7 +12,7 @@ def generate_finding_explanations(finding: dict[str, Any]) -> dict[str, Any]:
     category = str(finding.get("category", "General Security"))
     url = str(finding.get("url", ""))
     evidence = str(finding.get("evidence") or finding.get("payload") or "")
-    description = str(finding.get("description", ""))
+    _description = str(finding.get("description", ""))
 
     developer_explanation = (
         f"**Root Cause**: The application component at `{url or 'endpoint'}` fails to adequately validate, "
@@ -48,7 +48,9 @@ def generate_finding_explanations(finding: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def generate_executive_run_summary(findings: list[dict[str, Any]], target: str, run_id: str) -> dict[str, Any]:
+def generate_executive_run_summary(
+    findings: list[dict[str, Any]], target: str, run_id: str
+) -> dict[str, Any]:
     """Generate executive AI summary across a complete scan run."""
     total = len(findings)
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
@@ -60,11 +62,26 @@ def generate_executive_run_summary(findings: list[dict[str, Any]], target: str, 
         cat = str(f.get("category", "General"))
         categories[cat] = categories.get(cat, 0) + 1
 
-    risk_score = counts.get("critical", 0) * 10 + counts.get("high", 0) * 5 + counts.get("medium", 0) * 2 + counts.get("low", 0)
-    posture = "Critical Risk" if counts.get("critical", 0) > 0 else ("High Risk" if counts.get("high", 0) > 0 else ("Moderate Risk" if counts.get("medium", 0) > 0 else "Low Risk"))
+    risk_score = (
+        counts.get("critical", 0) * 10
+        + counts.get("high", 0) * 5
+        + counts.get("medium", 0) * 2
+        + counts.get("low", 0)
+    )
+    posture = (
+        "Critical Risk"
+        if counts.get("critical", 0) > 0
+        else (
+            "High Risk"
+            if counts.get("high", 0) > 0
+            else ("Moderate Risk" if counts.get("medium", 0) > 0 else "Low Risk")
+        )
+    )
 
     top_categories = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:3]
-    top_categories_str = ", ".join(f"{k} ({v})" for k, v in top_categories) if top_categories else "None"
+    top_categories_str = (
+        ", ".join(f"{k} ({v})" for k, v in top_categories) if top_categories else "None"
+    )
 
     overview = (
         f"Automated security assessment for target **{target}** (Run `{run_id}`) discovered **{total}** total findings. "
@@ -74,11 +91,17 @@ def generate_executive_run_summary(findings: list[dict[str, Any]], target: str, 
 
     recommendations = []
     if counts.get("critical", 0) > 0:
-        recommendations.append("Immediate Action: Patch critical remote execution, authentication bypass, or data exposure vulnerabilities within 24 hours.")
+        recommendations.append(
+            "Immediate Action: Patch critical remote execution, authentication bypass, or data exposure vulnerabilities within 24 hours."
+        )
     if counts.get("high", 0) > 0:
-        recommendations.append("High Priority: Address high-severity injection and authorization flaws within 7 days.")
+        recommendations.append(
+            "High Priority: Address high-severity injection and authorization flaws within 7 days."
+        )
     if counts.get("medium", 0) > 0:
-        recommendations.append("Scheduled Fix: Resolve medium-severity information disclosure and configuration issues in the next release cycle.")
+        recommendations.append(
+            "Scheduled Fix: Resolve medium-severity information disclosure and configuration issues in the next release cycle."
+        )
     if not recommendations:
         recommendations.append("Maintain continuous monitoring and periodic regression scanning.")
 

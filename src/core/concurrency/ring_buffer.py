@@ -12,7 +12,7 @@ from typing import Any, Generic, TypeVar
 T = TypeVar("T")
 
 
-class DisruptorRingBuffer(Generic[T]):
+class DisruptorRingBuffer(Generic[T]):  # noqa: UP046
     """Lock-free style high-throughput ring buffer with sequence barriers."""
 
     def __init__(self, capacity_exponent: int = 16) -> None:

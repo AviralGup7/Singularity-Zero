@@ -3,8 +3,6 @@ import unittest
 from src.intelligence.graph.attack_graph import (
     AttackChain,
     AttackGraphEngine,
-    GraphEdge,
-    GraphNode,
 )
 
 

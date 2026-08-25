@@ -1,7 +1,6 @@
 import unittest
 
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
-from src.learning.nuclei_tag_optimizer import NucleiTagOptimizer
 from src.learning.policy_dispatcher import PolicyAutoDispatcher
 from src.learning.threshold_tuner import ThresholdConfig, ThresholdTuner
 from src.learning.versioned_policy import VersionedPolicy
@@ -18,8 +17,10 @@ class DummyTelemetryStore:
 class TestPolicyAutoDispatcher(unittest.TestCase):
     def test_generate_and_dispatch_policy(self):
         store = DummyTelemetryStore()
-        tuner = ThresholdTuner(store=store, config=ThresholdConfig(low_threshold=0.40, medium_threshold=0.55))
-        
+        tuner = ThresholdTuner(
+            store=store, config=ThresholdConfig(low_threshold=0.40, medium_threshold=0.55)
+        )
+
         class DummyOptimizer:
             def tag_scores(self):
                 return {"sqli": 0.95, "deprecated_tag": 0.10}
@@ -35,8 +36,18 @@ class TestPolicyAutoDispatcher(unittest.TestCase):
         )
 
         queue = CorrelationPriorityQueue()
-        queue.push(ScanTarget(url="https://example.com/api?tag:sqli", base_priority=5.0, current_priority=5.0))
-        queue.push(ScanTarget(url="https://example.com/api?tag:deprecated_tag", base_priority=5.0, current_priority=5.0))
+        queue.push(
+            ScanTarget(
+                url="https://example.com/api?tag:sqli", base_priority=5.0, current_priority=5.0
+            )
+        )
+        queue.push(
+            ScanTarget(
+                url="https://example.com/api?tag:deprecated_tag",
+                base_priority=5.0,
+                current_priority=5.0,
+            )
+        )
 
         policy = dispatcher.generate_policy(
             custom_boosts={"https://example.com/admin": 3.0},

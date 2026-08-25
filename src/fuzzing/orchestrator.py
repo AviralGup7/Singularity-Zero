@@ -6,6 +6,7 @@ Provides mutation strategies and coverage-guided feedback loops for fuzzing API 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 import secrets
@@ -436,8 +437,12 @@ class FuzzingOrchestrator:
                 self.record_feedback(url, status, resp_len)
                 if self.coverage_tracker is not None and self.corpus_manager is not None:
                     try:
-                        content_hash = hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
-                        edge_sig = self.coverage_tracker.record_edge(url, status, resp_len, content_hash)
+                        content_hash = hashlib.sha256(
+                            body.encode("utf-8", errors="replace")
+                        ).hexdigest()
+                        edge_sig = self.coverage_tracker.record_edge(
+                            url, status, resp_len, content_hash
+                        )
                         if edge_sig:
                             self.corpus_manager.add(variant_val, edge_sig)
                             self.feedback_tracker.record_covered_path(edge_sig)

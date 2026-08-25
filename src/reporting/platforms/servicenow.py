@@ -7,8 +7,6 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
-
 from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
@@ -22,10 +20,10 @@ from src.reporting.platforms.base import (
 def _map_servicenow_impact_urgency(sev: str) -> tuple[str, str]:
     mapping = {
         "critical": ("1", "1"),  # Impact 1 (High), Urgency 1 (High) -> Priority 1 (Critical)
-        "high": ("1", "2"),      # Priority 2 (High)
-        "medium": ("2", "2"),    # Priority 3 (Moderate)
-        "low": ("3", "2"),       # Priority 4 (Low)
-        "info": ("3", "3"),      # Priority 5 (Planning)
+        "high": ("1", "2"),  # Priority 2 (High)
+        "medium": ("2", "2"),  # Priority 3 (Moderate)
+        "low": ("3", "2"),  # Priority 4 (Low)
+        "info": ("3", "3"),  # Priority 5 (Planning)
     }
     return mapping.get(sev.lower(), ("2", "2"))
 
@@ -98,7 +96,11 @@ class ServiceNowClient(_BaseClient):
                 data = resp.json().get("result", {})
                 sys_id = data.get("sys_id", "")
                 number = data.get("number", sys_id)
-                record_url = f"{self.base_url}/nav_to.do?uri={self.table_name}.do?sys_id={sys_id}" if sys_id else ""
+                record_url = (
+                    f"{self.base_url}/nav_to.do?uri={self.table_name}.do?sys_id={sys_id}"
+                    if sys_id
+                    else ""
+                )
                 return SubmissionResult(
                     platform=self.platform,
                     ok=True,

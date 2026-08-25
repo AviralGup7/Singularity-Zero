@@ -133,4 +133,3 @@ def test_boost_url_without_reason_refreshes_bid() -> None:
     popped = pq.pop()
     assert popped is not None
     assert popped.url == "http://example.com/t2"
-

@@ -17,6 +17,7 @@ import threading
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,6 @@ class PrioritizedRealtimeBroker:
         disk_backpressure_pct: float = 85.0,
         disk_emergency_pct: float = 92.0,
     ) -> None:
-        import json
         from pathlib import Path
 
         self.p0_capacity = p0_capacity
@@ -89,12 +89,14 @@ class PrioritizedRealtimeBroker:
             self._spool_path = sd / "p0_telemetry_spool.jsonl"
 
         self._p0_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p0_capacity)
-        self._p0_memory_spool: collections.deque[TelemetryEvent] = collections.deque(maxlen=max_p0_spool)
+        self._p0_memory_spool: collections.deque[TelemetryEvent] = collections.deque(
+            maxlen=max_p0_spool
+        )
         self._p1_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p1_capacity)
         self._p2_map: dict[str, TelemetryEvent] = {}  # Coalesced findings
         self._p3_aggregates: dict[str, dict[str, Any]] = {}  # 1s bucket aggregates
         self._p4_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p4_capacity)
-        
+
         self._spool_file_count = 0
         self._dropped_counts: dict[QoSClass, int] = collections.defaultdict(int)
         self._lock = threading.RLock()
@@ -106,6 +108,7 @@ class PrioritizedRealtimeBroker:
     def _get_disk_utilization_pct(self) -> float:
         """Query disk usage percentage for spool storage directory."""
         import shutil
+
         if self._spool_path is None:
             return 0.0
         try:
@@ -117,9 +120,10 @@ class PrioritizedRealtimeBroker:
 
     def _rehydrate_disk_spool(self) -> None:
         import json
+
         if self._spool_path is None or not self._spool_path.exists():
             return
-        with open(self._spool_path, "r", encoding="utf-8") as f:
+        with open(self._spool_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -151,6 +155,7 @@ class PrioritizedRealtimeBroker:
         import hashlib
         import json
         import os
+
         if self._spool_path is None:
             return False
         try:
@@ -221,7 +226,9 @@ class PrioritizedRealtimeBroker:
 
                 # 4. Memory and spool exhausted: Apply strict producer backpressure (NEVER silent drop)
                 self._dropped_counts[QoSClass.P0_CONTROL] += 1
-                logger.critical("P0 broker memory and disk spool fully saturated; applying backpressure")
+                logger.critical(
+                    "P0 broker memory and disk spool fully saturated; applying backpressure"
+                )
                 return False
 
             elif event.qos == QoSClass.P1_LIFECYCLE:
@@ -309,7 +316,9 @@ class PrioritizedRealtimeBroker:
                 else:
                     dropped_dict[str(k)] = v
             return {
-                "p0_depth": len(self._p0_queue) + len(self._p0_memory_spool) + self._spool_file_count,
+                "p0_depth": len(self._p0_queue)
+                + len(self._p0_memory_spool)
+                + self._spool_file_count,
                 "p0_memory_depth": len(self._p0_queue),
                 "p0_spool_depth": len(self._p0_memory_spool) + self._spool_file_count,
                 "p1_depth": len(self._p1_queue),

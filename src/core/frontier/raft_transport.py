@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any, Protocol
+from dataclasses import dataclass
+from typing import Any, Protocol, cast
 
 from src.core.contracts.command_envelope import CommittedEntry
 
@@ -160,7 +159,7 @@ class InMemoryRaftTransport:
     def __init__(self) -> None:
         self._endpoints: dict[str, Any] = {}
         self._partition_map: dict[str, set[str]] = {}  # partition_id -> set of node_ids
-        self._partitions_isolated: set[str] = set()    # simulated network partitions / dead nodes
+        self._partitions_isolated: set[str] = set()  # simulated network partitions / dead nodes
         self._lock = threading.RLock()
 
     def register_node(self, node_id: str, partition_id: str, node_instance: Any) -> None:
@@ -207,7 +206,7 @@ class InMemoryRaftTransport:
                 )
 
         # Dispatch RPC to target node instance
-        return target.handle_append_entries_rpc(request)
+        return cast(AppendEntriesResponse, target.handle_append_entries_rpc(request))
 
     def send_request_vote(
         self, target_node_id: str, request: RequestVoteRequest
@@ -229,7 +228,7 @@ class InMemoryRaftTransport:
                     error_code="NODE_NOT_FOUND",
                 )
 
-        return target.handle_request_vote_rpc(request)
+        return cast(RequestVoteResponse, target.handle_request_vote_rpc(request))
 
 
 class NetworkRaftTransport:
@@ -255,7 +254,14 @@ class NetworkRaftTransport:
         with self._lock:
             peer = self._peers.get(target_node_id)
         if peer is None:
-            return {"success": False, "vote_granted": False, "error_code": "NODE_NOT_FOUND", "term": 0, "node_id": target_node_id, "match_index": 0}
+            return {
+                "success": False,
+                "vote_granted": False,
+                "error_code": "NODE_NOT_FOUND",
+                "term": 0,
+                "node_id": target_node_id,
+                "match_index": 0,
+            }
         host, port = peer
         body = json.dumps({"method": method, "payload": payload}).encode("utf-8")
         try:
@@ -271,10 +277,18 @@ class NetworkRaftTransport:
                     if not chunk:
                         break
                     data += chunk
-            return json.loads(data.decode("utf-8"))
+            decoded = json.loads(data.decode("utf-8"))
+            return decoded if isinstance(decoded, dict) else {}
         except OSError as exc:
             logger.warning("Raft RPC to %s failed: %s", target_node_id, exc)
-            return {"success": False, "vote_granted": False, "error_code": "NODE_UNREACHABLE", "term": 0, "node_id": target_node_id, "match_index": 0}
+            return {
+                "success": False,
+                "vote_granted": False,
+                "error_code": "NODE_UNREACHABLE",
+                "term": 0,
+                "node_id": target_node_id,
+                "match_index": 0,
+            }
 
     def send_append_entries(
         self, target_node_id: str, request: AppendEntriesRequest

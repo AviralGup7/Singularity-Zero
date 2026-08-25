@@ -5,12 +5,11 @@ from src.core.frontier.state import NeuralState
 from src.core.frontier.state_authority import (
     LeaseProjection,
     SettlementCoordinator,
-    SettlementIntent,
     StateAuthority,
     StateProjection,
 )
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
-from src.decision.models import CandidateLease, ExecutionResult, Finding
+from src.decision.models import ExecutionResult, Finding
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
 from src.frontier.journal import MemoryJournal
 
@@ -35,7 +34,10 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             duration_seconds=0.12,
             findings=(finding,),
-            state_deltas=(("subdomains", ["app.example.com"]), ("urls", ["https://example.com/login"])),
+            state_deltas=(
+                ("subdomains", ["app.example.com"]),
+                ("urls", ["https://example.com/login"]),
+            ),
             execution_id="exec_unique_123",
         )
 
@@ -75,7 +77,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
         )
 
         # Lease the target
-        lease = queue.lease_batch(limit=1, lease_timeout_seconds=60.0, worker_id="worker_01", execution_id="exec_1")[0]
+        lease = queue.lease_batch(
+            limit=1, lease_timeout_seconds=60.0, worker_id="worker_01", execution_id="exec_1"
+        )[0]
         # Simulate budget reservation at gate
         enforcer.reserve_requests(1)
         self.assertEqual(enforcer.reserved_requests, 1)
@@ -112,7 +116,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
             queue=queue,
         )
 
-        lease = queue.lease_batch(limit=1, lease_timeout_seconds=60.0, worker_id="worker_01", execution_id="exec_fail")[0]
+        lease = queue.lease_batch(
+            limit=1, lease_timeout_seconds=60.0, worker_id="worker_01", execution_id="exec_fail"
+        )[0]
         enforcer.reserve_requests(1)
         self.assertEqual(enforcer.reserved_requests, 1)
 
@@ -125,7 +131,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
             execution_id="exec_fail",
         )
 
-        settle_res = coordinator.settle(fail_res, lease=lease, stage_name="probing", request_count=1)
+        settle_res = coordinator.settle(
+            fail_res, lease=lease, stage_name="probing", request_count=1
+        )
         self.assertEqual(settle_res.status, "REJECTED")
         self.assertEqual(enforcer.reserved_requests, 0)
         self.assertEqual(enforcer.consumed_requests, 0)
@@ -221,7 +229,7 @@ class TestStateAuthorityDurability(unittest.TestCase):
         replayed = coordinator.replay_projections(wal)
         self.assertEqual(replayed["state"], 1)
         self.assertEqual(replayed["budget"], 0)  # Budget already applied, idempotent skip
-        self.assertEqual(replayed["lease"], 0)   # Lease already applied, idempotent skip
+        self.assertEqual(replayed["lease"], 0)  # Lease already applied, idempotent skip
 
         # CRDT is now caught up
         self.assertIn("https://example.com/target_lag", state.urls.to_set())
@@ -267,7 +275,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
         fresh_budget = HuntBudgetEnforcer(budget=HuntBudget(max_requests=10))
         fresh_queue = CorrelationPriorityQueue()
         for i in range(1, 4):
-            fresh_queue.push(ScanTarget(url=f"https://example.com/item_{i}", base_priority=float(i)))
+            fresh_queue.push(
+                ScanTarget(url=f"https://example.com/item_{i}", base_priority=float(i))
+            )
 
         new_coord = SettlementCoordinator(
             state_authority=StateAuthority(state=fresh_state, wal=wal),
@@ -283,9 +293,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
 
         # Replay WAL
         counts = new_coord.replay_projections(wal)
-        self.assertEqual(counts["state"], 1)   # only exec_3 needed
+        self.assertEqual(counts["state"], 1)  # only exec_3 needed
         self.assertEqual(counts["budget"], 2)  # exec_2 and exec_3 needed
-        self.assertEqual(counts["lease"], 3)   # exec_1, exec_2, exec_3 needed
+        self.assertEqual(counts["lease"], 3)  # exec_1, exec_2, exec_3 needed
 
         self.assertEqual(fresh_budget.consumed_requests, 3)
 
@@ -305,7 +315,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
         )
 
         # Worker 1 gets lease 1
-        lease_w1 = queue.lease_batch(limit=1, lease_timeout_seconds=0.01, worker_id="worker_01", execution_id="exec_old")[0]
+        lease_w1 = queue.lease_batch(
+            limit=1, lease_timeout_seconds=0.01, worker_id="worker_01", execution_id="exec_old"
+        )[0]
         enforcer.reserve_requests(1)
 
         res_old = ExecutionResult(
@@ -321,11 +333,12 @@ class TestStateAuthorityDurability(unittest.TestCase):
         coordinator.settle(res_old, lease=lease_w1, stage_name="probing", request_count=1)
 
         # Target lease expires and is re-leased to Worker 2
-        import time
         target = queue._url_map.get("https://example.com/target_stale_replay")
         target.lease_expires_at = 0.0  # Force expired
 
-        lease_w2 = queue.lease_batch(limit=1, lease_timeout_seconds=60.0, worker_id="worker_02", execution_id="exec_new")[0]
+        lease_w2 = queue.lease_batch(
+            limit=1, lease_timeout_seconds=60.0, worker_id="worker_02", execution_id="exec_new"
+        )[0]
         self.assertNotEqual(lease_w1.lease_id, lease_w2.lease_id)
         self.assertEqual(target.lease_id, lease_w2.lease_id)
 
@@ -352,7 +365,9 @@ class TestStateAuthorityDurability(unittest.TestCase):
             queue=initial_queue,
         )
 
-        lease = initial_queue.lease_batch(limit=1, worker_id="worker_01", execution_id="exec_cold_1")[0]
+        lease = initial_queue.lease_batch(
+            limit=1, worker_id="worker_01", execution_id="exec_cold_1"
+        )[0]
         initial_budget.reserve_requests(1)
 
         res = ExecutionResult(
@@ -360,7 +375,10 @@ class TestStateAuthorityDurability(unittest.TestCase):
             tenant_id="default",
             outcome="COMPLETED",
             execution_id="exec_cold_1",
-            state_deltas=(("subdomains", ["cold.example.com"]), ("urls", ["https://example.com/cold_restart"])),
+            state_deltas=(
+                ("subdomains", ["cold.example.com"]),
+                ("urls", ["https://example.com/cold_restart"]),
+            ),
         )
         initial_coord.settle(res, lease=lease, stage_name="probing", request_count=1)
 
@@ -476,6 +494,3 @@ class TestStateAuthorityDurability(unittest.TestCase):
 
         # Consumed requests strictly remains 1
         self.assertEqual(enforcer.consumed_requests, 1)
-
-
-

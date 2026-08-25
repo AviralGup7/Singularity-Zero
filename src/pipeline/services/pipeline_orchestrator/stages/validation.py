@@ -69,6 +69,8 @@ async def run_validation(
     validation_ok = False
 
     import uuid
+
+    from src.core.frontier.authority_runtime import get_current_hunt_budget
     from src.decision.authorization import ExecutionAuthorizer
     from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
     from src.decision.models import (
@@ -79,8 +81,6 @@ async def run_validation(
         TargetSpec,
     )
     from src.execution.request_executor import ExecutionRequestWorker
-
-    from src.core.frontier.authority_runtime import get_current_hunt_budget
 
     enforcer = (
         getattr(ctx, "budget_enforcer", None)
@@ -136,7 +136,8 @@ async def run_validation(
                     raise RuntimeError(f"Validation execution rejected: {res.error}")
                 artifacts = dict(res.artifacts)
                 action_res = artifacts.get(f"action_{action.action_id}", {})
-                return action_res.get("summary", {})
+                summary = action_res.get("summary", {})
+                return summary if isinstance(summary, dict) else {}
 
             validation_summary = await asyncio.to_thread(_execute_worker)
             validation_ok = True
@@ -148,7 +149,6 @@ async def run_validation(
                 exc,
             )
             if attempt == 2:
-
                 logger.error(
                     "Validation failed after 2 retries, continuing with empty summary",
                 )

@@ -45,7 +45,8 @@ def decrypt_mesh_payload(secret: bytes, enc_payload_b64: str) -> dict[str, Any]:
     nonce = raw[:12]
     ciphertext = raw[12:]
     plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-    return json.loads(plaintext.decode("utf-8"))
+    decoded = json.loads(plaintext.decode("utf-8"))
+    return decoded if isinstance(decoded, dict) else {}
 
 
 def canonical_json(data: dict[str, Any]) -> bytes:

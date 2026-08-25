@@ -14,21 +14,18 @@ class DecisionEngineProtocol(Protocol):
         finding: dict[str, Any],
         target_profile: dict[str, Any] | None = None,
         dynamic_fp_patterns: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
     def annotate_finding_decisions(
         self,
         findings: list[dict[str, Any]],
         target_profile: dict[str, Any] | None = None,
         dynamic_fp_patterns: list[dict[str, Any]] | None = None,
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
     def filter_reportable_findings(
         self, findings: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
 
 @runtime_checkable
@@ -43,8 +40,7 @@ class AttackSelectorProtocol(Protocol):
         signals: list[str] | set[str] | tuple[str, ...] | None,
         scope_hosts: set[str] | None = None,
         config: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
     def select_validation_attack_plans(
         self,
@@ -54,8 +50,7 @@ class AttackSelectorProtocol(Protocol):
         signals: list[str] | set[str] | tuple[str, ...] | None,
         scope_hosts: set[str] | None = None,
         config: dict[str, Any] | None = None,
-    ) -> tuple[Any, ...]:
-        ...
+    ) -> tuple[Any, ...]: ...
 
 
 __all__ = [

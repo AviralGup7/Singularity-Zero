@@ -1,7 +1,6 @@
 """Unit tests for CanonicalTargetIdentity and URL Normalization."""
 
 from src.core.contracts.canonical_target import (
-    CanonicalTargetIdentity,
     canonicalize_target,
 )
 
@@ -44,7 +43,9 @@ def test_canonicalize_target_idna_punycode() -> None:
 
 
 def test_canonicalize_target_dns_snapshot() -> None:
-    canon = canonicalize_target("https://127.0.0.1:8443/test", resolve_dns=True, now_unix=1700000000.0)
+    canon = canonicalize_target(
+        "https://127.0.0.1:8443/test", resolve_dns=True, now_unix=1700000000.0
+    )
     assert canon.dns_snapshot is not None
     assert canon.dns_snapshot.is_private_or_loopback is True
     assert canon.dns_snapshot.primary_ip == "127.0.0.1"

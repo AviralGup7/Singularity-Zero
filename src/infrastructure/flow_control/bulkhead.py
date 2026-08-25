@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from typing import Any
 from urllib.parse import urlparse
 
 from src.infrastructure.flow_control.circuit_breaker import CircuitBreaker

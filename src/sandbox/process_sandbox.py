@@ -99,7 +99,10 @@ class ProcessSandbox:
         seccomp_policy: SeccompPolicy | None = None,
     ) -> None:
         self.limits = limits or SandboxResourceLimits()
-        self.egress_filter = egress_filter
+        # I29: every sandbox at least denies cloud-metadata destinations.
+        self.egress_filter = (
+            egress_filter if egress_filter is not None else NetworkEgressFilter.metadata_guard()
+        )
         self.seccomp_policy = (
             seccomp_policy if seccomp_policy is not None else get_default_seccomp_policy()
         )
@@ -183,7 +186,7 @@ class ProcessSandbox:
 
         timed_out = False
         try:
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # noqa: S603
                 list(command),
                 stdin=subprocess.PIPE if stdin_bytes else None,
                 stdout=subprocess.PIPE,

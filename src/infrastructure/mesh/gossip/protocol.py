@@ -141,7 +141,11 @@ class GossipProtocol:
         if source_id and boot_id and nonce is not None:
             if hasattr(self.engine, "validate_incoming_nonce"):
                 if not self.engine.validate_incoming_nonce(source_id, str(boot_id), int(nonce)):
-                    logger.warning("Dropped packet from %s: stale/replayed nonce under boot_id %s", source_id, boot_id)
+                    logger.warning(
+                        "Dropped packet from %s: stale/replayed nonce under boot_id %s",
+                        source_id,
+                        boot_id,
+                    )
                     return
 
         try:

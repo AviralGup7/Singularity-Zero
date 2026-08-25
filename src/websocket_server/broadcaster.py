@@ -807,6 +807,8 @@ class Broadcaster:
 
         # Notify the client of backpressure drop
         queue_depth = info.message_queue.qsize()
+        drain_count = 1
+        recovered = False
 
         try:
             bp = BackpressureMessage(

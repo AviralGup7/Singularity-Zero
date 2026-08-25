@@ -12,21 +12,19 @@ from __future__ import annotations
 
 import time
 import unittest
-import uuid
 
-from src.core.contracts.command_envelope import CommandEnvelope, CommandResult
-from src.core.contracts.execution_request import ClaimSizeExceededError, RawExecutionClaim
+from src.core.contracts.command_envelope import CommandEnvelope
+from src.core.contracts.execution_request import RawExecutionClaim
 from src.core.frontier.global_coordination import GlobalBudgetAggregate, PlacementAuthority
 from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
 from src.core.frontier.run_saga import DurableRunSagaEngine
 from src.core.frontier.state_authority import SettlementCoordinator, StateAuthority
 from src.core.storage.cas_store import get_global_cas_store
+from src.decision.models import ScopeToken
 from src.infrastructure.mesh.gossip.engine import GossipEngine
 from src.infrastructure.mesh.gossip.models import MeshNode
-from src.realtime.prioritized_broker import PrioritizedRealtimeBroker, QoSClass, TelemetryEvent
 from src.sandbox.network_isolation import EgressViolationError, NetworkEgressFilter
-from src.decision.models import ScopeToken
 
 
 class TestChaosFaultInjection(unittest.TestCase):
@@ -116,7 +114,7 @@ class TestChaosFaultInjection(unittest.TestCase):
         cas = get_global_cas_store()
         real_blob = b"real payload"
         real_h = cas.store_blob(real_blob)
-        valid_root = cas.compute_merkle_root([real_h])
+        _valid_root = cas.compute_merkle_root([real_h])
 
         state_auth = StateAuthority()
         coordinator = SettlementCoordinator(state_authority=state_auth)

@@ -18,7 +18,6 @@ from src.decision.authorization import ExecutionAuthorizer, ScopeAuthorizationEr
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import (
     ActionSpec,
-    CandidateLease,
     ExecutionRequest,
     ExecutionResult,
     Finding,
@@ -185,11 +184,15 @@ class TestEndToEndArchitectureInvariants(unittest.TestCase):
         self.queue.push(ScanTarget(url="https://api.target.com/item", base_priority=10.0))
 
         # Worker A gets short lease
-        lease_a = self.queue.lease_batch(limit=1, lease_timeout_seconds=0.04, worker_id="worker_A")[0]
+        lease_a = self.queue.lease_batch(limit=1, lease_timeout_seconds=0.04, worker_id="worker_A")[
+            0
+        ]
         time.sleep(0.05)
 
         # Worker B gets renewed lease
-        lease_b = self.queue.lease_batch(limit=1, lease_timeout_seconds=60.0, worker_id="worker_B")[0]
+        lease_b = self.queue.lease_batch(limit=1, lease_timeout_seconds=60.0, worker_id="worker_B")[
+            0
+        ]
 
         # Worker A attempts to ack -> rejected
         acked = self.queue.ack_batch([lease_a])
@@ -254,7 +257,6 @@ class TestEndToEndArchitectureInvariants(unittest.TestCase):
         self.assertIn("app.example.com", ctx.result.subdomains)
         self.assertEqual(str(ctx.result.stage_status.get("subdomains")).upper(), "COMPLETED")
 
-
     def test_invariant_priority_engine_versioned_policy_scoring(self):
         from src.learning.versioned_policy import VersionedPolicy
 
@@ -276,6 +278,7 @@ class TestEndToEndArchitectureInvariants(unittest.TestCase):
 
     def test_invariant_scanner_tool_execution_under_contract(self):
         import asyncio
+
         from src.pipeline.services.pipeline_orchestrator.stages._tool_runner import run_scanner
 
         async def _run():
@@ -284,5 +287,3 @@ class TestEndToEndArchitectureInvariants(unittest.TestCase):
         res = asyncio.run(_run())
         self.assertEqual(res.returncode, 0)
         self.assertTrue(len(res.stdout) > 0 or len(res.stderr) > 0)
-
-

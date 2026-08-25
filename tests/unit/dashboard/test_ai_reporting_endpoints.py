@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from src.analysis.intelligence.finding_explainer import (
-    generate_finding_explanations,
     generate_executive_run_summary,
+    generate_finding_explanations,
 )
 
 

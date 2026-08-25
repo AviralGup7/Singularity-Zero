@@ -1,13 +1,16 @@
 try:
     import pytest
 except ImportError:
+
     class _PytestMock:
         @staticmethod
         def approx(expected, abs=1e-5):
             class _Approx:
                 def __eq__(self, other):
                     return abs(other - expected) <= (abs if isinstance(abs, float) else 1e-5)
+
             return _Approx()
+
     pytest = _PytestMock()  # type: ignore[assignment]
 
 from src.analysis.intelligence.decision_engine import (

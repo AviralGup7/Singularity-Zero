@@ -4,12 +4,12 @@ Provides functions for generating IST timestamps, run directory stamps,
 and formatting epoch/ISO timestamps to IST for consistent pipeline output.
 """
 
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 
 try:
     from zoneinfo import ZoneInfo
 
-    IST = ZoneInfo("Asia/Kolkata")
+    IST: tzinfo = ZoneInfo("Asia/Kolkata")
 except Exception:
     IST = timezone(timedelta(hours=5, minutes=30), name="Asia/Kolkata")
 

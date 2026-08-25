@@ -6,8 +6,6 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
-
 from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
@@ -77,7 +75,13 @@ class DefectDojoClient(_BaseClient):
             "test": self.test_id,
             "active": True,
             "verified": not env.draft,
-            "numerical_severity": {"Critical": "S0", "High": "S1", "Medium": "S2", "Low": "S3", "Info": "S4"}.get(severity, "S2"),
+            "numerical_severity": {
+                "Critical": "S0",
+                "High": "S1",
+                "Medium": "S2",
+                "Low": "S3",
+                "Info": "S4",
+            }.get(severity, "S2"),
             "steps_to_reproduce": env.request_payload or "See scan logs for reproduction details.",
             "references": env.target_url,
             "tags": ["automated-scan", env.category.lower().replace(" ", "-")],

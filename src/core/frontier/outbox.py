@@ -15,7 +15,6 @@ import os
 import threading
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from src.core.contracts.command_envelope import EventEnvelope
 from src.core.frontier.wal_errors import WALCorruptionError

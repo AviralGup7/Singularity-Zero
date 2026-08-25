@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     redis = None  # type: ignore
@@ -64,7 +65,9 @@ class WALReplicationRelay:
                 client = self._peer_clients.get(url)
                 if client is None and REDIS_AVAILABLE:
                     try:
-                        client = redis.Redis.from_url(url, decode_responses=False, socket_timeout=3.0)
+                        client = redis.Redis.from_url(
+                            url, decode_responses=False, socket_timeout=3.0
+                        )
                         self._peer_clients[url] = client
                     except Exception:
                         client = None
@@ -82,7 +85,9 @@ class WALReplicationRelay:
 
         return results
 
-    def pull_peer_deltas(self, peer_url: str, last_id: str = "0-0", count: int = 100) -> list[dict[str, Any]]:
+    def pull_peer_deltas(
+        self, peer_url: str, last_id: str = "0-0", count: int = 100
+    ) -> list[dict[str, Any]]:
         """Pull remote WAL entries from a peer Redis stream for reconciliation."""
         if not REDIS_AVAILABLE:
             return []
@@ -95,12 +100,16 @@ class WALReplicationRelay:
                 client = redis.Redis.from_url(peer_url, decode_responses=False, socket_timeout=3.0)
                 self._peer_clients[peer_url] = client
             except Exception as exc:
-                logger.warning("WALReplicationRelay: Unable to connect to peer %s: %s", peer_url, exc)
+                logger.warning(
+                    "WALReplicationRelay: Unable to connect to peer %s: %s", peer_url, exc
+                )
                 return []
 
         stream_key = f"cyber:wal:{self.run_id}"
         try:
             raw_streams = client.xread({stream_key: last_id}, count=count, block=None)
+            if hasattr(raw_streams, "__await__"):
+                return []
         except Exception as exc:
             logger.warning("WALReplicationRelay: xread failed from %s: %s", peer_url, exc)
             return []
@@ -112,10 +121,14 @@ class WALReplicationRelay:
                 if payload_bytes:
                     try:
                         decoded = json.loads(payload_bytes.decode("utf-8"))
-                        decoded["_wal_id"] = msg_id.decode("ascii") if isinstance(msg_id, bytes) else str(msg_id)
+                        decoded["_wal_id"] = (
+                            msg_id.decode("ascii") if isinstance(msg_id, bytes) else str(msg_id)
+                        )
                         deltas.append(decoded)
                     except Exception as exc:
-                        logger.debug("WALReplicationRelay: Malformed delta from %s: %s", peer_url, exc)
+                        logger.debug(
+                            "WALReplicationRelay: Malformed delta from %s: %s", peer_url, exc
+                        )
 
         return deltas
 
@@ -129,6 +142,7 @@ class WALReplicationRelay:
             if state_authority is not None and exec_id:
                 if not state_authority.is_committed(exec_id):
                     from src.core.frontier.state_authority import SettlementIntent
+
                     if entry.get("_is_settlement_intent") or "state_delta" in entry:
                         intent = SettlementIntent.from_mapping(entry)
                         state_authority.append_settlement_intent(intent)

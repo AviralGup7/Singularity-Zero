@@ -7,7 +7,7 @@ merging (A ⊔ B = B ⊔ A) for zero-conflict state synchronization.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -43,7 +43,7 @@ class GCounter:
 
 
 @dataclass(frozen=True, slots=True)
-class ORSet(Generic[T]):
+class ORSet(Generic[T]):  # noqa: UP046
     """Observed-Remove Set CRDT for distributed active scan target pools."""
 
     # Tuple of (element, tag_uuid)

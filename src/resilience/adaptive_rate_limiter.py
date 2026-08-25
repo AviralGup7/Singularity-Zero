@@ -10,7 +10,6 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +90,11 @@ class AdaptiveRateLimiter:
             )
 
             # Determine cooldown duration
-            cooldown = retry_after if retry_after is not None and retry_after > 0 else min(60.0, 2.0 ** state.consecutive_rate_limits)
+            cooldown = (
+                retry_after
+                if retry_after is not None and retry_after > 0
+                else min(60.0, 2.0**state.consecutive_rate_limits)
+            )
             state.backoff_until = time.time() + cooldown
             state.last_updated = time.time()
 

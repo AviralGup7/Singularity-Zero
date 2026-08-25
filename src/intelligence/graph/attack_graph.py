@@ -9,9 +9,8 @@ from __future__ import annotations
 import collections
 import heapq
 import logging
-import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -101,7 +100,9 @@ class AttackGraphEngine:
         self._edges[edge.source_id].append(edge)
         self._reverse_edges[edge.target_id].append(edge)
 
-    def build_from_findings(self, findings: list[dict[str, Any]], endpoints: list[dict[str, Any]] | None = None) -> None:
+    def build_from_findings(
+        self, findings: list[dict[str, Any]], endpoints: list[dict[str, Any]] | None = None
+    ) -> None:
         """Construct graph nodes and lateral edges from standard pipeline findings."""
         # 1. Add endpoint assets
         for ep in endpoints or []:
@@ -132,7 +133,9 @@ class AttackGraphEngine:
                     node_type="finding",
                     label=f.get("title", cat),
                     severity=sev,
-                    metadata=tuple((k, str(v)) for k, v in f.items() if k not in ("title", "severity")),
+                    metadata=tuple(
+                        (k, str(v)) for k, v in f.items() if k not in ("title", "severity")
+                    ),
                 )
             )
 
@@ -140,19 +143,45 @@ class AttackGraphEngine:
             if f_url:
                 asset_id = f"asset:{f_url}"
                 if asset_id not in self._nodes:
-                    self.add_node(GraphNode(id=asset_id, node_type="asset", label=f_url, severity="info"))
-                self.add_edge(GraphEdge(source_id=asset_id, target_id=node_id, relation="EXPOSES", weight=1.0))
+                    self.add_node(
+                        GraphNode(id=asset_id, node_type="asset", label=f_url, severity="info")
+                    )
+                self.add_edge(
+                    GraphEdge(source_id=asset_id, target_id=node_id, relation="EXPOSES", weight=1.0)
+                )
 
             # Infer credential / impact relations
             if any(k in cat for k in ("sqli", "rce", "command_injection", "deserialization")):
                 impact_id = f"impact:takeover:{fid}"
-                self.add_node(GraphNode(id=impact_id, node_type="impact", label=f"Host Compromise ({cat})", severity="critical"))
-                self.add_edge(GraphEdge(source_id=node_id, target_id=impact_id, relation="ESCALATES_TO", weight=0.5))
+                self.add_node(
+                    GraphNode(
+                        id=impact_id,
+                        node_type="impact",
+                        label=f"Host Compromise ({cat})",
+                        severity="critical",
+                    )
+                )
+                self.add_edge(
+                    GraphEdge(
+                        source_id=node_id, target_id=impact_id, relation="ESCALATES_TO", weight=0.5
+                    )
+                )
 
             elif any(k in cat for k in ("jwt", "auth", "idor", "bac", "credential")):
                 impact_id = f"impact:privilege_escalation:{fid}"
-                self.add_node(GraphNode(id=impact_id, node_type="impact", label=f"Privilege Escalation ({cat})", severity="high"))
-                self.add_edge(GraphEdge(source_id=node_id, target_id=impact_id, relation="AUTHENTICATES", weight=1.0))
+                self.add_node(
+                    GraphNode(
+                        id=impact_id,
+                        node_type="impact",
+                        label=f"Privilege Escalation ({cat})",
+                        severity="high",
+                    )
+                )
+                self.add_edge(
+                    GraphEdge(
+                        source_id=node_id, target_id=impact_id, relation="AUTHENTICATES", weight=1.0
+                    )
+                )
 
     def find_shortest_attack_paths(
         self,

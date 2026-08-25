@@ -8,7 +8,7 @@ pruning impossible attack vectors before probe execution.
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -58,7 +58,9 @@ class AttackDAG:
     def add_edge(self, source_id: str, target_id: str, guard: str = "") -> None:
         if source_id not in self.nodes or target_id not in self.nodes:
             raise ValueError(f"Edge nodes {source_id} -> {target_id} must exist in DAG")
-        self.edges.append(AttackEdge(source_id=source_id, target_id=target_id, guard_condition=guard))
+        self.edges.append(
+            AttackEdge(source_id=source_id, target_id=target_id, guard_condition=guard)
+        )
 
     def solve_reachability(self, known_facts: set[str]) -> list[AttackNode]:
         """Evaluate topological reachability given the set of observed endpoint facts.

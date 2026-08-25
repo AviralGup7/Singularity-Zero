@@ -31,8 +31,7 @@ class BidderProtocol(Protocol):
         base_priority: float,
         current_priority: float,
         metadata: dict[str, Any],
-    ) -> BidContract:
-        ...
+    ) -> BidContract: ...
 
     def __call__(
         self,
@@ -40,8 +39,7 @@ class BidderProtocol(Protocol):
         base_priority: float,
         current_priority: float,
         metadata: dict[str, Any],
-    ) -> BidContract:
-        ...
+    ) -> BidContract: ...
 
 
 __all__ = [

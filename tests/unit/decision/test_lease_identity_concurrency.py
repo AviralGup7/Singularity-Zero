@@ -11,10 +11,14 @@ class TestCandidateLeaseIdentityConcurrency(unittest.TestCase):
         queue.push(ScanTarget(url="https://api.example.com/v1", base_priority=10.0))
         queue.push(ScanTarget(url="https://api.example.com/v2", base_priority=20.0))
 
-        leases = queue.lease_batch(limit=2, lease_timeout_seconds=30.0, worker_id="worker_01", execution_id="exec_1")
+        leases = queue.lease_batch(
+            limit=2, lease_timeout_seconds=30.0, worker_id="worker_01", execution_id="exec_1"
+        )
         self.assertEqual(len(leases), 2)
         self.assertIsInstance(leases[0], CandidateLease)
-        self.assertEqual(leases[0].target_url, "https://api.example.com/v2")  # Highest priority first
+        self.assertEqual(
+            leases[0].target_url, "https://api.example.com/v2"
+        )  # Highest priority first
         self.assertEqual(leases[0].worker_id, "worker_01")
         self.assertEqual(leases[0].execution_id, "exec_1")
         self.assertTrue(leases[0].lease_id.startswith("lease_"))

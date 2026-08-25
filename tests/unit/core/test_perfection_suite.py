@@ -1,11 +1,8 @@
 """Comprehensive unit test suite for the Architectural Perfection Suite."""
 
-import asyncio
-from dataclasses import FrozenInstanceError
-
 # Pillar 1: Monadic Result Types & Failure Domains
-from src.core.types.result import Ok, Err, Result
 from src.core.types.failure import DomainFailure, FailureDomain
+from src.core.types.result import Err, Ok, Result
 
 
 class TestResultMonad:
@@ -21,7 +18,9 @@ class TestResultMonad:
         assert bound.unwrap() == "10"
 
     def test_err_mapping_and_unwrap(self):
-        fail: Result[int, DomainFailure] = Err(DomainFailure.transient("Connection reset", retry_after=1.5))
+        fail: Result[int, DomainFailure] = Err(
+            DomainFailure.transient("Connection reset", retry_after=1.5)
+        )
         assert fail.is_ok() is False
         assert fail.is_err() is True
         assert fail.unwrap_or(42) == 42
@@ -33,11 +32,9 @@ class TestResultMonad:
 
 # Pillar 2: Typestate Automaton
 from src.core.state.typestate import (
+    InvalidStateTransitionError,
     TargetState,
     TargetTypestate,
-    FindingState,
-    FindingTypestate,
-    InvalidStateTransitionError,
 )
 
 
@@ -85,20 +82,21 @@ class TestBayesianBanditAndPareto:
         assert new_score > 10.0
 
     def test_pareto_objective(self):
-        obj = ParetoObjective(exploitability=9.0, business_impact=9.0, latency_cost_ms=100.0, bayesian_prob=0.8)
+        obj = ParetoObjective(
+            exploitability=9.0, business_impact=9.0, latency_cost_ms=100.0, bayesian_prob=0.8
+        )
         score = obj.pareto_score()
         assert score > 0
 
 
 # Pillar 4: Reactive Event Bus & Event Store
+from src.core.events.bus import EventBus
 from src.core.events.events import (
-    TargetEnqueuedEvent,
-    TargetDispatchedEvent,
     FindingDiscoveredEvent,
-    TargetBoostedEvent,
+    TargetDispatchedEvent,
+    TargetEnqueuedEvent,
 )
 from src.core.events.store import EventStore
-from src.core.events.bus import EventBus
 
 
 class TestEventStoreAndBus:
@@ -106,7 +104,9 @@ class TestEventStoreAndBus:
         store = EventStore()
         ev1 = TargetEnqueuedEvent(url="https://example.com/a", priority=10.0)
         ev2 = TargetDispatchedEvent(url="https://example.com/a", worker_id="w-1")
-        ev3 = FindingDiscoveredEvent(url="https://example.com/a", category="ssrf", severity="high", confidence=0.9)
+        ev3 = FindingDiscoveredEvent(
+            url="https://example.com/a", category="ssrf", severity="high", confidence=0.9
+        )
         store.append(ev1)
         store.append(ev2)
         store.append(ev3)
@@ -134,7 +134,7 @@ class TestEventStoreAndBus:
 
 
 # Pillar 5: Symbolic Attack DAG Solver
-from src.decision.attack_dag import AttackDAG, AttackNode, AttackEdge
+from src.decision.attack_dag import AttackDAG, AttackNode
 
 
 class TestAttackDAGSolver:
@@ -170,7 +170,7 @@ class TestAttackDAGSolver:
 
 
 # Pillar 6: Cryptographic Merkle Tree Evidence
-from src.core.security.merkle import MerkleTree, MerkleProof
+from src.core.security.merkle import MerkleProof, MerkleTree
 
 
 class TestMerkleEvidenceTree:

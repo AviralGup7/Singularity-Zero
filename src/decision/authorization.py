@@ -19,8 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.core.contracts.canonical_target import CanonicalTargetIdentity, canonicalize_target
-from src.decision.hunt_budget import HuntBudgetEnforcer
+from src.core.contracts.canonical_target import canonicalize_target
 from src.decision.models import ExecutionRequest, ScopeToken
 
 
@@ -131,7 +130,7 @@ class ExecutionAuthorizer:
     ) -> str:
         payload = (
             f"{ticket_id}:{request_id}:{tenant_id}:{target_host}:{target_path}:"
-            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}:{policy_generation}".encode("utf-8")
+            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}:{policy_generation}".encode()
         )
         return hmac.new(self._secret_key, payload, hashlib.sha256).hexdigest()
 
@@ -240,7 +239,9 @@ class ExecutionAuthorizer:
         for forbidden in token.forbidden_paths:
             if forbidden:
                 norm_forbidden = self._normalize_path(forbidden)
-                if target_path == norm_forbidden or target_path.startswith(norm_forbidden.rstrip("/") + "/"):
+                if target_path == norm_forbidden or target_path.startswith(
+                    norm_forbidden.rstrip("/") + "/"
+                ):
                     raise ScopeAuthorizationError(
                         f"Target path '{target_path}' matches forbidden path '{forbidden}'"
                     )
@@ -252,7 +253,7 @@ class ExecutionAuthorizer:
                 "Mandatory budget enforcer not configured: cannot issue AuthorizedExecutionTicket "
                 "without committed budget reservation (INVARIANT-002)"
             )
-        
+
         req_count = len(request.actions) if request.actions else 1
         if not hasattr(enforcer, "reserve_requests") or not enforcer.reserve_requests(req_count):
             raise ScopeAuthorizationError(
@@ -357,7 +358,9 @@ class WorkerIdentity:
 class WorkerKeyRotator:
     """Manages worker identity creation, regular key rotation, and grace-period validation."""
 
-    def __init__(self, rotation_interval_seconds: float = 3600.0, grace_period_seconds: float = 300.0) -> None:
+    def __init__(
+        self, rotation_interval_seconds: float = 3600.0, grace_period_seconds: float = 300.0
+    ) -> None:
         self.rotation_interval = rotation_interval_seconds
         self.grace_period = grace_period_seconds
         self._current_epoch = 1
@@ -381,7 +384,9 @@ class WorkerKeyRotator:
     def _rotate_keys(self) -> WorkerIdentity:
         new_epoch = self._current_epoch + 1 if self._keys else 1
         worker_id = f"worker_{uuid.uuid4().hex[:8]}_ep{new_epoch}"
-        secret_hex = hashlib.sha256(f"{worker_id}_{time.time()}_{uuid.uuid4().hex}".encode()).hexdigest()
+        secret_hex = hashlib.sha256(
+            f"{worker_id}_{time.time()}_{uuid.uuid4().hex}".encode()
+        ).hexdigest()
         now = time.time()
         ident = WorkerIdentity(
             worker_id=worker_id,
@@ -396,7 +401,8 @@ class WorkerKeyRotator:
         # Evict expired keys past grace period
         cutoff = now - self.grace_period
         expired_epochs = [
-            ep for ep, k in self._keys.items()
+            ep
+            for ep, k in self._keys.items()
             if ep != self._current_epoch and k.expires_at < cutoff
         ]
         for ep in expired_epochs:

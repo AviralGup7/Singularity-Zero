@@ -10,18 +10,11 @@ Validates the full target architecture implementation:
 - Full 16-invariant audit pass rate
 """
 
-import hashlib
 import unittest
 
-from src.core.contracts.canonical_target import (
-    canonical_state_encode,
-    compute_canonical_state_hash,
-)
 from src.core.contracts.command_envelope import CommandEnvelope
-from src.core.contracts.execution_request import ExecutionAuthorizationTuple
 from src.core.frontier.global_coordination import (
     GlobalBudgetAggregate,
-    GlobalRunAggregate,
     PlacementAuthority,
 )
 from src.core.frontier.invariant_checker import InvariantChecker
@@ -57,7 +50,11 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
             command_id="cmd_alloc_01",
             command_type="AllocateSubLeaseCommand",
             aggregate_id="sublease_R101_P0412",
-            payload={"sublease_id": "sublease_R101_P0412", "units_allocated": 100, "run_id": "R-101"},
+            payload={
+                "sublease_id": "sublease_R101_P0412",
+                "units_allocated": 100,
+                "run_id": "R-101",
+            },
             correlation_id="R-101",
             causation_id="start_test",
         )
@@ -66,7 +63,9 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
             follower_fsms=[self.p0412_fsm_follower],
         )
         self.assertEqual(receipt1.result_code, "SUBLEASE_ALLOCATED")
-        self.assertEqual(self.p0412_fsm_leader.get_state_hash(), self.p0412_fsm_follower.get_state_hash())
+        self.assertEqual(
+            self.p0412_fsm_leader.get_state_hash(), self.p0412_fsm_follower.get_state_hash()
+        )
 
         # 2. Authorize Execution
         auth_cmd = CommandEnvelope(
@@ -87,7 +86,9 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
             follower_fsms=[self.p0412_fsm_follower],
         )
         self.assertEqual(receipt2.result_code, "EXECUTION_AUTHORIZED")
-        self.assertEqual(self.p0412_fsm_leader.get_state_hash(), self.p0412_fsm_follower.get_state_hash())
+        self.assertEqual(
+            self.p0412_fsm_leader.get_state_hash(), self.p0412_fsm_follower.get_state_hash()
+        )
 
         # 3. Submit Claim
         claim_cmd = CommandEnvelope(
@@ -107,7 +108,9 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
             follower_fsms=[self.p0412_fsm_follower],
         )
         self.assertEqual(receipt3.result_code, "CLAIM_SETTLED_SUCCESS")
-        self.assertEqual(self.p0412_fsm_leader.get_state_hash(), self.p0412_fsm_follower.get_state_hash())
+        self.assertEqual(
+            self.p0412_fsm_leader.get_state_hash(), self.p0412_fsm_follower.get_state_hash()
+        )
         self.assertEqual(receipt3.state_hash_at_commit, self.p0412_fsm_leader.get_state_hash())
 
     def test_universal_budget_conservation_and_two_phase_return(self):
@@ -207,7 +210,9 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
             self.assertTrue(ok)
 
         ckpt = consumer.get_checkpoint_vector()
-        self.assertEqual(ckpt.partition_offsets["P-0412"].last_applied_index, self.p0412_log.commit_index)
+        self.assertEqual(
+            ckpt.partition_offsets["P-0412"].last_applied_index, self.p0412_log.commit_index
+        )
 
         # Cold rebuild test
         rebuilt_hash = consumer.cold_rebuild(self.logs)
@@ -251,4 +256,3 @@ class TestTargetArchitectureInvariants(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -19,7 +19,7 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -533,9 +533,10 @@ def merge_stage_output(
     """Merge immutable stage output into pipeline context through StateAuthority."""
     from src.core.frontier.state_authority import StateAuthority
 
-    authority = getattr(ctx, "_state_authority", None) or StateAuthority(wal=wal or getattr(ctx, "_wal", None))
+    authority = getattr(ctx, "_state_authority", None) or StateAuthority(
+        wal=wal or getattr(ctx, "_wal", None)
+    )
     return authority.commit_stage_output(ctx, stage_name, stage_output)
-
 
 
 # ---------------------------------------------------------------------------

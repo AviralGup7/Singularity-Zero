@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from src.core.frontier.authority_runtime import PipelineAuthorityRuntime, attach_pipeline_authority
 from src.core.frontier.raft_transport import NetworkRaftTransport
 from src.decision.authorization import ExecutionAuthorizer, ScopeAuthorizationError
 from src.decision.models import ExecutionRequest, TargetSpec
+from src.pipeline.authority_bootstrap import (
+    attach_pipeline_authority,
+    build_pipeline_authority_runtime,
+)
 
 
 def test_runtime_constructs_single_node_raft(tmp_path) -> None:
-    rt = PipelineAuthorityRuntime(run_id="run-test", raft_wal_dir=tmp_path / "raft")
+    rt = build_pipeline_authority_runtime(run_id="run-test", raft_wal_dir=tmp_path / "raft")
     assert rt.partition_log.is_leader is True
     assert rt.partition_log.quorum_size == 1
     assert rt.global_budget.verify_conservation()
@@ -33,7 +36,7 @@ def test_attach_pipeline_authority_on_orchestrator(tmp_path) -> None:
 
 
 def test_authorizer_uses_runtime_hunt_budget() -> None:
-    rt = PipelineAuthorityRuntime(run_id="run-auth", total_budget=10)
+    rt = build_pipeline_authority_runtime(run_id="run-auth", total_budget=10)
     auth = ExecutionAuthorizer(budget_enforcer=rt.hunt_budget)
     req = ExecutionRequest(
         request_id="r1",
@@ -48,7 +51,7 @@ def test_authorizer_uses_runtime_hunt_budget() -> None:
         try:
             auth.authorize(
                 ExecutionRequest(
-                    request_id=f"r{i+2}",
+                    request_id=f"r{i + 2}",
                     tenant_id="t",
                     target=TargetSpec(host="example.com"),
                     stage="probe",
@@ -63,7 +66,7 @@ def test_authorizer_uses_runtime_hunt_budget() -> None:
 def test_hunt_budget_contextvar_is_set_on_attach() -> None:
     from src.core.frontier.authority_runtime import get_current_hunt_budget
 
-    rt = PipelineAuthorityRuntime(run_id="run-ctx")
+    rt = build_pipeline_authority_runtime(run_id="run-ctx")
     orch = SimpleNamespace()
     rt.attach_to(orch)
     assert get_current_hunt_budget() is rt.hunt_budget

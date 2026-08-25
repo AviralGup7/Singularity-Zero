@@ -270,7 +270,7 @@ class LWWset[T]:
             el = self._elements.get(key)
             return el is not None and not el.deleted
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         with self._lock:
             active = [_clone_value(el.value) for el in self._elements.values() if not el.deleted]
         return iter(active)

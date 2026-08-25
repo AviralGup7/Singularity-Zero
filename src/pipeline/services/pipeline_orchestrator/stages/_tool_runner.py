@@ -48,7 +48,9 @@ async def run_scanner(
         from src.core.frontier.authority_runtime import get_current_hunt_budget
 
         budget_enforcer = get_current_hunt_budget()
-    enforcer = budget_enforcer or HuntBudgetEnforcer(HuntBudget(max_requests=1000), label=stage_name)
+    enforcer = budget_enforcer or HuntBudgetEnforcer(
+        HuntBudget(max_requests=1000), label=stage_name
+    )
     authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)
 
@@ -74,18 +76,31 @@ async def run_scanner(
     ticket = authorizer.authorize(req)
 
     def _run_tool_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
-        proc = subprocess.run(  # noqa: S603
+        from src.sandbox.network_isolation import NetworkEgressFilter
+        from src.sandbox.process_sandbox import ProcessSandbox, SandboxResourceLimits
+
+        token = getattr(r, "scope_token", None) or getattr(req, "scope_token", None)
+        egress = (
+            NetworkEgressFilter.from_scope_token(token)
+            if token is not None
+            else NetworkEgressFilter.metadata_guard()
+        )
+        sandbox = ProcessSandbox(
+            SandboxResourceLimits(timeout_seconds=float(timeout)),
+            egress_filter=egress,
+        )
+        dest_host = getattr(getattr(r, "target", None), "host", None) or "localhost"
+        dest_port = getattr(getattr(r, "target", None), "port", None)
+        result = sandbox.run(
             list(cmd),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
             cwd=str(cwd) if cwd is not None else None,
+            destination_host=str(dest_host),
+            destination_port=int(dest_port) if dest_port else None,
         )
         return {
-            "returncode": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr,
+            "returncode": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr or result.error,
         }
 
     worker.register_handler("subprocess_scan", _run_tool_action)
@@ -104,4 +119,3 @@ async def run_scanner(
         )
 
     return await asyncio.to_thread(_execute_worker)
-

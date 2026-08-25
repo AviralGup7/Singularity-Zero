@@ -10,7 +10,6 @@ Implements Content-Addressed Storage (CAS) for out-of-band evidence storage:
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import threading

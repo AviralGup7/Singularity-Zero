@@ -106,6 +106,7 @@ async def run_nuclei_stage(
         nuclei_started = time.monotonic()
 
         import uuid
+
         from src.decision.authorization import ExecutionAuthorizer
         from src.decision.models import (
             ActionSpec,
@@ -151,7 +152,9 @@ async def run_nuclei_stage(
             stage="nuclei",
             actions=(action,),
             resource_limits=ResourceLimits(timeout_seconds=300.0),
-            scope_token=ScopeToken(scope_hash="nuclei_scope", allowed_domains=tuple(scope_hosts) or (first_target,)),
+            scope_token=ScopeToken(
+                scope_hash="nuclei_scope", allowed_domains=tuple(scope_hosts) or (first_target,)
+            ),
             deadline=time.time() + 360.0,
         )
 
@@ -177,11 +180,11 @@ async def run_nuclei_stage(
                 return []
             artifacts = dict(res.artifacts)
             action_res = artifacts.get(f"action_{action.action_id}", {})
-            return action_res.get("findings", [])
+            findings = action_res.get("findings", [])
+            return findings if isinstance(findings, list) else []
 
         parsed_findings = await asyncio.to_thread(_execute_worker)
         nuclei_duration = round(time.monotonic() - nuclei_started, 2)
-
 
         state_delta: dict[str, Any] = {
             "nuclei_findings": parsed_findings,

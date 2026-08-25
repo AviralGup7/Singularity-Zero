@@ -6,23 +6,21 @@
 """
 
 import time
-from src.core.contracts.canonical_target import canonicalize_target
+
 from src.core.frontier.partition_authority import PartitionRouter
 from src.core.frontier.state_authority import (
     SettlementCoordinator,
     StateAuthority,
 )
-from src.decision.authorization import ExecutionAuthorizer, ScopeAuthorizationError
+from src.decision.authorization import ExecutionAuthorizer
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import (
     ActionSpec,
     ExecutionRequest,
     Finding,
     RawExecutionClaim,
-    ScopeToken,
     TargetSpec,
 )
-from src.execution.request_executor import ExecutionRequestWorker
 
 
 def test_budget_invariant_prevents_overcommit() -> None:

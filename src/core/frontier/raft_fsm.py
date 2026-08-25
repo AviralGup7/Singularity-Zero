@@ -10,14 +10,12 @@ Implements the pure deterministic state transition engine for partitioned Raft g
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from src.core.contracts.canonical_target import (
-    canonical_state_encode,
     compute_canonical_state_hash,
 )
 from src.core.contracts.command_envelope import (
@@ -216,7 +214,6 @@ class PartitionFSM:
         """
         cmd = entry.command
         cmd_id = cmd.command_id
-        agg_id = cmd.aggregate_id
 
         # 1. Idempotency Check (Axiom 6)
         if cmd_id in self.idempotency_index:

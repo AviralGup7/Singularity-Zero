@@ -33,7 +33,7 @@ class VersionedPolicy:
     schema_version: int = 1
 
     def compute_signature(self, secret: str = "cstp-policy-signer-v1") -> str:
-        payload = f"{self.policy_id}:{self.version}:{self.parent_policy_id}:{self.confidence_score:.3f}:{self.created_at:.3f}".encode("utf-8")
+        payload = f"{self.policy_id}:{self.version}:{self.parent_policy_id}:{self.confidence_score:.3f}:{self.created_at:.3f}".encode()
         return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:

@@ -59,13 +59,15 @@ class FindingDiscoveredEvent(DomainEvent):
 
     def to_dict(self) -> dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "url": self.url,
-            "category": self.category,
-            "severity": self.severity,
-            "confidence": self.confidence,
-            "title": self.title,
-        })
+        d.update(
+            {
+                "url": self.url,
+                "category": self.category,
+                "severity": self.severity,
+                "confidence": self.confidence,
+                "title": self.title,
+            }
+        )
         return d
 
 
@@ -80,13 +82,15 @@ class TargetBoostedEvent(DomainEvent):
 
     def to_dict(self) -> dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "url": self.url,
-            "old_priority": self.old_priority,
-            "new_priority": self.new_priority,
-            "factor": self.factor,
-            "reason": self.reason,
-        })
+        d.update(
+            {
+                "url": self.url,
+                "old_priority": self.old_priority,
+                "new_priority": self.new_priority,
+                "factor": self.factor,
+                "reason": self.reason,
+            }
+        )
         return d
 
 
@@ -100,12 +104,14 @@ class BudgetTickEvent(DomainEvent):
 
     def to_dict(self) -> dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "elapsed_seconds": self.elapsed_seconds,
-            "requests_count": self.requests_count,
-            "findings_count": self.findings_count,
-            "is_exhausted": self.is_exhausted,
-        })
+        d.update(
+            {
+                "elapsed_seconds": self.elapsed_seconds,
+                "requests_count": self.requests_count,
+                "findings_count": self.findings_count,
+                "is_exhausted": self.is_exhausted,
+            }
+        )
         return d
 
 

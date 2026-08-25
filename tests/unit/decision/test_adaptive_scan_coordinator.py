@@ -3,11 +3,13 @@ from unittest.mock import AsyncMock
 try:
     import pytest
 except ImportError:
+
     class _PytestMock:
-        class mark:
+        class mark:  # noqa: N801
             @staticmethod
             def asyncio(f):
                 return f
+
     pytest = _PytestMock()  # type: ignore[assignment]
 
 from src.decision.adaptive_scan import AdaptiveScanCoordinator

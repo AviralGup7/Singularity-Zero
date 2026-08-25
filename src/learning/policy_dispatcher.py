@@ -72,7 +72,9 @@ class PolicyAutoDispatcher:
                         recommended = self.nuclei_optimizer.get_recommended_tags()
                         nuclei_tags["recommended"] = list(recommended)
                     except Exception as exc:
-                        logger.debug("PolicyAutoDispatcher: optimizer recommended tags skipped (%s)", exc)
+                        logger.debug(
+                            "PolicyAutoDispatcher: optimizer recommended tags skipped (%s)", exc
+                        )
                 if hasattr(self.nuclei_optimizer, "tag_scores"):
                     try:
                         scores = self.nuclei_optimizer.tag_scores()
@@ -86,7 +88,9 @@ class PolicyAutoDispatcher:
                         logger.debug("PolicyAutoDispatcher: optimizer tag scores skipped (%s)", exc)
 
             # 3. Integrate FeedbackLoop false positive rules
-            if self.feedback_loop is not None and hasattr(self.feedback_loop, "get_suppression_patterns"):
+            if self.feedback_loop is not None and hasattr(
+                self.feedback_loop, "get_suppression_patterns"
+            ):
                 try:
                     patterns = self.feedback_loop.get_suppression_patterns()
                     for pat in patterns:
@@ -105,8 +109,12 @@ class PolicyAutoDispatcher:
                         logger.debug("PolicyAutoDispatcher: attack graph export skipped (%s)", exc)
 
             for chain in chains or []:
-                entry_id = getattr(chain, "entry_point_id", None) or (chain.get("entry_point_id") if isinstance(chain, dict) else "")
-                risk = getattr(chain, "total_risk", None) or (chain.get("total_risk", 1.0) if isinstance(chain, dict) else 1.0)
+                entry_id = getattr(chain, "entry_point_id", None) or (
+                    chain.get("entry_point_id") if isinstance(chain, dict) else ""
+                )
+                risk = getattr(chain, "total_risk", None) or (
+                    chain.get("total_risk", 1.0) if isinstance(chain, dict) else 1.0
+                )
                 if entry_id:
                     url = entry_id.replace("asset:", "")
                     target_boosts[url] = max(target_boosts.get(url, 0.0), float(risk) * 0.5)
@@ -133,7 +141,8 @@ class PolicyAutoDispatcher:
         with self._lock:
             target_policy = policy or self._current_policy or self.generate_policy()
             if hasattr(queue, "apply_versioned_policy"):
-                return queue.apply_versioned_policy(target_policy)
+                applied = queue.apply_versioned_policy(target_policy)
+                return int(applied or 0)
             return 0
 
     def on_stage_completed(
@@ -150,7 +159,9 @@ class PolicyAutoDispatcher:
                     try:
                         self.threshold_tuner.update_from_stage(stage_name, telemetry)
                     except Exception as exc:
-                        logger.debug("PolicyAutoDispatcher: threshold tuner stage update skipped (%s)", exc)
+                        logger.debug(
+                            "PolicyAutoDispatcher: threshold tuner stage update skipped (%s)", exc
+                        )
 
             new_policy = self.generate_policy()
             if queue is not None:

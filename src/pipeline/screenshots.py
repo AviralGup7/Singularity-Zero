@@ -86,8 +86,10 @@ def compute_phash(image_path: Path) -> str:
         from scipy.fft import dct
 
         def _dct_2d(arr: np.ndarray) -> np.ndarray:
-            return dct(dct(arr, axis=0, norm="ortho"), axis=1, norm="ortho")
+            first = dct(arr, axis=0, norm="ortho")
+            return np.asarray(dct(first, axis=1, norm="ortho"))
     except ImportError:
+
         def _dct_2d(arr: np.ndarray) -> np.ndarray:
             # Pure NumPy DCT-II implementation (ortho norm)
             n = arr.shape[0]

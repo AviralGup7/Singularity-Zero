@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import time
-import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -115,7 +113,9 @@ class CandidateLease:
     epoch: int = 1
     partition_id: str = "P0"
     fencing_token: str = ""
-    status: str = "ACTIVE"  # REQUESTED, ISSUED, ACTIVE, SETTLEMENT_PENDING, SETTLED, CANCELLED, EXPIRED
+    status: str = (
+        "ACTIVE"  # REQUESTED, ISSUED, ACTIVE, SETTLEMENT_PENDING, SETTLED, CANCELLED, EXPIRED
+    )
     units_reserved: int = 1
     units_consumed: int = 0
 
@@ -129,7 +129,8 @@ class CandidateLease:
             "expires_at": self.expires_at,
             "epoch": self.epoch,
             "partition_id": self.partition_id,
-            "fencing_token": self.fencing_token or f"{self.partition_id}:{self.epoch}:{self.lease_id}",
+            "fencing_token": self.fencing_token
+            or f"{self.partition_id}:{self.epoch}:{self.lease_id}",
             "status": self.status,
             "units_reserved": self.units_reserved,
             "units_consumed": self.units_consumed,
@@ -193,6 +194,7 @@ class RawExecutionClaim:
     def validate_bounds(self) -> None:
         """Validate claim size does not exceed 64 KB hard limit."""
         import json
+
         payload_bytes = len(json.dumps(self.to_dict()).encode("utf-8"))
         if payload_bytes > RAW_CLAIM_MAX_BYTES:
             raise ClaimSizeExceededError(
@@ -347,8 +349,7 @@ class ExecutionRequestProtocol(Protocol):
     stage: str
     deadline: float
 
-    def to_dict(self) -> dict[str, Any]:
-        ...
+    def to_dict(self) -> dict[str, Any]: ...
 
 
 @runtime_checkable
@@ -361,32 +362,28 @@ class ExecutionResultProtocol(Protocol):
     duration_seconds: float
     error: str
 
-    def to_dict(self) -> dict[str, Any]:
-        ...
+    def to_dict(self) -> dict[str, Any]: ...
 
 
 @runtime_checkable
 class ExecutionAuthorizerProtocol(Protocol):
     """Protocol for validating scope and authorization before scheduling."""
 
-    def authorize(self, request: Any) -> Any:
-        ...
+    def authorize(self, request: Any) -> Any: ...
 
 
 @runtime_checkable
 class ExecutionSchedulerProtocol(Protocol):
     """Protocol for capacity and priority dispatching of authorized requests."""
 
-    def schedule(self, ticket_or_request: Any) -> bool:
-        ...
+    def schedule(self, ticket_or_request: Any) -> bool: ...
 
 
 @runtime_checkable
 class ExecutionWorkerProtocol(Protocol):
     """Protocol for stateless worker execution without decision rediscovery."""
 
-    def execute(self, request: Any) -> Any:
-        ...
+    def execute(self, request: Any) -> Any: ...
 
 
 __all__ = [

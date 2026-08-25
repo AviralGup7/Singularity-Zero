@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 
 @dataclass
@@ -105,7 +104,9 @@ class ParetoObjective:
     def pareto_score(self) -> float:
         """Calculate scalarized Pareto score optimizing yield per unit latency."""
         eff_latency = max(50.0, self.latency_cost_ms)
-        numerator = (self.exploitability * 0.4 + self.business_impact * 0.6) * (1.0 + self.bayesian_prob * 3.0)
+        numerator = (self.exploitability * 0.4 + self.business_impact * 0.6) * (
+            1.0 + self.bayesian_prob * 3.0
+        )
         return (numerator / eff_latency) * 1000.0
 
 

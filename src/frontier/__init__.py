@@ -39,7 +39,6 @@ def new_state() -> Any:
     return neural_state_cls()()
 
 
-
 __all__ = [
     "hybrid_clock_cls",
     "neural_state_cls",
@@ -48,4 +47,3 @@ __all__ = [
     "state_authority_cls",
     "wal_cls",
 ]
-

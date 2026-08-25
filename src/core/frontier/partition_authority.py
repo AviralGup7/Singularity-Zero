@@ -12,7 +12,7 @@ import hashlib
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from src.core.contracts.execution_request import CandidateLease, RawExecutionClaim
@@ -43,7 +43,9 @@ class PartitionInfo:
 class PartitionState:
     """Thread-safe state machine for an individual partition."""
 
-    def __init__(self, partition_id: str, leader_node_id: str = "local", initial_epoch: int = 1) -> None:
+    def __init__(
+        self, partition_id: str, leader_node_id: str = "local", initial_epoch: int = 1
+    ) -> None:
         self.partition_id = partition_id
         self.leader_node_id = leader_node_id
         self.epoch = initial_epoch
@@ -71,7 +73,7 @@ class PartitionState:
             if existing and existing.expires_at > now:
                 # Active lease already exists! Cannot grant concurrent lease
                 return None
-            
+
             # Increment candidate epoch
             self.epoch += 1
             lease = CandidateLease(
@@ -94,15 +96,24 @@ class PartitionState:
             existing = self._active_leases.get(claim.candidate_id)
             if not existing:
                 return False, f"No active lease found for candidate {claim.candidate_id}"
-            
+
             if claim.lease_id != existing.lease_id:
-                return False, f"Lease ID mismatch: claim {claim.lease_id} != active {existing.lease_id}"
-            
+                return (
+                    False,
+                    f"Lease ID mismatch: claim {claim.lease_id} != active {existing.lease_id}",
+                )
+
             if claim.epoch < existing.epoch:
-                return False, f"Stale epoch rejected (fencing token): claim epoch {claim.epoch} < current {existing.epoch}"
-            
+                return (
+                    False,
+                    f"Stale epoch rejected (fencing token): claim epoch {claim.epoch} < current {existing.epoch}",
+                )
+
             if claim.worker_id != existing.worker_id:
-                return False, f"Worker ID mismatch: claim {claim.worker_id} != active {existing.worker_id}"
+                return (
+                    False,
+                    f"Worker ID mismatch: claim {claim.worker_id} != active {existing.worker_id}",
+                )
 
             return True, "OK"
 

@@ -18,7 +18,7 @@ import re
 import socket
 import urllib.parse
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -157,11 +157,7 @@ class CanonicalTargetIdentity:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CanonicalTargetIdentity:
-        dns = (
-            DnsSnapshot.from_dict(data["dns_snapshot"])
-            if data.get("dns_snapshot")
-            else None
-        )
+        dns = DnsSnapshot.from_dict(data["dns_snapshot"]) if data.get("dns_snapshot") else None
         return cls(
             raw_url=str(data.get("raw_url", "")),
             scheme=str(data.get("scheme", "https")),
@@ -203,9 +199,10 @@ def _resolve_dns_pinned(hostname: str, timestamp: float) -> DnsSnapshot:
         for info in addr_info:
             sockaddr = info[4]
             ip_candidate = sockaddr[0]
-            if ip_candidate not in ips:
-                ips.append(ip_candidate)
-        
+            ip_text = str(ip_candidate)
+            if ip_text not in ips:
+                ips.append(ip_text)
+
         if not ips:
             ips = ["0.0.0.0"]
 
@@ -284,10 +281,10 @@ def canonicalize_target(
     path = parsed.path
     if not path:
         path = "/"
-    
+
     # Strip matrix parameters (;param=val)
     path = re.sub(r";[^/]*", "", path)
-    
+
     # URL unquote & resolve traversal
     unquoted_path = urllib.parse.unquote(path)
     unquoted_path = re.sub(r"/+", "/", unquoted_path)
@@ -315,13 +312,15 @@ def canonicalize_target(
     else:
         canonical_netloc = f"{hostname}:{port}"
 
-    canonical_url = urllib.parse.urlunsplit((
-        scheme,
-        canonical_netloc,
-        normalized_path,
-        normalized_query,
-        "",  # Fragments are strictly eliminated
-    ))
+    canonical_url = urllib.parse.urlunsplit(
+        (
+            scheme,
+            canonical_netloc,
+            normalized_path,
+            normalized_query,
+            "",  # Fragments are strictly eliminated
+        )
+    )
 
     # Compute deterministic SHA-256 identity hash
     identity_hash = hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()
@@ -404,4 +403,3 @@ def compute_canonical_state_hash(version: str, state: Any) -> str:
     """Compute deterministic SHA-256 state hash using canonical state encoding."""
     encoded_bytes = canonical_state_encode(version, state)
     return hashlib.sha256(encoded_bytes).hexdigest()
-

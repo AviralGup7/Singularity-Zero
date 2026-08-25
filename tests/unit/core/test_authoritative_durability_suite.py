@@ -17,13 +17,12 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+
 import pytest
 
-from src.core.contracts.canonical_target import canonical_state_encode
 from src.core.contracts.command_envelope import CommandEnvelope, EventEnvelope
 from src.core.frontier.outbox import DurableOutboxLedger
 from src.core.frontier.projection_stream import CommittedLogConsumer
-from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.raft_transport import InMemoryRaftTransport
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
 
@@ -174,7 +173,12 @@ def test_leader_failure_and_election_failover(temp_cluster_dir):
         command_id="cmd-e-2",
         command_type="AuthorizeExecutionCommand",
         aggregate_id="exec_1",
-        payload={"capability_id": "cap-1", "sublease_id": "sublease_1", "units_requested": 10, "key_epoch": 0},
+        payload={
+            "capability_id": "cap-1",
+            "sublease_id": "sublease_1",
+            "units_requested": 10,
+            "key_epoch": 0,
+        },
         correlation_id="R-1",
         causation_id="cmd-e-1",
     )
@@ -268,7 +272,8 @@ def test_crash_before_commit_uncommitted_tail_ignored(temp_cluster_dir):
         correlation_id="R-C",
         causation_id="crash",
     )
-    from src.core.contracts.command_envelope import CommittedEntry, CommandResult
+    from src.core.contracts.command_envelope import CommandResult, CommittedEntry
+
     uncommitted_entry = CommittedEntry(
         partition_id="P-0350",
         raft_term=1,
@@ -276,7 +281,12 @@ def test_crash_before_commit_uncommitted_tail_ignored(temp_cluster_dir):
         entry_hash="uncommitted_hash",
         previous_entry_hash=node1.last_entry_hash,
         command=uncommitted_cmd,
-        transition_result=CommandResult(status="PENDING", aggregate_id="sublease_uncommitted", resulting_aggregate_version=0, result_code="PENDING"),
+        transition_result=CommandResult(
+            status="PENDING",
+            aggregate_id="sublease_uncommitted",
+            resulting_aggregate_version=0,
+            result_code="PENDING",
+        ),
     )
     node1.wal.append_entry(uncommitted_entry, committed=False, sync=True)
 

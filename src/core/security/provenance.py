@@ -115,7 +115,9 @@ def verify_provenance(template_path: str | Path, manifest_dir: str | Path) -> bo
         raise ValueError("Provenance Error: Invalid signature format (must be hex)") from exc
 
     if not HAS_CRYPTOGRAPHY or ed25519 is None:
-        raise RuntimeError("Provenance Error: cryptography package is required for provenance verification")
+        raise RuntimeError(
+            "Provenance Error: cryptography package is required for provenance verification"
+        )
 
     # Load trusted public key (refuses dev default in production).
     try:

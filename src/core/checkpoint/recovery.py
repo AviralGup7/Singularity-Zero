@@ -56,10 +56,10 @@ def verify_checkpoint_against_fsm(state: CheckpointState, authoritative_fsm: Any
     """
     if authoritative_fsm is None:
         return True
-    
+
     fsm_applied_index = getattr(authoritative_fsm, "last_applied_index", 0)
     chk_log_index = getattr(state, "authoritative_log_index", 0)
-    
+
     # Checkpoint claiming a future log index that the FSM has not applied is invalid
     if chk_log_index > fsm_applied_index:
         logger.warning(
@@ -73,7 +73,11 @@ def verify_checkpoint_against_fsm(state: CheckpointState, authoritative_fsm: Any
     chk_state_hash = getattr(state, "authoritative_state_hash", "")
     if chk_state_hash and hasattr(authoritative_fsm, "get_state_hash"):
         fsm_state_hash = authoritative_fsm.get_state_hash()
-        if chk_log_index == fsm_applied_index and fsm_state_hash and chk_state_hash != fsm_state_hash:
+        if (
+            chk_log_index == fsm_applied_index
+            and fsm_state_hash
+            and chk_state_hash != fsm_state_hash
+        ):
             logger.warning(
                 "Checkpoint state hash mismatch at index %d: %s != FSM %s – rejected",
                 chk_log_index,

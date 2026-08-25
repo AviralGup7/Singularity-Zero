@@ -9,22 +9,18 @@ Proves zero bypasses remain for:
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from src.core.contracts.command_envelope import CommandEnvelope
-from src.core.frontier.global_coordination import GlobalBudgetAggregate, PlacementAuthority
 from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
 from src.decision.authorization import ExecutionAuthorizer, ScopeAuthorizationError
-from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import (
     ActionSpec,
     ExecutionRequest,
-    ScopeToken,
     TargetSpec,
 )
 from src.learning.policy_governance import PolicyGovernanceGate
@@ -75,7 +71,7 @@ class TestHardenedAuthorityInvariants(unittest.TestCase):
         # Check disk spool file exists
         spool_file = Path(spool_dir) / "p0_telemetry_spool.jsonl"
         self.assertTrue(spool_file.exists())
-        with open(spool_file, "r", encoding="utf-8") as f:
+        with open(spool_file, encoding="utf-8") as f:
             lines = [line.strip() for line in f if line.strip()]
         self.assertEqual(len(lines), 7)
 
@@ -100,12 +96,16 @@ class TestHardenedAuthorityInvariants(unittest.TestCase):
         )
 
         for i in range(5):  # Fills 2 memory + 3 memory spool
-            self.assertTrue(broker.publish(TelemetryEvent(
-                event_id=f"e_{i}",
-                qos=QoSClass.P0_CONTROL,
-                topic="control/test",
-                payload={},
-            )))
+            self.assertTrue(
+                broker.publish(
+                    TelemetryEvent(
+                        event_id=f"e_{i}",
+                        qos=QoSClass.P0_CONTROL,
+                        topic="control/test",
+                        payload={},
+                    )
+                )
+            )
 
         # Event 6 exceeds total capacity -> must trigger explicit backpressure (return False)
         overflow_event = TelemetryEvent(
@@ -150,13 +150,19 @@ class TestHardenedAuthorityInvariants(unittest.TestCase):
         )
         ok2 = gov_gate.promote_policy(policy_v2)
         self.assertTrue(ok2)
-        self.assertEqual(self.fsm_p0.aggregates["policy_active"].state_payload["active_policy_id"], "policy_v2_canary")
+        self.assertEqual(
+            self.fsm_p0.aggregates["policy_active"].state_payload["active_policy_id"],
+            "policy_v2_canary",
+        )
 
         # 3. Rollback
         rolled_back = gov_gate.rollback()
         self.assertIsNotNone(rolled_back)
         self.assertEqual(rolled_back.policy_id, "policy_v1_base")
-        self.assertEqual(self.fsm_p0.aggregates["policy_active"].state_payload["active_policy_id"], "policy_v1_base")
+        self.assertEqual(
+            self.fsm_p0.aggregates["policy_active"].state_payload["active_policy_id"],
+            "policy_v1_base",
+        )
 
     def test_policy_governance_rejects_unsafe_policy_without_raft_mutation(self) -> None:
         """Unsafe policy (e.g. excessive boost multiplier) is rejected before creating Raft log entry."""

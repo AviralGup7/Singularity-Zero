@@ -185,3 +185,27 @@ def test_process_sandbox_blocks_metadata_destination() -> None:
     with pytest.raises(EgressViolationError):
         sandbox.run(["true"], destination_host="169.254.169.254")
     sandbox.check_egress("api.example.com")
+
+
+def test_process_sandbox_default_filter_blocks_metadata() -> None:
+    sandbox = ProcessSandbox(limits=SandboxResourceLimits(timeout_seconds=2.0))
+    with pytest.raises(EgressViolationError):
+        sandbox.check_egress("169.254.169.254")
+    sandbox.check_egress("api.example.com")
+
+
+def test_settle_stage_output_is_idempotent_by_execution_id() -> None:
+    auth = StateAuthority()
+    coord = SettlementCoordinator(state_authority=auth)
+    ctx = PipelineContext(result=StageResult(), run_id="run-idem")
+    output = StageOutput(
+        stage_name="subdomains",
+        outcome=StageOutcome.COMPLETED,
+        duration_seconds=0.1,
+        state_delta={"reportable_findings": [{"title": "ok"}]},
+    )
+    first = coord.settle_stage_output(ctx, "subdomains", output)
+    second = coord.settle_stage_output(ctx, "subdomains", output)
+    assert first.status == "COMMITTED"
+    assert first.wal_id
+    assert second.status == "DEDUPLICATED"

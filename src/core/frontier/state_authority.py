@@ -237,8 +237,6 @@ class StateAuthority:
     ) -> SettlementResult:
         """Authoritatively merge a full StageOutput into pipeline context state."""
         from src.core.contracts.state_schema import GLOBAL_STATE_SCHEMA_REGISTRY
-        from src.core.models.stage_result import StageStatus
-        from src.core.models.stage_status import resolve_skip_status
 
         def _to_mutable(value: Any) -> Any:
             if isinstance(value, Mapping):
@@ -271,40 +269,7 @@ class StateAuthority:
                     state_delta["_wal_id"] = wal_id
                     ctx.result._neural_state.last_wal_id = wal_id
 
-            ctx.result.apply_state_delta(state_delta)
-
-            if hasattr(ctx.result.stage_status, "copy"):
-                ctx.result.stage_status = dict(ctx.result.stage_status)
-            if stage_output.outcome.value == "failed":
-                ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
-            elif stage_output.outcome.value == "skipped":
-                skip_status = resolve_skip_status(stage_output.error or stage_output.reason)
-                ctx.result.stage_status[stage_name] = skip_status.value
-            else:
-                ctx.result.stage_status[stage_name] = StageStatus.COMPLETED.value
-
-            existing_metrics = ctx.result.module_metrics.get(stage_name) or {}
-            stage_metrics = _to_mutable(dict(stage_output.metrics))
-            merged_metrics = {}
-            if isinstance(existing_metrics, dict):
-                merged_metrics.update(_to_mutable(existing_metrics))
-            merged_metrics.update(stage_metrics)
-
-            merged_metrics.setdefault("status", stage_output.outcome.value)
-            merged_metrics.setdefault("duration_seconds", round(stage_output.duration_seconds, 2))
-            if stage_output.reason:
-                merged_metrics.setdefault("reason", stage_output.reason)
-            if stage_output.error:
-                merged_metrics.setdefault("error", stage_output.error)
-            if hasattr(ctx.result.module_metrics, "copy"):
-                ctx.result.module_metrics = dict(ctx.result.module_metrics)
-            ctx.result.module_metrics[stage_name] = merged_metrics
-
-            if stage_name == "parameters" and hasattr(ctx.output_store, "write_parameters"):
-                ctx.output_store.write_parameters(ctx.result.parameters)
-            elif stage_name == "ranking" and hasattr(ctx.output_store, "write_priority_endpoints"):
-                ctx.output_store.write_priority_endpoints(ctx.result.priority_urls)
-
+            self.project_stage_output(ctx, stage_name, stage_output, wal_id=wal_id)
             self._committed_execution_ids.add(exec_id)
 
             return SettlementResult(
@@ -314,6 +279,65 @@ class StateAuthority:
                 committed_findings_count=len(committed_findings),
                 committed_findings=committed_findings,
             )
+
+    def project_stage_output(
+        self,
+        ctx: Any,
+        stage_name: str,
+        stage_output: StageOutput,
+        *,
+        wal_id: str | None = None,
+    ) -> None:
+        """Level-3 ctx projection. Must run only after a durable WAL append."""
+        from src.core.models.stage_result import StageStatus
+        from src.core.models.stage_status import resolve_skip_status
+
+        def _to_mutable(value: Any) -> Any:
+            if isinstance(value, Mapping):
+                return {k: _to_mutable(v) for k, v in value.items()}
+            if isinstance(value, (tuple, list, set, frozenset)):
+                return [_to_mutable(item) for item in value]
+            return value
+
+        state_delta = _to_mutable(dict(stage_output.state_delta))
+        if wal_id and hasattr(ctx.result, "_neural_state"):
+            state_delta = dict(state_delta)
+            state_delta["_wal_id"] = wal_id
+            ctx.result._neural_state.last_wal_id = wal_id
+
+        ctx.result.apply_state_delta(state_delta)
+
+        if hasattr(ctx.result.stage_status, "copy"):
+            ctx.result.stage_status = dict(ctx.result.stage_status)
+        if stage_output.outcome.value == "failed":
+            ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
+        elif stage_output.outcome.value == "skipped":
+            skip_status = resolve_skip_status(stage_output.error or stage_output.reason)
+            ctx.result.stage_status[stage_name] = skip_status.value
+        else:
+            ctx.result.stage_status[stage_name] = StageStatus.COMPLETED.value
+
+        existing_metrics = ctx.result.module_metrics.get(stage_name) or {}
+        stage_metrics = _to_mutable(dict(stage_output.metrics))
+        merged_metrics: dict[str, Any] = {}
+        if isinstance(existing_metrics, dict):
+            merged_metrics.update(_to_mutable(existing_metrics))
+        merged_metrics.update(stage_metrics)
+
+        merged_metrics.setdefault("status", stage_output.outcome.value)
+        merged_metrics.setdefault("duration_seconds", round(stage_output.duration_seconds, 2))
+        if stage_output.reason:
+            merged_metrics.setdefault("reason", stage_output.reason)
+        if stage_output.error:
+            merged_metrics.setdefault("error", stage_output.error)
+        if hasattr(ctx.result.module_metrics, "copy"):
+            ctx.result.module_metrics = dict(ctx.result.module_metrics)
+        ctx.result.module_metrics[stage_name] = merged_metrics
+
+        if stage_name == "parameters" and hasattr(ctx.output_store, "write_parameters"):
+            ctx.output_store.write_parameters(ctx.result.parameters)
+        elif stage_name == "ranking" and hasattr(ctx.output_store, "write_priority_endpoints"):
+            ctx.output_store.write_priority_endpoints(ctx.result.priority_urls)
 
 
 @dataclass(frozen=True, slots=True)
@@ -869,8 +893,50 @@ class SettlementCoordinator:
         stage_name: str,
         stage_output: StageOutput,
     ) -> SettlementResult:
-        """Atomically settle a complete stage output."""
-        return self.state_authority.commit_stage_output(ctx, stage_name, stage_output)
+        """Settle a stage through SettlementIntent (WAL) then project onto ctx."""
+        run_id = str(getattr(ctx, "run_id", "") or "")
+        exec_id = f"{run_id}:{stage_name}" if run_id else str(stage_name)
+        if exec_id and self.state_authority.is_committed(exec_id):
+            return SettlementResult(execution_id=exec_id, status="DEDUPLICATED")
+
+        state_delta = dict(getattr(stage_output, "state_delta", {}) or {})
+        committed_findings = _dict_findings_from_delta(state_delta)
+        outcome = (
+            "FAILED" if getattr(stage_output.outcome, "value", "") == "failed" else "COMPLETED"
+        )
+        intent = SettlementIntent(
+            settlement_id=f"stl_stage_{uuid.uuid4().hex[:12]}",
+            execution_id=exec_id,
+            stage_name=stage_name,
+            outcome=outcome,
+            state_delta=state_delta,
+            budget_action="NONE",
+            lease_action="NONE",
+        )
+        try:
+            wal_id = self.state_authority.append_settlement_intent(intent)
+        except Exception as exc:
+            logger.exception("settle_stage_output: WAL append failed for %s", exec_id)
+            return SettlementResult(
+                execution_id=exec_id,
+                status="REJECTED",
+                error=f"WAL settlement append failure: {exc}",
+            )
+        if wal_id == "DEDUPLICATED":
+            return SettlementResult(execution_id=exec_id, status="DEDUPLICATED")
+
+        self.state_authority.project_stage_output(ctx, stage_name, stage_output, wal_id=wal_id)
+        self.projection_engine.apply_intent(intent, wal_id=wal_id)
+        return SettlementResult(
+            execution_id=exec_id,
+            status="COMMITTED" if outcome == "COMPLETED" else "REJECTED",
+            wal_id=wal_id,
+            committed_findings_count=len(committed_findings),
+            committed_findings=committed_findings,
+            error=""
+            if outcome == "COMPLETED"
+            else (stage_output.error or stage_output.reason or ""),
+        )
 
 
 __all__ = [

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from src.infrastructure.mesh.gossip.serializer import (
     decrypt_mesh_payload,
-    derive_mesh_key,
     encrypt_mesh_payload,
     make_envelope,
     parse_envelope,

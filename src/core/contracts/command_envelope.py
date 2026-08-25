@@ -11,7 +11,6 @@ Implements the formal command/event contract for the state-machine-driven archit
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 import uuid
 from collections.abc import Callable, Mapping
@@ -100,7 +99,7 @@ class EventEnvelope:
     @staticmethod
     def derive_event_id(partition_id: str, raft_index: int, event_sequence: int = 0) -> str:
         """Derive deterministic event ID from partition coordinate: SHA256(partition || index || seq)."""
-        raw = f"{partition_id}:{raft_index}:{event_sequence}".encode("utf-8")
+        raw = f"{partition_id}:{raft_index}:{event_sequence}".encode()
         return f"evt-{hashlib.sha256(raw).hexdigest()[:16]}"
 
     def to_dict(self) -> dict[str, Any]:

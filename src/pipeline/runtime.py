@@ -207,7 +207,7 @@ def execute_pipeline(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure).
     """
-    return PipelineOrchestrator().run_sync(args)
+    return int(PipelineOrchestrator().run_sync(args))
 
 
 async def _run_continuous(args: argparse.Namespace) -> int:
@@ -440,7 +440,7 @@ def main(argv: list[str] | None = None) -> int:
                     emit_warning("Max-duration budget exhausted before stage execution.")
                     return 4
                 try:
-                    return await PipelineOrchestrator().run(args)
+                    return int(await PipelineOrchestrator().run(args))
                 finally:
                     # ``shutdown_flag`` is an ``asyncio.Event``; check
                     # ``is_set()`` to avoid the always-truthy trap.

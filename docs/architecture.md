@@ -31,7 +31,7 @@ Canonical invariant set is **I1–I29** (see §6). The 6-level authority hierarc
 | **Tamper-Evident Audit Ledger** | **LIVE** HMAC chain on `AuthAuditLog`; durable store `infrastructure/security/audit.py` — Cryptographic HMAC-SHA256 chained audit trail for administrative, authentication, and scan events | `src/auth/audit.py`, `src/console/audit.py` |
 | **Active & Passive Analyzers** | **LIVE** — Multi-stage detectors for SQLi, XSS, SSRF, IDOR/BAC, JWT forgery, CSP bypass, and HTTP/2 smuggling | `src/analysis/active/`, `src/analysis/passive/` |
 | **Cognitive Differential Prober & IDOR Analysis** | **LIBRARY** — Cross-role normalized Levenshtein diffing for automatic Broken Object Level Authorization discovery | `src/analysis/intelligence/differential_prober.py` |
-| **Process / WASM Isolation Sandbox** | **LIVE** rlimits; I29/seccomp when filter passed; WASM flagged — OS-native resource caging (POSIX rlimits, CPU timeout, env scrubbing); WASM executor is feature-flagged (`FEATURE_WASM_PLUGINS`) | `src/sandbox/process_sandbox.py`, `src/execution/frontier/wasm.py` |
+| **Process / WASM Isolation Sandbox** | **LIVE** rlimits + default I29 metadata-guard; seccomp when libseccomp present; WASM flagged — OS-native resource caging (POSIX rlimits, CPU timeout, env scrubbing); WASM executor is feature-flagged (`FEATURE_WASM_PLUGINS`) | `src/sandbox/process_sandbox.py`, `src/execution/frontier/wasm.py` |
 | **3D Threat Cockpit & Real-time Console** | **LIVE** — React 19 + Three.js instanced attack graph rendering, Zustand stores, virtualized log streams, and WebSockets | `frontend/src/`, `src/websocket_server/` |
 | **Actor Mesh & P2P Gossip** | **LIVE** single-node; Redis enables Ghost mesh — Pykka/Asyncio workers with authenticated AES-256-GCM SWIM gossip discovery protocol over UDP | `src/mesh/`, `src/infrastructure/mesh/` |
 | **Algorithmic Multi-Hop Attack Path Engine** | **LIBRARY** (Dijkstra); pipeline uses endpoint_attack_graph — Graph engine synthesizing Dijkstra shortest attack paths to critical assets | `src/intelligence/graph/attack_graph.py` |
@@ -140,7 +140,7 @@ graph TD
 16. **I16 (Replay State Invariance)**: $\text{Replay}(\text{WAL}[0 \dots N]) \equiv \text{State}_N$.
 17. **I17 (Authority Uniqueness)**: No non-authoritative subsystem (worker, mesh, auction) may mutate authoritative state.
 18. **I18 (Stale Command Rejection)**: Outdated lease epoch / stale placement version commands are rejected.
-19. **I19 (Lease Terminal Linearization)**: Sublease transitions from `RESERVED` to exactly one terminal state (`CONSUMED` or `EXPIRED`).
+19. **I19 (Lease Terminal Linearization)**: Sublease transitions from `RESERVED` to exactly one terminal state (`CONSUMED`, `EXPIRED`, or `COMPENSATED` per I28).
 20. **I20 (Policy Version Fencing)**: Policy mutation requires `expected_policy_version == current_policy_version`.
 21. **I21 (Projection Recovery Invariance)**: Sequential outbox replay from checkpoint recovers identical projection state.
 22. **I22' (Temporal Invariant & Admission Skew Gating)**: Clock-skew validation ($\pm 10\text{s}$ future drift, $-5\text{s}$ backward regression) occurs at command admission; `PartitionFSM` remains 100% clock-free and monotonically non-decreasing.

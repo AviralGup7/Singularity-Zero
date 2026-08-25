@@ -432,6 +432,7 @@ async def get_ai_report_summary(
     output_root: Path = services.query.output_root
     target_dir = get_safe_target_dir(output_root, target)
 
+    run_dir: Path | None
     if run_id:
         run_dir = (target_dir / run_id).resolve()
     else:

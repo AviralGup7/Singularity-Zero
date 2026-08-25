@@ -10,34 +10,35 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Dangerous Linux syscalls unconditionally blocked in sandboxes
-BLOCKED_SYSCALLS = frozenset([
-    "ptrace",
-    "mount",
-    "umount",
-    "umount2",
-    "unshare",
-    "setns",
-    "pivot_root",
-    "kexec_load",
-    "kexec_file_load",
-    "reboot",
-    "init_module",
-    "finit_module",
-    "delete_module",
-    "iopl",
-    "ioperm",
-    "swapon",
-    "swapoff",
-    "process_vm_readv",
-    "process_vm_writev",
-])
+BLOCKED_SYSCALLS = frozenset(
+    [
+        "ptrace",
+        "mount",
+        "umount",
+        "umount2",
+        "unshare",
+        "setns",
+        "pivot_root",
+        "kexec_load",
+        "kexec_file_load",
+        "reboot",
+        "init_module",
+        "finit_module",
+        "delete_module",
+        "iopl",
+        "ioperm",
+        "swapon",
+        "swapoff",
+        "process_vm_readv",
+        "process_vm_writev",
+    ]
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,7 @@ class SeccompPolicy:
 
         try:
             import seccomp  # type: ignore[import-not-found]
+
             action = seccomp.LOG if self.audit_mode else seccomp.KILL_PROCESS
             f = seccomp.SyscallFilter(seccomp.ALLOW)
             for sc in self.blocked_syscalls:
@@ -68,7 +70,9 @@ class SeccompPolicy:
                     logger.debug("Could not add seccomp rule for %s: %s", sc, exc)
             return f
         except ImportError:
-            logger.debug("libseccomp Python bindings not installed; falling back to POSIX rlimit containment")
+            logger.debug(
+                "libseccomp Python bindings not installed; falling back to POSIX rlimit containment"
+            )
             return None
 
 

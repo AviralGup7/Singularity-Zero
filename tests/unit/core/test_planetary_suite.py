@@ -1,12 +1,12 @@
 """Comprehensive unit test suite for the Planetary-Scale Architecture Suite."""
 
-import asyncio
 import time
+
+from src.infrastructure.flow_control.bulkhead import BulkheadPool
+from src.infrastructure.flow_control.circuit_breaker import CircuitBreaker, CircuitState
 
 # 1. Flow Control
 from src.infrastructure.flow_control.pid_controller import AdaptivePIDController, PIDTuning
-from src.infrastructure.flow_control.circuit_breaker import CircuitBreaker, CircuitState
-from src.infrastructure.flow_control.bulkhead import BulkheadPool
 
 
 class TestFlowControl:
@@ -34,7 +34,7 @@ class TestFlowControl:
     async def test_bulkhead_isolation(self):
         pool = BulkheadPool(default_max_concurrent=2)
         part_a = pool.get_partition("https://host-a.com/api")
-        part_b = pool.get_partition("https://host-b.com/api")
+        _part_b = pool.get_partition("https://host-b.com/api")
 
         await part_a.acquire()
         part_a.release(success=True)
@@ -60,8 +60,8 @@ class TestRingBuffer:
 
 
 # 3. Distributed
-from src.core.distributed.vector_clock import VectorClock, CausalOrder
 from src.core.distributed.crdt import GCounter, ORSet
+from src.core.distributed.vector_clock import CausalOrder, VectorClock
 
 
 class TestDistributedPrimitives:
@@ -90,8 +90,8 @@ class TestDistributedPrimitives:
 
 
 # 4. Formal LTL Verifier
-from src.core.formal.ltl_verifier import LTLRuntimeVerifier, LTLViolationError
 from src.core.events.events import TargetDispatchedEvent
+from src.core.formal.ltl_verifier import LTLRuntimeVerifier, LTLViolationError
 
 
 class TestLTLVerifier:

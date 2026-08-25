@@ -7,8 +7,6 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
-
 from src.reporting.platforms.base import (
     SubmissionEnvelope,
     SubmissionResult,
@@ -51,7 +49,12 @@ class JiraClient(_BaseClient):
 
     @property
     def ready(self) -> bool:
-        return bool(self.base_url and self.api_token and (self.email or ":" in self.api_token) and self.project_key)
+        return bool(
+            self.base_url
+            and self.api_token
+            and (self.email or ":" in self.api_token)
+            and self.project_key
+        )
 
     def _auth_header(self) -> str:
         if self.email:

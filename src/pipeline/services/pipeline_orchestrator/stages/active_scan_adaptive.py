@@ -177,15 +177,20 @@ async def run_active_scanning_adaptive(
 
     from src.core.frontier.authority_runtime import get_current_hunt_budget
 
-    budget_enforcer: HuntBudgetEnforcer | None = getattr(ctx, "budget_enforcer", None) or get_current_hunt_budget()
+    budget_enforcer: HuntBudgetEnforcer | None = (
+        getattr(ctx, "budget_enforcer", None) or get_current_hunt_budget()
+    )
     if budget_enforcer is None:
         try:
-            cfg_mapping = config if isinstance(config, dict) else (getattr(config, "__dict__", None) or {})
+            cfg_mapping = (
+                config if isinstance(config, dict) else (getattr(config, "__dict__", None) or {})
+            )
             budget_enforcer = HuntBudgetEnforcer.from_config(cfg_mapping, label="active_scan")
         except Exception as exc:
             logger.debug("Failed to build HuntBudgetEnforcer from config: %s", exc)
 
     import uuid
+
     from src.decision.authorization import ExecutionAuthorizer
     from src.decision.models import ActionSpec, ExecutionRequest, ScopeToken, TargetSpec
     from src.learning.versioned_policy import VersionedPolicy
@@ -211,7 +216,9 @@ async def run_active_scanning_adaptive(
         req = ExecutionRequest(
             request_id=f"req_{uuid.uuid4().hex[:12]}",
             tenant_id=str(getattr(ctx, "tenant_id", "default") or "default"),
-            target=TargetSpec(host=host, path=path, scheme=parsed.scheme or "https", port=parsed.port or 443),
+            target=TargetSpec(
+                host=host, path=path, scheme=parsed.scheme or "https", port=parsed.port or 443
+            ),
             stage="active_scan",
             actions=(
                 ActionSpec(
@@ -244,8 +251,6 @@ async def run_active_scanning_adaptive(
         budget_enforcer=budget_enforcer,
         policy=policy,
     )
-
-
 
     def save_delta_fn(batch_urls: list[str], batch_findings: list[dict[str, Any]]) -> None:
         if checkpoint_mgr and hasattr(checkpoint_mgr, "save_stage_delta"):

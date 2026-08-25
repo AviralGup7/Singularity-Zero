@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from src.core.frontier.global_coordination import GlobalBudgetAggregate
 
 

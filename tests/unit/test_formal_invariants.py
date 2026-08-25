@@ -15,18 +15,14 @@ Verifies the 9 Core Architectural Invariants:
 from __future__ import annotations
 
 import unittest
+
 from src.core.checkpoint.base import CheckpointState
 from src.core.checkpoint.recovery import verify_checkpoint_against_fsm
-from src.core.contracts.canonical_target import compute_canonical_state_hash
 from src.core.contracts.command_envelope import (
     CommandEnvelope,
-    CommandResult,
-    CommittedEntry,
-    EventEnvelope,
 )
 from src.core.frontier.global_coordination import (
     GlobalBudgetAggregate,
-    GlobalRunAggregate,
     PlacementAuthority,
 )
 from src.core.frontier.raft_fsm import PartitionFSM
@@ -40,8 +36,6 @@ from src.decision.models import (
     ScopeToken,
     TargetSpec,
 )
-from src.learning.versioned_policy import VersionedPolicy
-from src.realtime.prioritized_broker import PrioritizedRealtimeBroker, QoSClass, TelemetryEvent
 
 
 class TestFormalSystemInvariants(unittest.TestCase):
@@ -111,7 +105,9 @@ class TestFormalSystemInvariants(unittest.TestCase):
             tenant_id="tenant_a",
             target=TargetSpec(host="example.com", path="/api"),
             stage="probing",
-            actions=(ActionSpec(action_id="a1", action_type="probe", tool_or_detector="http_prober"),),
+            actions=(
+                ActionSpec(action_id="a1", action_type="probe", tool_or_detector="http_prober"),
+            ),
         )
         with self.assertRaises(ScopeAuthorizationError) as ctx:
             unbudgeted_authorizer.authorize(req)
@@ -648,4 +644,3 @@ class TestFormalSystemInvariants(unittest.TestCase):
         self.assertFalse(egress.is_destination_allowed("fd00:ec2::254"))
         with self.assertRaises(EgressViolationError):
             egress.validate_destination_or_raise("169.254.169.254")
-

@@ -1,3 +1,8 @@
+from src.core.contracts.bidder import (  # noqa: F401
+    BidContract,
+    BidderProtocol,
+    BidWeightsContract,
+)
 from src.core.contracts.capabilities import (  # noqa: F401
     EnrichmentProviderProtocol,
     LiveHostProberProtocol,
@@ -26,6 +31,22 @@ from src.core.contracts.cross_package_protocols import (  # noqa: F401
     TenantIsolationCheckProtocol,
     ValidationRuntimeProtocol,
     WASMExecutorProtocol,
+)
+from src.core.contracts.decision_engine import (  # noqa: F401
+    AttackSelectorProtocol,
+    DecisionEngineProtocol,
+)
+from src.core.contracts.execution_request import (  # noqa: F401
+    ExecutionAuthorizerProtocol,
+    ExecutionRequestProtocol,
+    ExecutionResultProtocol,
+    ExecutionSchedulerProtocol,
+    ExecutionWorkerProtocol,
+)
+from src.core.contracts.executor import (  # noqa: F401
+    ExecutionResultContract,
+    ProbeExecutorProtocol,
+    TaskExecutorProtocol,
 )
 from src.core.contracts.finding_lifecycle import apply_lifecycle  # noqa: F401
 from src.core.contracts.module_interfaces import (  # noqa: F401
@@ -76,28 +97,6 @@ from src.core.contracts.protocol_registry import (  # noqa: F401
     get_validation_runtime,
     get_wasm_executor,
 )
-from src.core.contracts.schema_validator import (  # noqa: F401
-    SchemaValidationError,
-    validate_analysis_payload,
-    validate_decision_payload,
-    validate_detection_payload,
-    validate_execution_payload,
-    validate_recon_payload,
-)
-from src.core.contracts.bidder import (  # noqa: F401
-    BidContract,
-    BidWeightsContract,
-    BidderProtocol,
-)
-from src.core.contracts.decision_engine import (  # noqa: F401
-    AttackSelectorProtocol,
-    DecisionEngineProtocol,
-)
-from src.core.contracts.executor import (  # noqa: F401
-    ExecutionResultContract,
-    ProbeExecutorProtocol,
-    TaskExecutorProtocol,
-)
 from src.core.contracts.resource_manager import (  # noqa: F401
     BudgetEnforcerContract,
     ResourceGuardContract,
@@ -107,18 +106,19 @@ from src.core.contracts.scheduler import (  # noqa: F401
     PriorityQueueContract,
     SchedulerProtocol,
 )
+from src.core.contracts.schema_validator import (  # noqa: F401
+    SchemaValidationError,
+    validate_analysis_payload,
+    validate_decision_payload,
+    validate_detection_payload,
+    validate_execution_payload,
+    validate_recon_payload,
+)
 from src.core.contracts.state_schema import (  # noqa: F401
     GLOBAL_STATE_SCHEMA_REGISTRY,
     StateSchema,
     StateSchemaRegistry,
     register_state_schema,
-)
-from src.core.contracts.execution_request import (  # noqa: F401
-    ExecutionAuthorizerProtocol,
-    ExecutionRequestProtocol,
-    ExecutionResultProtocol,
-    ExecutionSchedulerProtocol,
-    ExecutionWorkerProtocol,
 )
 from src.core.contracts.task_envelope import (  # noqa: F401
     TASK_ENVELOPE_VERSION,

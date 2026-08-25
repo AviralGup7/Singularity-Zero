@@ -439,7 +439,8 @@ class GenerationalBloomFilter:
             ):
                 self._rotate_generation()
 
-            return self._current.add(item)
+            self._current.add(item)
+            return True
 
     def _rotate_generation(self) -> None:
         """Rotate active filter into previous and spawn a fresh active filter."""

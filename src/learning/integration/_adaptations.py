@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.learning.integration import LearningIntegration
+    from src.learning.versioned_policy import VersionedPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,6 @@ def compute_adaptations(
                 adaptations.nuclei_adaptive_tags_override = optimized
 
     return adaptations.to_dict()
-
 
 
 def apply_adaptations(

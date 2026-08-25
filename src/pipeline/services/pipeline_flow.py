@@ -52,4 +52,4 @@ def run_pipeline(
     else:
         logger.info("Pipeline complete. Output directory: %s", output_dir)
 
-    return result
+    return int(result)

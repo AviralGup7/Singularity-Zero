@@ -13,7 +13,7 @@ F = TypeVar("F")
 
 
 @dataclass(frozen=True, slots=True)
-class Ok(Generic[T]):
+class Ok(Generic[T]):  # noqa: UP046
     """Successful result container."""
 
     value: T
@@ -44,7 +44,7 @@ class Ok(Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class Err(Generic[E]):
+class Err(Generic[E]):  # noqa: UP046
     """Failure result container."""
 
     error: E

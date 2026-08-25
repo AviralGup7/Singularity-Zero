@@ -1,12 +1,11 @@
 import asyncio
 import json
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from src.websocket_server.broadcaster import Broadcaster
-from src.websocket_server.manager import ConnectionInfo, ConnectionManager
+from src.websocket_server.manager import ConnectionManager
 from src.websocket_server.protocol import BaseMessage, MessageType
-
 
 
 class MockWebSocket:
@@ -42,7 +41,9 @@ class TestLossyVsCriticalBackpressure(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(info.message_queue.qsize(), 3)
 
         # 2. Enqueue a critical finding alert message when queue is full
-        crit_json = json.dumps({"type": "finding", "event": "finding_alert", "id": "f_1", "title": "SQLi"})
+        crit_json = json.dumps(
+            {"type": "finding", "event": "finding_alert", "id": "f_1", "title": "SQLi"}
+        )
 
         # Call backpressure directly with critical payload
         await broadcaster._handle_backpressure(info, crit_json)
@@ -67,7 +68,6 @@ class TestLossyVsCriticalBackpressure(unittest.IsolatedAsyncioTestCase):
         )
         assert info is not None
         info._message_queue = asyncio.Queue(maxsize=2)
-
 
         # 1. Fill queue with 2 critical messages
         c1 = json.dumps({"type": "finding", "id": "f1", "title": "Critical RCE"})

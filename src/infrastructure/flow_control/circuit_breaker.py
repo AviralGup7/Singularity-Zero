@@ -9,9 +9,9 @@ from enum import StrEnum
 
 
 class CircuitState(StrEnum):
-    CLOSED = "closed"       # Healthy: all traffic allowed
-    OPEN = "open"           # Tripped: fast-fail all requests
-    HALF_OPEN = "half_open" # Canary testing after cooldown
+    CLOSED = "closed"  # Healthy: all traffic allowed
+    OPEN = "open"  # Tripped: fast-fail all requests
+    HALF_OPEN = "half_open"  # Canary testing after cooldown
 
 
 class CircuitBreakerOpenError(Exception):

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
-import pytest
 import httpx
+import pytest
+
+from src.reporting.platforms.base import SubmissionEnvelope
+from src.reporting.platforms.defectdojo import DefectDojoClient, _map_defectdojo_severity
 from src.reporting.platforms.jira import JiraClient, _map_jira_priority
 from src.reporting.platforms.servicenow import ServiceNowClient, _map_servicenow_impact_urgency
-from src.reporting.platforms.defectdojo import DefectDojoClient, _map_defectdojo_severity
-from src.reporting.platforms.base import SubmissionEnvelope
 
 
 @pytest.mark.asyncio
@@ -65,7 +65,9 @@ async def test_servicenow_client_submission(monkeypatch):
 
     async def mock_post(url, json=None, headers=None):
         req = httpx.Request("POST", str(url), json=json, headers=headers)
-        return httpx.Response(201, json={"result": {"sys_id": "abc12345", "number": "INC0010001"}}, request=req)
+        return httpx.Response(
+            201, json={"result": {"sys_id": "abc12345", "number": "INC0010001"}}, request=req
+        )
 
     client._client = httpx.AsyncClient()
     monkeypatch.setattr(client._client, "post", mock_post)

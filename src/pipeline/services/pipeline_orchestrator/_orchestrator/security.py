@@ -314,7 +314,7 @@ async def run_secured(
             aof_dir=wal_aof_dir,
         )
     try:
-        from src.core.frontier.authority_runtime import attach_pipeline_authority
+        from src.pipeline.authority_bootstrap import attach_pipeline_authority
 
         attach_pipeline_authority(orchestrator, run_id, config)
     except Exception as exc:  # noqa: BLE001
@@ -461,8 +461,22 @@ async def run_secured(
 
     runtime = getattr(orchestrator, "_authority_runtime", None)
     if runtime is not None and ctx is not None:
-        ctx.budget_enforcer = runtime.hunt_budget
-        ctx.authority_runtime = runtime
+        ctx_any: Any = ctx
+        ctx_any.budget_enforcer = runtime.hunt_budget
+        ctx_any.authority_runtime = runtime
+        recovered_chk = recovered_state if can_recover else None
+        if recovered_chk is not None:
+            try:
+                from src.core.checkpoint.recovery import verify_checkpoint_against_fsm
+
+                fsm = getattr(runtime.partition_log, "fsm", None) or runtime.partition_log
+                if not verify_checkpoint_against_fsm(recovered_chk, fsm):
+                    logger.warning(
+                        "Recovered checkpoint failed FSM projection check (Axiom 1); "
+                        "continuing with journal replay as source of truth"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Checkpoint FSM verification skipped: %s", exc)
 
     stage_methods = orchestrator._build_stage_methods()
     remaining_stages = [s for s in remaining_stages if s in stage_methods]

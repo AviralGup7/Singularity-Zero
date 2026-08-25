@@ -7,23 +7,23 @@ latency errors e(t), WAF error entropy, and socket pressure.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
 class PIDTuning:
     """PID gain constants and operational limits."""
 
-    kp: float = 0.5   # Proportional gain
-    ki: float = 0.1   # Integral gain
+    kp: float = 0.5  # Proportional gain
+    ki: float = 0.1  # Integral gain
     kd: float = 0.05  # Derivative gain
     target_latency_ms: float = 200.0
     min_concurrency: int = 1
     max_concurrency: int = 50
     min_delay_ms: float = 10.0
     max_delay_ms: float = 2000.0
-    i_max: float = 500.0       # Anti-windup integral clamp bound
-    iir_alpha: float = 0.2     # Derivative low-pass IIR filter coefficient (0.0 to 1.0)
+    i_max: float = 500.0  # Anti-windup integral clamp bound
+    iir_alpha: float = 0.2  # Derivative low-pass IIR filter coefficient (0.0 to 1.0)
 
 
 class AdaptivePIDController:
@@ -54,7 +54,9 @@ class AdaptivePIDController:
     def filtered_derivative(self) -> float:
         return self._filtered_derivative
 
-    def observe(self, observed_latency_ms: float, error_occurred: bool = False) -> tuple[int, float]:
+    def observe(
+        self, observed_latency_ms: float, error_occurred: bool = False
+    ) -> tuple[int, float]:
         """Feed latest observation into the PID loop and compute adjusted concurrency & delay."""
         now = time.time()
         dt = max(0.001, now - self._last_time)
@@ -65,8 +67,8 @@ class AdaptivePIDController:
         error = self.tuning.target_latency_ms - effective_latency
 
         # Saturation freeze (anti-windup): freeze integral accumulation if saturated
-        is_max_saturated = (self._current_concurrency >= self.tuning.max_concurrency and error > 0)
-        is_min_saturated = (self._current_concurrency <= self.tuning.min_concurrency and error < 0)
+        is_max_saturated = self._current_concurrency >= self.tuning.max_concurrency and error > 0
+        is_min_saturated = self._current_concurrency <= self.tuning.min_concurrency and error < 0
 
         if not (is_max_saturated or is_min_saturated):
             self._integral += error * dt
@@ -76,7 +78,9 @@ class AdaptivePIDController:
         # Derivative with low-pass IIR filter
         raw_derivative = (error - self._last_error) / dt
         alpha = self.tuning.iir_alpha
-        self._filtered_derivative = (alpha * raw_derivative) + ((1.0 - alpha) * self._filtered_derivative)
+        self._filtered_derivative = (alpha * raw_derivative) + (
+            (1.0 - alpha) * self._filtered_derivative
+        )
         self._last_error = error
 
         control_signal = (

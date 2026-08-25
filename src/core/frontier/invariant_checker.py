@@ -8,14 +8,12 @@ Implements machine-checkable audit tests for all 16 target system invariants (Co
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from src.core.contracts.canonical_target import canonical_state_encode, compute_canonical_state_hash
-from src.core.frontier.global_coordination import GlobalBudgetAggregate, PlacementAuthority
+from src.core.frontier.global_coordination import GlobalBudgetAggregate
 from src.core.frontier.projection_stream import ProjectionCheckpointVector
 from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.replicated_log import ReplicatedPartitionLog
@@ -104,7 +102,11 @@ class InvariantChecker:
     def audit_global_budget(budget: GlobalBudgetAggregate) -> tuple[str, bool, str]:
         """Audit I5: GlobalBudget = Consumed + Outstanding + Available."""
         valid = budget.verify_conservation()
-        msg = "Budget conservation verified" if valid else f"Budget conservation failed: {budget.to_dict()}"
+        msg = (
+            "Budget conservation verified"
+            if valid
+            else f"Budget conservation failed: {budget.to_dict()}"
+        )
         return "I5", valid, msg
 
     @staticmethod
@@ -130,7 +132,11 @@ class InvariantChecker:
         for entry in p_log.entries:
             ts = entry.command.created_at_unix
             if ts < last_ts:
-                return "I22'", False, f"Temporal regression detected at index {entry.raft_index}: {ts} < {last_ts}"
+                return (
+                    "I22'",
+                    False,
+                    f"Temporal regression detected at index {entry.raft_index}: {ts} < {last_ts}",
+                )
             last_ts = ts
         return "I22'", True, "Temporal timestamps monotonically non-decreasing"
 
@@ -139,9 +145,17 @@ class InvariantChecker:
         """Audit I23: Sublease allocations and consumptions are isolated per partition and never exceed bounds."""
         for sl_id, sl in fsm.subleases.items():
             if sl.partition_id != fsm.partition_id:
-                return "I23", False, f"Partition bleed: sublease {sl_id} has partition {sl.partition_id} on FSM {fsm.partition_id}"
+                return (
+                    "I23",
+                    False,
+                    f"Partition bleed: sublease {sl_id} has partition {sl.partition_id} on FSM {fsm.partition_id}",
+                )
             if sl.units_consumed > sl.units_allocated:
-                return "I23", False, f"Negative budget on sublease {sl_id}: consumed {sl.units_consumed} > allocated {sl.units_allocated}"
+                return (
+                    "I23",
+                    False,
+                    f"Negative budget on sublease {sl_id}: consumed {sl.units_consumed} > allocated {sl.units_allocated}",
+                )
         return "I23", True, "Partition budget isolation verified"
 
     @staticmethod
@@ -149,7 +163,11 @@ class InvariantChecker:
         """Audit I25' and I25b: Policy watermark and revocation tracking."""
         for rev_gen in fsm.revoked_policy_generations:
             if rev_gen <= fsm.policy_watermark:
-                return "I25'", False, f"Revoked generation {rev_gen} is <= watermark {fsm.policy_watermark}"
+                return (
+                    "I25'",
+                    False,
+                    f"Revoked generation {rev_gen} is <= watermark {fsm.policy_watermark}",
+                )
         return "I25'", True, "Policy rollback watermark and revoked generations valid"
 
     @staticmethod
@@ -157,7 +175,11 @@ class InvariantChecker:
         """Audit I26: Multi-Raft Quota Slab Conservation."""
         for s_id, slab in budget.quota_slabs.items():
             if slab.consumed_units > slab.allocated_units:
-                return "I26", False, f"Quota slab {s_id} consumed {slab.consumed_units} > allocated {slab.allocated_units}"
+                return (
+                    "I26",
+                    False,
+                    f"Quota slab {s_id} consumed {slab.consumed_units} > allocated {slab.allocated_units}",
+                )
         return "I26", True, "Quota slab conservation verified"
 
     @classmethod
@@ -225,10 +247,10 @@ class InvariantChecker:
 
         # Generic assertions for verified subsystem invariants
         for inv_id in [
-            "I3",   # Committed-State Confinement
-            "I6",   # Scoped Idempotency
-            "I7",   # Singular Partition Ownership
-            "I9",   # Pure FSM Determinism (Zero I/O)
+            "I3",  # Committed-State Confinement
+            "I6",  # Scoped Idempotency
+            "I7",  # Singular Partition Ownership
+            "I9",  # Pure FSM Determinism (Zero I/O)
             "I10",  # Worker Epoch Fencing
             "I11",  # Cryptographic State Commitment
             "I12",  # Snapshot Integrity
@@ -242,7 +264,7 @@ class InvariantChecker:
             "I20",  # Policy Version Fencing
             "I21",  # Projection Recovery Invariance
             "I24",  # Persisted Mesh BootID + Monotonic Nonce Safety
-            "I25b", # Policy Generation Upper-Bound
+            "I25b",  # Policy Generation Upper-Bound
             "I27",  # Bounded Execution Claims (64KB) & CAS Merkle Evidence
             "I28",  # Hardened Lease State Machine Transitions
             "I29",  # Scope-Derived Network Egress

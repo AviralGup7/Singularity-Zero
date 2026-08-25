@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.core.contracts.command_envelope import CommandEnvelope, GLOBAL_UPCASTER_REGISTRY
+from src.core.contracts.command_envelope import GLOBAL_UPCASTER_REGISTRY, CommandEnvelope
 from src.core.frontier.commands import (
     allocate_sublease,
     reserve_global_budget,
@@ -22,7 +22,9 @@ def test_typed_reserve_and_settle_via_apply_command() -> None:
     assert ok
     assert code == "SUBLEASE_RESERVED"
     assert gb.outstanding_reserved == 80
-    env2 = settlement_return(sublease_id="sl_cmd", units_consumed=30, units_returned=50).to_envelope()
+    env2 = settlement_return(
+        sublease_id="sl_cmd", units_consumed=30, units_returned=50
+    ).to_envelope()
     ok, code = gb.apply_command(env2)
     assert ok
     assert gb.subleases["sl_cmd"].status == LeaseStatus.CONSUMED.value
@@ -86,7 +88,9 @@ def test_hunt_enforcer_routes_reservations_through_global_budget() -> None:
 
 
 def test_allocate_sublease_typed_roundtrip() -> None:
-    cmd = allocate_sublease(sublease_id="sl_a", run_id="R", units_allocated=7, partition_id="P-0001")
+    cmd = allocate_sublease(
+        sublease_id="sl_a", run_id="R", units_allocated=7, partition_id="P-0001"
+    )
     env = cmd.to_envelope()
     assert env.command_type == "AllocateSubLeaseCommand"
     assert env.payload["units_allocated"] == 7

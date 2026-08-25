@@ -57,7 +57,7 @@ class KEVRecord:
 
             dt = datetime.datetime.fromisoformat(self.due_date)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=datetime.timezone.utc)
+                dt = dt.replace(tzinfo=datetime.UTC)
             return dt.timestamp()
         except (ValueError, OSError, OverflowError):
             return 0.0

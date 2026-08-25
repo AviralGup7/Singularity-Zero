@@ -105,7 +105,13 @@ class TestExecutionRequestModels(unittest.TestCase):
         self.assertEqual(reconstructed_req.actions[0].tool_or_detector, "jwt_probe")
 
         # Test ExecutionResult
-        finding = Finding(category="auth", title="JWT Weak Key", url="https://api.target.com", severity="HIGH", confidence=0.95)
+        finding = Finding(
+            category="auth",
+            title="JWT Weak Key",
+            url="https://api.target.com",
+            severity="HIGH",
+            confidence=0.95,
+        )
         res = ExecutionResult(
             request_id="req_12345",
             tenant_id="tenant_alpha",
@@ -277,7 +283,6 @@ class TestStatelessExecutionWorker(unittest.TestCase):
         self.assertEqual(res.outcome, "REJECTED")
         self.assertIn("Worker strictly requires an AuthorizedExecutionTicket", res.error)
 
-
     def test_identity_propagation_and_ticket_consumption(self):
         from src.decision.models import CandidateLease
 
@@ -322,4 +327,3 @@ class TestStatelessExecutionWorker(unittest.TestCase):
         replay_res = worker.execute(ticket)
         self.assertEqual(replay_res.outcome, "REJECTED")
         self.assertIn("failed consumption", replay_res.error)
-

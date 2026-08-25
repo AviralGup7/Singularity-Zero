@@ -9,22 +9,20 @@ Proves the core architectural invariants with adversarial testing:
 """
 
 from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
 from src.decision.authorization import (
-    AuthorizedExecutionTicket,
     ExecutionAuthorizer,
     ScopeAuthorizationError,
 )
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import (
-    ActionSpec,
     ExecutionRequest,
     ExecutionResult,
     Finding,
     PlacementStatus,
-    ResourceLimits,
     ScopeToken,
     TargetSpec,
 )
@@ -35,7 +33,11 @@ class TestPriorityEngineBoundaries:
 
     def test_priority_engine_only_ranks_and_boosts(self):
         """Priority engine produces ordered candidate lists without executing."""
-        urls = ["https://example.com/api/users", "https://example.com/login", "https://example.com/static"]
+        urls = [
+            "https://example.com/api/users",
+            "https://example.com/login",
+            "https://example.com/static",
+        ]
         coordinator = AdaptiveScanCoordinator(urls=urls)
 
         # 1. Peeks and pops candidates
@@ -45,7 +47,9 @@ class TestPriorityEngineBoundaries:
         assert len(batch) == 2
 
         # 2. Boosts correlated items without executing
-        boosted = coordinator.boost_from_findings([{"url": "https://example.com/api/users", "type": "sqli"}])
+        boosted = coordinator.boost_from_findings(
+            [{"url": "https://example.com/api/users", "type": "sqli"}]
+        )
         assert isinstance(boosted, int)
 
         # 3. Does not have direct execution methods
@@ -81,7 +85,6 @@ class TestPriorityEngineBoundaries:
         assert leased_urls[1] not in final_peek
 
 
-
 class TestStateAuthorityAndIdempotency:
     """Invariant 2: State Authority is sole writer; duplicate results are idempotent."""
 
@@ -94,7 +97,15 @@ class TestStateAuthorityAndIdempotency:
             tenant_id="tenant-alpha",
             outcome="COMPLETED",
             duration_seconds=1.2,
-            findings=(Finding(title="SQL Injection", url="https://example.com", category="sqli", severity="high", confidence=0.9),),
+            findings=(
+                Finding(
+                    title="SQL Injection",
+                    url="https://example.com",
+                    category="sqli",
+                    severity="high",
+                    confidence=0.9,
+                ),
+            ),
             state_deltas=(("live_hosts", ("https://example.com",)),),
         )
         assert res.execution_id == "exec-456"

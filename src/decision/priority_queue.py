@@ -26,7 +26,6 @@ import math
 import threading
 import time
 import uuid
-
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -182,7 +181,6 @@ class ScanTarget:
     lease_worker_id: str = ""
     execution_id: str = ""
 
-
     @property
     def effective_priority(self) -> float:
         """Calculate effective priority using aging bonus and exponential decay of the boosted portion."""
@@ -259,7 +257,7 @@ class ScanTarget:
         other_bid = other.bid or other.refresh_bid()
         # heapq is a min-heap, so invert the bid score for max-heap behavior.
         if self_bid.score != other_bid.score:
-            return self_bid.score > other_bid.score
+            return bool(self_bid.score > other_bid.score)
         # Stable tie-breakers if heap_idx is not established (e.g. -1 for new items)
         if self.heap_idx != other.heap_idx and self.heap_idx != -1 and other.heap_idx != -1:
             return self.heap_idx < other.heap_idx
@@ -377,7 +375,9 @@ class CorrelationPriorityQueue:
                             break
 
                 if target.url in suppressions:
-                    target.current_priority = max(0.0, target.current_priority + suppressions[target.url])
+                    target.current_priority = max(
+                        0.0, target.current_priority + suppressions[target.url]
+                    )
                     target.boost_factors.append(f"policy_suppress:{self._policy_version}")
                     applied_count += 1
                 elif any(pattern in target.url for pattern in suppressions):
@@ -390,7 +390,6 @@ class CorrelationPriorityQueue:
 
             self._refresh_heap()
         return applied_count
-
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -574,7 +573,6 @@ class CorrelationPriorityQueue:
                         target.lease_id = ""
                         released_count += 1
         return released_count
-
 
     def push(self, target: ScanTarget) -> None:
         """Add a new target to the queue.

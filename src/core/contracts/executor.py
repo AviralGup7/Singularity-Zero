@@ -23,16 +23,14 @@ class TaskExecutorProtocol(Protocol):
         task_name: str,
         payload: dict[str, Any],
         timeout_seconds: float = 300.0,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
 
 @runtime_checkable
 class ProbeExecutorProtocol(Protocol):
     """Contract for asynchronous probe callable services."""
 
-    async def probe(self, url: str) -> list[dict[str, Any]]:
-        ...
+    async def probe(self, url: str) -> list[dict[str, Any]]: ...
 
 
 __all__ = [

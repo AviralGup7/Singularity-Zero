@@ -1,4 +1,8 @@
-"""Zero-allocation async reactive event bus for domain telemetry."""
+"""UNUSED on the live scan path.
+
+Perfection-suite DomainEvent bus. The live CLI/dashboard bus is
+``src.core.events.event_bus`` (re-exported from ``src.core.events``).
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,6 @@ import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from src.core.events.events import DomainEvent
 

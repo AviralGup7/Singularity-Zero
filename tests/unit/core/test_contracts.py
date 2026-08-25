@@ -1,35 +1,26 @@
 """Unit tests verifying explicit contracts and runtime checkability in src/core/contracts/."""
 
-from src.core.contracts.scheduler import (
-    SchedulerProtocol,
-    PriorityQueueContract,
-    AdaptiveCoordinatorContract,
-)
 from src.core.contracts.bidder import (
     BidContract,
     BidWeightsContract,
-    BidderProtocol,
 )
 from src.core.contracts.executor import (
     ExecutionResultContract,
-    TaskExecutorProtocol,
-    ProbeExecutorProtocol,
 )
 from src.core.contracts.resource_manager import (
-    ResourceGuardContract,
     BudgetEnforcerContract,
+    ResourceGuardContract,
 )
-from src.core.contracts.decision_engine import (
-    DecisionEngineProtocol,
-    AttackSelectorProtocol,
+from src.core.contracts.scheduler import (
+    AdaptiveCoordinatorContract,
+    PriorityQueueContract,
 )
-
-from src.decision.priority_queue import CorrelationPriorityQueue
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
 from src.decision.hunt_budget import HuntBudgetEnforcer
-from src.infrastructure.scheduling.bidding import MultiObjectiveBid, BidWeights, bid_for_target
+from src.decision.models import ScanResult
+from src.decision.priority_queue import CorrelationPriorityQueue
 from src.infrastructure.resource_guard import ResourceGuard
-from src.decision.models import ScanResult, BudgetSnapshot
+from src.infrastructure.scheduling.bidding import BidWeights, bid_for_target
 
 
 class TestCoreContracts:
@@ -40,6 +31,7 @@ class TestCoreContracts:
     def test_adaptive_coordinator_contract_conformance(self):
         async def dummy_probe(url):
             return []
+
         coord = AdaptiveScanCoordinator(["https://example.com"], dummy_probe)
         assert isinstance(coord, AdaptiveCoordinatorContract)
 

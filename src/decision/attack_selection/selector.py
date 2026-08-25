@@ -23,10 +23,10 @@ def _default_scope_checker(url: str, scope_hosts: set[str]) -> tuple[bool, str]:
         if not hostname:
             return False, "invalid_url"
         matched = any(
-            hostname == s.lower() or hostname.endswith(f".{s.lower()}")
-            for s in scope_hosts
+            hostname == s.lower() or hostname.endswith(f".{s.lower()}") for s in scope_hosts
         )
         return matched, "matched" if matched else "out_of_scope"
+
 
 _ActionSpec = dict[str, Any]
 _PlannerConfig = dict[str, Any]

@@ -28,19 +28,21 @@ from src.decision.priority_queue import CorrelationPriorityQueue
 class PriorityQueueProtocol(Protocol):
     """Protocol defining the operations required of an adaptive scan priority queue."""
 
-    def pop(self) -> Any:
-        ...
+    def pop(self) -> Any: ...
 
-    def boost_from_findings(self, findings: list[dict[str, Any]]) -> list[str]:
-        ...
+    def boost_from_findings(self, findings: list[dict[str, Any]]) -> Any: ...
 
-    def should_terminate_early(
-        self, threshold_ratio: float = 0.3, min_items: int = 5
-    ) -> bool:
-        ...
+    def should_terminate_early(self, threshold_ratio: float = 0.3, min_items: int = 5) -> bool: ...
 
-    def get_stats(self) -> dict[str, Any]:
-        ...
+    def get_stats(self) -> dict[str, Any]: ...
+
+    @property
+    def remaining(self) -> int: ...
+
+    @property
+    def total(self) -> int: ...
+
+    def budget_snapshot(self) -> dict[str, Any] | None: ...
 
 
 @dataclass
@@ -125,7 +127,6 @@ class AdaptiveScanCoordinator:
         self._results: list[ScanResult] = []
         self._total_findings: list[dict[str, Any]] = []
 
-
     @classmethod
     def from_plan(
         cls,
@@ -161,21 +162,22 @@ class AdaptiveScanCoordinator:
     def remaining(self) -> int:
         """Remaining target count in the priority queue."""
         if hasattr(self._queue, "remaining"):
-            return self._queue.remaining
+            return int(self._queue.remaining)
         return 0
 
     @property
     def total(self) -> int:
         """Total target count initialized in the priority queue."""
         if hasattr(self._queue, "total"):
-            return self._queue.total
+            return int(self._queue.total)
         return len(self._results)
 
     def peek_batch(self, batch_size: int | None = None) -> list[str]:
         """Inspect the next prioritized candidate targets without popping them."""
         limit = batch_size if batch_size is not None else self._batch_size
         if hasattr(self._queue, "peek_batch"):
-            return self._queue.peek_batch(limit)
+            peeked_batch = self._queue.peek_batch(limit)
+            return list(peeked_batch) if peeked_batch else []
         elif hasattr(self._queue, "peek"):
             peeked = self._queue.peek()
             return [getattr(peeked, "url", str(peeked))] if peeked is not None else []
@@ -209,7 +211,6 @@ class AdaptiveScanCoordinator:
         if hasattr(self._queue, "release_batch"):
             self._queue.release_batch(items)
 
-
     def pop_batch(self, batch_size: int | None = None) -> list[str]:
         """Pop the next batch of prioritized candidate targets (Tier 3 Priority Engine)."""
         limit = batch_size if batch_size is not None else self._batch_size
@@ -227,7 +228,12 @@ class AdaptiveScanCoordinator:
         if not findings:
             return 0
         if hasattr(self._queue, "boost_from_findings"):
-            return self._queue.boost_from_findings(findings)
+            boosted = self._queue.boost_from_findings(findings)
+            if isinstance(boosted, int):
+                return boosted
+            if isinstance(boosted, list):
+                return len(boosted)
+            return 0
         return 0
 
     def should_terminate(self) -> bool:
@@ -355,7 +361,7 @@ class AdaptiveScanCoordinator:
                         conf = float(finding_item.get("confidence", 0.8) or 0.8)
                         self._budget_enforcer.record_finding(conf)
                 boosted = self._queue.boost_from_findings(batch_findings)
-                boosted_total += boosted
+                boosted_total += boosted if isinstance(boosted, int) else len(boosted or [])
                 logger.info(
                     "Batch %d: found %d findings, boosted %d correlated targets",
                     batch_num,

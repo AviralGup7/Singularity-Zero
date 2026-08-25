@@ -124,6 +124,7 @@ class PolicyGovernanceGate:
     def promote_policy(self, policy: VersionedPolicy) -> bool:
         """Atomically promote a safe policy to ACTIVE via Raft FSM commit."""
         import uuid
+
         from src.core.contracts.command_envelope import CommandEnvelope
 
         with self._lock:
@@ -183,6 +184,7 @@ class PolicyGovernanceGate:
     def rollback(self) -> VersionedPolicy | None:
         """Atomically rollback active policy to its parent version via Raft FSM commit."""
         import uuid
+
         from src.core.contracts.command_envelope import CommandEnvelope
 
         with self._lock:
