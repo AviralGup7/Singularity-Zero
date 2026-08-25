@@ -31,7 +31,8 @@ This document defines the **Formal Command & State Transition Contract** for all
 - **Emitted Domain Event**: `GlobalSubLeaseReservedEvent(run_id, partition_id, sublease_id, units)`
 - **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="SUBLEASE_RESERVED")`
 - **Failure Modes**:
-  - `INSUFFICIENT_GLOBAL_BUDGET`: `available < units` $\rightarrow$ `REJECTED`, $\Delta \text{version} = 0$.
+  - `INSUFFICIENT_GLOBAL_BUDGET`: `available < units` $\rightarrow$ `REJECTED`, $\Delta \text{version} = 0$. (`reserve_sublease` returns this exact code.)
+  - `NON_POSITIVE_UNITS`: `units <= 0` $\rightarrow$ `REJECTED`.
   - `VERSION_CONFLICT`: version mismatch $\rightarrow$ `REJECTED`, $\Delta \text{version} = 0$.
 - **Replay Behavior**: Re-evaluating against committed log reproduces identical `available` and `outstanding_reserved` quantities.
 
@@ -83,7 +84,7 @@ This document defines the **Formal Command & State Transition Contract** for all
   2. `sublease.units_consumed + units_requested <= sublease.units_allocated`
   3. `aggregate_id` does not exist (initial version == 0)
 - **Deterministic State Transition**:
-  - `aggregates[exec-9941] = AggregateState(status="RUNNING", units_reserved=5, version=1)`
+  - `aggregates[exec-9941] = AggregateState(status="RUNNING", units_reserved=5, expires_at=optional, version=1)`
   - $\text{aggregate\_version}' = 1$
 - **Emitted Domain Event**: `ExecutionAuthorizedEvent(exec_id, capability_id, sublease_id, units_reserved)`
 - **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="EXECUTION_AUTHORIZED")`
@@ -114,7 +115,7 @@ This document defines the **Formal Command & State Transition Contract** for all
 - **Deterministic State Transition**:
   - `unused_refund = max(0, units_reserved - units_consumed)`
   - `subleases[sublease_id].units_consumed += units_consumed`
-  - `subleases[sublease_id].status = "SETTLEMENT_PENDING"`
+  - `subleases[sublease_id].status = CONSUMED` if fully consumed, else `ACTIVE` (`SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not written)
   - `aggregates[exec-9941].status = "SETTLED"`
   - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
 - **Emitted Domain Event**: `ExecutionClaimSettledEvent(exec_id, units_consumed, unused_refund, findings_count)`
@@ -168,7 +169,11 @@ This document defines the **Formal Command & State Transition Contract** for all
   ```
 - **Preconditions**:
   1. `aggregate.status == "RUNNING"`
-  2. `observed_at >= expires_at + max_skew`
+  2. `expires_at > 0` (stored on authorize; unset leases cannot time out)
+  3. `observed_at >= expires_at + max_skew`
+- **Failure Modes**:
+  - `EXECUTION_NOT_RUNNING`: aggregate missing or not RUNNING $\rightarrow$ `NO_OP`.
+  - `NOT_YET_EXPIRED`: `expires_at <= 0` or `observed_at < expires_at + max_skew` $\rightarrow$ `REJECTED`.
 - **Deterministic State Transition**:
   - `aggregates[exec-9941].status = "EXPIRED"`
   - `pessimistic_consumed = reserved_units; pessimistic_refund = 0`
@@ -224,7 +229,8 @@ This document defines the **Formal Command & State Transition Contract** for all
   1. Valid `parent_policy_id` exists in current policy state payload or command payload.
 - **Deterministic State Transition**:
   - `aggregates["policy_active"].state_payload["active_policy_id"] = parent_policy_id`
-  - `aggregates["policy_active"].status = "ROLLED_BACK"`
+  - `aggregates["policy_active"].status = "ACTIVE"` (restored parent is the live policy)
+  - `aggregates["policy_active"].state_payload["status"] = "ROLLED_BACK"` (transition record only)
   - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
 - **Emitted Domain Event**: `PolicyRolledBackEvent(active_policy_id=parent_policy_id)`
 - **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="POLICY_ROLLED_BACK")`
@@ -242,7 +248,7 @@ This document defines the **Formal Command & State Transition Contract** for all
   }
   ```
 - **Preconditions**:
-  1. `sublease_id in subleases` and `sublease.status in ("ISSUED", "ACTIVE")`.
+  1. `sublease_id in subleases` and `sublease.status in ("RESERVED", "ACTIVE")` (legacy `ISSUED` normalizes to `RESERVED`).
 - **Deterministic State Transition**:
   - `units_returned = sublease.units_allocated - units_consumed`
   - $\text{consumed}' = \text{consumed} + \text{units\_consumed}$
@@ -274,10 +280,11 @@ All sub-leases follow a finite state machine with strict transition guards:
 
 ```text
 (absent) ──reserve──► RESERVED ──allocate──► ACTIVE ──settle(consumed>0)──► CONSUMED
-             │              │                    │
-             │              ├──expire────────────┴──► EXPIRED
-             │              └──compensate────────────► COMPENSATED
-             └──expire──────────────────────────────► EXPIRED
+                         │                      │
+                         ├──expire──────────────┴──► EXPIRED
+                         ├──compensate────────────────────────► COMPENSATED
+                         └──settle(consumed>0)────────────────► CONSUMED
+EXPIRED ──compensate──► COMPENSATED
 ```
 
 - **Outstanding States**: `RESERVED`, `ACTIVE`
@@ -291,6 +298,7 @@ All sub-leases follow a finite state machine with strict transition guards:
 
 Every `CommandEnvelope` carries a `schema_version: int` (default `1`).
 - Deserialization via `CommandEnvelope.from_dict(raw)` invokes `GLOBAL_UPCASTER_REGISTRY`.
+- Registry keys are `(event_type, from_version)`. Commands have no `event_type`, so `from_dict` sets `event_type = command_type` before upcast.
 - Upcasters execute sequentially to transform payloads from schema version $v_i \rightarrow v_{i+1}$ without requiring database rewrites or historical log mutations.
 
 ---
@@ -302,7 +310,11 @@ Single-node CLI and dashboard executions instantiate `PipelineAuthorityRuntime`,
 - **Budget Enforcer**: `HuntBudgetEnforcer` attached to `GlobalBudgetAggregate`.
 - **Policy Gate**: `PolicyGovernanceGate` attached to authoritative replicated log.
 - **QoS & Flow Control**: `PrioritizedRealtimeBroker` (P0–P4 lanes) + `AdaptivePIDController` + `BayesianParameterBandit`.
-- **Binding**: `attach_pipeline_authority(orchestrator, run_id, config)` sets properties on `PipelineOrchestrator`.
+- **Factory / Binding**: `attach_pipeline_authority(orchestrator, run_id, config)` lives in `src/pipeline/authority_bootstrap.py` (core stays stage-pure). It constructs HuntBudget/bandit/authorizer and calls `PipelineAuthorityRuntime.attach_to(orchestrator)`.
+
+### 1.14 Additional FSM result codes (implemented, not exhaustive)
+
+`PARTITION_MISMATCH`, `NEGATIVE_BUDGET_ALLOCATION`, `POLICY_GENERATION_REVOKED`, `POLICY_GENERATION_EXCEEDS_WATERMARK`, `SUBLEASE_BALANCE_EXCEEDED`, `NOT_YET_EXPIRED`, `POLICY_VERSION_FENCE_FAILED`, `NO_PARENT_POLICY`, `UNKNOWN_COMMAND_TYPE`, `NON_POSITIVE_UNITS`.
 
 ---
 

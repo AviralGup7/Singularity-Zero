@@ -144,7 +144,7 @@ flowchart TD
     Promo --> Apply
 ```
 
-Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY.
+Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_pipeline_authority` is `src/pipeline/authority_bootstrap.py`.
 
 ## F-004 — Live scan path
 
@@ -219,7 +219,7 @@ flowchart TD
     EXPIRED --> Avail
 ```
 
-`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED.
+`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state.
 
 ## F-007 — Application state machines
 
@@ -364,7 +364,7 @@ flowchart TD
     Hook --> REST["REST /api/jobs/:id"]
     Hook --> SSE["SSE /progress/stream"]
     Hook --> WS["WebSocket /ws/logs"]
-    REST --> Norm["normalizer"]
+    REST --> Norm["telemetry/normalizer.ts"]
     SSE --> Norm
     WS --> Norm
     WS -->|drop| REST
@@ -418,7 +418,7 @@ flowchart LR
     Tickets["Jira ServiceNow DefectDojo"] --> Impl
     Policy["Policy via Raft commands"] --> Impl
     Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]
-    WASM["WASM AEVE"] --> Flag["Feature flagged"]
+    WASM["WASM AEVE"] --> Flag["Fd"]
     PPO["PPO / DRL"] --> Heur["Heuristic stub"]
     GNN["GNN attack graph"] --> Dijk["Dijkstra LIBRARY"]
 ```
@@ -528,5 +528,7 @@ flowchart TD
 | 2026-08-25 | F-018: I34 recovery model next to the exit-code tree | edit |
 | 2026-08-26 | F-007: CANDIDATE is the finding surface start state | edit |
 | 2026-08-26 | F-019: Norm is frontend/src/telemetry/normalizer.ts | edit |
+| 2026-08-26 | F-003: attach_pipeline_authority lives in authority_bootstrap | edit |
+| 2026-08-26 | F-006: SETTLEMENT_PENDING is alias of ACTIVE | edit |
 
 Append a row for every later edit. Do not delete this table.
