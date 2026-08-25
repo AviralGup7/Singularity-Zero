@@ -104,15 +104,14 @@ class DurableRunSagaEngine:
         if not sublease:
             return False, f"Sublease {sublease_id} not found"
 
-        # Idempotent no-op for already compensated / closed
-        if sublease.status in ("CLOSED", "EXPIRED", "COMPENSATED"):
-            return True, f"Sublease {sublease_id} already in terminal state {sublease.status}"
+        current = normalize_lease_status(sublease.status)
+        if is_terminal(current):
+            return True, f"Sublease {sublease_id} already in terminal state {current.value}"
 
-        # Invariant I28: Permitted only from non-terminal unconsumed states
-        if sublease.status not in ("ISSUED", "REQUESTED", "ACTIVE"):
+        if current is not LeaseStatus.RESERVED:
             return (
                 False,
-                f"Illegal lease transition (I28): cannot compensate from status {sublease.status}",
+                f"Illegal lease transition (I28): cannot compensate from status {current.value}",
             )
 
         # Reclaim all allocated units to available budget
