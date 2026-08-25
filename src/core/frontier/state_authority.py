@@ -50,10 +50,13 @@ class StateAuthority:
         state: NeuralState | None = None,
         wal: Any | None = None,
         cache: Any | None = None,
+        auto_compact_interval: int = 500,
     ) -> None:
         self.state = state if state is not None else NeuralState()
         self.wal = wal
         self.cache = cache
+        self.auto_compact_interval = auto_compact_interval
+        self._append_count = 0
         self._committed_execution_ids: set[str] = set()
         self._lock = threading.RLock()
 
@@ -183,6 +186,14 @@ class StateAuthority:
 
             if intent.execution_id:
                 self._committed_execution_ids.add(intent.execution_id)
+
+            self._append_count += 1
+            if self.auto_compact_interval > 0 and self._append_count % self.auto_compact_interval == 0:
+                if self.wal is not None and hasattr(self.wal, "compact_after_snapshot"):
+                    try:
+                        self.wal.compact_after_snapshot(self.state)
+                    except Exception as exc:
+                        logger.debug("StateAuthority: Auto-compaction notice: %s", exc)
 
             return wal_id
 
