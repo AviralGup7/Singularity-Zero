@@ -4,7 +4,7 @@
 
 This document constitutes the **Authoritative System Architecture Specification and Engineering Contract** for the Cyber Security Test Pipeline. Status tags: **LIVE** = constructed on the CLI/dashboard scan path; **LIBRARY** = implemented and tested, not the default multi-node cluster; **UNUSED** = file exists without production callers.
 
-Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I33** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
+Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I34** (see §6). The 6-level authority hierarchy is Axiom 1 (not a 7-layer or 16-invariant count).
 
 | Subsystem | Status | Paths |
 |---|---|---|
@@ -156,6 +156,7 @@ graph TD
 32. **I31 (Settlement Causality)**: `FINDING_CREATED` is emitted only after a `SettlementIntent` is durably `COMMITTED` with a `wal_id`. EventBus refuses finding events that lack that binding.
 33. **I32 (EventBus Non-Authority)**: EventBus is an in-process delivery dispatcher after the durable outbox. Outbox or bus failure does not un-commit authoritative state.
 34. **I33 (Causal Identity Chain)**: Every unit of work carries a parent-linked identity `CommandId → ExecutionId → AttemptId → SettlementId → WalId → EventId → DeliveryId`. Child ids are derived from their parent. A non-empty child without its ancestors is illegal. The same attempt always reconstructs the same ids, so retry, WAL replay, outbox append, and EventBus delivery are exactly-once by identity rather than by accident.
+35. **I34 (Failure Recovery Semantics)**: Every classified failure has exactly one declared recovery policy in `src/core/frontier/failure_model.py`: Retry, Rollback, Compensate, Fail-closed, Operator action. Call sites must not invent a forbidden action. WAL corruption / authority loss / replica divergence / FSM invariant → fail-closed, no retry. Event delivery → retry, never rollback (I32). Budget inconsistency → fail-closed new reservations, compensate outstanding (I28).
 
 > [!NOTE]
 > **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{29}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`, `tests/integration/test_chaos_fault_injection.py`). Cryptographic properties (e.g. $I_{11}, I_{27}$) hold under standard computational collision resistance assumptions.

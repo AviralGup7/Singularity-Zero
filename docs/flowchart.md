@@ -48,7 +48,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-006 | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
 | F-007 | Application state machines | `src/jobs/status.py`, `stage_status.py`, `finding_lifecycle.py` |
 | F-009 | Resilience: breaker, QoS, PID | [architecture.md](architecture.md), [performance.md](performance.md) |
-| F-018 | Failure-mode decision tree | [FAILURE_MODES.md](FAILURE_MODES.md) |
+| F-018 | Failure-mode decision tree and recovery model | [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` |
 | F-019 | Operator surface | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md) |
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
@@ -306,9 +306,11 @@ One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN.
 
 ## F-017 — RETIRED → F-004
 
-## F-018 — Failure-mode decision tree
+## F-018 — Failure-mode decision tree and recovery model
 
-Source: [FAILURE_MODES.md](FAILURE_MODES.md)
+Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34).
+
+Exit codes answer "what result did this scan produce?". The recovery table answers "what is the system allowed to do?" for each class. Exotic multi-node repair is not implemented; the outcome is still named.
 
 ```mermaid
 flowchart TD
@@ -325,6 +327,18 @@ flowchart TD
     Run --> Pol["Policy gate fail-closed without log"]
     Run --> Egress["EgressViolationError I29"]
     Run --> Lease["Illegal lease transition I28"]
+```
+
+```mermaid
+flowchart TD
+    subgraph Table["I34 recovery semantics"]
+        WALC["WAL corruption"] --> WALP["Retry no / Rollback no / Compensate no / Fail-closed yes / restore snapshot"]
+        AUTH["Authority loss"] --> AUTHP["Retry no / Rollback no / Compensate no / Fail-closed yes / wait for leader or restart quorum-1"]
+        DIV["Replication divergence"] --> DIVP["Retry no / Rollback no / Compensate no / Fail-closed yes / restore FSM from leader WAL"]
+        BUS["Event delivery failure"] --> BUSP["Retry yes / Rollback no / Compensate no / Fail-closed no / replay dispatch by DeliveryId"]
+        BUD["Budget inconsistency"] --> BUDP["Retry no / Rollback no / Compensate yes / Fail-closed yes / compensate outstanding I28"]
+        FSM["FSM invariant violation"] --> FSMP["Retry no / Rollback no / Compensate no / Fail-closed yes / snapshot plus sequential replay"]
+    end
 ```
 
 ---
@@ -505,5 +519,7 @@ flowchart TD
 | 2026-08-25 | Merged into 11 survivors; retired absorbed ids | edit |
 | 2026-08-25 | Compacted retired headings and changelog (live charts unchanged) | edit |
 | 2026-08-25 | F-033: fail-closed I30 ledger + EventBus refuse unauthoritative FINDING_CREATED | edit |
+| 2026-08-25 | F-033: I33 CommandId→DeliveryId chain after code landed | edit |
+| 2026-08-25 | F-018: I34 recovery model next to the exit-code tree | edit |
 
 Append a row for every later edit. Do not delete this table.

@@ -2,6 +2,23 @@
 
 This document provides a comprehensive operational guide for identifying, diagnosing, and triaging pipeline failure modes, circuit breaker trip conditions, and differentiating genuine "zero finding" scans from degraded scan states.
 
+Exit codes (the table below) answer **what result this scan produced**. I34 recovery semantics answer **what the system is allowed to do** for each class of failure. The machine-readable table is `src/core/frontier/failure_model.py`.
+
+## I34 Recovery Model
+
+Exotic multi-node repair is **not** implemented. The architecture still names the outcome so operators and code cannot invent a forbidden action.
+
+| Failure class | Retry | Rollback | Compensate | Fail-closed | Operator action |
+|---|---|---|---|---|---|
+| **WAL corruption** (I15) | No | No | No | Yes | Restore certified snapshot or discard corrupt uncommitted tail. Never skip-and-continue on PartitionWAL/outbox. |
+| **Authority loss** (I17) | No | No | No | Yes | Refuse mutations until a leader exists. Single-node quorum-1: restart so `start_election()` self-elects. Do not panic-compensate leases. |
+| **Replication divergence** (I11) | No | No | No | Yes | Halt the divergent replica. Restore FSM from leader PartitionWAL + sequential replay (I16). |
+| **Event delivery failure** (I32) | Yes | No | No | No | None. Outbox keeps EventId; DeliveryId is not recorded on failure, so dispatch replay is safe. Settlement stays COMMITTED. |
+| **Budget inconsistency** (I5) | No | No | Yes | Yes | Stop new reservations. Compensate outstanding RESERVED/EXPIRED subleases (I28). Do not invent budget units. |
+| **FSM invariant violation** (I9/I16) | No | No | No | Yes | Stop `FSM.Apply`. Restore from certified snapshot + sequential WAL replay. Do not patch in-memory FSM. |
+
+Why WAL compensate is **No**: I15 never applied the corrupt record, so there is nothing to compensate. Why authority-loss compensate is **No**: outstanding leases expire or compensate through I28 on a live leader, not on step-down.
+
 ---
 
 ## 🎯 Findings vs. Silent Gaps
