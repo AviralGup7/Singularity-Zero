@@ -168,7 +168,7 @@ class PartitionRouter:
     def get_partition_id(self, target_identity_or_url: str) -> str:
         """Deterministically map a target identity or URL to a partition ID."""
         key = str(target_identity_or_url).strip().lower().encode("utf-8")
-        idx = int(hashlib.md5(key).hexdigest(), 16) % self.num_partitions
+        idx = int(hashlib.md5(key, usedforsecurity=False).hexdigest(), 16) % self.num_partitions
         return f"P{idx}"
 
     def get_partition(self, partition_id: str) -> PartitionState:

@@ -118,8 +118,8 @@ class ProcessSandbox:
         clean_env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "SYSTEMROOT": os.environ.get("SYSTEMROOT", "C:\\Windows"),
-            "TEMP": os.environ.get("TEMP", "/tmp"),
-            "TMP": os.environ.get("TMP", "/tmp"),
+            "TEMP": os.environ.get("TEMP", "/tmp"),  # noqa: S108
+            "TMP": os.environ.get("TMP", "/tmp"),  # noqa: S108
             "LC_ALL": "C.UTF-8",
             "LANG": "C.UTF-8",
             "PYTHONUNBUFFERED": "1",

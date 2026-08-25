@@ -97,7 +97,7 @@ def compute_phash(image_path: Path) -> str:
             i = np.arange(n).reshape(1, -1)
             t = np.cos(np.pi * k * (2 * i + 1) / (2 * n)) * np.sqrt(2 / n)
             t[0, :] /= np.sqrt(2)
-            return t @ arr @ t.T
+            return np.asarray(t @ arr @ t.T)
 
     with Image.open(image_path) as img:
         processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)

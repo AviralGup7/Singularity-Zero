@@ -88,7 +88,7 @@ class AdaptiveScanCoordinator:
     def __init__(
         self,
         urls: list[str] | None = None,
-        probe_fn: Callable = ...,
+        probe_fn: Callable[..., Any] | None = None,
         *,
         queue: PriorityQueueProtocol | Any | None = None,
         boost_on_findings: bool = True,
@@ -193,12 +193,13 @@ class AdaptiveScanCoordinator:
         """Lease candidate targets with an automatic timeout to prevent candidate loss and duplication."""
         limit = batch_size if batch_size is not None else self._batch_size
         if hasattr(self._queue, "lease_batch"):
-            return self._queue.lease_batch(
+            leased = self._queue.lease_batch(
                 limit=limit,
                 lease_timeout_seconds=lease_timeout_seconds,
                 worker_id=worker_id,
                 execution_id=execution_id,
             )
+            return list(leased) if leased else []
         return self.pop_batch(limit)
 
     def ack_batch(self, items: list[Any]) -> None:

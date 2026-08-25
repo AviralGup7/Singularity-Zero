@@ -114,6 +114,9 @@ class WALReplicationRelay:
             logger.warning("WALReplicationRelay: xread failed from %s: %s", peer_url, exc)
             return []
 
+        if not isinstance(raw_streams, list):
+            return []
+
         deltas: list[dict[str, Any]] = []
         for _stream_name, messages in raw_streams:
             for msg_id, fields in messages:

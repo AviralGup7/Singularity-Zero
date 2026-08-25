@@ -822,17 +822,11 @@ class Broadcaster:
             try:
                 info.message_queue.put_nowait(bp.to_json())
             except asyncio.QueueFull:
-                # If even the backpressure notification cannot be queued,
-                # attempt to evict a single message and retry once.
-                try:
-                    info.message_queue.get_nowait()
-                    info.message_queue.put_nowait(bp.to_json())
-                except Exception:
-                    logger.debug(
-                        "Failed to enqueue backpressure notification for %s",
-                        info.connection_id,
-                        exc_info=True,
-                    )
+                # Never evict a critical event to make room for a notification.
+                logger.debug(
+                    "Skipping backpressure notification for %s; queue still saturated",
+                    info.connection_id,
+                )
             try:
                 WS_BACKPRESSURE_EVENTS.labels(scope=scope).inc()
             except Exception as exc:
