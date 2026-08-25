@@ -50,3 +50,16 @@ This document provides a realistic, technical audit of gaps between target speci
 | **Enterprise Ticketing Sinks** | Low | Implemented | `JiraClient`, `ServiceNowClient`, and `DefectDojoClient` implemented in `src/reporting/platforms/` and registered into platform submission router and client factories. |
 | **Threat Intelligence Feeds** | Medium | Partial | MISP client is implemented. VirusTotal and AlienVault OTX client wrappers exist for manual API queries, while live enrichment largely uses local CVE heuristics. |
 | **AI Explainability Endpoints** | Low | Implemented | `GET /api/findings/{id}/ai-explain` and `GET /api/reports/ai-summary` fully implemented via `src/analysis/intelligence/finding_explainer.py` for Developer, Auditor, and Executive personas and scan risk index scoring. |
+
+---
+
+## ⚡ 6. State Settlement, Telemetry & Authority Ground Truth
+
+| Capability | Production Reality & Implementation Architecture | Invariant Coverage |
+|:---|:---|:---|
+| **Settlement Architecture** | Production operates a durable, write-ahead reconciliation ledger (`SettlementCoordinator` writing `SettlementIntent` to `StateAuthority.wal` with projection engine listeners and `replay_from_wal()` rehydration). Raft WAL-backed projection settlement remains an optional future migration path. | `test_distributed_invariants.py` |
+| **P0 Telemetry Durability** | Bounded in-memory queue (`p0_capacity=1000`) with durable append-only disk journal (`p0_telemetry_spool.jsonl` with `os.fsync`), startup rehydration, and explicit backpressure on total capacity saturation. | `test_hardened_authority_invariants.py` |
+| **ML Policy Authority** | `PolicyGovernanceGate` evaluates candidates and commits active versioning via `PromotePolicyCommand`/`RollbackPolicyCommand` dispatched through the Raft log to `PartitionFSM`. | `test_hardened_authority_invariants.py` |
+| **Global Budget Expiry** | Sublease timeout transitions on `P-0000` advance through `ExpireSubLeaseCommand` committed to the Raft FSM, maintaining integer conservation $\text{Total} \equiv \text{Consumed} + \text{Reserved} + \text{Available}$. | `test_formal_invariants.py` |
+| **Execution Authorization** | `ExecutionAuthorizer` enforces mandatory budget reservations before ticket issuance ($\text{AVAILABLE} \rightarrow \text{RESERVED}$), failing closed with `ScopeAuthorizationError` when unbudgeted. | `test_architectural_invariants.py` |
+

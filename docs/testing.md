@@ -46,15 +46,11 @@ pytest tests/unit/
 # Run architecture boundary validation
 pytest tests/architecture/
 
-# Run integration tests
-# Run 9-Point Formal Invariant Test Suite (INVARIANT-001 through INVARIANT-009)
-pytest tests/unit/test_formal_invariants.py
+# Run Integration Tests
+pytest tests/integration/
 
-# Run Target Architecture Invariants Suite (All 16 Formal Invariants)
-pytest tests/integration/test_target_architecture_invariants.py
-
-# Run Distributed Decision & Authorization Invariants
-pytest tests/unit/test_distributed_invariants.py tests/unit/decision/test_architectural_invariants.py
+# Run 34-Point Hardened Authority & Invariant Test Suites
+pytest tests/unit/test_hardened_authority_invariants.py tests/unit/test_formal_invariants.py tests/unit/test_distributed_invariants.py tests/integration/test_target_architecture_invariants.py tests/unit/decision/test_architectural_invariants.py
 
 # Run Deterministic Replay & Schema Upcasting Suite
 pytest tests/integration/test_deterministic_replay.py

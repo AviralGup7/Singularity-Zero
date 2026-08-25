@@ -186,3 +186,42 @@ graph TD
 ### 7.5 Enterprise Integrations & AI Explainability
 - Native platform adapters for Jira (REST API v3 ADF / v2), ServiceNow (Table API), and DefectDojo (v2 REST API).
 - AI persona generators in `src/analysis/intelligence/finding_explainer.py` for Developer, Auditor, and Executive stakeholders.
+
+### 7.6 State Authority, Settlement Model & Recovery Architecture
+- **Production Settlement Engine**:
+  ```text
+  ExecutionResult / RawExecutionClaim
+                 ↓
+      SettlementCoordinator (5-Stage Validation: Deduplication, Ticket Nonce, Fencing Epoch)
+                 ↓
+         SettlementIntent (Append to StateAuthority.wal)
+                 ↓
+      SettlementProjectionEngine (In-Memory Projections: State, Budget, Lease, Findings)
+                 ↓
+       StateAuthority.commit (Atomic Merge into NeuralState)
+  ```
+- **Crash Recovery & Replay**:
+  - On restart, `replay_from_wal()` rehydrates projection state by sequentially reapplying all committed `SettlementIntent` records from the durable WAL.
+  - **Architectural Boundary**: Settlement recovery currently operates as a durable write-ahead reconciliation ledger with idempotent projection rehydration; full Raft FSM WAL-backed projection settlement remains an optional future migration path.
+- **Universal Budget Lifecycle**:
+  ```text
+  AVAILABLE ──(ExecutionAuthorizer.authorize)──▶ RESERVED ──(SettlementCoordinator.settle)──▶ CONSUMED
+     ▲                                              │
+     └─────────────(Timeout / Expire / Cancel)──────┘
+  ```
+  - Every issued `AuthorizedExecutionTicket` strictly requires an authoritative budget reservation (`INVARIANT-002`).
+
+### 7.7 Real-Time QoS Telemetry & Durable P0 Spooling
+- **P0 Control Stream Durability**:
+  - Tier 1: Bounded in-memory queue (`p0_capacity=1000`).
+  - Tier 2: Durable append-only disk journal (`p0_telemetry_spool.jsonl` with `os.fsync`) for memory overflow.
+  - Startup Rehydration: `_rehydrate_disk_spool()` recovers un-drained control events across node restarts and crashes.
+  - Strict Lossless Backpressure: If memory and disk spool capacity are exhausted, `publish()` applies explicit producer backpressure (returns `False`) rather than silently dropping oldest events.
+
+### 7.8 Executable Invariant Verification Suite
+The architecture is formally validated by 34 automated invariant and adversarial assertions:
+1. `tests/unit/test_hardened_authority_invariants.py` (6 tests): P0 disk spool rehydration, saturation backpressure, Raft policy promotion/rollback, FSM sublease expiry, fail-closed authorizer.
+2. `tests/unit/test_formal_invariants.py` (9 tests): `INVARIANT-001` through `INVARIANT-009` (Budget conservation, mandatory reservation, FSM determinism, WAL commit requirement, lease expiry, policy durability, checkpoint demotion, idempotency, epoch fencing).
+3. `tests/unit/test_distributed_invariants.py` (4 tests): Fencing tokens, replay resistance, budget collision.
+4. `tests/integration/test_target_architecture_invariants.py` (6 tests): Multi-replica FSM consensus, receipts, 5-stage migration, replay.
+5. `tests/unit/decision/test_architectural_invariants.py` (9 tests): Defense-in-depth authorization, host spoofing, path traversal.
