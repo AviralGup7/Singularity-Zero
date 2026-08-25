@@ -1,4 +1,4 @@
-"""Cross-subsystem invariants (I30–I35).
+"""Cross-subsystem invariants (I30–I36).
 
 Local invariants (budget math, lease CAS, Raft CRC) live next to their
 aggregates. These checks bind *across* authorization, settlement, and
@@ -20,6 +20,7 @@ from src.core.frontier.causal_identity import (
 )
 from src.core.frontier.failure_model import I34_FAILURE_RECOVERY
 from src.core.frontier.recovery_protocol import I35_RECOVERY_PROTOCOL
+from src.core.frontier.region_model import I36_REGION_CONSISTENCY
 
 I30_AUTHORIZATION_CAUSALITY = "I30"
 I31_SETTLEMENT_CAUSALITY = "I31"
@@ -86,6 +87,7 @@ __all__ = [
     "I33_CAUSAL_IDENTITY_CHAIN",
     "I34_FAILURE_RECOVERY",
     "I35_RECOVERY_PROTOCOL",
+    "I36_REGION_CONSISTENCY",
     "SettlementCausalityError",
     "assert_authorization_causality",
     "assert_causal_identity_chain",

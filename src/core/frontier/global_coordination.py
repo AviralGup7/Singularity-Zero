@@ -360,21 +360,51 @@ class GlobalRunAggregate:
 class PlacementAuthority:
     """Authoritative partition topology and 5-stage fenced migration manager on P-0000."""
 
-    def __init__(self, initial_version: int = 7) -> None:
+    def __init__(self, initial_version: int = 7, *, home_region: str = "local") -> None:
         self.placement_version = initial_version
+        self.home_region = str(home_region or "local").strip() or "local"
         self.ownership_epochs: dict[str, int] = {}  # aggregate_id -> epoch
         self.migration_states: dict[str, str] = {}  # aggregate_id -> status
+        self.partition_home: dict[str, str] = {"P-0000": self.home_region}
+
+    def region_for_partition(self, partition_id: str) -> str:
+        """I36: which region currently homes this partition's leader."""
+        key = str(partition_id or "").strip()
+        if not key:
+            return self.home_region
+        return self.partition_home.get(key, self.home_region)
 
     def get_partition_for_target(self, target_identity_hash: str) -> str:
         """Deterministic virtual partition placement (1024 fixed virtual partitions)."""
         idx = int(target_identity_hash[:8], 16) % 1024
         return f"P-{idx:04d}"
 
-    def initiate_transfer(self, aggregate_id: str, from_partition: str, to_partition: str) -> int:
-        """Stage 1: P-0000 TransferIntentCommitted."""
+    def initiate_transfer(
+        self,
+        aggregate_id: str,
+        from_partition: str,
+        to_partition: str,
+        *,
+        attempt_in_flight: bool = False,
+        attempt_terminal: bool = False,
+        to_region: str | None = None,
+    ) -> int:
+        """Stage 1: P-0000 TransferIntentCommitted.
+
+        I36: an in-flight attempt cannot change partition/region.
+        """
+        from src.core.frontier.region_model import assert_migration_allowed
+
+        assert_migration_allowed(
+            attempt_in_flight=attempt_in_flight,
+            attempt_terminal=attempt_terminal,
+        )
         current_epoch = self.ownership_epochs.get(aggregate_id, 1)
         new_epoch = current_epoch + 1
         self.ownership_epochs[aggregate_id] = new_epoch
+        dest_region = str(to_region or self.region_for_partition(to_partition)).strip()
+        if dest_region:
+            self.partition_home[str(to_partition)] = dest_region
         self.migration_states[aggregate_id] = (
             f"TRANSFER_PREPARED:{from_partition}->{to_partition}:{new_epoch}"
         )
@@ -391,6 +421,8 @@ class PlacementAuthority:
     def to_dict(self) -> dict[str, Any]:
         return {
             "placement_version": self.placement_version,
+            "home_region": self.home_region,
             "ownership_epochs": dict(self.ownership_epochs),
             "migration_states": dict(self.migration_states),
+            "partition_home": dict(self.partition_home),
         }

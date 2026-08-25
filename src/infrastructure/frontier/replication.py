@@ -1,7 +1,9 @@
-"""Cross-Region WAL Replication & Stream Mirroring Service.
+"""Cross-region WAL journal relay (non-authority).
 
-Replicates Write-Ahead Log (WAL) settlement intents and deltas across multiple
-geographical regions / Redis stream instances for active-active synchronization.
+Mirrors FrontierWAL scan-journal deltas across Redis streams. This is
+**not** an active-active authority path. I36: a peer settlement / command
+must not be committed on the local StateAuthority. PartitionWAL remains
+the only mutating log, and only on the leader home.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ except ImportError:
 
 
 class WALReplicationRelay:
-    """Mirrors WAL entries across regional Redis streams and reconciles peer deltas."""
+    """Mirrors non-authoritative journal entries across regional Redis streams."""
 
     def __init__(
         self,
