@@ -128,12 +128,28 @@ class PrioritizedRealtimeBroker:
             pass
 
     def _persist_to_disk_spool(self, event: TelemetryEvent) -> bool:
+        import hashlib
         import json
         import os
         if self._spool_path is None:
             return False
         try:
-            line = json.dumps(event.to_dict()) + "\n"
+            event_dict = event.to_dict()
+            raw_bytes = json.dumps(event_dict, sort_keys=True).encode("utf-8")
+            crc_sig = hashlib.sha256(raw_bytes).hexdigest()[:16]
+            framed_record = {
+                "magic": "P0SP",
+                "version": 1,
+                "seq": self._spool_file_count,
+                "crc": crc_sig,
+                "event_id": event.event_id,
+                "qos": int(event.qos),
+                "topic": event.topic,
+                "payload": dict(event.payload),
+                "timestamp_unix": event.timestamp_unix,
+                "dedup_key": event.dedup_key,
+            }
+            line = json.dumps(framed_record) + "\n"
             with open(self._spool_path, "a", encoding="utf-8") as f:
                 f.write(line)
                 f.flush()
@@ -248,6 +264,13 @@ class PrioritizedRealtimeBroker:
 
     def get_stats(self) -> dict[str, Any]:
         with self._lock:
+            dropped_dict: dict[Any, int] = {}
+            for k, v in self._dropped_counts.items():
+                if hasattr(k, "name"):
+                    dropped_dict[k.name] = v
+                    dropped_dict[int(k)] = v
+                else:
+                    dropped_dict[str(k)] = v
             return {
                 "p0_depth": len(self._p0_queue) + len(self._p0_memory_spool) + self._spool_file_count,
                 "p0_memory_depth": len(self._p0_queue),
@@ -256,5 +279,5 @@ class PrioritizedRealtimeBroker:
                 "p2_depth": len(self._p2_map),
                 "p3_depth": len(self._p3_aggregates),
                 "p4_depth": len(self._p4_queue),
-                "dropped_counts": {int(k): v for k, v in self._dropped_counts.items()},
+                "dropped_counts": dropped_dict,
             }

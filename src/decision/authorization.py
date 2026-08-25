@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.core.contracts.canonical_target import CanonicalTargetIdentity, canonicalize_target
+from src.decision.hunt_budget import HuntBudgetEnforcer
 from src.decision.models import ExecutionRequest, ScopeToken
 
 

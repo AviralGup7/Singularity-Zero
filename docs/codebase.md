@@ -105,17 +105,18 @@ src/
 │   ├── attack_selection/ # Attack path ranking and payload selection heuristics
 │   ├── prioritization/   # Target vulnerability scoring and queue prioritization
 │   ├── adaptive_scan.py  # Closed-loop scan depth and concurrency adaptation
-│   ├── authorization.py  # ScopeToken verification and AuthorizedExecutionTicket issuer
-│   ├── hunt_budget.py    # Request and execution budget allocations
+│   ├── authorization.py  # ScopeToken verification, canonical identity pinning, and AuthorizedExecutionTicket issuer
+│   ├── bayesian_bandit.py# Multi-Armed Bayesian Bandit with Thompson Sampling and UCB1 exploration
+│   ├── hunt_budget.py    # Multi-axis resource cap enforcer with atomic request reservation
 │   ├── models.py         # Domain models (ExecutionRequest, TargetSpec, ActionSpec, ScopeToken, ExecutionResult)
 │   └── planner.py        # Dynamic attack DAG planner
 │
 ├── detection/            # 🔍 Signature detection, rule catalog, and finding management
 │   ├── api/              # API detection rules and schema validators
-│   ├── ast/              # Abstract Syntax Tree source analysis
-│   ├── browser/          # Headless browser detection and DOM mutation observers
-│   ├── timing/           # Time-based blind vulnerability detection (SQLi/Command Injection)
-│   ├── waf/              # Web Application Firewall fingerprinting and evasion matrix
+│   ├── ast/              # Abstract Syntax Tree JavaScript sink analyzer, prototype pollution walker, WASM introspector
+│   ├── browser/          # Headless browser runtime and dynamic DOM-XSS mutation observers
+│   ├── timing/           # Statistical time-based blind vulnerability detection
+│   ├── waf/              # WAF fingerprinting, challenge handlers, and Hidden Markov Model (HMM) evader
 │   ├── catalog.py        # Central vulnerability signature catalog
 │   ├── finding.py        # Finding entity lifecycle and normalization
 │   └── mode_matrix.py    # Detection execution mode matrix (Safe, Aggressive, Stealth)
@@ -144,11 +145,14 @@ src/
 │   └── verify.py         # State integrity, hash validation, and CRC attestation
 │
 ├── fuzzing/              # 🎲 High-throughput payload mutation and differential fuzzers
-│   ├── generators/       # Payload generation strategies (grammar, dictionary, regex)
-│   ├── ast_mutator.py    # AST-guided payload transformation
-│   ├── coverage_guided.py# Feedback-driven mutation coverage optimizer
+│   ├── generators/       # Payload generation strategies (grammar, dictionary, regex, protobuf, xml, jwt)
+│   ├── ast_mutator.py    # AST-guided JSON and grammar payload transformation
+│   ├── coverage_guided.py# CorpusManager & CoverageTracker feedback-driven mutation coverage optimizer
 │   ├── differential_fuzzer.py # Differential HTTP response fuzzer
-│   └── graphql_fuzzer.py # GraphQL query complexity and injection fuzzer
+│   ├── fork_server.py    # Native process ForkServer execution with crash and anomaly containment
+│   ├── graphql_fuzzer.py # GraphQL query complexity and injection fuzzer
+│   ├── h2_fuzzer.py      # HTTP/2 frame stream and multiplexing fuzzer
+│   └── quic_fuzzer.py    # QUIC / UDP packet and transport fuzzer
 │
 ├── infrastructure/       # 🏗️ Platform infrastructure and distributed systems
 │   ├── cache/            # Distributed Redis cache and SQLite fast local cache
@@ -156,7 +160,9 @@ src/
 │   ├── db/               # SQLAlchemy models and connection lifecycle
 │   ├── discovery/        # Node discovery and peer health tracking
 │   ├── execution_engine/ # Async task pool, worker concurrency, load balancer
-│   ├── mesh/             # P2P Actor Mesh, SWIM gossip, consensus, and sharding
+│   ├── flow_control/     # Closed-loop AdaptivePIDController, concurrency BulkheadPool, and CircuitBreaker
+│   ├── frontier/         # Ghost Actor VFS, Bloom Mesh synchronization, and distributed WAL
+│   ├── mesh/             # P2P Actor Mesh, SWIM gossip, heartbeat failure detector, and task auction bidder
 │   ├── notifications/    # Slack, Discord, Email, and Webhook dispatchers
 │   ├── observability/    # Prometheus metrics, OpenTelemetry tracing, structured logging
 │   ├── queue/            # Redis Streams & Celery/RQ job queues
@@ -176,16 +182,21 @@ src/
 │
 ├── intelligence/         # 🧠 Active learning, severity scoring, and threat modeling
 │   ├── campaigns/        # Threat campaign tracking and attribution
-│   ├── correlation/      # Multi-stage finding correlation engine
-│   ├── graph/            # Attack-graph model and path discovery
-│   ├── scoring/          # Composite Severity Index (CSI), EPSS, CVSS calculator
+│   ├── correlation/      # Multi-stage finding correlation and attack chain diff engine
+│   ├── feeds/            # External intelligence connector feeds (CISA KEV, EPSS, Shodan, MISP, OTX, VT)
+│   ├── graph/            # Attack-graph model and Dijkstra shortest attack path discovery
+│   ├── risk/             # ThreatIntelEnricher, CISA KEV, EPSS, CVSS v4, and ModernRiskEngine
+│   ├── scoring/          # Composite Severity Index (CSI), risk scoring engine
 │   └── swarm/            # Multi-agent collaborative security testing swarm
 │
 ├── jobs/                 # 📋 Job execution lifecycle, history, artifacts, and comparisons
 │   ├── artifacts.py      # Scan artifact archiving (SARIF, JSON, PDF, PCAP)
 │   ├── compare.py        # Finding diff and regression detection between scan runs
 │   ├── eta.py            # Real-time job ETA and progress computation
-│   └── history.py        # Historic scan execution retrieval and filtering
+│   ├── history.py        # Historic scan execution retrieval and filtering
+│   ├── simulator.py      # Scan dry-run and pipeline flow simulator
+│   ├── stage_machine.py  # Strict stage lifecycle state machine
+│   └── watchdog.py       # Probe deadlock and execution hang watchdog
 │
 ├── learning/             # 🎓 Closed-loop feedback, threshold auto-tuning, and policy calibration
 │   ├── config/           # Calibration hyperparameters and feature configurations
@@ -201,9 +212,13 @@ src/
 │
 ├── mesh/                 # 🕸️ Actor Mesh interfaces and distributed state sharing
 ├── notifications/        # 📬 Notification routing, escalation policies, and digest grouping
+│   ├── bridge.py         # Central event-driven notification bridge
+│   ├── digest.py         # Digest aggregation and interval flush
 │   ├── escalation.py     # Alert escalation matrices for Critical findings
+│   ├── filters.py        # Severity, target, and compliance alert filtering
 │   ├── inbox.py          # In-app notification center inbox
-│   └── routing.py        # Rule-based alert routing (Severity, Target, Compliance)
+│   ├── routing.py        # Rule-based alert routing
+│   └── snooze.py         # Temporary notification suppression and snooze policies
 │
 ├── pipeline/             # 🔀 Distributed DAG Orchestrator and stage lifecycle
 │   ├── constants/        # Pipeline stage names, exit codes, and status enums
@@ -218,7 +233,7 @@ src/
 │
 ├── recon/                # 🌐 Asset discovery and reconnaissance engines
 │   ├── api_specs/        # OpenAPI/Swagger, WSDL, and GraphQL schema reconstructors
-│   ├── cloud_recon/      # AWS S3, Azure Blob, GCP bucket, and CloudFlare discoverers
+│   ├── cloud_recon/      # AWS S3, Azure Blob, GCP bucket, Firebase, Wasabi, OCI, and CloudFlare discoverers
 │   ├── collectors/       # Passive OSINT collectors (AlienVault, Wayback, Sublist3r)
 │   ├── graphql/          # GraphQL endpoint detection and introspection crawler
 │   ├── js_parsers/       # JavaScript AST parser, secret extractor, and route finder
@@ -226,9 +241,11 @@ src/
 │   └── sources/          # Domain, DNS, WHOIS, and certificate transparency sources
 │
 ├── reporting/            # 📄 Multi-format vulnerability reporting and compliance
-│   ├── platforms/        # Bugcrowd, HackerOne, DefectDojo, and Jira exporters
+│   ├── platforms/        # Exporters for HackerOne, Bugcrowd, Intigriti, Synack, YesWeHack, Google VRP, MSRC, Meta, Apple, ServiceNow, DefectDojo, Jira
 │   ├── compliance_attestation.py # SOC 2, ISO 27001, PCI-DSS compliance attestations
+│   ├── compliance_mapping.py # Automated regulatory control mapping (SOC 2, ISO 27001, PCI-DSS, NIST 800-53)
 │   ├── compliance_pdf.py # Cryptographically signed PDF report generator
+│   ├── sarif_exporter.py # Validated SARIF 2.1.0 engine
 │   └── exporters.py      # SARIF, CSV, JSON, Markdown, HTML export handlers
 │
 ├── resilience/           # 🛡️ High-availability circuit breakers, retry handlers, and probes

@@ -1,4 +1,4 @@
-﻿"""Finding explainability and executive summary generator."""
+"""Finding explainability and executive summary generator."""
 
 from __future__ import annotations
 

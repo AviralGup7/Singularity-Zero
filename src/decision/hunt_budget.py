@@ -299,8 +299,10 @@ class HuntBudgetEnforcer:
     axis, that axis never reports as exhausted.
     """
 
-    def __init__(self, budget: HuntBudget | None = None) -> None:
+    def __init__(self, budget: HuntBudget | None = None, label: str | None = None) -> None:
         self._budget = budget or HuntBudget()
+        if label is not None:
+            self._budget.label = label
         self._start = time.monotonic()
         self._requests_emitted = 0
         self._requests_reserved = 0

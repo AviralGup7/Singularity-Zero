@@ -1,4 +1,4 @@
-﻿"""Replicated Partition Log, Raft Consensus Driver & Certified Receipt Engine (Level 0 Core).
+"""Replicated Partition Log, Raft Consensus Driver & Certified Receipt Engine (Level 0 Core).
 
 Implements the authoritative per-partition append-only, hash-chained Raft log and multi-replica commit driver:
 - Quorum-governed replication (AppendEntries / RequestVote RPCs) across RaftTransportProtocol

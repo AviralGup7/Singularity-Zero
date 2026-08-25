@@ -1,4 +1,4 @@
-﻿"""Unit tests for enterprise ticketing clients (Jira, ServiceNow, DefectDojo)."""
+"""Unit tests for enterprise ticketing clients (Jira, ServiceNow, DefectDojo)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-﻿"""DefectDojo v2 findings integration."""
+"""DefectDojo v2 findings integration."""
 
 from __future__ import annotations
 

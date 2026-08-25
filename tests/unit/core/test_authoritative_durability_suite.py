@@ -1,4 +1,4 @@
-﻿"""Comprehensive Verification Suite for Authoritative Durability, Raft Consensus, and Outbox Invariants.
+"""Comprehensive Verification Suite for Authoritative Durability, Raft Consensus, and Outbox Invariants.
 
 Verifies:
 1. Quorum acknowledgement and rejection on quorum loss

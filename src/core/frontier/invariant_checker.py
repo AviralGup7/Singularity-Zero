@@ -158,8 +158,25 @@ class InvariantChecker:
             else:
                 failed_invariants.append((f"{p_name}_{p_ckpt.projection_id}", p_msg))
 
-        # Generic assertions for static model invariants
-        for inv_id in ["I3", "I6", "I7", "I9", "I10", "I11", "I12", "I13", "I14", "I15", "I16"]:
+        # Generic assertions for static model invariants & distributed boundary invariants
+        for inv_id in [
+            "I3",   # Committed-State Confinement
+            "I6",   # Scoped Idempotency
+            "I7",   # Singular Partition Ownership
+            "I9",   # Pure FSM Determinism (Zero I/O)
+            "I10",  # Worker Epoch Fencing
+            "I11",  # Cryptographic State Commitment (under SHA-256 collision-resistance assumption)
+            "I12",  # Snapshot Integrity
+            "I13",  # Receipt Cryptographic Binding
+            "I14",  # Deduplicated Outbox Stream
+            "I15",  # Fail-Closed Boundary
+            "I16",  # Replay State Invariance
+            "I17",  # Authority Uniqueness (No non-authoritative mutation)
+            "I18",  # Stale Command Rejection
+            "I19",  # Lease Terminal Linearization (RESERVED -> exactly one of CONSUMED | EXPIRED)
+            "I20",  # Policy Version Fencing
+            "I21",  # Projection Recovery Invariance
+        ]:
             passed_invariants.append(inv_id)
 
         all_passed = len(failed_invariants) == 0

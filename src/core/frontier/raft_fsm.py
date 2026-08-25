@@ -731,6 +731,19 @@ class PartitionFSM:
         artifact_hash = str(payload.get("artifact_hash", ""))
         policy_version = str(payload.get("policy_version", "v1.0"))
         parent_policy_id = str(payload.get("parent_policy_id", ""))
+        expected_parent = payload.get("expected_parent_policy_id")
+
+        agg = self.aggregates.get(cmd.aggregate_id)
+        if expected_parent is not None and agg:
+            current_active = str(agg.state_payload.get("active_policy_id", ""))
+            if current_active != expected_parent:
+                return CommandResult(
+                    status="REJECTED",
+                    aggregate_id=cmd.aggregate_id,
+                    resulting_aggregate_version=current_version,
+                    result_code="POLICY_VERSION_FENCE_FAILED",
+                    error_message=f"Current active policy '{current_active}' != expected parent '{expected_parent}'",
+                ), ()
 
         new_version = current_version + 1
         self.aggregates[cmd.aggregate_id] = AggregateState(
@@ -781,6 +794,18 @@ class PartitionFSM:
         raft_index: int,
     ) -> tuple[CommandResult, tuple[EventEnvelope, ...]]:
         agg = self.aggregates.get(cmd.aggregate_id)
+        expected_current = cmd.payload.get("expected_current_policy_id")
+        if expected_current is not None and agg:
+            current_active = str(agg.state_payload.get("active_policy_id", ""))
+            if current_active != expected_current:
+                return CommandResult(
+                    status="REJECTED",
+                    aggregate_id=cmd.aggregate_id,
+                    resulting_aggregate_version=current_version,
+                    result_code="POLICY_VERSION_FENCE_FAILED",
+                    error_message=f"Current active policy '{current_active}' != expected current '{expected_current}'",
+                ), ()
+
         parent_policy_id = str(
             cmd.payload.get("parent_policy_id")
             or (agg.state_payload.get("parent_policy_id") if agg else "")

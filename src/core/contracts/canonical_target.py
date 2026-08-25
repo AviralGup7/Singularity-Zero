@@ -50,6 +50,85 @@ class DnsSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class CanonicalHostIdentity:
+    """Canonical representation of a target hostname or IP."""
+
+    hostname: str
+    is_ip: bool = False
+    is_private_or_loopback: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "hostname": self.hostname,
+            "is_ip": self.is_ip,
+            "is_private_or_loopback": self.is_private_or_loopback,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalNetworkEndpoint:
+    """Canonical network destination endpoint binding scheme, host, and port."""
+
+    scheme: str
+    hostname: str
+    port: int
+    transport: str = "tcp"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scheme": self.scheme,
+            "hostname": self.hostname,
+            "port": self.port,
+            "transport": self.transport,
+        }
+
+    @property
+    def netloc(self) -> str:
+        default_port = 443 if self.scheme in ("https", "wss") else 80
+        return self.hostname if self.port == default_port else f"{self.hostname}:{self.port}"
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalUrl:
+    """Canonical normalized URL representation with resolved paths and sorted queries."""
+
+    scheme: str
+    endpoint: CanonicalNetworkEndpoint
+    path: str
+    query: str
+    canonical_url: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scheme": self.scheme,
+            "endpoint": self.endpoint.to_dict(),
+            "path": self.path,
+            "query": self.query,
+            "canonical_url": self.canonical_url,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizationTarget:
+    """Authorization target binding normalized endpoint, URL, and pinned DNS snapshot."""
+
+    host_identity: CanonicalHostIdentity
+    endpoint: CanonicalNetworkEndpoint
+    canonical_url: CanonicalUrl
+    dns_snapshot: DnsSnapshot | None = None
+    identity_hash: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "host_identity": self.host_identity.to_dict(),
+            "endpoint": self.endpoint.to_dict(),
+            "canonical_url": self.canonical_url.to_dict(),
+            "dns_snapshot": self.dns_snapshot.to_dict() if self.dns_snapshot else None,
+            "identity_hash": self.identity_hash,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class CanonicalTargetIdentity:
     """Immutable, fully-canonicalized target identity."""
 

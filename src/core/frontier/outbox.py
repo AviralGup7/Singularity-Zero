@@ -1,4 +1,4 @@
-﻿"""Durable Committed Event Outbox Ledger & Stream Engine (Level 2/3 Outbox).
+"""Durable Committed Event Outbox Ledger & Stream Engine (Level 2/3 Outbox).
 
 Implements the authoritative committed-log/outbox stream:
 - Atomic durable write of domain events emitted by committed FSM state transitions

@@ -1,4 +1,4 @@
-﻿"""Raft RPC Messages, Transport Protocol, and Multi-Node Cluster Coordination (Level 0 Transport).
+"""Raft RPC Messages, Transport Protocol, and Multi-Node Cluster Coordination (Level 0 Transport).
 
 Implements the formal Raft replication and consensus boundary:
 - Strongly-typed AppendEntries and RequestVote RPC request/response envelopes

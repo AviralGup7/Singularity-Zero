@@ -1,4 +1,4 @@
-﻿"""Unit tests for AI finding explainability and executive summary generation."""
+"""Unit tests for AI finding explainability and executive summary generation."""
 
 from __future__ import annotations
 

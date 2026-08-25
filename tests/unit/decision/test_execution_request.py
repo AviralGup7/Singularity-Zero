@@ -11,6 +11,7 @@ from src.decision.authorization import (
     ExecutionAuthorizer,
     ScopeAuthorizationError,
 )
+from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import (
     ActionSpec,
     ExecutionRequest,
@@ -122,7 +123,8 @@ class TestExecutionRequestModels(unittest.TestCase):
 
 class TestExecutionAuthorizer(unittest.TestCase):
     def test_authorize_valid_request(self):
-        authorizer = ExecutionAuthorizer()
+        enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=100))
+        authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
         req = ExecutionRequest(
             request_id="req_valid",
             tenant_id="tenant_1",
@@ -187,8 +189,9 @@ class TestExecutionAuthorizer(unittest.TestCase):
 
 class TestStatelessExecutionWorker(unittest.TestCase):
     def test_end_to_end_worker_execution(self):
-        authorizer = ExecutionAuthorizer()
-        worker = ExecutionRequestWorker()
+        enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=100))
+        authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
+        worker = ExecutionRequestWorker(authorizer=authorizer)
 
         finding_dict = {
             "category": "sqli",
@@ -231,7 +234,8 @@ class TestStatelessExecutionWorker(unittest.TestCase):
         self.assertGreaterEqual(res.duration_seconds, 0.0)
 
     def test_custom_handler_registration(self):
-        authorizer = ExecutionAuthorizer()
+        enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=100))
+        authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
         worker = ExecutionRequestWorker(authorizer=authorizer)
         worker.register_handler(
             "custom_fuzz",
@@ -277,7 +281,8 @@ class TestStatelessExecutionWorker(unittest.TestCase):
     def test_identity_propagation_and_ticket_consumption(self):
         from src.decision.models import CandidateLease
 
-        authorizer = ExecutionAuthorizer()
+        enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=100))
+        authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
         worker = ExecutionRequestWorker(authorizer=authorizer)
 
         lease = CandidateLease(

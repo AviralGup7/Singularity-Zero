@@ -61,14 +61,32 @@ class PolicyGovernanceGate:
             return self._active_policy
 
     def evaluate_candidate(self, policy: VersionedPolicy) -> PolicyEvaluationResult:
-        """Run shadow checks on a candidate policy to prevent positive feedback runaway."""
+        """Run pre-promotion schema validation, safety bounds, and shadow checks on candidate policy."""
         reasons: list[str] = []
         anomaly_score = 0.0
+
+        # Check 0: Mandatory Schema & Identity Validation
+        if not policy.policy_id or not policy.policy_id.strip():
+            reasons.append("Schema violation: policy_id must not be empty")
+            anomaly_score += 1.0
+        if not policy.version or not policy.version.strip():
+            reasons.append("Schema violation: policy version must not be empty")
+            anomaly_score += 1.0
+
+        # Check 0b: Threshold bounds [0.0, 1.0]
+        if hasattr(policy, "thresholds") and isinstance(policy.thresholds, dict):
+            for t_name, t_val in policy.thresholds.items():
+                if not (0.0 <= float(t_val) <= 1.0):
+                    reasons.append(f"Threshold bounds violation: '{t_name}' ({t_val}) not in range [0.0, 1.0]")
+                    anomaly_score += 0.5
 
         # Check 1: Excessive Boost Multiplier
         for target, boost in policy.target_boosts:
             if boost > self.max_boost_multiplier:
                 reasons.append(f"Target boost for '{target}' ({boost:.2f}x) exceeds limit ({self.max_boost_multiplier:.2f}x)")
+                anomaly_score += 0.5
+            elif boost < 0.0:
+                reasons.append(f"Negative boost for '{target}' ({boost:.2f}x) is invalid")
                 anomaly_score += 0.5
 
         # Check 2: Total Suppression Overkill

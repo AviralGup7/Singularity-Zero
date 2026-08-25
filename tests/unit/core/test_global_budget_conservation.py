@@ -1,4 +1,4 @@
-﻿"""Unit tests for GlobalBudgetAggregate Invariant I5 conservation enforcement."""
+"""Unit tests for GlobalBudgetAggregate Invariant I5 conservation enforcement."""
 
 from __future__ import annotations
 

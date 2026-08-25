@@ -120,6 +120,8 @@ class FuzzingOrchestrator:
         self._mutation_history = FIFODict(max_size=500)
         self.request_sender = FuzzingRequestSender()
         self.feedback_tracker = FuzzingFeedbackTracker()
+        self.corpus_manager = CorpusManager() if CorpusManager is not Any else None
+        self.coverage_tracker = CoverageTracker() if CoverageTracker is not Any else None
         self.stop_condition = stop_condition if stop_condition is not None else StopOnFirstFinding()
         # Adaptive mutation tracking: records which strategies produce findings
         # to weight future payloads towards more effective strategies.
@@ -268,6 +270,17 @@ class FuzzingOrchestrator:
                 "reason": "fuzz_bit_mutation",
             }
         )
+        if self.corpus_manager is not None and self.corpus_manager.entries:
+            evolved = self.corpus_manager.select_next()
+            if evolved and evolved.payload:
+                payloads.append(
+                    {
+                        "parameter": param_name,
+                        "variant": evolved.payload,
+                        "strategy": "coverage_guided_evolved",
+                        "reason": "fuzz_corpus_evolution",
+                    }
+                )
         seen = set()
         unique_payloads = []
         for p in payloads:
@@ -421,6 +434,15 @@ class FuzzingOrchestrator:
                         logger.debug("Fuzzer request failed for %s: %s", mutated_url, e)
                         return
                 self.record_feedback(url, status, resp_len)
+                if self.coverage_tracker is not None and self.corpus_manager is not None:
+                    try:
+                        content_hash = hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
+                        edge_sig = self.coverage_tracker.record_edge(url, status, resp_len, content_hash)
+                        if edge_sig:
+                            self.corpus_manager.add(variant_val, edge_sig)
+                            self.feedback_tracker.record_covered_path(edge_sig)
+                    except Exception as e:
+                        logger.debug("Coverage feedback update error: %s", e)
                 error_match = error_re.search(body[:50000])
                 if error_match:
                     self.feedback_tracker.record_anomaly()

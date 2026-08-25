@@ -1,4 +1,4 @@
-﻿"""ServiceNow incident & vulnerability entry integration."""
+"""ServiceNow incident & vulnerability entry integration."""
 
 from __future__ import annotations
 

@@ -574,6 +574,30 @@ class Broadcaster:
                 self._broadcast_count += 1
         return sent
 
+    def _is_critical_message(self, message: BaseMessage) -> bool:
+        """Identify critical message objects before serialization."""
+        mtype = str(getattr(message, "type", "")).lower()
+        if mtype in ("error", "status", "ack", "finding", "auth"):
+            return True
+        payload = getattr(message, "payload", None) or getattr(message, "data", None) or {}
+        if isinstance(payload, dict):
+            event = str(payload.get("event") or payload.get("type") or "").lower()
+            if any(
+                crit in event
+                for crit in (
+                    "finding",
+                    "alert",
+                    "error",
+                    "auth",
+                    "stage_completed",
+                    "stage_failed",
+                    "stage_ready",
+                    "pipeline_completed",
+                )
+            ):
+                return True
+        return False
+
     async def _enqueue(
         self,
         info: Any,
@@ -581,13 +605,27 @@ class Broadcaster:
         scope: str = "group",
         target: str = "",
     ) -> bool:
-        """Add a message to a connection's outbound queue."""
+        """Add a message to a connection's outbound queue with admission check before serialization."""
+        if info.message_queue.full() and not self._is_critical_message(message):
+            # Shed non-critical telemetry under queue saturation without expensive serialization
+            with self._counter_lock:
+                self._drop_count += 1
+            with self._scope_drop_lock:
+                self._scope_drop_counts[(scope, target)] = (
+                    self._scope_drop_counts.get((scope, target), 0) + 1
+                )
+            try:
+                WS_DROPPED_MESSAGES.labels(scope=scope).inc()
+            except Exception:
+                pass
+            return True
+
         json_data = message.to_json()
         try:
             info.message_queue.put_nowait(json_data)
             return True
         except asyncio.QueueFull:
-            # Fix #366: handle backpressure by dropping messages if configured
+            # Handle backpressure by draining non-critical messages or dropping
             await self._handle_backpressure(info, json_data, scope=scope, target=target)
             return True  # 'sent' in the sense it was handled by backpressure
         except Exception as exc:

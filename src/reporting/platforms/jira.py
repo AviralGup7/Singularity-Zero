@@ -1,4 +1,4 @@
-﻿"""Jira Cloud & Server issue creation integration."""
+"""Jira Cloud & Server issue creation integration."""
 
 from __future__ import annotations
 
