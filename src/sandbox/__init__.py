@@ -16,4 +16,16 @@ def execute_plugin(wasm_path: str, stage_input: dict[str, Any], **kwargs: Any) -
     return execute_sandboxed_plugin(wasm_path, stage_input, **kwargs)
 
 
-__all__ = ["execute_plugin", "wasm_enabled"]
+from src.sandbox.process_sandbox import (
+    ProcessSandbox,
+    SandboxExecutionResult,
+    SandboxResourceLimits,
+)
+
+__all__ = [
+    "ProcessSandbox",
+    "SandboxExecutionResult",
+    "SandboxResourceLimits",
+    "execute_plugin",
+    "wasm_enabled",
+]

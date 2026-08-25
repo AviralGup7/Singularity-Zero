@@ -303,6 +303,8 @@ class SettlementIntent:
     lease_action: str = "ACK"  # "ACK", "RELEASE", "NONE"
     lease_target_url: str = ""
     lease_worker_id: str = ""
+    trace_id: str = ""
+    span_id: str = ""
     schema_version: int = 1
     created_at: float = field(default_factory=time.time)
 
@@ -322,6 +324,8 @@ class SettlementIntent:
             "lease_action": self.lease_action,
             "lease_target_url": self.lease_target_url,
             "lease_worker_id": self.lease_worker_id,
+            "trace_id": self.trace_id,
+            "span_id": self.span_id,
             "schema_version": self.schema_version,
             "created_at": self.created_at,
             "_is_settlement_intent": True,
@@ -344,6 +348,8 @@ class SettlementIntent:
             lease_action=str(mapping.get("lease_action") or "ACK"),
             lease_target_url=str(mapping.get("lease_target_url") or ""),
             lease_worker_id=str(mapping.get("lease_worker_id") or ""),
+            trace_id=str(mapping.get("trace_id") or ""),
+            span_id=str(mapping.get("span_id") or ""),
             schema_version=int(mapping.get("schema_version") or 1),
             created_at=float(mapping.get("created_at") or time.time()),
         )

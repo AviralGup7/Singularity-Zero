@@ -25,10 +25,12 @@ class PolicyAutoDispatcher:
         threshold_tuner: Any | None = None,
         nuclei_optimizer: Any | None = None,
         feedback_loop: Any | None = None,
+        attack_graph_engine: Any | None = None,
     ) -> None:
         self.threshold_tuner = threshold_tuner
         self.nuclei_optimizer = nuclei_optimizer
         self.feedback_loop = feedback_loop
+        self.attack_graph_engine = attack_graph_engine
         self._version_seq = 0
         self._current_policy: VersionedPolicy | None = None
         self._lock = threading.RLock()
@@ -43,8 +45,9 @@ class PolicyAutoDispatcher:
         custom_boosts: dict[str, float] | None = None,
         custom_suppressions: dict[str, float] | None = None,
         plugin_overrides: dict[str, bool] | None = None,
+        attack_chains: list[Any] | None = None,
     ) -> VersionedPolicy:
-        """Construct an immutable VersionedPolicy snapshot from active learning components."""
+        """Construct an immutable VersionedPolicy snapshot from active learning and attack graph components."""
         with self._lock:
             self._version_seq += 1
             version_str = f"v{self._version_seq}.{int(time.time())}"
@@ -90,6 +93,23 @@ class PolicyAutoDispatcher:
                         target_suppressions[pat] = -5.0
                 except Exception as exc:
                     logger.debug("PolicyAutoDispatcher: feedback loop patterns skipped (%s)", exc)
+
+            # 4. Integrate AttackGraphEngine multi-hop exploit chain boosts
+            chains = attack_chains
+            if chains is None and self.attack_graph_engine is not None:
+                if hasattr(self.attack_graph_engine, "export_graph"):
+                    try:
+                        graph_data = self.attack_graph_engine.export_graph()
+                        chains = graph_data.get("chains", [])
+                    except Exception as exc:
+                        logger.debug("PolicyAutoDispatcher: attack graph export skipped (%s)", exc)
+
+            for chain in chains or []:
+                entry_id = getattr(chain, "entry_point_id", None) or (chain.get("entry_point_id") if isinstance(chain, dict) else "")
+                risk = getattr(chain, "total_risk", None) or (chain.get("total_risk", 1.0) if isinstance(chain, dict) else 1.0)
+                if entry_id:
+                    url = entry_id.replace("asset:", "")
+                    target_boosts[url] = max(target_boosts.get(url, 0.0), float(risk) * 0.5)
 
             policy = VersionedPolicy(
                 policy_id=policy_id,
