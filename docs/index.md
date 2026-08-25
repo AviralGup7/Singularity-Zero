@@ -9,7 +9,7 @@ Welcome to the Cyber Security Test Pipeline documentation portal. This hub index
 - **[🚀 Getting Started Guide](getting-started.md)**: Environment setup, dependency installation, scope configuration, and running your first scan.
 - **[📂 Codebase Map](codebase.md)**: Exhaustive structural map covering all 35 modules in `src/`, plus `frontend/src/`, `tests/`, `configs/`, `deploy/`, and `scripts/`.
 - **[🏗️ Architecture Overview](architecture-overview.md)**: Engineering-focused map of subsystems, data flows, and design patterns.
-- **[🏛️ System Architecture Deep Dive](architecture.md)**: Deep dive into the DAG orchestrator, Actor Mesh, CRDT Hybrid Logical Clock state engine, and active learning.
+- **[🏛️ System Architecture Deep Dive](architecture.md)**: The 10 Laws of Distributed Correctness, 7-Layer Control Plane, Partitioned Single-Writer Authority, 5-Stage Claim Settlement, Out-of-Band Policy Governance, Prioritized QoS Telemetry, and Deterministic Replay.
 - **[📄 ExecutionRequest Contract of Intent](architecture/execution-request-contract.md)**: Formal handoff protocol (`Decision` → `Authorization` → `Scheduling` → `Worker`), scope token verification, and stateless execution.
 - **[⚡ Cache Unification Design](architecture/cache-unification.md)**: Single-flight coalesced multi-tiered caching architecture.
 

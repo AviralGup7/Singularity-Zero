@@ -40,7 +40,7 @@ def test_unsigned_json_body_is_rejected() -> None:
 
 @pytest.mark.unit
 def test_tampered_payload_fails_hmac() -> None:
-    raw = make_envelope(SECRET, _Node("n1"), "gossip", {"leader_id": "n1"}, msg_id="n1-2")
+    raw = make_envelope(SECRET, _Node("n1"), "gossip", {"leader_id": "n1"}, msg_id="n1-2", encrypt=False)
     tampered = raw.replace(b'"leader_id":"n1"', b'"leader_id":"evil"')
     body, valid = parse_envelope(tampered, SECRET)
     assert valid is False

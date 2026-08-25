@@ -4,6 +4,7 @@ from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
 def test_tenant_context_scoping():
     """Verify TenantContext thread-safe/async-safe variable scoping and reset behavior."""
+    TenantContext.set_current_tenant(None)
     assert TenantContext.get_current_tenant() is None
 
     # Test nested scopes
@@ -33,6 +34,7 @@ def test_target_owned_by_tenant_helper():
 
 def test_redis_key_prefixing_isolated():
     """Simulate key prefixing logic to ensure separate partitions in Redis commands."""
+    TenantContext.set_current_tenant(None)
 
     class FakeRedisClient:
         def __init__(self):

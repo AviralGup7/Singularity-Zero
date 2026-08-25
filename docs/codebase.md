@@ -73,8 +73,8 @@ src/
 │   └── runtime.py        # Operator console execution runtime
 │
 ├── core/                 # 🏛️ Foundational domain models, contracts, and core utilities
-│   ├── contracts/        # Immutable Pydantic models and stage input/output schemas
-│   ├── frontier/         # Low-level frontier state, CRDTs, Bloom filters, and WAL
+│   ├── contracts/        # Immutable Pydantic models, CanonicalTargetIdentity, and CommandEnvelope schemas
+│   ├── frontier/         # Low-level frontier state, CRDTs, PartitionRouter, ReplayEngine, and WAL StateAuthority
 │   ├── models/           # Shared domain entities (Job, Finding, Target, Evidence)
 │   ├── security/         # Cryptographic primitives, Ed25519 signatures, AES-GCM vault
 │   ├── utils/            # Shared helpers (HTTP pools, timezones, streaming, URL validator)
@@ -183,6 +183,7 @@ src/
 │   ├── feedback_loop.py  # Closed-loop triage signal and threshold adaptation
 │   ├── finding_deduplicator.py # Semantic finding deduplication (TF-IDF/Cosine)
 │   ├── nuclei_tag_optimizer.py # Dynamic Bayesian Beta-Binomial Nuclei template tag ranking
+│   ├── policy_governance.py# Shadow evaluation, canary promotion, and atomic rollback gate
 │   ├── threshold_tuner.py# PI-controller automatic threshold calibration
 │   └── versioned_policy.py# Immutable VersionedPolicy container for priority queue tuning
 │
@@ -201,7 +202,7 @@ src/
 │   │   └── pipeline_orchestrator/ # DAG builder, actor scheduler, stage executors
 │   └── unified_cache/    # Integrated cross-stage result caching
 │
-├── realtime/             # 📡 Real-time telemetry and state distribution interfaces
+├── realtime/             # 📡 Real-time telemetry, WebSocket hub, and PrioritizedRealtimeBroker (P0-P4 QoS)
 │
 ├── recon/                # 🌐 Asset discovery and reconnaissance engines
 │   ├── api_specs/        # OpenAPI/Swagger, WSDL, and GraphQL schema reconstructors

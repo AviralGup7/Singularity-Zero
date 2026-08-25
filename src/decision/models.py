@@ -201,6 +201,9 @@ class Finding:
             decision=decision_obj,
         )
 
+    def key(self) -> str:
+        return f"{self.category}:{self.url}:{self.title or 'finding'}"
+
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> Finding:
         return cls.from_mapping(data)
@@ -654,41 +657,10 @@ class PlacementStatus:
     CIRCUIT_OPEN = "CIRCUIT_OPEN"
 
 
-@dataclass(frozen=True, slots=True)
-class CandidateLease:
-    """Strongly-typed lease token binding a candidate target to a specific execution and worker."""
-
-    candidate_id: str
-    target_url: str
-    execution_id: str
-    lease_id: str
-    worker_id: str
-    expires_at: float
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "candidate_id": self.candidate_id,
-            "target_url": self.target_url,
-            "execution_id": self.execution_id,
-            "lease_id": self.lease_id,
-            "worker_id": self.worker_id,
-            "expires_at": self.expires_at,
-        }
-
-    @classmethod
-    def from_mapping(cls, data: Mapping[str, Any]) -> CandidateLease:
-        return cls(
-            candidate_id=str(data.get("candidate_id", "")),
-            target_url=str(data.get("target_url", "")),
-            execution_id=str(data.get("execution_id", "")),
-            lease_id=str(data.get("lease_id", "")),
-            worker_id=str(data.get("worker_id", "")),
-            expires_at=float(data.get("expires_at", 0.0)),
-        )
-
-    @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> CandidateLease:
-        return cls.from_mapping(data)
+from src.core.contracts.execution_request import (
+    CandidateLease,
+    RawExecutionClaim,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -851,6 +823,7 @@ __all__ = [
     "Finding",
     "FindingDecision",
     "PlacementStatus",
+    "RawExecutionClaim",
     "ResourceLimits",
     "ScanPlan",
     "ScanResult",

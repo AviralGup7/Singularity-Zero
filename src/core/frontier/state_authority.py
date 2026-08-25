@@ -1,7 +1,7 @@
 """Authoritative state and settlement engine for the Cyber Security Test Pipeline.
 
 Implements the single-commit StateAuthority (WAL -> CRDT -> Execution ID Commit)
-and the SettlementCoordinator coordinating atomic budget and state settlement.
+and the SettlementCoordinator coordinating atomic budget, lease fencing, and state settlement.
 """
 
 from __future__ import annotations
@@ -9,20 +9,27 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.core.contracts.command_envelope import CommandEnvelope, EventEnvelope
+from src.core.contracts.execution_request import (
+    CandidateLease,
+    ExecutionFinding as Finding,
+    ExecutionResultContract as ExecutionResult,
+    RawExecutionClaim,
+)
 from src.core.contracts.pipeline_runtime import StageOutput
 from src.core.frontier.state import NeuralState
-from src.decision.models import CandidateLease, ExecutionResult
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class SettlementResult:
-    """Outcome of settling an ExecutionResult or StageOutput."""
+    """Outcome of settling an ExecutionResult, RawExecutionClaim, or StageOutput."""
 
     execution_id: str
     status: str  # "COMMITTED", "DEDUPLICATED", "REJECTED"
@@ -178,7 +185,6 @@ class StateAuthority:
                 elif hasattr(self.wal, "append"):
                     wal_id = self.wal.append(envelope)
             else:
-                import uuid
                 wal_id = f"wal_{uuid.uuid4().hex[:8]}"
 
             if not wal_id:
@@ -207,10 +213,6 @@ class StateAuthority:
         from src.core.contracts.state_schema import GLOBAL_STATE_SCHEMA_REGISTRY
         from src.core.models.stage_result import StageStatus
         from src.core.models.stage_status import resolve_skip_status
-        from src.pipeline.services.pipeline_orchestrator._orchestrator.utils import (
-            StageOutputValidationError,
-            _validate_stage_output_contract,
-        )
 
         def _to_mutable(value: Any) -> Any:
             if isinstance(value, Mapping):
@@ -221,11 +223,10 @@ class StateAuthority:
 
         with self._lock:
             exec_id = getattr(stage_output, "stage_name", stage_name)
-            _validate_stage_output_contract(stage_name, stage_output)
             state_delta = _to_mutable(dict(stage_output.state_delta))
             validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
             if validation_errors:
-                raise StageOutputValidationError(
+                raise ValueError(
                     f"Stage '{stage_name}' produced invalid state_delta: " + "; ".join(validation_errors)
                 )
 
@@ -294,6 +295,8 @@ class SettlementIntent:
     job_id: str = ""
     candidate_id: str = ""
     lease_id: str = ""
+    epoch: int = 1
+    partition_id: str = "P0"
     policy_version: str = ""
     outcome: str = "COMPLETED"  # "COMPLETED", "FAILED", "TIMED_OUT", "REJECTED"
     stage_name: str = "execution"
@@ -315,6 +318,8 @@ class SettlementIntent:
             "job_id": self.job_id,
             "candidate_id": self.candidate_id,
             "lease_id": self.lease_id,
+            "epoch": self.epoch,
+            "partition_id": self.partition_id,
             "policy_version": self.policy_version,
             "outcome": self.outcome,
             "stage_name": self.stage_name,
@@ -339,6 +344,8 @@ class SettlementIntent:
             job_id=str(mapping.get("job_id") or ""),
             candidate_id=str(mapping.get("candidate_id") or ""),
             lease_id=str(mapping.get("lease_id") or ""),
+            epoch=int(mapping.get("epoch") or 1),
+            partition_id=str(mapping.get("partition_id") or "P0"),
             policy_version=str(mapping.get("policy_version") or ""),
             outcome=str(mapping.get("outcome") or "COMPLETED"),
             stage_name=str(mapping.get("stage_name") or "execution"),
@@ -439,12 +446,54 @@ class LeaseProjection:
                         lease_id=intent.lease_id,
                         worker_id=intent.lease_worker_id,
                         expires_at=intent.created_at + 60.0,
+                        epoch=intent.epoch,
+                        partition_id=intent.partition_id,
                     )
                 if lease_obj is not None:
                     if intent.lease_action == "ACK" and hasattr(self.queue, "ack_batch"):
                         self.queue.ack_batch([lease_obj])
                     elif intent.lease_action == "RELEASE" and hasattr(self.queue, "release_batch"):
                         self.queue.release_batch([lease_obj])
+
+            if intent.execution_id:
+                self.applied_execution_ids.add(intent.execution_id)
+            if wal_id:
+                self.applied_wal_id = wal_id
+            return True
+
+
+class FindingsProjection:
+    """Projection accumulating deduplicated findings from settled execution intents."""
+
+    def __init__(self) -> None:
+        self._findings: dict[str, Finding] = {}
+        self.applied_wal_id: str | None = None
+        self.applied_execution_ids: set[str] = set()
+        self._lock = threading.RLock()
+
+    @property
+    def findings(self) -> list[Finding]:
+        with self._lock:
+            return list(self._findings.values())
+
+    def apply(self, intent: SettlementIntent, wal_id: str | None = None) -> bool:
+        with self._lock:
+            if not intent.execution_id or intent.execution_id in self.applied_execution_ids:
+                if wal_id:
+                    self.applied_wal_id = wal_id
+                return False
+
+            if intent.outcome == "COMPLETED" and intent.state_delta:
+                raw_findings = intent.state_delta.get("findings") or []
+                for f_data in raw_findings:
+                    if isinstance(f_data, Finding):
+                        finding = f_data
+                    elif isinstance(f_data, Mapping):
+                        finding = Finding.from_mapping(f_data)
+                    else:
+                        continue
+                    key = finding.key() if hasattr(finding, "key") else f"{getattr(finding, 'category', 'c')}:{getattr(finding, 'url', 'u')}"
+                    self._findings[key] = finding
 
             if intent.execution_id:
                 self.applied_execution_ids.add(intent.execution_id)
@@ -461,10 +510,12 @@ class SettlementProjectionEngine:
         state_projection: StateProjection,
         budget_projection: BudgetProjection,
         lease_projection: LeaseProjection,
+        findings_projection: FindingsProjection | None = None,
     ) -> None:
         self.state_projection = state_projection
         self.budget_projection = budget_projection
         self.lease_projection = lease_projection
+        self.findings_projection = findings_projection or FindingsProjection()
         self._lock = threading.RLock()
 
     def apply_intent(self, intent: SettlementIntent, wal_id: str | None = None) -> None:
@@ -485,6 +536,11 @@ class SettlementProjectionEngine:
             except Exception as exc:
                 logger.error("ProjectionEngine: Lease projection error for %s: %s", intent.execution_id, exc)
 
+            try:
+                self.findings_projection.apply(intent, wal_id)
+            except Exception as exc:
+                logger.error("ProjectionEngine: Findings projection error for %s: %s", intent.execution_id, exc)
+
     def replay_from_wal(self, wal: Any) -> dict[str, int]:
         """Catch up any lagging projections from the WAL log entries."""
         with self._lock:
@@ -497,7 +553,7 @@ class SettlementProjectionEngine:
             else:
                 entries = []
 
-            applied_counts = {"state": 0, "budget": 0, "lease": 0}
+            applied_counts = {"state": 0, "budget": 0, "lease": 0, "findings": 0}
             for entry in entries:
                 wal_id = str(entry.get("_wal_id") or "")
                 if entry.get("_is_settlement_intent"):
@@ -505,7 +561,6 @@ class SettlementProjectionEngine:
                 elif "execution_id" in entry and ("state_delta" in entry or "budget_action" in entry):
                     intent = SettlementIntent.from_mapping(entry)
                 else:
-                    # Generic delta envelope compatibility
                     intent = SettlementIntent(
                         settlement_id=f"stl_rec_{wal_id}",
                         execution_id=str(entry.get("execution_id") or f"exec_rec_{wal_id}"),
@@ -521,6 +576,8 @@ class SettlementProjectionEngine:
                     applied_counts["budget"] += 1
                 if self.lease_projection.apply(intent, wal_id):
                     applied_counts["lease"] += 1
+                if self.findings_projection.apply(intent, wal_id):
+                    applied_counts["findings"] += 1
 
             return applied_counts
 
@@ -533,20 +590,99 @@ class SettlementCoordinator:
         state_authority: StateAuthority,
         budget_enforcer: Any | None = None,
         queue: Any | None = None,
+        partition_router: Any | None = None,
     ) -> None:
         self.state_authority = state_authority
         self.budget_enforcer = budget_enforcer
         self.queue = queue
+        self.partition_router = partition_router
 
         self.state_projection = StateProjection(self.state_authority.state)
         self.budget_projection = BudgetProjection(self.budget_enforcer)
         self.lease_projection = LeaseProjection(self.queue)
+        self.findings_projection = FindingsProjection()
         self.projection_engine = SettlementProjectionEngine(
             self.state_projection,
             self.budget_projection,
             self.lease_projection,
+            self.findings_projection,
         )
         self._lock = threading.RLock()
+
+    def settle_claim(
+        self,
+        claim: RawExecutionClaim,
+        ticket: Any | None = None,
+        request_count: int = 1,
+    ) -> SettlementResult:
+        """5-Stage verification and atomic settlement of an untrusted RawExecutionClaim."""
+        with self._lock:
+            exec_id = claim.execution_id or ""
+
+            # 1. Deduplication check
+            if exec_id and self.state_authority.is_committed(exec_id):
+                return SettlementResult(
+                    execution_id=exec_id,
+                    status="DEDUPLICATED",
+                    committed_findings_count=len(claim.findings),
+                    committed_deltas_count=len(claim.state_deltas),
+                )
+
+            # 2. Ticket / Nonce verification if ticket supplied
+            if ticket is not None:
+                if hasattr(ticket, "nonce") and claim.ticket_nonce:
+                    if ticket.nonce != claim.ticket_nonce:
+                        return SettlementResult(
+                            execution_id=exec_id,
+                            status="REJECTED",
+                            error="Ticket nonce mismatch: Potential replay attack detected",
+                        )
+
+            # 3. Partition Fencing / Epoch check if partition router supplied
+            if self.partition_router is not None and claim.candidate_id:
+                partition = self.partition_router.route_and_get_partition(claim.candidate_id)
+                fencing_ok, reason = partition.validate_claim_fencing(claim)
+                if not fencing_ok:
+                    logger.warning("Fencing rejection for execution %s: %s", exec_id, reason)
+                    return SettlementResult(
+                        execution_id=exec_id,
+                        status="REJECTED",
+                        error=f"Fencing validation failed: {reason}",
+                    )
+                # If claim is accepted, settle the lease in partition
+                partition.settle_lease(claim.candidate_id, claim.lease_id)
+
+            # 4. Construct ExecutionResult and forward to settle
+            exec_result = ExecutionResult(
+                request_id=claim.request_id,
+                tenant_id=claim.tenant_id,
+                outcome=claim.outcome,
+                duration_seconds=claim.duration_seconds,
+                findings=claim.findings,
+                state_deltas=claim.state_deltas,
+                resource_consumption=claim.resource_consumption,
+                error=claim.error,
+                execution_id=claim.execution_id,
+                candidate_id=claim.candidate_id,
+                lease_id=claim.lease_id,
+                policy_version=claim.policy_version,
+            )
+
+            lease = CandidateLease(
+                candidate_id=claim.candidate_id,
+                target_url="",
+                execution_id=claim.execution_id,
+                lease_id=claim.lease_id,
+                worker_id=claim.worker_id,
+                expires_at=time.time() + 60.0,
+                epoch=claim.epoch,
+            )
+
+            return self.settle(
+                result=exec_result,
+                lease=lease,
+                request_count=request_count,
+            )
 
     def settle(
         self,
@@ -556,8 +692,6 @@ class SettlementCoordinator:
         request_count: int = 1,
     ) -> SettlementResult:
         """Validates intent and appends to the WAL, followed by projection updates."""
-        import uuid
-
         with self._lock:
             exec_id = result.execution_id or ""
             if exec_id and self.state_authority.is_committed(exec_id):
@@ -587,6 +721,8 @@ class SettlementCoordinator:
                 job_id=result.job_id or "",
                 candidate_id=result.candidate_id or (lease.candidate_id if lease else ""),
                 lease_id=result.lease_id or (lease.lease_id if lease else ""),
+                epoch=lease.epoch if lease else 1,
+                partition_id=lease.partition_id if lease else "P0",
                 policy_version=result.policy_version or "",
                 outcome=result.outcome,
                 stage_name=stage_name,
@@ -632,7 +768,7 @@ class SettlementCoordinator:
         """Catch up all projections from the durable WAL."""
         target_wal = wal or self.state_authority.wal
         if target_wal is None:
-            return {"state": 0, "budget": 0, "lease": 0}
+            return {"state": 0, "budget": 0, "lease": 0, "findings": 0}
         return self.projection_engine.replay_from_wal(target_wal)
 
     def settle_stage_output(
@@ -647,6 +783,7 @@ class SettlementCoordinator:
 
 __all__ = [
     "BudgetProjection",
+    "FindingsProjection",
     "LeaseProjection",
     "SettlementCoordinator",
     "SettlementIntent",

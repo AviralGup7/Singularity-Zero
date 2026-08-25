@@ -264,6 +264,21 @@ class LWWset[T]:
         with self._lock:
             return {_clone_value(el.value) for el in self._elements.values() if not el.deleted}
 
+    def __contains__(self, item: Any) -> bool:
+        key = self._key(item)
+        with self._lock:
+            el = self._elements.get(key)
+            return el is not None and not el.deleted
+
+    def __iter__(self):
+        with self._lock:
+            active = [_clone_value(el.value) for el in self._elements.values() if not el.deleted]
+        return iter(active)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return sum(1 for el in self._elements.values() if not el.deleted)
+
     def values(self) -> list[T]:
         with self._lock:
             return [_clone_value(el.value) for el in self._elements.values() if not el.deleted]

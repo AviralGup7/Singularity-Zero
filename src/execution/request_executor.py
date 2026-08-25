@@ -2,10 +2,13 @@
 
 Executes actions defined in an ExecutionRequest (or AuthorizedExecutionTicket)
 deterministically without querying or re-deriving decisions from the Decision subsystem.
+Emits both ExecutionResult and untrusted RawExecutionClaim envelopes.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import time
 from collections.abc import Callable
@@ -17,6 +20,7 @@ from src.decision.models import (
     ExecutionRequest,
     ExecutionResult,
     Finding,
+    RawExecutionClaim,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,7 +31,7 @@ ActionHandler = Callable[[ActionSpec, ExecutionRequest], dict[str, Any]]
 class ExecutionRequestWorker:
     """Stateless worker executing against the formal contract of intent."""
 
-    def __init__(self, authorizer: Any | None = None) -> None:
+    def __init__(self, authorizer: Any | None = None, worker_id: str = "worker_node_1") -> None:
         if authorizer is None:
             from src.decision.authorization import ExecutionAuthorizer
 
@@ -35,6 +39,7 @@ class ExecutionRequestWorker:
         else:
             self._authorizer = authorizer
 
+        self.worker_id = worker_id
         self._handlers: dict[str, ActionHandler] = {}
         self._register_default_handlers()
 
@@ -64,6 +69,33 @@ class ExecutionRequestWorker:
         self._handlers["nuclei"] = _default_probe_handler
         self._handlers["mutate"] = _default_probe_handler
         self._handlers["fingerprint"] = _default_probe_handler
+
+    def execute_claim(self, ticket: AuthorizedExecutionTicket) -> RawExecutionClaim:
+        """Execute the request and emit an untrusted RawExecutionClaim."""
+        res = self.execute(ticket)
+        ev_hashes = []
+        for finding in res.findings:
+            raw_bytes = json.dumps(finding.to_dict(), sort_keys=True).encode("utf-8")
+            ev_hashes.append(hashlib.sha256(raw_bytes).hexdigest())
+
+        return RawExecutionClaim(
+            request_id=res.request_id,
+            tenant_id=res.tenant_id,
+            candidate_id=res.candidate_id,
+            execution_id=res.execution_id,
+            lease_id=res.lease_id,
+            epoch=ticket.epoch if isinstance(ticket, AuthorizedExecutionTicket) else 1,
+            worker_id=self.worker_id,
+            outcome=res.outcome,
+            duration_seconds=res.duration_seconds,
+            findings=res.findings,
+            state_deltas=res.state_deltas,
+            resource_consumption=res.resource_consumption,
+            evidence_hashes=tuple(ev_hashes),
+            error=res.error,
+            policy_version=res.policy_version,
+            ticket_nonce=ticket.nonce if isinstance(ticket, AuthorizedExecutionTicket) else "",
+        )
 
     def execute(
         self,
@@ -177,5 +209,3 @@ __all__ = [
     "ActionHandler",
     "ExecutionRequestWorker",
 ]
-
-

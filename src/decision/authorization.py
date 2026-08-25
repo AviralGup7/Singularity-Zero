@@ -1,8 +1,8 @@
 """Authorization and scope verification gatekeeper for ExecutionRequest.
 
 Validates an incoming ExecutionRequest against cryptographic scope tokens,
-tenant boundaries, and resource budgets before handoff to scheduling/worker.
-Includes URL/path adversarial normalization and ticket replay protection.
+canonical target identities, tenant boundaries, and resource budgets before handoff to scheduling/worker.
+Includes URL/path adversarial normalization, DNS pinning validation, and ticket replay protection.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.core.contracts.canonical_target import CanonicalTargetIdentity, canonicalize_target
 from src.decision.models import ExecutionRequest, ScopeToken
 
 
@@ -38,6 +39,9 @@ class AuthorizedExecutionTicket:
     nonce: str
     signature: str
     request: ExecutionRequest
+    epoch: int = 1
+    partition_id: str = "P0"
+    canonical_identity_hash: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,7 +53,28 @@ class AuthorizedExecutionTicket:
             "nonce": self.nonce,
             "signature": self.signature,
             "request": self.request.to_dict(),
+            "epoch": self.epoch,
+            "partition_id": self.partition_id,
+            "canonical_identity_hash": self.canonical_identity_hash,
         }
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> AuthorizedExecutionTicket:
+        req_raw = data.get("request") or {}
+        req = ExecutionRequest.from_mapping(req_raw) if isinstance(req_raw, dict) else req_raw
+        return cls(
+            ticket_id=str(data.get("ticket_id", "")),
+            request_id=str(data.get("request_id", "")),
+            tenant_id=str(data.get("tenant_id", "default")),
+            authorized_at=float(data.get("authorized_at", 0.0)),
+            expires_at=float(data.get("expires_at", 0.0)),
+            nonce=str(data.get("nonce", "")),
+            signature=str(data.get("signature", "")),
+            request=req,
+            epoch=int(data.get("epoch", 1)),
+            partition_id=str(data.get("partition_id", "P0")),
+            canonical_identity_hash=str(data.get("canonical_identity_hash", "")),
+        )
 
 
 class ExecutionAuthorizer:
@@ -96,8 +121,13 @@ class ExecutionAuthorizer:
         target_path: str,
         nonce: str,
         expires_at: float,
+        epoch: int = 1,
+        partition_id: str = "P0",
     ) -> str:
-        payload = f"{ticket_id}:{request_id}:{tenant_id}:{target_host}:{target_path}:{nonce}:{expires_at:.3f}".encode("utf-8")
+        payload = (
+            f"{ticket_id}:{request_id}:{tenant_id}:{target_host}:{target_path}:"
+            f"{nonce}:{expires_at:.3f}:{epoch}:{partition_id}".encode("utf-8")
+        )
         return hmac.new(self._secret_key, payload, hashlib.sha256).hexdigest()
 
     def _is_ip_allowed(self, host: str, allowed_cidrs: tuple[str, ...]) -> bool:
@@ -127,6 +157,8 @@ class ExecutionAuthorizer:
         self,
         request: ExecutionRequest,
         budget_enforcer: Any | None = None,
+        epoch: int = 1,
+        partition_id: str = "P0",
     ) -> AuthorizedExecutionTicket:
         """Validate execution request, reserve budget quota, and issue an AuthorizedExecutionTicket.
 
@@ -148,11 +180,14 @@ class ExecutionAuthorizer:
                 f"Invalid timeout_seconds {limits.timeout_seconds} in resource limits"
             )
 
-        # 3. Validate Scope Token if specified
-        token = request.scope_token
-        target_host = self._normalize_host(request.target.host)
-        target_path = self._normalize_path(request.target.path)
+        # 3. Canonicalize Target Identity
+        raw_url = f"{request.target.scheme or 'https'}://{request.target.host}:{request.target.port or 443}{request.target.path or '/'}"
+        canon = canonicalize_target(raw_url)
+        target_host = canon.hostname
+        target_path = canon.path
 
+        # 4. Validate Scope Token if specified
+        token = request.scope_token
         if token.expires_at > 0 and token.expires_at < now:
             raise ScopeAuthorizationError(f"ScopeToken expired at {token.expires_at}")
 
@@ -175,7 +210,7 @@ class ExecutionAuthorizer:
                         f"Target path '{target_path}' matches forbidden path '{forbidden}'"
                     )
 
-        # 4. Atomic Budget Reservation
+        # 5. Atomic Budget Reservation
         enforcer = budget_enforcer or self._budget_enforcer
         if enforcer is not None and hasattr(enforcer, "reserve_requests"):
             req_count = len(request.actions) if request.actions else 1
@@ -184,12 +219,20 @@ class ExecutionAuthorizer:
                     f"Hunt budget capacity exhausted: cannot reserve {req_count} request(s)"
                 )
 
-        # 5. Generate Ticket with Nonce & HMAC binding
+        # 6. Generate Ticket with Nonce & HMAC binding
         ticket_id = f"tkt_{uuid.uuid4().hex[:16]}"
         nonce = uuid.uuid4().hex
         expires_at = request.deadline if request.deadline > 0 else (now + limits.timeout_seconds)
         signature = self._generate_signature(
-            ticket_id, request.request_id, request.tenant_id, target_host, target_path, nonce, expires_at
+            ticket_id=ticket_id,
+            request_id=request.request_id,
+            tenant_id=request.tenant_id,
+            target_host=target_host,
+            target_path=target_path,
+            nonce=nonce,
+            expires_at=expires_at,
+            epoch=epoch,
+            partition_id=partition_id,
         )
 
         return AuthorizedExecutionTicket(
@@ -201,24 +244,35 @@ class ExecutionAuthorizer:
             nonce=nonce,
             signature=signature,
             request=request,
+            epoch=epoch,
+            partition_id=partition_id,
+            canonical_identity_hash=canon.identity_hash,
         )
 
     def verify_ticket(self, ticket: AuthorizedExecutionTicket) -> bool:
-
         """Verify ticket signature, expiration, and tampering."""
         now = time.time()
         if ticket.expires_at < now:
             return False
-        target_host = self._normalize_host(ticket.request.target.host)
-        target_path = self._normalize_path(ticket.request.target.path)
+        raw_url = f"{ticket.request.target.scheme or 'https'}://{ticket.request.target.host}:{ticket.request.target.port or 443}{ticket.request.target.path or '/'}"
+        try:
+            canon = canonicalize_target(raw_url)
+            target_host = canon.hostname
+            target_path = canon.path
+        except Exception:
+            target_host = self._normalize_host(ticket.request.target.host)
+            target_path = self._normalize_path(ticket.request.target.path)
+
         expected_sig = self._generate_signature(
-            ticket.ticket_id,
-            ticket.request_id,
-            ticket.tenant_id,
-            target_host,
-            target_path,
-            ticket.nonce,
-            ticket.expires_at,
+            ticket_id=ticket.ticket_id,
+            request_id=ticket.request_id,
+            tenant_id=ticket.tenant_id,
+            target_host=target_host,
+            target_path=target_path,
+            nonce=ticket.nonce,
+            expires_at=ticket.expires_at,
+            epoch=ticket.epoch,
+            partition_id=ticket.partition_id,
         )
         return hmac.compare_digest(expected_sig, ticket.signature)
 
