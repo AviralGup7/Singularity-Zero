@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,6 +18,29 @@ def _hash_leaf(data: bytes | str) -> str:
 def _hash_node(left_hex: str, right_hex: str) -> str:
     combined = bytes.fromhex(left_hex) + bytes.fromhex(right_hex)
     return hashlib.sha256(b"\x01" + combined).hexdigest()
+
+
+EMPTY_MERKLE_ROOT = hashlib.sha256(b"empty_tree").hexdigest()
+
+
+def merkle_root_from_leaf_hashes(leaf_hashes: Sequence[str]) -> str:
+    """Binary SHA-256 Merkle root over already-hashed leaves (I27).
+
+    Interior nodes are ``SHA256(0x01 || left_bytes || right_bytes)``. Odd last
+    leaves are duplicated. This is the single canonical algorithm used by
+    ``CASStore`` and ``MerkleTree``.
+    """
+    if not leaf_hashes:
+        return EMPTY_MERKLE_ROOT
+    current = [str(h) for h in leaf_hashes]
+    while len(current) > 1:
+        nxt: list[str] = []
+        for i in range(0, len(current), 2):
+            left = current[i]
+            right = current[i + 1] if i + 1 < len(current) else left
+            nxt.append(_hash_node(left, right))
+        current = nxt
+    return current[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +91,7 @@ class MerkleTree:
     @property
     def root(self) -> str:
         if not self._layers or not self._layers[-1]:
-            return hashlib.sha256(b"empty_tree").hexdigest()
+            return EMPTY_MERKLE_ROOT
         return self._layers[-1][0]
 
     def generate_proof(self, leaf_index: int) -> MerkleProof:
@@ -96,6 +120,8 @@ class MerkleTree:
 
 
 __all__ = [
+    "EMPTY_MERKLE_ROOT",
     "MerkleProof",
     "MerkleTree",
+    "merkle_root_from_leaf_hashes",
 ]

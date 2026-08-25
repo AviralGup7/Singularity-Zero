@@ -6,15 +6,16 @@ for untrusted tool/exploit subprocesses on POSIX and Windows environments.
 
 from __future__ import annotations
 
+import enum
 import logging
 import os
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
-import enum
+from src.sandbox.network_isolation import NetworkEgressFilter
+from src.sandbox.seccomp_filter import SeccompPolicy, get_default_seccomp_policy
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +91,24 @@ class SandboxExecutionResult:
 class ProcessSandbox:
     """Enforces OS-native process cages for exploit and plugin runners."""
 
-    def __init__(self, limits: SandboxResourceLimits | None = None) -> None:
+    def __init__(
+        self,
+        limits: SandboxResourceLimits | None = None,
+        *,
+        egress_filter: NetworkEgressFilter | None = None,
+        seccomp_policy: SeccompPolicy | None = None,
+    ) -> None:
         self.limits = limits or SandboxResourceLimits()
+        self.egress_filter = egress_filter
+        self.seccomp_policy = (
+            seccomp_policy if seccomp_policy is not None else get_default_seccomp_policy()
+        )
+
+    def check_egress(self, host: str, port: int | None = None) -> None:
+        """Enforce I29 before the worker opens a destination."""
+        if self.egress_filter is None:
+            return
+        self.egress_filter.validate_destination_or_raise(host, port)
 
     def scrub_environment(self, custom_env: dict[str, str] | None = None) -> dict[str, str]:
         """Strip host credentials and sensitive platform tokens from the child environment."""
@@ -121,17 +138,30 @@ class ProcessSandbox:
         input_data: str | bytes | None = None,
         cwd: str | None = None,
         custom_env: dict[str, str] | None = None,
+        destination_host: str | None = None,
+        destination_port: int | None = None,
     ) -> SandboxExecutionResult:
         """Execute command within sanitized and resource-constrained sandbox."""
+        if destination_host:
+            self.check_egress(destination_host, destination_port)
+
         cmd_tuple = tuple(command)
         env = self.scrub_environment(custom_env)
         start_time = time.time()
 
-        # POSIX preexec_fn for rlimits
+        # POSIX preexec_fn for rlimits + optional seccomp BPF
         preexec_fn = None
         if sys.platform != "win32":
             try:
                 import resource
+
+                seccomp_filter = None
+                if self.seccomp_policy is not None:
+                    try:
+                        seccomp_filter = self.seccomp_policy.build_bpf_filter()
+                    except Exception as exc:
+                        logger.debug("Seccomp BPF construction skipped: %s", exc)
+                        seccomp_filter = None
 
                 def _set_posix_limits() -> None:
                     # Memory limit (RLIMIT_AS) in bytes
@@ -140,6 +170,8 @@ class ProcessSandbox:
                     # CPU time limit
                     cpu_secs = self.limits.max_cpu_seconds
                     resource.setrlimit(resource.RLIMIT_CPU, (cpu_secs, cpu_secs))
+                    if seccomp_filter is not None and hasattr(seccomp_filter, "load"):
+                        seccomp_filter.load()
 
                 preexec_fn = _set_posix_limits
             except (ImportError, AttributeError):
@@ -202,6 +234,7 @@ class ProcessSandbox:
 
 __all__ = [
     "ProcessSandbox",
+    "SandboxClass",
     "SandboxExecutionResult",
     "SandboxResourceLimits",
 ]

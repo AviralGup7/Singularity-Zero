@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.contracts.command_envelope import EventEnvelope
+from src.core.frontier.wal_errors import WALCorruptionError
 from src.infrastructure.frontier.wal import compute_crc64
 
 logger = logging.getLogger(__name__)
@@ -45,32 +46,39 @@ class DurableOutboxLedger:
             return len(self._events)
 
     def _load_existing_events(self) -> None:
-        """Scan existing outbox file and populate deduplication index."""
+        """Scan existing outbox file and populate deduplication index.
+
+        Invariant I15: CRC mismatch aborts with zero events applied.
+        """
         if self._outbox_path is None or not self._outbox_path.exists():
             return
         with self._lock:
-            try:
-                with open(self._outbox_path, "rb") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            record = json.loads(line.decode("utf-8"))
-                            crc_expected = record.get("crc64")
-                            data_raw = json.dumps(record.get("event"), sort_keys=True).encode("utf-8")
-                            if crc_expected and compute_crc64(data_raw) != crc_expected:
-                                logger.warning("Outbox corruption detected in record, skipping")
-                                continue
-                            evt_dict = record.get("event", {})
-                            evt = EventEnvelope.from_dict(evt_dict)
-                            if evt.event_id not in self._seen_event_ids:
-                                self._seen_event_ids.add(evt.event_id)
-                                self._events.append(evt)
-                        except Exception as e:
-                            logger.debug("Failed parsing outbox line: %s", e)
-            except Exception as e:
-                logger.warning("Failed to load existing outbox ledger %s: %s", self._outbox_path, e)
+            recovered: list[EventEnvelope] = []
+            recovered_ids: set[str] = set()
+            with open(self._outbox_path, "rb") as f:
+                for line_no, line in enumerate(f, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line.decode("utf-8"))
+                    except Exception as exc:
+                        raise WALCorruptionError(
+                            f"Malformed outbox record in {self._outbox_path} line {line_no}: {exc}"
+                        ) from exc
+                    crc_expected = record.get("crc64")
+                    data_raw = json.dumps(record.get("event"), sort_keys=True).encode("utf-8")
+                    if crc_expected and compute_crc64(data_raw) != crc_expected:
+                        raise WALCorruptionError(
+                            f"CRC-64 mismatch in outbox ledger {self._outbox_path} line {line_no}"
+                        )
+                    evt_dict = record.get("event", {})
+                    evt = EventEnvelope.from_dict(evt_dict)
+                    if evt.event_id not in recovered_ids:
+                        recovered_ids.add(evt.event_id)
+                        recovered.append(evt)
+            self._events = recovered
+            self._seen_event_ids = recovered_ids
 
     def append_events(self, events: Sequence[EventEnvelope], sync: bool = True) -> int:
         """Append emitted domain events to the durable outbox ledger atomically."""

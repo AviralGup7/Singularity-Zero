@@ -14,17 +14,32 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.core.contracts.command_envelope import CommandEnvelope, EventEnvelope
 from src.core.contracts.execution_request import (
     CandidateLease,
-    ExecutionFinding as Finding,
-    ExecutionResultContract as ExecutionResult,
     RawExecutionClaim,
+)
+from src.core.contracts.execution_request import (
+    ExecutionFinding as Finding,
+)
+from src.core.contracts.execution_request import (
+    ExecutionResultContract as ExecutionResult,
 )
 from src.core.contracts.pipeline_runtime import StageOutput
 from src.core.frontier.state import NeuralState
 
 logger = logging.getLogger(__name__)
+
+
+def _dict_findings_from_delta(state_delta: Mapping[str, Any] | None) -> tuple[dict[str, Any], ...]:
+    """Extract dict findings for EventBus projection. Non-dicts are dropped."""
+    if not state_delta:
+        return ()
+    raw = state_delta.get("reportable_findings")
+    if not isinstance(raw, (list, tuple)):
+        raw = state_delta.get("findings")
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    return tuple(item for item in raw if isinstance(item, dict))
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +52,7 @@ class SettlementResult:
     committed_findings_count: int = 0
     committed_deltas_count: int = 0
     error: str = ""
+    committed_findings: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -46,6 +62,7 @@ class SettlementResult:
             "committed_findings_count": self.committed_findings_count,
             "committed_deltas_count": self.committed_deltas_count,
             "error": self.error,
+            "committed_findings": list(self.committed_findings),
         }
 
 
@@ -194,7 +211,10 @@ class StateAuthority:
                 self._committed_execution_ids.add(intent.execution_id)
 
             self._append_count += 1
-            if self.auto_compact_interval > 0 and self._append_count % self.auto_compact_interval == 0:
+            if (
+                self.auto_compact_interval > 0
+                and self._append_count % self.auto_compact_interval == 0
+            ):
                 if self.wal is not None and hasattr(self.wal, "compact_after_snapshot"):
                     try:
                         self.wal.compact_after_snapshot(self.state)
@@ -227,7 +247,8 @@ class StateAuthority:
             validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
             if validation_errors:
                 raise ValueError(
-                    f"Stage '{stage_name}' produced invalid state_delta: " + "; ".join(validation_errors)
+                    f"Stage '{stage_name}' produced invalid state_delta: "
+                    + "; ".join(validation_errors)
                 )
 
             wal_backend = self.wal or getattr(ctx, "_wal", None)
@@ -408,9 +429,13 @@ class BudgetProjection:
                 return False
 
             if self.budget_enforcer is not None:
-                if intent.budget_action == "COMMIT" and hasattr(self.budget_enforcer, "commit_requests"):
+                if intent.budget_action == "COMMIT" and hasattr(
+                    self.budget_enforcer, "commit_requests"
+                ):
                     self.budget_enforcer.commit_requests(intent.budget_request_count)
-                elif intent.budget_action == "RELEASE" and hasattr(self.budget_enforcer, "release_requests"):
+                elif intent.budget_action == "RELEASE" and hasattr(
+                    self.budget_enforcer, "release_requests"
+                ):
                     self.budget_enforcer.release_requests(intent.budget_request_count)
 
             if intent.execution_id:
@@ -492,7 +517,11 @@ class FindingsProjection:
                         finding = Finding.from_mapping(f_data)
                     else:
                         continue
-                    key = finding.key() if hasattr(finding, "key") else f"{getattr(finding, 'category', 'c')}:{getattr(finding, 'url', 'u')}"
+                    key = (
+                        finding.key()
+                        if hasattr(finding, "key")
+                        else f"{getattr(finding, 'category', 'c')}:{getattr(finding, 'url', 'u')}"
+                    )
                     self._findings[key] = finding
 
             if intent.execution_id:
@@ -524,22 +553,32 @@ class SettlementProjectionEngine:
             try:
                 self.state_projection.apply(intent, wal_id)
             except Exception as exc:
-                logger.error("ProjectionEngine: State projection error for %s: %s", intent.execution_id, exc)
+                logger.error(
+                    "ProjectionEngine: State projection error for %s: %s", intent.execution_id, exc
+                )
 
             try:
                 self.budget_projection.apply(intent, wal_id)
             except Exception as exc:
-                logger.error("ProjectionEngine: Budget projection error for %s: %s", intent.execution_id, exc)
+                logger.error(
+                    "ProjectionEngine: Budget projection error for %s: %s", intent.execution_id, exc
+                )
 
             try:
                 self.lease_projection.apply(intent, wal_id)
             except Exception as exc:
-                logger.error("ProjectionEngine: Lease projection error for %s: %s", intent.execution_id, exc)
+                logger.error(
+                    "ProjectionEngine: Lease projection error for %s: %s", intent.execution_id, exc
+                )
 
             try:
                 self.findings_projection.apply(intent, wal_id)
             except Exception as exc:
-                logger.error("ProjectionEngine: Findings projection error for %s: %s", intent.execution_id, exc)
+                logger.error(
+                    "ProjectionEngine: Findings projection error for %s: %s",
+                    intent.execution_id,
+                    exc,
+                )
 
     def replay_from_wal(self, wal: Any) -> dict[str, int]:
         """Catch up any lagging projections from the WAL log entries."""
@@ -558,7 +597,9 @@ class SettlementProjectionEngine:
                 wal_id = str(entry.get("_wal_id") or "")
                 if entry.get("_is_settlement_intent"):
                     intent = SettlementIntent.from_mapping(entry)
-                elif "execution_id" in entry and ("state_delta" in entry or "budget_action" in entry):
+                elif "execution_id" in entry and (
+                    "state_delta" in entry or "budget_action" in entry
+                ):
                     intent = SettlementIntent.from_mapping(entry)
                 else:
                     intent = SettlementIntent(
@@ -654,7 +695,10 @@ class SettlementCoordinator:
                             status="REJECTED",
                             error="Ticket nonce mismatch: Potential replay attack detected",
                         )
-                if hasattr(ticket, "policy_generation") and claim.policy_generation != ticket.policy_generation:
+                if (
+                    hasattr(ticket, "policy_generation")
+                    and claim.policy_generation != ticket.policy_generation
+                ):
                     return SettlementResult(
                         execution_id=exec_id,
                         status="REJECTED",
@@ -664,6 +708,7 @@ class SettlementCoordinator:
             # 3. CAS Merkle Root & Evidence Integrity Verification (Invariant I27)
             if claim.cas_merkle_root and claim.evidence_hashes:
                 from src.core.storage.cas_store import get_global_cas_store
+
                 cas_store = get_global_cas_store()
                 if not cas_store.verify_merkle_root(claim.evidence_hashes, claim.cas_merkle_root):
                     return SettlementResult(
@@ -772,7 +817,9 @@ class SettlementCoordinator:
             try:
                 wal_id = self.state_authority.append_settlement_intent(intent)
             except Exception as exc:
-                logger.exception("SettlementCoordinator: WAL append failed for execution %s", exec_id)
+                logger.exception(
+                    "SettlementCoordinator: WAL append failed for execution %s", exec_id
+                )
                 return SettlementResult(
                     execution_id=exec_id,
                     status="REJECTED",
@@ -789,13 +836,15 @@ class SettlementCoordinator:
             self.projection_engine.apply_intent(intent, wal_id=wal_id)
 
             status = "COMMITTED" if result.outcome == "COMPLETED" else "REJECTED"
+            committed_findings = _dict_findings_from_delta(deltas_dict)
             return SettlementResult(
                 execution_id=exec_id,
                 status=status,
                 wal_id=wal_id,
-                committed_findings_count=len(result.findings),
+                committed_findings_count=len(committed_findings) or len(result.findings),
                 committed_deltas_count=len(result.state_deltas),
                 error=result.error if status == "REJECTED" else "",
+                committed_findings=committed_findings,
             )
 
     def replay_projections(self, wal: Any | None = None) -> dict[str, int]:

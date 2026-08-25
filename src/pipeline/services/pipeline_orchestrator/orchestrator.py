@@ -61,7 +61,6 @@ from ._orchestrator import (
     build_stage_methods_map,
     finalize_run,
     log_live_hosts_timeout_diagnostics,
-    merge_stage_output,
     record_stage_post_run,
     resolve_stage_timeout,
     run_stage_with_retry,
@@ -291,6 +290,9 @@ class PipelineOrchestrator:
     @_wal.setter
     def _wal(self, val: Any) -> None:
         self.ctx.wal = val
+        # Rebind authority to the durable WAL; ctx is a projection, not a second writer.
+        self._state_authority_instance = None
+        self._settlement_coordinator_instance = None
 
     @property
     def _learning_integration(self) -> LearningIntegration:
@@ -388,7 +390,10 @@ class PipelineOrchestrator:
 
     @property
     def settlement_coordinator(self) -> Any:
-        if not hasattr(self, "_settlement_coordinator_instance") or self._settlement_coordinator_instance is None:
+        if (
+            not hasattr(self, "_settlement_coordinator_instance")
+            or self._settlement_coordinator_instance is None
+        ):
             from src.core.frontier.state_authority import SettlementCoordinator
 
             self._settlement_coordinator_instance = SettlementCoordinator(
@@ -402,28 +407,32 @@ class PipelineOrchestrator:
         stage_name: str,
         stage_output: StageOutput,
     ) -> Any:
+        """Settle through StateAuthority, then project committed findings onto EventBus.
+
+        EventBus is a consumer of committed settlement results. It must not invent
+        FINDING_CREATED events from uncommitted or non-dict stage payloads.
+        """
         settle_res = self.settlement_coordinator.settle_stage_output(ctx, stage_name, stage_output)
+        if getattr(settle_res, "status", "") != "COMMITTED":
+            return settle_res
 
         stage_trace_id = getattr(stage_output, "trace_id", "") or ""
-        if stage_output.state_delta:
-            findings = stage_output.state_delta.get("reportable_findings", [])
-            if isinstance(findings, (list, tuple)):
-                for finding in findings:
-                    if isinstance(finding, dict):
-                        str(
-                            finding.get("finding_id")
-                            or finding.get("id")
-                            or finding.get("title", "")
-                            or ""
-                        )
-                    self._emit_event(
-                        EventType.FINDING_CREATED,
-                        source=f"stage.{stage_name}",
-                        data={"finding": finding, "trace_id": stage_trace_id},
-                        trace_id=stage_trace_id,
-                    )
+        findings = getattr(settle_res, "committed_findings", ()) or ()
+        for finding in findings:
+            if not isinstance(finding, dict):
+                continue
+            self._emit_event(
+                EventType.FINDING_CREATED,
+                source=f"settlement.{stage_name}",
+                data={
+                    "finding": finding,
+                    "trace_id": stage_trace_id,
+                    "wal_id": getattr(settle_res, "wal_id", None),
+                    "execution_id": getattr(settle_res, "execution_id", ""),
+                },
+                trace_id=stage_trace_id,
+            )
         return settle_res
-
 
     @staticmethod
     def _safe_checkpoint_stage_outcome(

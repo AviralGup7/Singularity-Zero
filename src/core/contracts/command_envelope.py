@@ -197,9 +197,7 @@ class CommittedEntry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CommittedEntry:
-        events = tuple(
-            EventEnvelope.from_dict(e) for e in data.get("emitted_events", [])
-        )
+        events = tuple(EventEnvelope.from_dict(e) for e in data.get("emitted_events", []))
         return cls(
             partition_id=str(data.get("partition_id", "P-0000")),
             raft_term=int(data.get("raft_term", 1)),
@@ -271,6 +269,27 @@ class CommandReceipt:
             cryptographic_signature=str(data.get("cryptographic_signature", "")),
         )
 
+    def bind_payload(self) -> dict[str, Any]:
+        """Fields cryptographically bound into ``cryptographic_signature``."""
+        from src.core.frontier.receipt_crypto import receipt_bind_payload
+
+        return receipt_bind_payload(
+            command_id=self.command_id,
+            partition_id=self.partition_id,
+            raft_term=self.raft_term,
+            raft_index=self.raft_index,
+            entry_hash=self.entry_hash,
+            previous_state_hash=self.previous_state_hash,
+            state_hash_at_commit=self.state_hash_at_commit,
+            signer_key_id=self.signer_key_id,
+        )
+
+    def verify_signature(self) -> bool:
+        """Return True iff the HMAC-SHA256 receipt MAC validates."""
+        from src.core.frontier.receipt_crypto import verify_receipt_signature
+
+        return verify_receipt_signature(self.bind_payload(), self.cryptographic_signature)
+
 
 UpcasterFn = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -291,7 +310,9 @@ class SchemaUpcasterRegistry:
     ) -> None:
         self._upcasters[(event_type, from_version)] = (to_version, fn)
 
-    def upcast(self, event_dict: dict[str, Any], target_version: int | None = None) -> dict[str, Any]:
+    def upcast(
+        self, event_dict: dict[str, Any], target_version: int | None = None
+    ) -> dict[str, Any]:
         """Progressively upcast an event dictionary until the target version is reached."""
         current = dict(event_dict)
         event_type = current.get("event_type", "")

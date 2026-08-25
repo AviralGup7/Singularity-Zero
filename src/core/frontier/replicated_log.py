@@ -43,6 +43,12 @@ from src.core.frontier.raft_transport import (
     RequestVoteRequest,
     RequestVoteResponse,
 )
+from src.core.frontier.receipt_crypto import (
+    receipt_bind_payload,
+    sign_receipt,
+    signing_key_id,
+)
+from src.core.frontier.wal_errors import WALCorruptionError
 from src.infrastructure.frontier.wal import compute_crc64
 
 logger = logging.getLogger(__name__)
@@ -67,7 +73,9 @@ class PartitionWAL:
     def wal_path(self) -> Path | None:
         return self._wal_path
 
-    def append_entry(self, entry: CommittedEntry, committed: bool = False, sync: bool = True) -> None:
+    def append_entry(
+        self, entry: CommittedEntry, committed: bool = False, sync: bool = True
+    ) -> None:
         """Persist a single entry to disk with CRC-64 verification and atomic fsync."""
         with self._lock:
             self._in_memory_records.append((entry, committed))
@@ -95,14 +103,18 @@ class PartitionWAL:
                         pass
 
     def load_all_entries(self) -> list[tuple[CommittedEntry, bool]]:
-        """Load and validate all entries from the physical WAL (or in-memory cache)."""
+        """Load and validate all entries from the physical WAL (or in-memory cache).
+
+        Invariant I15: a CRC mismatch or malformed record aborts recovery with
+        zero state mutations (no partial apply, no skip-and-continue).
+        """
         with self._lock:
             if self._wal_path is None or not self._wal_path.exists():
                 return list(self._in_memory_records)
 
             results: list[tuple[CommittedEntry, bool]] = []
             with open(self._wal_path, "rb") as f:
-                for line in f:
+                for line_no, line in enumerate(f, start=1):
                     line = line.strip()
                     if not line:
                         continue
@@ -112,13 +124,18 @@ class PartitionWAL:
                         data_raw = json.dumps(entry_dict, sort_keys=True).encode("utf-8")
                         crc_expected = record.get("crc64")
                         if crc_expected and compute_crc64(data_raw) != crc_expected:
-                            logger.warning("Corrupt WAL line skipped due to CRC mismatch")
-                            continue
+                            raise WALCorruptionError(
+                                f"CRC-64 mismatch in PartitionWAL {self._wal_path} line {line_no}"
+                            )
                         entry = CommittedEntry.from_dict(entry_dict)
                         committed = bool(record.get("committed", False))
                         results.append((entry, committed))
+                    except WALCorruptionError:
+                        raise
                     except Exception as exc:
-                        logger.warning("Malformed WAL record skipped: %s", exc)
+                        raise WALCorruptionError(
+                            f"Malformed PartitionWAL record in {self._wal_path} line {line_no}: {exc}"
+                        ) from exc
             return results
 
 
@@ -133,7 +150,7 @@ class ReplicatedPartitionLog:
         is_leader: bool = True,
         peers: Sequence[str] = (),
         transport: RaftTransportProtocol | None = None,
-        signer_key_id: str = "K-2026-A",
+        signer_key_id: str | None = None,
         fsm: PartitionFSM | None = None,
         wal_dir: Path | str | None = None,
         outbox_dir: Path | str | None = None,
@@ -145,19 +162,19 @@ class ReplicatedPartitionLog:
         self.role = "LEADER" if is_leader else "FOLLOWER"
         self.peers = list(peers)
         self.transport = transport
-        self.signer_key_id = signer_key_id
+        self.signer_key_id = signer_key_id or signing_key_id()
         self.fsm = fsm if fsm is not None else PartitionFSM(partition_id=partition_id)
-        
+
         self.wal = PartitionWAL(partition_id=partition_id, node_id=node_id, wal_dir=wal_dir)
         self.outbox = DurableOutboxLedger(partition_id=partition_id, outbox_dir=outbox_dir)
-        
+
         self.entries: list[CommittedEntry] = []
         self.commit_index: int = 0
         self.last_applied: int = 0
         self.voted_for: str | None = node_id if is_leader else None
         self._last_entry_hash: str = "0" * 64
         self._lock = threading.RLock()
-        
+
         # Recover state from existing WAL on startup (if persisted)
         if wal_dir is not None:
             self._recover_from_wal()
@@ -174,7 +191,10 @@ class ReplicatedPartitionLog:
             return self._last_entry_hash
 
     def _recover_from_wal(self) -> None:
-        """Replay valid committed entries from persistent WAL storage into memory and FSM."""
+        """Replay valid committed entries from persistent WAL storage into memory and FSM.
+
+        Corruption raises ``WALCorruptionError`` before any FSM apply (I15).
+        """
         with self._lock:
             loaded = self.wal.load_all_entries()
             if not loaded:
@@ -202,7 +222,10 @@ class ReplicatedPartitionLog:
                 raise ValueError(
                     f"Clock drift rejected: command timestamp {cmd.created_at_unix} is in future relative to admission clock {now_admission}"
                 )
-            if self.entries and cmd.created_at_unix < self.entries[-1].command.created_at_unix - 5.0:
+            if (
+                self.entries
+                and cmd.created_at_unix < self.entries[-1].command.created_at_unix - 5.0
+            ):
                 raise ValueError(
                     f"Clock skew rejected: command timestamp {cmd.created_at_unix} violates monotonic admission threshold (< {self.entries[-1].command.created_at_unix - 5.0})"
                 )
@@ -218,10 +241,12 @@ class ReplicatedPartitionLog:
                 "command": cmd.to_dict(),
                 "prev_hash": prev_hash,
             }
-            entry_hash = hashlib.sha256(canonical_state_encode("v2.1.0", raw_entry_data)).hexdigest()
+            entry_hash = hashlib.sha256(
+                canonical_state_encode("v2.1.0", raw_entry_data)
+            ).hexdigest()
 
             pre_state_hash = self.fsm.get_state_hash()
-            
+
             # Temporary entry to evaluate FSM transition deterministically
             temp_entry = CommittedEntry(
                 partition_id=self.partition_id,
@@ -287,7 +312,7 @@ class ReplicatedPartitionLog:
             # 5. Step D: Quorum Reached -> Advance commitIndex & Commit in Leader WAL
             self.commit_index = next_index
             self._last_entry_hash = entry_hash
-            
+
             # 6. Step E: Apply to Leader FSM (Committed Entries Only Reach FSM.Apply)
             post_state_hash, emitted_events, result = self.fsm.apply(temp_entry)
             self.last_applied = next_index
@@ -326,21 +351,17 @@ class ReplicatedPartitionLog:
                 f_fsm.apply(temp_entry)
 
             # 10. Step H: Issue Certified CommandReceipt (Leader Only)
-            receipt_payload = {
-                "command_id": cmd.command_id,
-                "partition_id": self.partition_id,
-                "raft_term": self.current_term,
-                "raft_index": next_index,
-                "entry_hash": entry_hash,
-                "aggregate_id": cmd.aggregate_id,
-                "resulting_aggregate_version": result.resulting_aggregate_version,
-                "result_code": result.result_code,
-                "previous_state_hash": pre_state_hash,
-                "state_hash_at_commit": post_state_hash,
-                "signer_key_id": self.signer_key_id,
-            }
-            sig_raw = canonical_state_encode("v2.1.0", receipt_payload)
-            cryptographic_signature = hashlib.sha256(sig_raw).hexdigest()
+            receipt_payload = receipt_bind_payload(
+                command_id=cmd.command_id,
+                partition_id=self.partition_id,
+                raft_term=self.current_term,
+                raft_index=next_index,
+                entry_hash=entry_hash,
+                previous_state_hash=pre_state_hash,
+                state_hash_at_commit=post_state_hash,
+                signer_key_id=self.signer_key_id,
+            )
+            cryptographic_signature = sign_receipt(receipt_payload)
 
             event_ids = tuple(e.event_id for e in emitted_events)
             receipt = CommandReceipt(
@@ -353,7 +374,9 @@ class ReplicatedPartitionLog:
                 aggregate_id=cmd.aggregate_id,
                 resulting_aggregate_version=result.resulting_aggregate_version,
                 result_code=result.result_code,
-                result_payload_hash=hashlib.sha256(canonical_state_encode("v2.1.0", result.result_payload)).hexdigest(),
+                result_payload_hash=hashlib.sha256(
+                    canonical_state_encode("v2.1.0", result.result_payload)
+                ).hexdigest(),
                 emitted_event_ids=event_ids,
                 previous_state_hash=pre_state_hash,
                 state_hash_at_commit=post_state_hash,
@@ -476,10 +499,21 @@ class ReplicatedPartitionLog:
             if votes >= self.quorum_size:
                 self.role = "LEADER"
                 self.is_leader = True
-                logger.info("Node %s won election for term %d with %d votes", self.node_id, self.current_term, votes)
+                logger.info(
+                    "Node %s won election for term %d with %d votes",
+                    self.node_id,
+                    self.current_term,
+                    votes,
+                )
                 return True
             else:
                 self.role = "FOLLOWER"
                 self.is_leader = False
-                logger.info("Node %s lost election for term %d (got %d/%d votes)", self.node_id, self.current_term, votes, self.quorum_size)
+                logger.info(
+                    "Node %s lost election for term %d (got %d/%d votes)",
+                    self.node_id,
+                    self.current_term,
+                    votes,
+                    self.quorum_size,
+                )
                 return False

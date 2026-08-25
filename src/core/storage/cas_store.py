@@ -31,20 +31,9 @@ def compute_sha256(data: bytes | str) -> str:
 
 def compute_merkle_root(leaf_hashes: Sequence[str]) -> str:
     """Compute binary SHA-256 Merkle tree root over an ordered list of leaf hashes (I27)."""
-    if not leaf_hashes:
-        return compute_sha256(b"")
+    from src.core.security.merkle import merkle_root_from_leaf_hashes
 
-    current_level = list(leaf_hashes)
-    while len(current_level) > 1:
-        next_level = []
-        for i in range(0, len(current_level), 2):
-            left = current_level[i]
-            right = current_level[i + 1] if i + 1 < len(current_level) else left
-            combined = compute_sha256(f"{left}:{right}".encode("utf-8"))
-            next_level.append(combined)
-        current_level = next_level
-
-    return current_level[0]
+    return merkle_root_from_leaf_hashes(leaf_hashes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +110,9 @@ class CASStore:
                 # Verify content hash (fail-closed invariant)
                 actual_hash = compute_sha256(data)
                 if actual_hash != blob_hash:
-                    logger.error("CAS corruption detected: expected %s, got %s", blob_hash, actual_hash)
+                    logger.error(
+                        "CAS corruption detected: expected %s, got %s", blob_hash, actual_hash
+                    )
                     raise CASStorageError(
                         f"CAS integrity violation: hash mismatch for blob {blob_hash}"
                     )

@@ -18,12 +18,14 @@ def execute_plugin(wasm_path: str, stage_input: dict[str, Any], **kwargs: Any) -
 
 from src.sandbox.process_sandbox import (
     ProcessSandbox,
+    SandboxClass,
     SandboxExecutionResult,
     SandboxResourceLimits,
 )
 
 __all__ = [
     "ProcessSandbox",
+    "SandboxClass",
     "SandboxExecutionResult",
     "SandboxResourceLimits",
     "execute_plugin",
