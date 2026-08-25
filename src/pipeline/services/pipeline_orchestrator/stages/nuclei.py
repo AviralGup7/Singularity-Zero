@@ -107,7 +107,6 @@ async def run_nuclei_stage(
 
         import uuid
 
-        from src.decision.authorization import ExecutionAuthorizer
         from src.decision.models import (
             ActionSpec,
             ExecutionRequest,
@@ -134,7 +133,9 @@ async def run_nuclei_stage(
             or get_current_hunt_budget()
             or HuntBudgetEnforcer(HuntBudget(max_requests=5000), label="nuclei")
         )
-        authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
+        from src.pipeline.authority_bootstrap import resolve_execution_authorizer
+
+        authorizer = resolve_execution_authorizer(ctx=ctx, budget_enforcer=enforcer)
         worker = ExecutionRequestWorker(authorizer=authorizer)
 
         action = ActionSpec(

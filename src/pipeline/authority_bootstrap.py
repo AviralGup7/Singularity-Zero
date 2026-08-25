@@ -48,6 +48,25 @@ def build_pipeline_authority_runtime(
     return runtime
 
 
+def resolve_execution_authorizer(
+    *,
+    ctx: Any | None = None,
+    budget_enforcer: Any | None = None,
+) -> ExecutionAuthorizer:
+    """Prefer the live CLI authorizer so every stage shares one budget."""
+    runtime = getattr(ctx, "authority_runtime", None) if ctx is not None else None
+    if runtime is not None and getattr(runtime, "authorizer", None) is not None:
+        return runtime.authorizer
+    enforcer = budget_enforcer
+    if enforcer is None and ctx is not None:
+        enforcer = getattr(ctx, "budget_enforcer", None)
+    if enforcer is None:
+        from src.core.frontier.authority_runtime import get_current_hunt_budget
+
+        enforcer = get_current_hunt_budget()
+    return ExecutionAuthorizer(budget_enforcer=enforcer)
+
+
 def attach_pipeline_authority(
     orchestrator: Any, run_id: str, config: Any
 ) -> PipelineAuthorityRuntime:
@@ -67,4 +86,5 @@ def attach_pipeline_authority(
 __all__ = [
     "attach_pipeline_authority",
     "build_pipeline_authority_runtime",
+    "resolve_execution_authorizer",
 ]

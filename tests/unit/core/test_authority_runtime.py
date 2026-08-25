@@ -72,6 +72,14 @@ def test_hunt_budget_contextvar_is_set_on_attach() -> None:
     assert get_current_hunt_budget() is rt.hunt_budget
 
 
+def test_resolve_execution_authorizer_reuses_runtime() -> None:
+    from src.pipeline.authority_bootstrap import resolve_execution_authorizer
+
+    rt = build_pipeline_authority_runtime(run_id="run-authz", total_budget=50)
+    ctx = SimpleNamespace(authority_runtime=rt, budget_enforcer=rt.hunt_budget)
+    assert resolve_execution_authorizer(ctx=ctx) is rt.authorizer
+
+
 def test_network_raft_transport_unknown_peer() -> None:
     t = NetworkRaftTransport()
     from src.core.frontier.raft_transport import RequestVoteRequest

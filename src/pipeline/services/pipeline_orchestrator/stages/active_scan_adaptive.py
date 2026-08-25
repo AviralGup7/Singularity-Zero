@@ -191,7 +191,6 @@ async def run_active_scanning_adaptive(
 
     import uuid
 
-    from src.decision.authorization import ExecutionAuthorizer
     from src.decision.models import ActionSpec, ExecutionRequest, ScopeToken, TargetSpec
     from src.learning.versioned_policy import VersionedPolicy
 
@@ -201,7 +200,9 @@ async def run_active_scanning_adaptive(
         if hf:
             policy = VersionedPolicy.from_mapping(hf)
 
-    authorizer = ExecutionAuthorizer(budget_enforcer=budget_enforcer)
+    from src.pipeline.authority_bootstrap import resolve_execution_authorizer
+
+    authorizer = resolve_execution_authorizer(ctx=ctx, budget_enforcer=budget_enforcer)
     raw_composite_probe = CompositeActiveProbe(
         probes,
         response_cache,

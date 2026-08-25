@@ -71,7 +71,6 @@ async def run_validation(
     import uuid
 
     from src.core.frontier.authority_runtime import get_current_hunt_budget
-    from src.decision.authorization import ExecutionAuthorizer
     from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
     from src.decision.models import (
         ActionSpec,
@@ -87,7 +86,9 @@ async def run_validation(
         or get_current_hunt_budget()
         or HuntBudgetEnforcer(HuntBudget(max_requests=200), label="validation")
     )
-    authorizer = ExecutionAuthorizer(budget_enforcer=enforcer)
+    from src.pipeline.authority_bootstrap import resolve_execution_authorizer
+
+    authorizer = resolve_execution_authorizer(ctx=ctx, budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)
 
     for attempt in range(1, 3):
