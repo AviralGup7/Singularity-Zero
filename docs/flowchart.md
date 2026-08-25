@@ -455,28 +455,30 @@ flowchart TD
 
 Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/event_delivery.py`.
 
+EventBus is an **in-process notification dispatcher**, not a durable log and not a source of truth. Authoritative Event → Durable Outbox → Delivery Dispatcher → EventBus → consumers. `EventBus.emit(FINDING_CREATED)` without `wal_id` + `authoritative=True` is refused.
+
 ```mermaid
 flowchart TD
     subgraph I30["I30 authorization causality"]
         Scope["ScopeToken hash"]
-        Res["BudgetReservation id"]
+        Res["BudgetReservation id in enforcer ledger"]
         Rev["AuthorityRevision"]
-        Cmd["CommandId"]
+        Cmd["CommandId from reserve_with_identity"]
         Scope --> Ticket["AuthorizedExecutionTicket"]
         Res --> Ticket
         Rev --> Ticket
         Cmd --> Ticket
-        Ticket -->|"missing any binding"| Reject["AuthorizationCausalityError"]
+        Ticket -->|"missing binding or unknown reservation"| Reject["no ticket / consume False"]
     end
     subgraph I31["I31 settlement causality"]
         Intent["SettlementIntent"] --> Durable["WAL wal_id COMMITTED"]
         Durable -->|"yes"| Finding["FINDING_CREATED allowed"]
-        Durable -->|"no"| NoEmit["no EventBus finding"]
+        Durable -->|"no"| NoEmit["EventBus refuses finding"]
     end
     subgraph I32["I32 EventBus is not authority"]
         Finding --> Outbox["DurableOutbox append"]
-        Outbox --> Bus["EventBus dispatcher"]
-        Bus --> Consumers["in-process observers"]
+        Outbox --> Bus["EventBus in-process notify"]
+        Bus --> Consumers["observers"]
         Bus -.->|"handler/outbox fail"| Still["authoritative state unchanged"]
     end
 ```
@@ -489,5 +491,6 @@ flowchart TD
 | 2026-08-25 | F-001/F-008 edit; F-031 F-032 added | edit |
 | 2026-08-25 | Merged into 11 survivors; retired absorbed ids | edit |
 | 2026-08-25 | Compacted retired headings and changelog (live charts unchanged) | edit |
+| 2026-08-25 | F-033: fail-closed I30 ledger + EventBus refuse unauthoritative FINDING_CREATED | edit |
 
 Append a row for every later edit. Do not delete this table.

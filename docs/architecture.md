@@ -152,6 +152,9 @@ graph TD
 28. **I27 (Bounded Claims & CAS Merkle Evidence)**: Claims are bounded to 64 KB; raw evidence is content-addressed in `CASStore` and cryptographically bound via binary SHA-256 Merkle roots.
 29. **I28 (Hardened Lease State Transitions)**: Leases transition strictly through `UNALLOCATED` $\rightarrow$ `RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED` / `EXPIRED`; `COMPENSATED` is permitted only from `RESERVED`/`EXPIRED` and duplicate compensation is idempotent.
 30. **I29 (Scope-Derived Network Egress Enforcement)**: Outbound worker network destinations are derived strictly from `ScopeToken`; cloud metadata services (`169.254.169.254`, `metadata.google.internal`, etc.) are unconditionally denied.
+31. **I30 (Authorization Causality)**: An `AuthorizedExecutionTicket` exists only if it binds `ScopeToken` hash, a budget reservation recorded on the enforcer, an authority revision, and a `command_id`. Consume fails if the reservation is not in the ledger.
+32. **I31 (Settlement Causality)**: `FINDING_CREATED` is emitted only after a `SettlementIntent` is durably `COMMITTED` with a `wal_id`. EventBus refuses finding events that lack that binding.
+33. **I32 (EventBus Non-Authority)**: EventBus is an in-process delivery dispatcher after the durable outbox. Outbox or bus failure does not un-commit authoritative state.
 
 > [!NOTE]
 > **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{29}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`, `tests/integration/test_chaos_fault_injection.py`). Cryptographic properties (e.g. $I_{11}, I_{27}$) hold under standard computational collision resistance assumptions.
