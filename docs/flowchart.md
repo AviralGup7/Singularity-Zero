@@ -1,6 +1,8 @@
 # Flowchart Atlas
 
-Visual graphs for every living document under `docs/`. Charts are the map; the linked markdown files remain the specification.
+Visual graphs of the living docs under `docs/`. Charts are the map; the linked markdown files remain the specification.
+
+**One file. Merged when overlapping.** Similar, nested, or part-of-each-other flows share a single survivor chart. Retired ids stay as headings that point at the survivor — they are not rewritten away and their ids are never reused.
 
 ---
 
@@ -13,6 +15,8 @@ Visual graphs for every living document under `docs/`. Charts are the map; the l
 > | Action | Allowed? | When |
 > |---|---|---|
 > | Add a new `F-NNN` chart | Yes | A new doc, subsystem, or lifecycle appears |
+> | Merge overlapping charts into one survivor | Yes | Charts are similar, nested, or part of each other |
+> | Retire a chart heading after merge | Yes | Leave `RETIRED → F-XXX`; do not reuse the id |
 > | Edit / improve an existing chart | Yes | The source doc or code changed |
 > | Rename a node or edge | Yes | The name in code/docs changed |
 > | Delete a chart or a portion of a chart | **Only if** that portion's subject was actually deleted from the repo/docs |
@@ -33,40 +37,42 @@ Visual graphs for every living document under `docs/`. Charts are the map; the l
 
 ## Atlas Index
 
-| Id | Chart | Source doc |
-|---|---|---|
-| F-001 | Documentation portal map | [index.md](index.md) |
-| F-002 | High-level system topology | [architecture-overview.md](architecture-overview.md) |
-| F-003 | Six-level authority hierarchy (Axiom 1) | [architecture.md](architecture.md) |
-| F-004 | Live CLI scan path | [architecture.md](architecture.md), [codebase.md](codebase.md) |
-| F-005 | Settlement and FINDING_CREATED | [architecture.md](architecture.md) |
-| F-006 | Lease lifecycle I28 / I19 | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
-| F-007 | Dashboard job state machine | [architecture.md](architecture.md) |
-| F-008 | Stage status CAS | [architecture.md](architecture.md) |
-| F-009 | Circuit breaker | [architecture.md](architecture.md) |
-| F-010 | Execution authorization | [architecture/execution-request-contract.md](architecture/execution-request-contract.md) |
-| F-011 | Global budget conservation | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
-| F-012 | Policy governance | [architecture.md](architecture.md) |
-| F-013 | I29 sandbox egress | [architecture.md](architecture.md), [FAILURE_MODES.md](FAILURE_MODES.md) |
-| F-014 | Raft commit and apply | [architecture.md](architecture.md) |
-| F-015 | Recovery and replay | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
-| F-016 | Formal command path | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
-| F-017 | CLI and runtime entrypoints | [commands.md](commands.md) |
-| F-018 | Failure-mode decision tree | [FAILURE_MODES.md](FAILURE_MODES.md) |
-| F-019 | Frontend telemetry | [frontend.md](frontend.md) |
-| F-020 | Tests and CI shards | [testing.md](testing.md) |
-| F-021 | Multi-region replication | [multi-region.md](multi-region.md) |
-| F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
-| F-023 | Live EventBus vs unused bus | [architecture.md](architecture.md) |
-| F-024 | QoS broker lanes | [architecture.md](architecture.md) |
-| F-025 | Unified cache tiers | [architecture/cache-unification.md](architecture/cache-unification.md) |
-| F-026 | Observability stack | [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md) |
-| F-027 | Finding lifecycle | [architecture.md](architecture.md) |
-| F-028 | Three config trees (kept separate) | [environment-variables.md](environment-variables.md) |
-| F-029 | Pipeline stage DAG | [codebase.md](codebase.md) |
-| F-030 | Performance and backpressure | [performance.md](performance.md) |
-| F-031 | API security & request gate | [api-reference.md](api-reference.md) |
-| F-032 | Storage tiering & archival lifecycle | [architecture.md](architecture.md) |
+Live survivors first. `RETIRED` rows stay so ids are never reused.
+
+| Id | Status | Chart | Absorbed / source |
+|---|---|---|---|
+| F-001 | live | Documentation portal map | [index.md](index.md) |
+| F-002 | live | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md) — absorbed F-021 |
+| F-003 | live | Authority plane (L0–L5, Raft, commands, policy) | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) — absorbed F-012, F-014, F-016 |
+| F-004 | live | Live scan: CLI, recover, DAG, authorize, I29, settle | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md) — absorbed F-005, F-010, F-013, F-015, F-017, F-029 |
+| F-005 | RETIRED | → F-004 settlement subgraph | was settlement / FINDING_CREATED |
+| F-006 | live | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) — absorbed F-011 |
+| F-007 | live | Application state machines (job, stage, finding) | `src/jobs/status.py`, `stage_status.py`, `finding_lifecycle.py` — absorbed F-008, F-027 |
+| F-008 | RETIRED | → F-007 stage CAS | was stage status |
+| F-009 | live | Resilience: breaker, QoS, PID | [architecture.md](architecture.md), [performance.md](performance.md) — absorbed F-024, F-030 |
+| F-010 | RETIRED | → F-004 authorize / I29 | was execution authorization |
+| F-011 | RETIRED | → F-006 budget | was global budget |
+| F-012 | RETIRED | → F-003 policy | was policy governance |
+| F-013 | RETIRED | → F-004 I29 | was sandbox egress |
+| F-014 | RETIRED | → F-003 Raft | was Raft commit |
+| F-015 | RETIRED | → F-004 recovery | was recovery / replay |
+| F-016 | RETIRED | → F-003 commands | was formal command path |
+| F-017 | RETIRED | → F-004 CLI | was CLI entrypoints |
+| F-018 | live | Failure-mode decision tree | [FAILURE_MODES.md](FAILURE_MODES.md) |
+| F-019 | live | Operator surface: UI, API gate, EventBus, metrics | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md) — absorbed F-023, F-026, F-031 |
+| F-020 | live | Tests and CI shards | [testing.md](testing.md) |
+| F-021 | RETIRED | → F-002 regions | was multi-region |
+| F-022 | live | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
+| F-023 | RETIRED | → F-019 EventBus | was unused vs live bus |
+| F-024 | RETIRED | → F-009 QoS | was QoS lanes |
+| F-025 | live | Non-authoritative planes: cache, config, storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) — absorbed F-028, F-032 |
+| F-026 | RETIRED | → F-019 observability | was observability stack |
+| F-027 | RETIRED | → F-007 finding SM | was finding lifecycle |
+| F-028 | RETIRED | → F-025 config trees | was three config trees |
+| F-029 | RETIRED | → F-004 stage DAG | was pipeline DAG |
+| F-030 | RETIRED | → F-009 performance | was performance / backpressure |
+| F-031 | RETIRED | → F-019 API gate | was API security |
+| F-032 | RETIRED | → F-025 storage | was storage tiering |
 
 ---
 
@@ -98,338 +104,265 @@ flowchart TD
 
 ---
 
-## F-002 — High-level system topology
+## F-002 — System topology and regions
 
-Source: [architecture-overview.md](architecture-overview.md)
+Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md). Absorbed F-021.
 
 ```mermaid
-flowchart LR
-    UI["React 19 dashboard<br/>frontend/src"] <-->|"HTTP REST / WebSocket"| API["FastAPI dashboard<br/>src/dashboard/fastapi"]
-    API -->|"enqueue / control"| Orch["Pipeline orchestrator<br/>src/pipeline"]
+flowchart TD
+    UI["React 19 dashboard"] <-->|"HTTP REST / WebSocket"| API["FastAPI dashboard"]
+    API -->|"enqueue / control"| Orch["Pipeline orchestrator"]
     Orch --> Engines["Recon / Analysis / Fuzz / Exploit"]
     Orch --> State["WAL / CRDT / Cache / Mesh"]
     Engines --> Sinks["Learning + Reporting"]
     State --> Sinks
+    subgraph RegionA["Region A"]
+        GA["Gossip A"]
+        OA["Authority + FrontierWAL"]
+        RA["Redis stream"]
+        OA --> RA
+    end
+    subgraph RegionB["Region B"]
+        GB["Gossip B"]
+        OB["Authority + FrontierWAL"]
+        RB["Redis stream"]
+        OB --> RB
+    end
+    State --- OA
+    GA <-->|"SWIM UDP AES-256-GCM"| GB
+    RA <-->|"WALReplicationRelay"| RB
 ```
 
----
+## F-003 — Authority plane
 
-## F-003 — Six-level authority hierarchy (Axiom 1)
-
-Source: [architecture.md](architecture.md) §2 Axiom 1
-
-```mermaid
-flowchart TB
-    L0["L0 Replicated Raft log"] --> L1["L1 Deterministic PartitionFSM"]
-    L1 --> L2["L2 Committed events / outbox"]
-    L2 --> L3["L3 Materialized projections"]
-    L3 --> L4["L4 Ephemeral caches and telemetry"]
-    L4 --> L5["L5 Presentation UI"]
-    L5 -.->|"must never author L0-L3"| Forbidden["Forbidden: UI or cache as source of truth"]
-```
-
----
-
-## F-004 — Live CLI scan path
-
-Source: [architecture.md](architecture.md), [codebase.md](codebase.md)
+Source: [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md). Absorbed F-012, F-014, F-016.
 
 ```mermaid
 flowchart TD
-    CLI["cstp scan / src.pipeline.runtime:main"] --> Bind["register_process_bindings"]
-    Bind --> Orch["PipelineOrchestrator.run"]
-    Orch --> Recover["RecoveryManager.recover"]
-    Recover --> WAL["FrontierWAL ready"]
-    WAL --> Auth["attach_pipeline_authority<br/>src.pipeline.authority_bootstrap"]
-    Auth --> Stamp["ctx.budget_enforcer + ctx.authority_runtime"]
-    Stamp --> Stages["DAG stages"]
-    Stages --> Authz["resolve_execution_authorizer"]
-    Authz --> Worker["ExecutionRequestWorker"]
-    Worker --> Claim["RawExecutionClaim / StageOutput"]
-    Claim --> Settle["settle_stage_output / settle_claim"]
-    Settle --> Bus["EventBus FINDING_CREATED after COMMITTED"]
-```
-
----
-
-## F-005 — Settlement and FINDING_CREATED
-
-Source: [architecture.md](architecture.md) §7.6
-
-```mermaid
-flowchart TD
-    Out["StageOutput or RawExecutionClaim"] --> Coord["SettlementCoordinator"]
-    Coord --> Dedup["1 Dedup execution_id"]
-    Dedup --> Ticket["2 Ticket epoch / nonce / policy"]
-    Ticket --> Merkle["3 CAS Merkle I27"]
-    Merkle --> Fence["4 Partition fencing"]
-    Fence --> Intent["SettlementIntent"]
-    Intent --> Thaw["_to_mutable freeze-thaw"]
-    Thaw --> Append["StateAuthority.append_settlement_intent WAL"]
-    Append -->|COMMITTED| Proj["project_stage_output + projection engine"]
-    Proj --> Emit["EventBus FINDING_CREATED"]
-    Append -->|REJECTED or DEDUPLICATED| Silent["No FINDING_CREATED"]
-```
-
----
-
-## F-006 — Lease lifecycle I28 / I19
-
-Source: [architecture.md](architecture.md) I19/I28, [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) §1.11
-
-```mermaid
-stateDiagram-v2
-    [*] --> RESERVED: reserve
-    RESERVED --> ACTIVE: allocate
-    RESERVED --> EXPIRED: expire
-    RESERVED --> COMPENSATED: compensate
-    RESERVED --> CONSUMED: settle consumed
-    ACTIVE --> CONSUMED: settle consumed greater than 0
-    ACTIVE --> EXPIRED: expire
-    EXPIRED --> COMPENSATED: compensate
-    CONSUMED --> CONSUMED: idempotent
-    COMPENSATED --> COMPENSATED: idempotent no-op
-    CONSUMED --> [*]
-    EXPIRED --> [*]
-    COMPENSATED --> [*]
-```
-
----
-
-## F-007 — Dashboard job state machine
-
-Source: [architecture.md](architecture.md), `src/jobs/status.py`
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING
-    PENDING --> STARTING
-    PENDING --> RUNNING
-    PENDING --> FAILED
-    PENDING --> STOPPED
-    PENDING --> STOPPING
-    STARTING --> RUNNING
-    STARTING --> STOPPING
-    STARTING --> FAILED
-    STARTING --> STOPPED
-    RUNNING --> STOPPING
-    RUNNING --> COMPLETED
-    RUNNING --> FAILED
-    RUNNING --> STOPPED
-    STOPPING --> STOPPED
-    STOPPING --> FAILED
-    COMPLETED --> [*]
-    FAILED --> [*]
-    STOPPED --> [*]
-```
-
-Terminal states COMPLETED / FAILED / STOPPED cannot leave. Only `_transition` writes status.
-
----
-
-## F-008 — Stage status CAS
-
-Source: [architecture.md](architecture.md), `src/core/models/stage_status.py`
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING
-    PENDING --> RUNNING
-    PENDING --> SKIPPED_DISABLED
-    PENDING --> DEGRADED
-    RUNNING --> COMPLETED
-    RUNNING --> DEGRADED
-    RUNNING --> FAILED
-    RUNNING --> SKIPPED_FAILED
-    SKIPPED_DISABLED --> [*]
-    SKIPPED_FAILED --> [*]
-    DEGRADED --> [*]
-    COMPLETED --> [*]
-    FAILED --> [*]
-```
-
-Illegal: COMPLETED to FAILED, COMPLETED to SKIPPED*, FAILED to COMPLETED, SKIPPED* to COMPLETED.
-
----
-
-## F-009 — Circuit breaker
-
-Source: [architecture.md](architecture.md)
-
-```mermaid
-stateDiagram-v2
-    [*] --> CLOSED
-    CLOSED --> OPEN: failures exceed threshold
-    OPEN --> HALF_OPEN: cooldown elapsed
-    HALF_OPEN --> CLOSED: single trial succeeds
-    HALF_OPEN --> OPEN: trial fails
-```
-
-Async path: one `asyncio.Lock`, one HALF_OPEN probe, `_trial_generation` increments on enter HALF_OPEN.
-
----
-
-## F-010 — Execution authorization
-
-Source: [architecture/execution-request-contract.md](architecture/execution-request-contract.md)
-
-```mermaid
-flowchart TD
-    Req["ExecutionRequest"] --> Scope["Canonical target + ScopeToken"]
-    Scope --> Budget["HuntBudget reserve via GlobalBudgetAggregate"]
-    Budget -->|available| Ticket["AuthorizedExecutionTicket"]
-    Budget -->|exhausted| Reject["ScopeAuthorizationError"]
-    Ticket --> Worker["ExecutionRequestWorker"]
-    Worker --> Sandbox["ProcessSandbox I29"]
-    Sandbox --> Raw["RawExecutionClaim"]
-    Raw --> Settle["settle_claim"]
-```
-
----
-
-## F-011 — Global budget conservation
-
-Source: [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md)
-
-```mermaid
-flowchart LR
-    Total["TotalBudget"] --> Cons["Consumed"]
-    Total --> Out["OutstandingReserved"]
-    Total --> Avail["Available"]
-    Reserve["ReserveGlobalBudget"] --> Out
-    Allocate["AllocateSubLease"] --> Out
-    SettleC["SettlementReturn consumed greater than 0"] --> Cons
-    Comp["SettlementReturn consumed 0 / compensate"] --> Avail
-    Expire["ExpireSubLease"] --> Avail
-```
-
-Equation: `Total = Consumed + Outstanding + Available` (I5). Slabs add `SlabReserved` (I26).
-
----
-
-## F-012 — Policy governance
-
-Source: [architecture.md](architecture.md)
-
-```mermaid
-flowchart TD
-    Tuner["ThresholdTuner / dispatcher"] --> Shadow["PolicyGovernanceGate shadow eval"]
-    Shadow -->|no replicated_log| Closed["Fail-closed reject"]
-    Shadow -->|log attached| Promo["PromotePolicyCommand"]
-    Promo --> FSM["PartitionFSM expected_policy_version fence"]
-    FSM --> Active["_active_policy after POLICY_PROMOTED"]
-    Active --> Rollback["RollbackPolicyCommand"]
-    Rollback --> Revoke["revoked generations I25"]
-```
-
----
-
-## F-013 — I29 sandbox egress
-
-Source: [architecture.md](architecture.md) I29, [FAILURE_MODES.md](FAILURE_MODES.md) §7
-
-```mermaid
-flowchart TD
-    Tool["Scanner / exploit subprocess"] --> SB["ProcessSandbox"]
-    SB --> Meta["metadata_guard always on"]
-    Meta --> BlockMeta["Deny 169.254.169.254 and cloud metadata"]
-    SB --> Token["NetworkEgressFilter.from_scope_token"]
-    Token -->|in scope| Allow["run with rlimits + optional seccomp"]
-    Token -->|out of scope| Viol["EgressViolationError"]
-    BlockMeta --> Viol
-```
-
----
-
-## F-014 — Raft commit and apply
-
-Source: [architecture.md](architecture.md) §5. Live path is single-node quorum-1; `NetworkRaftTransport` is LIBRARY.
-
-```mermaid
-flowchart TD
-    subgraph L0["Level 0 log"]
-        Leader["Leader local PartitionWAL"]
-        F1["Follower 1 WAL"]
-        F2["Follower 2 WAL"]
+    Typed["TypedCommand.to_envelope"] --> Up["SchemaUpcaster on load"]
+    Up --> Admit["Admission clock-skew I22"]
+    Admit --> Log["ReplicatedPartitionLog"]
+    subgraph Raft["L0 Raft commit"]
+        Leader["Leader PartitionWAL"]
+        F1["Follower WAL"]
         Leader -->|"AppendEntries"| F1
-        Leader -->|"AppendEntries"| F2
-        F1 -->|"ACK"| Leader
-        F2 -->|"ACK"| Leader
+        F1 -->|"ACK quorum 1 live"| Leader
         Leader --> Commit["Advance commitIndex"]
     end
-    Commit --> Apply["FSM.Apply CommittedEntry zero I/O"]
-    Apply --> Hash["Deterministic state hash"]
-    Apply --> Receipt["Leader signs CommandReceipt HMAC"]
-    Apply --> Outbox["DurableOutboxLedger"]
-    Outbox --> Proj["Level 3 projections"]
+    Log --> Leader
+    Commit --> Apply["L1 FSM.Apply zero I/O"]
+    Apply --> Receipt["HMAC CommandReceipt"]
+    Apply --> Outbox["L2 DurableOutbox"]
+    Outbox --> Proj["L3 projections"]
+    Proj --> Cache["L4 caches / telemetry"]
+    Cache --> UI["L5 presentation"]
+    UI -.->|"must never author L0-L3"| Forbidden["Forbidden as source of truth"]
+    Tuner["Policy tuner"] --> Gate["PolicyGovernanceGate"]
+    Gate -->|no log| Closed["Fail-closed"]
+    Gate -->|log attached| Promo["Promote / RollbackPolicy"]
+    Promo --> Apply
 ```
 
----
+Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY.
 
-## F-015 — Recovery and replay
+## F-004 — Live scan path
 
-Source: [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) §2
-
-```mermaid
-flowchart TD
-    Start["run_secured"] --> Lock["Acquire recovery lock"]
-    Lock --> Rec["RecoveryManager.recover"]
-    Rec --> Snap["Checkpoint snapshot"]
-    Snap --> Verify["verify_checkpoint_against_fsm after attach"]
-    Rec --> Journal["FrontierWAL recover_state"]
-    Journal --> CRDT["NeuralState.merge CRDT"]
-    Journal --> Fields["apply_journal_fields non-CRDT once"]
-    Verify --> Resume["remaining_stages"]
-    CRDT --> Resume
-    Fields --> Resume
-    Resume --> Stages["Execute remaining DAG"]
-```
-
----
-
-## F-016 — Formal command path
-
-Source: [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md)
-
-```mermaid
-flowchart TD
-    Typed["TypedCommand.to_envelope"] --> Up["SchemaUpcasterRegistry on load"]
-    Up --> Admit["Admission clock-skew I22"]
-    Admit --> Log["ReplicatedPartitionLog propose_and_commit"]
-    Log --> Apply["PartitionFSM.apply"]
-    Apply --> Result["CommandResult SUCCESS REJECTED NO_OP DUPLICATE"]
-    Result --> Receipt["HMAC CommandReceipt"]
-    subgraph Commands["Command types"]
-        R["ReserveGlobalBudget"]
-        A["AllocateSubLease"]
-        X["AuthorizeExecution"]
-        S["SubmitExecutionClaim"]
-        T["SettlementReturn"]
-        L["LeaseTimeout / ExpireSubLease"]
-        P["PromotePolicy / RollbackPolicy"]
-    end
-    Commands --> Typed
-```
-
----
-
-## F-017 — CLI and runtime entrypoints
-
-Source: [commands.md](commands.md)
+Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md). Absorbed F-005, F-010, F-013, F-015, F-017, F-029.
 
 ```mermaid
 flowchart TD
     CSTP["cstp"] --> Launch["launch dashboard + worker"]
     CSTP --> Scan["scan run"]
-    CSTP --> Start["start dashboard | worker"]
-    CSTP --> Sys["system doctor | status | setup | cleanup"]
-    CSTP --> Plug["plugin new"]
-    Scan --> Runtime["python -m src.pipeline.runtime"]
-    Runtime --> Flags["config / scope / policy / dry-run / resume / wal-replay"]
-    Runtime --> F004["F-004 live scan path"]
+    CSTP --> Sys["system doctor / status / setup"]
+    Scan --> Runtime["src.pipeline.runtime"]
+    Runtime --> Bind["register_process_bindings"]
+    Bind --> Recover["RecoveryManager: snapshot + WAL journal"]
+    Recover --> Verify["verify_checkpoint_against_fsm"]
+    Recover --> Auth["attach_pipeline_authority"]
+    Auth --> Stamp["ctx.budget_enforcer + authorizer"]
+    Stamp --> DAG
+    subgraph DAG["STAGE_GRAPH spine"]
+        Scope["scope"] --> Sub["subdomains"]
+        Sub --> LiveH["live_hosts"]
+        LiveH --> Urls["urls"]
+        Urls --> Params["parameters"]
+        Params --> Rank["ranking"]
+        Rank --> Passive["passive / analysis"]
+        Rank --> Nuclei["nuclei"]
+        Rank --> Active["active_scan"]
+        Passive --> Val["validation"]
+        Nuclei --> Val
+        Active --> Val
+        Val --> Merge["merge"]
+        Merge --> Report["reporting"]
+    end
+    DAG --> Req["ExecutionRequest + ScopeToken"]
+    Req --> Budget{"HuntBudget reserve"}
+    Budget -->|exhausted| Rej["ScopeAuthorizationError"]
+    Budget -->|ok| Ticket["AuthorizedExecutionTicket"]
+    Ticket --> SB["ProcessSandbox I29 metadata-guard"]
+    SB -->|out of scope| Viol["EgressViolationError"]
+    SB --> Out["StageOutput / RawExecutionClaim"]
+    Out --> Coord["SettlementCoordinator 5-stage"]
+    Coord --> Thaw["_to_mutable"]
+    Thaw --> WAL["append SettlementIntent"]
+    WAL -->|COMMITTED| Emit["EventBus FINDING_CREATED"]
+    WAL -->|REJECTED / DEDUPLICATED| Silent["no FINDING_CREATED"]
 ```
 
----
+## F-005 — RETIRED — Settlement and FINDING_CREATED
+
+**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
+
+See the survivor chart **F-004**.
+
+## F-006 — Leases and global budget
+
+Source: [architecture.md](architecture.md) I19/I28, [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md). Absorbed F-011.
+
+```mermaid
+flowchart TD
+    Reserve["ReserveGlobalBudget"] --> RESERVED
+    RESERVED -->|"allocate"| ACTIVE
+    RESERVED -->|"expire"| EXPIRED
+    RESERVED -->|"compensate"| COMPENSATED
+    RESERVED -->|"settle consumed"| CONSUMED
+    ACTIVE -->|"settle consumed greater than 0"| CONSUMED
+    ACTIVE -->|"expire"| EXPIRED
+    EXPIRED -->|"compensate"| COMPENSATED
+    CONSUMED -->|"idempotent"| CONSUMED
+    COMPENSATED -->|"idempotent no-op"| COMPENSATED
+    Total["TotalBudget I5"] --> Cons["Consumed"]
+    Total --> Outs["Outstanding RESERVED+ACTIVE"]
+    Total --> Avail["Available"]
+    Reserve --> Outs
+    CONSUMED --> Cons
+    COMPENSATED --> Avail
+    EXPIRED --> Avail
+```
+
+`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED.
+
+## F-007 — Application state machines
+
+Source: `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`. Absorbed F-008, F-027.
+
+```mermaid
+flowchart TD
+    subgraph Job["JobStatus — only _transition writes"]
+        JP["PENDING"] --> JS["STARTING"]
+        JS --> JR["RUNNING"]
+        JR --> JX["STOPPING"]
+        JX --> JD["STOPPED"]
+        JR --> JC["COMPLETED"]
+        JR --> JF["FAILED"]
+        JC --> JTerm["terminal"]
+        JF --> JTerm
+        JD --> JTerm
+    end
+    subgraph Stage["Stage CAS"]
+        SP["PENDING"] --> SR["RUNNING"]
+        SP --> SSD["SKIPPED_DISABLED"]
+        SP --> SDG["DEGRADED"]
+        SR --> SC["COMPLETED"]
+        SR --> SDG
+        SR --> SF["FAILED"]
+        SR --> SSF["SKIPPED_FAILED"]
+    end
+    subgraph Finding["Finding lifecycle — REPORTABLE and FP sticky"]
+        FC["CANDIDATE"] --> FR["REPORTABLE"]
+        FC --> FF["FALSE_POSITIVE"]
+        FR --> FR
+        FF --> FF
+    end
+    Job --> Stage
+    Stage --> Finding
+```
+
+Illegal stage: COMPLETED→FAILED, COMPLETED→SKIPPED*, FAILED→COMPLETED, SKIPPED*→COMPLETED.
+
+## F-008 — RETIRED — Stage status CAS
+
+**RETIRED.** Overlapped / nested under [F-007](#f-007). Id kept; do not reuse.
+
+See the survivor chart **F-007**.
+
+## F-009 — Resilience: breaker, QoS, PID
+
+Source: [architecture.md](architecture.md), [performance.md](performance.md). Absorbed F-024, F-030.
+
+```mermaid
+flowchart TD
+    Load["Probe load"] --> PID["AdaptivePIDController"]
+    PID --> Conc["concurrency"]
+    Load --> Bulk["BulkheadPool per host"]
+    Load --> Bloom["NeuralBloomFilter"]
+    Fail["consecutive failures"] --> CB
+    subgraph CB["Circuit breaker"]
+        CLOSED -->|"trip"| OPEN
+        OPEN -->|"cooldown"| HALF_OPEN
+        HALF_OPEN -->|"trial ok"| CLOSED
+        HALF_OPEN -->|"trial fail"| OPEN
+    end
+    Evt["TelemetryEvent"] --> Q{"qos"}
+    Q -->|P0| P0["memory then disk spool"]
+    Q -->|P1| P1["reliable lifecycle"]
+    Q -->|P2| P2["coalesce findings"]
+    Q -->|P3| P3["1s aggregates"]
+    Q -->|P4| P4["drop first"]
+    Disk{"disk percent"} -->|85| P4
+    Disk -->|92| P3
+```
+
+One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN.
+
+## F-010 — RETIRED — Execution authorization
+
+**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
+
+See the survivor chart **F-004**.
+
+## F-011 — RETIRED — Global budget conservation
+
+**RETIRED.** Overlapped / nested under [F-006](#f-006). Id kept; do not reuse.
+
+See the survivor chart **F-006**.
+
+## F-012 — RETIRED — Policy governance
+
+**RETIRED.** Overlapped / nested under [F-003](#f-003). Id kept; do not reuse.
+
+See the survivor chart **F-003**.
+
+## F-013 — RETIRED — I29 sandbox egress
+
+**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
+
+See the survivor chart **F-004**.
+
+## F-014 — RETIRED — Raft commit and apply
+
+**RETIRED.** Overlapped / nested under [F-003](#f-003). Id kept; do not reuse.
+
+See the survivor chart **F-003**.
+
+## F-015 — RETIRED — Recovery and replay
+
+**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
+
+See the survivor chart **F-004**.
+
+## F-016 — RETIRED — Formal command path
+
+**RETIRED.** Overlapped / nested under [F-003](#f-003). Id kept; do not reuse.
+
+See the survivor chart **F-003**.
+
+## F-017 — RETIRED — CLI and runtime entrypoints
+
+**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
+
+See the survivor chart **F-004**.
 
 ## F-018 — Failure-mode decision tree
 
@@ -454,25 +387,35 @@ flowchart TD
 
 ---
 
-## F-019 — Frontend telemetry
+## F-019 — Operator surface
 
-Source: [frontend.md](frontend.md)
+Source: [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md). Absorbed F-023, F-026, F-031.
 
 ```mermaid
 flowchart TD
-    Hook["useJobMonitor"] --> REST["REST poll /api/jobs/:id"]
+    HTTP["Inbound HTTP"] --> Tenant["X-Tenant-ID"]
+    Tenant --> Auth{"auth mode"}
+    Auth -->|"Bearer / API key"| Dispatch["route handler"]
+    Auth -->|"session cookie mutating"| CSRF{"CSRF ok?"}
+    CSRF -->|no| R403["403"]
+    CSRF -->|yes| Dispatch
+    Dispatch --> Hook["useJobMonitor"]
+    Hook --> REST["REST /api/jobs/:id"]
     Hook --> SSE["SSE /progress/stream"]
-    Hook --> WS["WebSocket /ws/logs/:id"]
-    REST --> Norm["Telemetry normalizer"]
+    Hook --> WS["WebSocket /ws/logs"]
+    REST --> Norm["normalizer"]
     SSE --> Norm
     WS --> Norm
     WS -->|drop| REST
-    Norm --> Stores["Zustand job / findings / mesh stores"]
-    Stores --> Pages["Dashboard Jobs Findings Cockpit"]
-    Pages --> Layout["layout.worker.ts force-directed graph"]
+    Norm --> Stores["Zustand stores"]
+    Stores --> Pages["Jobs / Findings / Cockpit"]
+    Settle["Settlement COMMITTED"] --> LiveBus["event_bus.EventBus"]
+    LiveBus --> Fan["fan-out cap 5"]
+    Unused["events.bus UNUSED"] --> PerfSuite["perfection suite only"]
+    App["pipeline + dashboard"] --> Prom["Prometheus"]
+    App --> Logs["JSON logs + HMAC audit"]
+    Prom --> Graf["Grafana"]
 ```
-
----
 
 ## F-020 — Tests and CI shards
 
@@ -500,29 +443,11 @@ flowchart TD
 
 ---
 
-## F-021 — Multi-region replication
+## F-021 — RETIRED — Multi-region replication
 
-Source: [multi-region.md](multi-region.md)
+**RETIRED.** Overlapped / nested under [F-002](#f-002). Id kept; do not reuse.
 
-```mermaid
-flowchart TD
-    subgraph A["Region A"]
-        GA["Gossip node"]
-        OA["Authority + FrontierWAL"]
-        RA["Redis stream"]
-        OA --> RA
-    end
-    subgraph B["Region B"]
-        GB["Gossip node"]
-        OB["Authority + FrontierWAL"]
-        RB["Redis stream"]
-        OB --> RB
-    end
-    GA <-->|"SWIM UDP AES-256-GCM"| GB
-    RA <-->|"WALReplicationRelay"| RB
-```
-
----
+See the survivor chart **F-002**.
 
 ## F-022 — Gap-analysis status
 
@@ -541,187 +466,86 @@ flowchart LR
 
 ---
 
-## F-023 — Live EventBus vs unused bus
+## F-023 — RETIRED — Live EventBus vs unused bus
 
-Source: [architecture.md](architecture.md)
+**RETIRED.** Overlapped / nested under [F-019](#f-019). Id kept; do not reuse.
 
-```mermaid
-flowchart TD
-    Live["src.core.events.event_bus.EventBus"] --> Export["from src.core.events import EventBus"]
-    Export --> Orch["Orchestrator / dashboard / retry"]
-    Unused["src.core.events.bus.EventBus UNUSED"] --> Perf["tests/unit/core/test_perfection_suite.py only"]
-    Settle["SettlementResult.COMMITTED"] --> Live
-    Live --> Fan["fan-out depth cap 5"]
-    Live --> Crit["never drop FINDING_CREATED / PIPELINE_ERROR"]
-```
+See the survivor chart **F-019**.
 
----
+## F-024 — RETIRED — QoS broker lanes
 
-## F-024 — QoS broker lanes
+**RETIRED.** Overlapped / nested under [F-009](#f-009). Id kept; do not reuse.
 
-Source: [architecture.md](architecture.md) §7.7
+See the survivor chart **F-009**.
+
+## F-025 — Non-authoritative planes
+
+Source: [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), [architecture.md](architecture.md) §7.17. Absorbed F-028, F-032.
 
 ```mermaid
 flowchart TD
-    Evt["TelemetryEvent"] --> Q{"qos class"}
-    Q -->|P0 control| P0["bounded memory then disk spool"]
-    Q -->|P1 lifecycle| P1["reliable fixed queue"]
-    Q -->|P2 findings| P2["coalesce by dedup_key"]
-    Q -->|P3 telemetry| P3["1s aggregates"]
-    Q -->|P4 debug| P4["drop first under pressure"]
-    Disk{"disk percent"} -->|85| Shed4["shed P4"]
-    Disk -->|92| Shed34["shed P3/P4 compact P1-P2"]
+    subgraph Config["Three config trees — do not unify"]
+        ScanCfg["ValidatedPipelineConfig JSON"]
+        DashCfg["DashboardConfig DASHBOARD_*"]
+        QueueCfg["QueueConfig QUEUE_*"]
+        ScanCfg -.-> NoGod["no kernel / God-container"]
+        DashCfg -.-> NoGod
+        QueueCfg -.-> NoGod
+    end
+    Call["cache get"] --> SF["single-flight"]
+    SF --> Mem["LRU"]
+    Mem -->|miss| Persist["SQLite or Redis"]
+    Persist -->|miss| Origin["compute"]
+    Origin --> Write["write-through"]
+    Done["Completed run"] --> Hot["hot NVMe"]
+    Hot --> Arch["gzip archive"]
+    Hot --> Prune{"older than 14d?"}
+    Prune -->|yes| Drop["prune_hot_tier"]
+    Arch --> Index["index_runs"]
+    Hot --> Index
 ```
 
----
+## F-026 — RETIRED — Observability stack
 
-## F-025 — Unified cache tiers
+**RETIRED.** Overlapped / nested under [F-019](#f-019). Id kept; do not reuse.
 
-Source: [architecture/cache-unification.md](architecture/cache-unification.md)
+See the survivor chart **F-019**.
 
-```mermaid
-flowchart TD
-    Call["cache get"] --> SF["single-flight coalescer"]
-    SF --> Mem["in-memory LRU"]
-    Mem -->|hit| Ret["return"]
-    Mem -->|miss| Persist["SQLite or Redis tier"]
-    Persist -->|hit SWR| Ret
-    Persist -->|miss| Origin["compute / fetch"]
-    Origin --> Write["write-through both tiers"]
-```
+## F-027 — RETIRED — Finding lifecycle
 
----
+**RETIRED.** Overlapped / nested under [F-007](#f-007). Id kept; do not reuse.
 
-## F-026 — Observability stack
+See the survivor chart **F-007**.
 
-Source: [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md)
+## F-028 — RETIRED — Three config trees (kept separate)
 
-```mermaid
-flowchart TD
-    App["Pipeline + dashboard + workers"] --> Prom["prometheus_client metrics"]
-    App --> Logs["structured JSON logs"]
-    App --> OTel["OpenTelemetry spans"]
-    Prom --> Graf["Grafana dashboards HTTP / DB / queue / analyzer"]
-    Logs --> SIEM["CEF / LEEF HMAC audit chain"]
-    OTel --> Trace["traceparent on QoS envelopes"]
-    Prom --> Alerts["infra / pipeline / DB / queue / HTTP / analyzer alerts"]
-```
+**RETIRED.** Overlapped / nested under [F-025](#f-025). Id kept; do not reuse.
 
----
+See the survivor chart **F-025**.
 
-## F-027 — Finding lifecycle
+## F-029 — RETIRED — Pipeline stage DAG
 
-Source: [architecture.md](architecture.md), `src/core/contracts/finding_lifecycle.py`
+**RETIRED.** Overlapped / nested under [F-004](#f-004). Id kept; do not reuse.
 
-```mermaid
-stateDiagram-v2
-    [*] --> CANDIDATE
-    CANDIDATE --> REPORTABLE: confirmed
-    CANDIDATE --> FALSE_POSITIVE: decision FP
-    REPORTABLE --> REPORTABLE: sticky
-    FALSE_POSITIVE --> FALSE_POSITIVE: sticky
-```
+See the survivor chart **F-004**.
 
-`infer_lifecycle_state` honors `decision in {false_positive, fp}` first.
+## F-030 — RETIRED — Performance and backpressure
 
----
+**RETIRED.** Overlapped / nested under [F-009](#f-009). Id kept; do not reuse.
 
-## F-028 — Three config trees (kept separate)
+See the survivor chart **F-009**.
 
-Source: [environment-variables.md](environment-variables.md)
+## F-031 — RETIRED — API security & request gate
 
-```mermaid
-flowchart TD
-    Scan["ValidatedPipelineConfig<br/>per-scan JSON"] --> Stages["recon nuclei analysis"]
-    Dash["DashboardConfig DASHBOARD_*"] --> API["FastAPI / auth / guest"]
-    Queue["QueueConfig QUEUE_*"] --> Workers["distributed workers"]
-    Scan -.->|"do not unify"| NoGod["No kernel / God-container / AppSettings growth"]
-    Dash -.-> NoGod
-    Queue -.-> NoGod
-```
+**RETIRED.** Overlapped / nested under [F-019](#f-019). Id kept; do not reuse.
 
----
+See the survivor chart **F-019**.
 
-## F-029 — Pipeline stage DAG
+## F-032 — RETIRED — Storage tiering & archival lifecycle
 
-Source: [codebase.md](codebase.md), `GraphBuilder` / `STAGE_GRAPH`
+**RETIRED.** Overlapped / nested under [F-025](#f-025). Id kept; do not reuse.
 
-```mermaid
-flowchart TD
-    Scope["scope"] --> Sub["subdomains"]
-    Sub --> Live["live_hosts"]
-    Live --> Urls["urls"]
-    Urls --> Params["parameters"]
-    Params --> Rank["ranking"]
-    Rank --> Passive["passive / analysis"]
-    Rank --> Nuclei["nuclei"]
-    Rank --> Active["active_scan"]
-    Passive --> Val["validation"]
-    Nuclei --> Val
-    Active --> Val
-    Val --> Merge["merge"]
-    Merge --> Report["reporting"]
-    Merge --> Shots["screenshots"]
-```
-
-Exact edges come from `build_pipeline_graph(profile)` — this chart is the default recon-to-report spine.
-
----
-
-## F-030 — Performance and backpressure
-
-Source: [performance.md](performance.md)
-
-```mermaid
-flowchart TD
-    Load["Probe load"] --> PID["AdaptivePIDController"]
-    PID --> Conc["concurrency C of t"]
-    Load --> Bulk["BulkheadPool per host"]
-    Load --> Bloom["NeuralBloomFilter URL frontier"]
-    Sat["saturation"] --> QoS["F-024 QoS shed"]
-    Sat --> CB["F-009 circuit OPEN"]
-```
-
----
-
-## F-031 — API security & request gate
-
-Source: [api-reference.md](api-reference.md)
-
-```mermaid
-flowchart TD
-    Req["Inbound HTTP Request"] --> Tenant["Extract X-Tenant-ID<br/>(namespace isolation)"]
-    Tenant --> AuthCheck{"Authentication Mode"}
-    AuthCheck -->|Bearer JWT / API Key| SkipCSRF["Exempt from CSRF"]
-    AuthCheck -->|Session Cookie| Mutating{"Mutating Request?<br/>POST / PUT / DELETE"}
-    Mutating -->|Yes| CSRF["Verify X-CSRF-Token == csrf_token cookie"]
-    Mutating -->|No GET| GenCSRF["Issue new csrf_token cookie"]
-    CSRF -->|Valid| Dispatch["Dispatch to Route Handler"]
-    CSRF -->|Invalid / Missing| Reject403["403 CSRF Token Missing/Invalid"]
-    SkipCSRF --> Dispatch
-    GenCSRF --> Dispatch
-```
-
----
-
-## F-032 — Storage tiering & archival lifecycle
-
-Source: [architecture.md](architecture.md) §7.17, `src/pipeline/storage_tiering.py`, `src/pipeline/output_history.py`
-
-```mermaid
-flowchart TD
-    Scan["Completed Scan Run"] --> Hot["Hot Tier (NVMe / Cache)"]
-    Hot --> Arch["archive_run_dir()"]
-    Arch --> Comp["Gzip compress files > 4KB<br/>(skip .gz / .zip)"]
-    Comp --> Cold["Compressed Archive Tier"]
-    Hot --> Prune{"Age > max_age_seconds<br/>(default: 14 days)"}
-    Prune -->|Yes| DeleteHot["prune_hot_tier() removes old dir"]
-    Prune -->|No| KeepHot["Retain in Hot Tier"]
-    Cold & Hot --> Index["index_runs() parses run_summary.json"]
-    Index --> SearchIndex["Searchable Scan Run Index"]
-```
-
----
+See the survivor chart **F-025**.
 
 ## Changelog
 
@@ -729,5 +553,6 @@ flowchart TD
 |---|---|---|
 | 2026-08-25 | Initial atlas F-001–F-030 created. Maintenance contract recorded. | add |
 | 2026-08-25 | Added api-reference.md to F-001; added DEGRADED terminal status to F-008; added F-031 (API security gate) and F-032 (storage tiering & archival). | edit |
+| 2026-08-25 | Merged overlapping per-doc charts into 11 survivors (F-002/003/004/006/007/009/019/025). Retired F-005, F-008, F-010–F-017, F-021, F-023–F-024, F-026–F-032 as headings only. Still one file. | edit |
 
 Do not delete this changelog. Append a row for every later edit.
