@@ -17,10 +17,17 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping
+from contextvars import ContextVar
 from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_SOFT_CAS: ContextVar[bool] = ContextVar("stage_cas_soft", default=False)
+
+
+class IllegalStageTransitionError(ValueError):
+    """Illegal CAS write. Production is fail-closed; tests may opt into soft."""
 
 
 class StageStatus(StrEnum):
@@ -137,20 +144,36 @@ _ALLOWED: dict[StageStatus, frozenset[StageStatus]] = {
 }
 
 
-def transition_stage_status(current: object, target: object) -> str:
-    """Return the status that should be stored after a CAS attempt."""
+def _cas_is_soft() -> bool:
+    if _SOFT_CAS.get():
+        return True
+    import os
+
+    return str(os.environ.get("STAGE_CAS_SOFT", "")).strip().lower() in {"1", "true", "yes"}
+
+
+def transition_stage_status(current: object, target: object, *, soft: bool | None = None) -> str:
+    """Return the status that should be stored after a CAS attempt.
+
+    Production raises :class:`IllegalStageTransitionError`. Keep-and-log
+    is a test hook (``soft=True``, ``STAGE_CAS_SOFT=1``, or ``_SOFT_CAS``).
+    """
     source = normalize_stage_status(current)
     dest = normalize_stage_status(target)
     if source == dest:
         return source.value
     if dest not in _ALLOWED.get(source, frozenset()):
-        logger.debug(
-            "Rejected illegal stage transition %s -> %s; keeping %s",
-            source.value,
-            dest.value,
-            source.value,
+        if soft is True or (soft is None and _cas_is_soft()):
+            logger.debug(
+                "Rejected illegal stage transition %s -> %s; keeping %s",
+                source.value,
+                dest.value,
+                source.value,
+            )
+            return source.value
+        raise IllegalStageTransitionError(
+            f"Illegal stage transition {source.value} -> {dest.value}"
         )
-        return source.value
     return dest.value
 
 

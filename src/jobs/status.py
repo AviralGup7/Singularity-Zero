@@ -50,8 +50,7 @@ _ALLOWED: dict[JobStatus, frozenset[JobStatus]] = {
             JobStatus.STARTING,
             JobStatus.RUNNING,
             JobStatus.FAILED,
-            JobStatus.STOPPED,
-            JobStatus.STOPPING,
+            JobStatus.STOPPED,  # cancel arrived before start
         }
     ),
     JobStatus.STARTING: frozenset(
@@ -148,14 +147,30 @@ def apply_pipeline_exit_status(
     returncode: int,
     no_pipeline_output: bool = False,
     has_running_stages: bool = False,
+    stage_map: dict[str, Any] | None = None,
+    findings: list[Any] | None = None,
+    policy: Any | None = None,
+    policy_violated: bool | None = None,
 ) -> bool:
     """Map a reaped pipeline process onto a legal terminal job status.
 
     Direct ``job["status"] =`` writes are forbidden. STOPPING cannot
     become COMPLETED — a clean stop reaps as STOPPED instead.
+    When ``stage_map`` is supplied, :func:`derive_job_and_exit` is the
+    single lattice; returncode is the fallback for process-only reap.
     """
     if stop_requested:
         dest = JobStatus.STOPPED
+    elif stage_map is not None:
+        from src.jobs.run_outcome import derive_job_and_exit
+
+        dest = derive_job_and_exit(
+            stage_map,
+            findings,
+            policy,
+            cancel=False,
+            policy_violated=policy_violated,
+        ).job_status
     elif returncode == 0 and (no_pipeline_output or has_running_stages):
         dest = JobStatus.FAILED
     elif returncode == 0:

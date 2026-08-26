@@ -105,6 +105,10 @@ async def run_reporting(
         module_metrics["validation_runtime"] = validation_metric
         verified_exploits = list(validation_summary.get("verified_exploits", []))
 
+        from src.core.contracts.finding_lifecycle import filter_report_surface
+
+        report_findings = filter_report_surface(list(ctx.reportable_findings or []))
+
         # Resolve enrichment/intelligence providers from registry
         tech_summary_builder = resolve_plugin(ENRICHMENT_PROVIDER, "technology_summary")
         technology_summary = tech_summary_builder(ctx.analysis_results)
@@ -117,16 +121,14 @@ async def run_reporting(
         )
 
         attack_surface_builder = resolve_plugin(ENRICHMENT_PROVIDER, "attack_surface")
-        attack_surface = attack_surface_builder(
-            ctx.reportable_findings, ctx.selected_priority_items
-        )
+        attack_surface = attack_surface_builder(report_findings, ctx.selected_priority_items)
 
         trend_builder = resolve_plugin(ENRICHMENT_PROVIDER, "trend")
-        trend_summary = trend_builder(ctx.previous_run, ctx.reportable_findings)
+        trend_summary = trend_builder(ctx.previous_run, report_findings)
 
         next_steps_builder = resolve_plugin(ENRICHMENT_PROVIDER, "next_steps")
         next_steps = next_steps_builder(
-            ctx.reportable_findings,
+            report_findings,
             ctx.target_profile,
             ctx.parameters,
             config.mode,
@@ -136,19 +138,19 @@ async def run_reporting(
 
         high_conf_builder = resolve_plugin(ENRICHMENT_PROVIDER, "high_confidence_shortlist")
         high_confidence_shortlist = high_conf_builder(
-            ctx.reportable_findings,
+            report_findings,
             limit=int(config.review.get("high_confidence_shortlist_limit", 5)),
         )
 
         manual_queue_builder = resolve_plugin(ENRICHMENT_PROVIDER, "manual_verification_queue")
         manual_verification_queue = manual_queue_builder(
-            ctx.reportable_findings,
+            report_findings,
             limit=int(config.review.get("manual_verification_limit", 8)),
         )
 
         correlation_builder = resolve_plugin(ENRICHMENT_PROVIDER, "cross_finding_correlation")
         cross_finding_correlation = correlation_builder(
-            ctx.reportable_findings,
+            report_findings,
             limit=int(config.review.get("cross_finding_correlation_limit", 15)),
         )
 
@@ -166,7 +168,7 @@ async def run_reporting(
             ctx.selected_priority_items,
             screenshots,
             ctx.analysis_results,
-            ctx.reportable_findings,
+            report_findings,
             ctx.tool_status,
             ctx.module_metrics,
             attack_surface,

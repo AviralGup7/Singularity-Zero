@@ -193,20 +193,23 @@ class PrioritizedRealtimeBroker:
         """Enqueue an event according to its QoS backpressure rules and disk thresholds."""
         with self._lock:
             disk_pct = self._get_disk_utilization_pct()
+            from src.realtime.qos_admit import QoSDecision, qos_admit
 
-            # Under emergency disk pressure (>= 92%), drop P3/P4 and compact P1-P2
-            if disk_pct >= self.disk_emergency_pct:
-                if event.qos in (QoSClass.P3_TELEMETRY, QoSClass.P4_DEBUG):
-                    self._dropped_counts[event.qos] += 1
-                    return False
-                # Compact P3 aggregates
+            decision = qos_admit(
+                event,
+                disk_pct,
+                backpressure_pct=self.disk_backpressure_pct,
+                emergency_pct=self.disk_emergency_pct,
+            )
+            if decision is QoSDecision.DROP:
+                self._dropped_counts[event.qos] += 1
+                return False
+            if decision is QoSDecision.COALESCE and event.qos in (
+                QoSClass.P3_TELEMETRY,
+                QoSClass.P1_LIFECYCLE,
+                QoSClass.P2_FINDINGS,
+            ):
                 self._p3_aggregates.clear()
-
-            # Under disk backpressure (>= 85%), shed P4 debug logs immediately
-            elif disk_pct >= self.disk_backpressure_pct:
-                if event.qos == QoSClass.P4_DEBUG:
-                    self._dropped_counts[QoSClass.P4_DEBUG] += 1
-                    return False
 
             if event.qos == QoSClass.P0_CONTROL:
                 # 1. First buffer in bounded memory queue

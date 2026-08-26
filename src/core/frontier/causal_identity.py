@@ -139,10 +139,12 @@ class CausalIdentity:
         return replace(self, delivery_id=str(delivery_id or ""))
 
     def payload_fields(self) -> dict[str, Any]:
-        """Fields stamped onto EventBus / outbox payloads for consumer dedup."""
-        data = self.to_dict()
-        data["authoritative"] = bool(self.wal_id)
-        return data
+        """Fields stamped onto EventBus / outbox payloads for consumer dedup.
+
+        Does not self-certify ``authoritative``. I31 authority is the HMAC
+        settlement receipt stamped by ``dispatch_committed_findings``.
+        """
+        return self.to_dict()
 
 
 def mint_causal_identity(

@@ -42,6 +42,8 @@ def test_outstanding_and_terminal() -> None:
     assert not is_outstanding(LeaseStatus.CONSUMED)
     assert is_terminal("CLOSED")
     assert is_terminal(LeaseStatus.COMPENSATED)
+    assert not is_terminal(LeaseStatus.EXPIRED)
+    assert can_transition(LeaseStatus.EXPIRED, LeaseStatus.COMPENSATED)
 
 
 def test_reserve_settle_consume() -> None:

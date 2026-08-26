@@ -171,17 +171,34 @@ def dispatch_committed_findings(
         )
         published += 1
 
+    outbox_ok = True
     if outbox is not None and envelopes:
         try:
             outbox.append_events(envelopes)
         except Exception as exc:
             must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
+            outbox_ok = False
             logger.warning(
                 "%s: durable outbox append failed after COMMITTED settlement "
-                "(authoritative state unchanged; retry allowed, no compensate): %s",
+                "(authoritative state unchanged; bus will not notify; "
+                "replay rebuilds outbox then bus): %s",
                 I32_EVENTBUS_NON_AUTHORITY,
                 exc,
             )
+
+    if not outbox_ok:
+        # I31 order is WAL → outbox → bus. Do not notify consumers of a
+        # finding that is not in the outbox.
+        return published
+
+    from src.core.frontier.settlement_receipt import stamp_finding_receipt
+
+    receipt = stamp_finding_receipt(
+        wal_id=str(getattr(settle_res, "wal_id", "") or ""),
+        settlement_id=str(getattr(settle_res, "settlement_id", "") or identity.settlement_id),
+        command_id=str(getattr(settle_res, "command_id", "") or identity.command_id),
+        status="COMMITTED",
+    )
 
     for envelope, finding in zip(envelopes, dict_findings, strict=True):
         event_id = envelope.event_id
@@ -197,6 +214,7 @@ def dispatch_committed_findings(
                     "finding": finding,
                     "trace_id": trace_id,
                     **bound.payload_fields(),
+                    **receipt,
                     "causation_id": envelope.causation_id,
                 },
                 trace_id=trace_id or None,

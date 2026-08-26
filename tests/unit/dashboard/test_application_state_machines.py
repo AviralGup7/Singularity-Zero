@@ -14,6 +14,7 @@ from src.core.contracts.finding_lifecycle import (
 from src.core.models.pipeline_state import StageExecution
 from src.core.models.stage_result import PipelineContext, StageStatus
 from src.core.models.stage_status import (
+    IllegalStageTransitionError,
     skipped_satisfies_gate,
     transition_stage_status,
 )
@@ -136,19 +137,23 @@ def test_stop_marks_stopped_after_process_reaped() -> None:
 
 @pytest.mark.unit
 def test_stage_cas_rejects_completed_to_failed_or_skipped() -> None:
-    assert transition_stage_status("COMPLETED", "FAILED") == "COMPLETED"
-    assert transition_stage_status("COMPLETED", "SKIPPED") == "COMPLETED"
-    assert transition_stage_status("FAILED", "COMPLETED") == "FAILED"
-    assert transition_stage_status("SKIPPED_DISABLED", "COMPLETED") == "SKIPPED_DISABLED"
+    with pytest.raises(IllegalStageTransitionError):
+        transition_stage_status("COMPLETED", "FAILED")
+    with pytest.raises(IllegalStageTransitionError):
+        transition_stage_status("COMPLETED", "SKIPPED")
+    with pytest.raises(IllegalStageTransitionError):
+        transition_stage_status("FAILED", "COMPLETED")
+    with pytest.raises(IllegalStageTransitionError):
+        transition_stage_status("SKIPPED_DISABLED", "COMPLETED")
+    assert transition_stage_status("COMPLETED", "FAILED", soft=True) == "COMPLETED"
 
 
 @pytest.mark.unit
 def test_stage_status_map_blocks_unconditional_overwrite() -> None:
     ctx = PipelineContext()
     ctx.mark_stage_complete("recon")
-    ctx.mark_stage_failed("recon", "boom")
-    assert ctx.result.stage_status["recon"] == StageStatus.COMPLETED.value
-    ctx.mark_stage_skipped("recon", reason="disabled")
+    with pytest.raises(IllegalStageTransitionError):
+        ctx.mark_stage_failed("recon", "boom")
     assert ctx.result.stage_status["recon"] == StageStatus.COMPLETED.value
 
 

@@ -161,7 +161,33 @@ class RecoveryManager:
             snapshot_cursor=snapshot_cursor,
             snapshot_applied=snapshot_applied,
         )
+        self._execute_verdict(verdict, wal=wal)
         discard_snapshot = bool(verdict.discard_snapshot)
+        if verdict.phase.value == "fail_closed":
+            logger.error(
+                "Recovery Manager: I35 FAIL_CLOSED run=%s windows=%s; refusing DAG resume",
+                run_id,
+                [window.value for window in verdict.windows],
+            )
+            return ReconstructedState(
+                run_id=run_id,
+                can_recover=False,
+                source=source,
+                mode=mode,
+                checkpoint_mgr=checkpoint_mgr,
+                remaining_stages=[],
+                wal=wal,
+                wal_state=wal_state,
+                wal_counts=wal_counts,
+                verify_report=verify_report,
+                execute_stages=False,
+                snapshot_last_wal_id=snapshot_cursor,
+                snapshot_applied_wal_ids=snapshot_applied,
+                recovery_phase="fail_closed",
+                recovery_windows=tuple(window.value for window in verdict.windows),
+                snapshot_stale=True,
+                protocol_notes=verdict.notes,
+            )
         if verdict.phase.value == "fresh":
             return self._fresh(mode)
         if discard_snapshot:
@@ -362,6 +388,7 @@ class RecoveryManager:
             wal_ids = wal_ids | known_ids
         wal_present = wal_state is not None
         truncated = bool(cursor and known_ids and cursor not in known_ids)
+        fsm_ids, outbox_ids, delivered_ids = self._observe_event_sets(wal)
         return run_recovery_protocol(
             ObservedDurableState(
                 plane=RecoveryPlane.FRONTIER,
@@ -375,8 +402,66 @@ class RecoveryManager:
                 wal_ids=wal_ids,
                 wal_truncated_after_snapshot=truncated,
                 snapshot_semantically_old=False,
+                fsm_event_ids=fsm_ids,
+                outbox_event_ids=outbox_ids,
+                delivered_event_ids=delivered_ids,
             )
         )
+
+    def _execute_verdict(self, verdict: Any, *, wal: Any) -> None:
+        """Run rebuild/replay actions named by the I35 verdict. Do not ignore them."""
+        if verdict is None:
+            return
+        if getattr(verdict, "rebuild_outbox", False):
+            try:
+                from src.core.frontier.recovery_protocol import (
+                    rebuild_outbox_from_committed_entries,
+                )
+
+                entries = (
+                    getattr(wal, "entries", None) or getattr(wal, "committed_entries", None) or ()
+                )
+                outbox = getattr(wal, "outbox", None)
+                rebuild_outbox_from_committed_entries(list(entries), outbox)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("I35 rebuild_outbox skipped: %s", exc)
+        if getattr(verdict, "replay_delivery", False):
+            logger.info("I35: outbox replay of missing DeliveryIds deferred to dispatch path")
+        discarded = getattr(verdict, "discarded_delivery_ids", ()) or ()
+        if discarded:
+            try:
+                from src.core.frontier.event_delivery import get_delivery_ledger
+
+                get_delivery_ledger().discard_unknown([])
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("I35 delivery discard skipped: %s", exc)
+
+    @staticmethod
+    def _observe_event_sets(wal: Any) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+        fsm_ids: set[str] = set()
+        outbox_ids: set[str] = set()
+        if wal is None:
+            return frozenset(), frozenset(), frozenset()
+        try:
+            for entry in getattr(wal, "entries", ()) or ():
+                for evt in getattr(entry, "emitted_events", ()) or ():
+                    eid = str(getattr(evt, "event_id", "") or "")
+                    if eid:
+                        fsm_ids.add(eid)
+        except Exception:
+            pass
+        outbox = getattr(wal, "outbox", None)
+        if outbox is not None and hasattr(outbox, "read_all_events"):
+            try:
+                for evt in outbox.read_all_events():
+                    eid = str(getattr(evt, "event_id", "") or "")
+                    if eid:
+                        outbox_ids.add(eid)
+            except Exception:
+                pass
+        # DeliveryLedger stores DeliveryIds; ObservedDurableState wants EventIds.
+        # Do not pass DeliveryIds here — that would false-trigger DELIVERY_AHEAD.
+        return frozenset(fsm_ids), frozenset(outbox_ids), frozenset()
 
     @staticmethod
     def _wal_known_ids(wal: Any) -> frozenset[str]:

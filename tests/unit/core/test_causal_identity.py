@@ -168,5 +168,6 @@ def test_i33_dispatch_binds_event_and_delivery_and_is_idempotent() -> None:
     assert payload["wal_id"] == "wal_i33"
     assert payload["event_id"] == expected_event
     assert payload["delivery_id"] == expected_delivery
-    assert payload["authoritative"] is True
+    assert payload.get("receipt_hmac")
+    assert payload.get("settlement_status") == "COMMITTED"
     assert payload["causation_id"] == "wal_i33"

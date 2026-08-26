@@ -40,9 +40,10 @@ _ALIASES: dict[str, LeaseStatus] = {
 }
 
 OUTSTANDING: frozenset[LeaseStatus] = frozenset({LeaseStatus.RESERVED, LeaseStatus.ACTIVE})
-TERMINAL: frozenset[LeaseStatus] = frozenset(
-    {LeaseStatus.CONSUMED, LeaseStatus.EXPIRED, LeaseStatus.COMPENSATED}
-)
+# CONSUMED and COMPENSATED are true sinks. EXPIRED is not terminal: I28
+# permits EXPIRED → COMPENSATED (compensate is a ledger mutation, not a
+# no-op on a closed lease).
+TERMINAL: frozenset[LeaseStatus] = frozenset({LeaseStatus.CONSUMED, LeaseStatus.COMPENSATED})
 
 _LEGAL: dict[LeaseStatus, frozenset[LeaseStatus]] = {
     LeaseStatus.RESERVED: frozenset(

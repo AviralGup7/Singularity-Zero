@@ -98,7 +98,8 @@ def test_i31_i32_outbox_then_bus_and_bus_failure_does_not_raise(tmp_path) -> Non
     )
     assert n == 1
     assert seen[0]["wal_id"] == "wal_abc"
-    assert seen[0]["authoritative"] is True
+    assert seen[0].get("receipt_hmac")
+    assert seen[0].get("settlement_status") == "COMMITTED"
     assert seen[0]["causation_id"] == "wal_abc"
     events = outbox.read_all_events()
     assert len(events) == 1
@@ -137,8 +138,17 @@ def test_i31_event_bus_refuses_unauthoritative_finding() -> None:
     assert bus.dropped_status()["dropped_unauthoritative"] == 1
     bus.emit(
         EventType.FINDING_CREATED,
+        source="ghost",
+        data={"title": "self-attested", "wal_id": "wal_1", "authoritative": True},
+    )
+    assert seen == []
+    from src.core.frontier.settlement_receipt import stamp_finding_receipt
+
+    receipt = stamp_finding_receipt(wal_id="wal_1", settlement_id="stl_1", command_id="cmd_1")
+    bus.emit(
+        EventType.FINDING_CREATED,
         source="settlement.subdomains",
-        data={"title": "ok", "wal_id": "wal_1", "authoritative": True},
+        data={"title": "ok", **receipt},
     )
     assert len(seen) == 1
 

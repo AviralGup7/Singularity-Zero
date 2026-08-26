@@ -25,10 +25,15 @@ def test_critical_finding_events_are_not_dropped_at_depth() -> None:
     findings: list[str] = []
 
     def progress_handler(event: object) -> None:
+        from src.core.frontier.settlement_receipt import stamp_finding_receipt
+
+        receipt = stamp_finding_receipt(
+            wal_id="wal_fanout", settlement_id="stl_fanout", command_id="cmd_fanout"
+        )
         bus.emit(
             EventType.FINDING_CREATED,
             source="nested",
-            data={"n": len(findings), "wal_id": "wal_fanout", "authoritative": True},
+            data={"n": len(findings), **receipt},
         )
 
     def finding_handler(event: object) -> None:

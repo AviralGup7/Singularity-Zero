@@ -32,13 +32,21 @@ _STICKY_STATES: frozenset[FindingLifecycleState] = frozenset(
     {FindingLifecycleState.REPORTABLE, FindingLifecycleState.FALSE_POSITIVE}
 )
 
+
+class FindingTicketStatus(StrEnum):
+    """Dashboard ticket axis — independent of F-007 surface lifecycle."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+_TICKET_ONLY: frozenset[str] = frozenset({"open", "closed", "accepted"})
+
 _ALIASES: dict[str, FindingLifecycleState] = {
     "candidate": FindingLifecycleState.CANDIDATE,
     "detected": FindingLifecycleState.CANDIDATE,
     "heuristic_candidate": FindingLifecycleState.CANDIDATE,
-    "open": FindingLifecycleState.CANDIDATE,
     "new": FindingLifecycleState.CANDIDATE,
-    "active": FindingLifecycleState.CANDIDATE,
     "validated": FindingLifecycleState.VALIDATED,
     "exploitable": FindingLifecycleState.EXPLOITABLE,
     "reportable": FindingLifecycleState.REPORTABLE,
@@ -74,8 +82,18 @@ _ALLOWED_TRANSITIONS: dict[FindingLifecycleState, set[FindingLifecycleState]] = 
 }
 
 
+def normalize_ticket_status(value: str | None) -> FindingTicketStatus:
+    lowered = str(value or "").strip().lower()
+    if lowered in {"closed", "accepted", "resolved", "done"}:
+        return FindingTicketStatus.CLOSED
+    return FindingTicketStatus.OPEN
+
+
 def normalize_lifecycle_state(value: str | None) -> FindingLifecycleState:
     lowered = str(value or "").strip().lower()
+    if lowered in _TICKET_ONLY:
+        # Ticket axis, not lifecycle. Missing lifecycle → CANDIDATE.
+        return FindingLifecycleState.CANDIDATE
     aliased = _ALIASES.get(lowered)
     if aliased is not None:
         return aliased
@@ -201,22 +219,61 @@ def apply_lifecycle(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if source in _STICKY_STATES:
             item["lifecycle_state"] = source.value
             item["lifecycle_surface"] = source.value
+            ticket_raw = item.get("ticket_status") or (
+                item.get("status")
+                if str(item.get("status") or "").strip().lower() in _TICKET_ONLY
+                else None
+            )
+            item["ticket_status"] = normalize_ticket_status(
+                str(ticket_raw) if ticket_raw else "open"
+            ).value
             normalized.append(item)
             continue
         inferred = infer_lifecycle_state(item)
         stamped = transition_state(current, inferred)
         item["lifecycle_state"] = stamped
         item["lifecycle_surface"] = surface_lifecycle_state(stamped).value
+        ticket_raw = item.get("ticket_status") or (
+            item.get("status")
+            if str(item.get("status") or "").strip().lower() in _TICKET_ONLY
+            else None
+        )
+        item["ticket_status"] = normalize_ticket_status(
+            str(ticket_raw) if ticket_raw else "open"
+        ).value
         normalized.append(item)
     return normalized
 
 
+def is_report_surface(finding: dict[str, Any]) -> bool:
+    """True iff this finding may appear in a signed report / PDF.
+
+    Unstamped items already in the reportable bucket are treated as
+    REPORTABLE. VALIDATED/EXPLOITABLE refinements cannot skip the
+    REPORTABLE promotion.
+    """
+    if not finding.get("lifecycle_state") and not finding.get("lifecycle_surface"):
+        return True
+    return (
+        surface_lifecycle_state(finding.get("lifecycle_surface") or finding.get("lifecycle_state"))
+        is FindingLifecycleState.REPORTABLE
+    )
+
+
+def filter_report_surface(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [item for item in apply_lifecycle(findings) if is_report_surface(item)]
+
+
 __all__ = [
     "FindingLifecycleState",
+    "FindingTicketStatus",
     "apply_lifecycle",
     "can_transition",
+    "filter_report_surface",
     "infer_lifecycle_state",
+    "is_report_surface",
     "normalize_lifecycle_state",
+    "normalize_ticket_status",
     "surface_lifecycle_state",
     "transition_state",
 ]

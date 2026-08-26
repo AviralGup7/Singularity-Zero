@@ -244,10 +244,13 @@ class EventBus:
         }
 
     def _finding_is_authoritative(self, data: dict[str, Any] | None) -> bool:
-        """I31: FINDING_CREATED must carry a durable wal_id and authoritative flag."""
-        payload = data or {}
-        wal_id = str(payload.get("wal_id") or "").strip()
-        return bool(wal_id) and payload.get("authoritative") is True
+        """I31: FINDING_CREATED requires a verified HMAC settlement receipt.
+
+        A self-set ``authoritative`` boolean is ignored.
+        """
+        from src.core.frontier.settlement_receipt import verify_finding_receipt
+
+        return verify_finding_receipt(data)
 
     def publish_sync(self, event: Any) -> list[Any]:
         """Synchronous publish fallback."""

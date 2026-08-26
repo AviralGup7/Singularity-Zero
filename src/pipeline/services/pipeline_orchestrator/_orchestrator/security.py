@@ -488,6 +488,14 @@ async def run_secured(
         selected_modules=getattr(config, "enabled_modules", None),
     )
 
+    if str(getattr(reconstructed, "recovery_phase", "") or "") == "fail_closed":
+        logger.error(
+            "I35 FAIL_CLOSED: refusing DAG resume run=%s windows=%s",
+            reconstructed.run_id,
+            getattr(reconstructed, "recovery_windows", ()),
+        )
+        emit_progress("startup", "Recovery fail-closed; refusing scan", 100, status="failed")
+        return 3
     if getattr(args, "dry_run", False) or not reconstructed.execute_stages:
         logger.info(
             "Dry-run / WAL dry-run: reconstructed source=%s remaining=%s; skipping stage execution.",

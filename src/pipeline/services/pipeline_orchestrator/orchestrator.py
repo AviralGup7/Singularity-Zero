@@ -385,27 +385,35 @@ class PipelineOrchestrator:
         runtime = getattr(self, "_authority_runtime", None)
         if runtime is not None:
             return runtime.state_authority
-        if not hasattr(self, "_state_authority_instance") or self._state_authority_instance is None:
-            from src.core.frontier.state_authority import StateAuthority
-
-            self._state_authority_instance = StateAuthority(wal=self._wal)
-        return self._state_authority_instance
+        attached = getattr(self, "_state_authority_instance", None)
+        if attached is not None:
+            return attached
+        raise RuntimeError(
+            "AuthorityNotAttached: attach_pipeline_authority is the only writer; "
+            "refusing to construct a private StateAuthority"
+        )
 
     @property
     def settlement_coordinator(self) -> Any:
         runtime = getattr(self, "_authority_runtime", None)
         if runtime is not None:
             return runtime.settlement
-        if (
-            not hasattr(self, "_settlement_coordinator_instance")
-            or self._settlement_coordinator_instance is None
-        ):
-            from src.core.frontier.state_authority import SettlementCoordinator
+        attached = getattr(self, "_settlement_coordinator_instance", None)
+        if attached is not None:
+            return attached
+        raise RuntimeError(
+            "AuthorityNotAttached: attach_pipeline_authority is the only writer; "
+            "refusing to construct a private SettlementCoordinator"
+        )
 
-            self._settlement_coordinator_instance = SettlementCoordinator(
-                state_authority=self.state_authority
-            )
-        return self._settlement_coordinator_instance
+    def _settle_stage_attempt(
+        self,
+        ctx: PipelineContext,
+        stage_name: str,
+        stage_output: StageOutput,
+    ) -> Any:
+        """Settle every attempt, including FAILED, so I31/I33 have a durable identity."""
+        return self._merge_stage_output(ctx, stage_name, stage_output)
 
     def _merge_stage_output(
         self,
@@ -418,7 +426,15 @@ class PipelineOrchestrator:
         EventBus is a consumer of committed settlement results. It must not invent
         FINDING_CREATED events from uncommitted or non-dict stage payloads.
         """
-        settle_res = self.settlement_coordinator.settle_stage_output(ctx, stage_name, stage_output)
+        try:
+            coordinator = self.settlement_coordinator
+        except RuntimeError:
+            logger.warning(
+                "I31: cannot settle stage %s without attach_pipeline_authority",
+                stage_name,
+            )
+            return None
+        settle_res = coordinator.settle_stage_output(ctx, stage_name, stage_output)
         if getattr(settle_res, "status", "") != "COMMITTED":
             return settle_res
 
@@ -944,6 +960,21 @@ class PipelineOrchestrator:
                 return None
 
             try:
+                ticket = None
+                try:
+                    from .stage_admit import StageAdmissionError, admit_stage
+
+                    ticket = admit_stage(self, ctx, stage_name, config)
+                except StageAdmissionError as exc:
+                    from .stage_admit import failed_stage_output as _failed_out
+
+                    logger.error("Stage '%s' admission failed: %s", stage_name, exc)
+                    stage_output = _failed_out(
+                        stage_name, error=str(exc), reason="admission_refused"
+                    )
+                    self._settle_stage_attempt(ctx, stage_name, stage_output)
+                    return 1
+
                 stage_output = await self._run_stage_with_retry(
                     stage_name,
                     method,
@@ -957,14 +988,25 @@ class PipelineOrchestrator:
                 )
 
                 terminal = stage_progress_kind(ctx, stage_name, stage_output)
-                if stage_output is not None and terminal != "failed":
-                    self._merge_stage_output(ctx, stage_name, stage_output)
-                    ctx.compact_state()
-                    from src.pipeline.validation import validate_stage_artifact
+                if stage_output is not None:
+                    self._settle_stage_attempt(ctx, stage_name, stage_output)
+                    if terminal != "failed":
+                        ctx.compact_state()
+                        from src.pipeline.validation import validate_stage_artifact
 
-                    is_valid, err_msg = validate_stage_artifact(stage_name, ctx)
-                    if not is_valid:
-                        raise RuntimeError(f"Stage output integrity validation failed: {err_msg}")
+                        is_valid, err_msg = validate_stage_artifact(stage_name, ctx)
+                        if not is_valid:
+                            raise RuntimeError(
+                                f"Stage output integrity validation failed: {err_msg}"
+                            )
+                from .stage_admit import consume_stage_ticket
+
+                if ticket is not None and not consume_stage_ticket(self, ticket):
+                    logger.error(
+                        "I30: stage '%s' ticket consume failed (unknown reservation)",
+                        stage_name,
+                    )
+                    return 1
 
                 elapsed = time.time() - stage_started
 
@@ -1023,6 +1065,23 @@ class PipelineOrchestrator:
                     "failure_reason": reason,
                     "fatal": critical,
                 }
+                try:
+                    from .stage_admit import failed_stage_output as _failed_out
+
+                    self._settle_stage_attempt(
+                        ctx,
+                        stage_name,
+                        _failed_out(
+                            stage_name,
+                            error=error_text,
+                            reason=reason,
+                            duration_seconds=time.time() - stage_started,
+                        ),
+                    )
+                except Exception:
+                    logger.debug(
+                        "Failed to settle FAILED attempt for %s", stage_name, exc_info=True
+                    )
                 try:
                     progress_emitter(
                         stage_name,

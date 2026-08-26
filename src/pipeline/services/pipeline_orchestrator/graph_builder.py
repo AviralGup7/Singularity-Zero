@@ -176,6 +176,9 @@ _BASE_NODES: tuple[StageNode, ...] = (
             "validation",
             "passive_scan",
             "threat_modeling",
+            "semgrep",
+            "subdomain_takeover",
+            "active_scan",
         ),
         weight=5,
         timeout=300,
@@ -329,7 +332,65 @@ def build_pipeline_graph(
                 new_nodes.append(n)
             nodes = new_nodes
 
+    nodes = _join_finding_producers(nodes)
     return Graph(nodes=tuple(nodes))
+
+
+_FINDING_PRODUCER_STAGES: frozenset[str] = frozenset(
+    {
+        "semgrep",
+        "subdomain_takeover",
+        "active_scan",
+        "sca_scan",
+        "container_scan",
+        "iac_scan",
+        "git_secret_scan",
+        "nuclei",
+        "access_control",
+        "validation",
+        "passive_scan",
+        "intelligence",
+        "threat_modeling",
+    }
+)
+_REPORT_SINKS: frozenset[str] = frozenset({"reporting", "sarif_export", "ci_export", "dedup_stage"})
+
+
+def _produces_findings(defn: Any) -> bool:
+    produces = getattr(defn, "produces", None) or []
+    return any("finding" in str(item).lower() for item in produces)
+
+
+def _join_finding_producers(nodes: list[StageNode]) -> list[StageNode]:
+    """Make ``reporting.needs`` the set of every finding-producing node."""
+    import dataclasses
+
+    names = {n.name for n in nodes}
+    reporting = next((n for n in nodes if n.name == "reporting"), None)
+    if reporting is None:
+        return nodes
+    extra: list[str] = []
+    for node in nodes:
+        if node.name in _REPORT_SINKS:
+            continue
+        if node.name in _FINDING_PRODUCER_STAGES:
+            extra.append(node.name)
+    from src.pipeline.stage_registry import _global_stage_registry
+
+    for defn in _global_stage_registry.get_all():
+        if defn.name in names and defn.name not in _REPORT_SINKS and _produces_findings(defn):
+            extra.append(defn.name)
+    merged = tuple(
+        dict.fromkeys(
+            dep for dep in (*reporting.needs, *extra) if dep in names and dep != "reporting"
+        )
+    )
+    if merged == reporting.needs:
+        return nodes
+    return [
+        dataclasses.replace(node, needs=merged) if node.name == "reporting" else node
+        for node in nodes
+    ]
 
 
 def register_plugin_stages() -> None:

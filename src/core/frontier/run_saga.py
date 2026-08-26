@@ -107,7 +107,7 @@ class DurableRunSagaEngine:
         if is_terminal(current):
             return True, f"Sublease {sublease_id} already in terminal state {current.value}"
 
-        if current is not LeaseStatus.RESERVED:
+        if current not in {LeaseStatus.RESERVED, LeaseStatus.EXPIRED}:
             return (
                 False,
                 f"Illegal lease transition (I28): cannot compensate from status {current.value}",

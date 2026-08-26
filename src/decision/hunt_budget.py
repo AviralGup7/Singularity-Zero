@@ -316,6 +316,7 @@ class HuntBudgetEnforcer:
         self._partition_id = partition_id
         self._run_id = run_id
         self._placement = placement
+        self._reserve_gate: Callable[[], bool] | None = None
         self._sublease_seq = 0
         self._authority_revision = 0
         self._issued_identities: dict[str, dict[str, str]] = {}
@@ -403,6 +404,24 @@ class HuntBudgetEnforcer:
         """
         if count <= 0:
             return None
+        placement = getattr(self, "_placement", None)
+        if placement is not None and hasattr(placement, "is_fenced"):
+            try:
+                if placement.is_fenced(self._partition_id):
+                    return None
+            except Exception:
+                logger.debug(
+                    "I37 fence check failed closed", extra={"partition": self._partition_id}
+                )
+                return None
+        gate = getattr(self, "_reserve_gate", None)
+        if callable(gate):
+            try:
+                if not gate():
+                    return None
+            except Exception:
+                logger.debug("HuntBudget reserve gate failed closed")
+                return None
         with self._lock:
             if self._budget.max_requests is not None:
                 if (
@@ -450,6 +469,10 @@ class HuntBudgetEnforcer:
         if placement is not None and hasattr(placement, "current_revision"):
             return str(placement.current_revision(self._partition_id))
         return str(getattr(self._global_budget, "version", None) or self._authority_revision)
+
+    def set_reserve_gate(self, gate: Callable[[], bool] | None) -> None:
+        """Block new reservations when a host breaker is OPEN (F-009 → F-006)."""
+        self._reserve_gate = gate
 
     def has_reservation(self, reservation_id: str) -> bool:
         """True if this enforcer recorded the reservation (I30 authoritative record)."""
