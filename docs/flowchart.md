@@ -133,6 +133,7 @@ flowchart TD
     Index --> Sec["../SECURITY.md"]
     Arch --> ExecReq["architecture/execution-request-contract.md"]
     Arch --> CacheDoc["architecture/cache-unification.md"]
+    Arch --> Consolidation["architecture/code-consolidation.md"]
 ```
 
 Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGES.md` are not in the repo.
@@ -1031,5 +1032,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | F-004 sandbox mermaid + residual honesty (raw httpx bypass, exploit I28/I30 gap); F-025 facade/MemoryJournal non-authority; F-033 I28/I29/I30 code citations; atlas index `c989d3be` | edit |
 | 2026-08-26 | Streamline prose into rich Mermaid subgraphs (Readiness FSM in F-004, Tri-Axial Finding subgraphs in F-007) and high-density invariant tables | edit |
 | 2026-08-26 | Convert Legend edge semantics and node classes into structured tables; compress narrative in F-002, F-006, F-019 | edit |
+| 2026-08-26 | Add F-001 node and architectural cross-reference for docs/architecture/code-consolidation.md | edit |
 
 Append a row for every later edit. Do not delete this table.

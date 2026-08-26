@@ -17,6 +17,7 @@ Live scan path is **FrontierWAL + SettlementCoordinator + scan EventBus** (F-004
 - **[Architecture Gap Analysis](GAP_ANALYSIS.md)**: What is LIVE vs LIBRARY vs open.
 - **[ExecutionRequest Contract](architecture/execution-request-contract.md)**: Decision → authorize → consume → sandbox → settle.
 - **[Cache Unification](architecture/cache-unification.md)**: Single-flight multi-tier cache (non-authoritative).
+- **[Codebase Consolidation & Subsystem Authority](architecture/code-consolidation.md)**: Canonical 32-package map, authority classification, disambiguation rules, and facade boundaries.
 
 ---
 

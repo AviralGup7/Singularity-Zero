@@ -1,6 +1,6 @@
 # Codebase Map & Module Directory
 
-This document provides a comprehensive, ground-truth structural map of the Cyber Security Test Pipeline codebase, detailing package responsibilities, key submodules, contracts, and cross-cutting dependencies.
+This document provides a comprehensive, ground-truth structural map of the Cyber Security Test Pipeline codebase, detailing package responsibilities, key submodules, contracts, and cross-cutting dependencies. For the formal authority planes, disambiguation rules, and consolidation contracts across all 32 top-level packages, see **[Codebase Consolidation Architecture](architecture/code-consolidation.md)**.
 
 ---
 
