@@ -360,7 +360,7 @@ flowchart TD
     end
 ```
 
-### Formal Graph Invariants & Construction Rules (G1–G9, U1–U2, U6)
+### Formal Graph Invariants & Construction Rules (G1–G9, U1–U8, C1–C4)
 
 The runtime DAG adheres to eight formal invariants verified at the `FREEZE` boundary:
 
@@ -375,16 +375,21 @@ The runtime DAG adheres to eight formal invariants verified at the `FREEZE` boun
    Any registered stage lacking both incoming `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) is rejected during validation unless explicitly declared as a root or sink.
 5. **`I-GRAPH-05` (Stage Collision & Override Policy)**:
    Plugin definitions override built-in nodes with matching IDs (`nodes_by_name[defn.name] = defn`). Duplicate un-namespaced IDs between two external plugins fail validation (`ValueError: Duplicate stage names in graph`).
-6. **`I-GRAPH-06` (Plugin Override Dependency Invariance)**:
-   A plugin stage that overrides a built-in stage ID MUST NOT remove mandatory architectural dependencies required by downstream consumers or weaken safety contracts.
+6. **`I-GRAPH-06` (Machine-Checkable Plugin Override Safety)**:
+   A plugin stage $S_{\text{plugin}}$ that overrides a built-in stage $S_{\text{builtin}}$ MUST satisfy four machine-checkable invariants:
+   - **Dependency Monotonicity**: $S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$ (cannot drop mandatory upstream prerequisites).
+   - **Criticality Preservation**: If $S_{\text{builtin}}.\text{critical} == \text{True}$, then $S_{\text{plugin}}.\text{critical}$ MUST be `True`.
+   - **Producer Preservation**: If $S_{\text{builtin}}$ produces reportable findings, $S_{\text{plugin}}.\text{produces}$ MUST declare finding production.
+   - **Sandbox Invariance**: $S_{\text{plugin}}$ is subject to identical continuous egress checks (I29) and execution ticket binding (I30).
 7. **`I-GRAPH-07` (Immutable Sink Membership Rule)**:
    At `FREEZE`, `reporting.needs` is dynamically populated with all active finding producers:
    $$\text{reporting.needs} = \{ n \in \text{Graph.nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$$
    Disabled plugins and pruned tools (missing `nuclei`/`semgrep` binaries) are removed *prior* to `_join_finding_producers`, guaranteeing sinks never block on phantom nodes.
-8. **`I-GRAPH-08` (Deterministic Graph Generation & Fingerprint)**:
-   Every frozen graph computes a deterministic SHA-256 fingerprint:
-   $$\text{GraphGenID} = \text{SHA256}\Big(\big((n.\text{name}, n.\text{needs}, n.\text{weight}, n.\text{timeout}, n.\text{critical}) \text{ for } n \in \text{Graph.nodes}\big)\Big)$$
-   stamped on the run outcome for audit and recovery reproducibility (I35).
+8. **`I-GRAPH-08` (Deterministic GraphGenID & Canonical Fingerprint)**:
+   Every frozen graph computes a deterministic SHA-256 fingerprint sorted canonically by stage name:
+   $$\text{CanonicalNode}(n) = \big(n.\text{name}, \quad \text{tuple}(n.\text{needs}), \quad \text{repr}(n.\text{when}), \quad n.\text{weight}, \quad n.\text{timeout}, \quad n.\text{critical}, \quad \text{tuple}(n.\text{produces})\big)$$
+   $$\text{GraphGenID} = \text{SHA256}\Big(\text{tuple}\big(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Graph.nodes}, \text{ key}=\lambda x: x[0])\big)\Big)$$
+   Sorting guarantees that discovery/registration order never alters the fingerprint, and including `repr(n.when)` and `produces` guarantees that two graphs with different conditional gates or finding contracts never share a `GraphGenID`.
 
 ---
 
@@ -395,26 +400,42 @@ The orchestrator strictly decouples three orthogonal dependency concepts:
 1. **Topological Dependency (`needs: tuple[str, ...]`)**:
    Structural prerequisite governing scheduler readiness. Node $B$ cannot enter the candidate dispatch set until all $A \in \text{needs}(B)$ reach a terminal status (`_need_met`).
 2. **Runtime Scheduling Gate (`when: Condition`)**:
-   Pure predicate evaluated **synchronously on each scheduler readiness tick immediately prior to dispatch** against `ctx` and runtime flags. If `False`, the node is deferred (and marked `SKIPPED` with `condition_never_satisfied` at scan end).
+   Pure predicate evaluated **synchronously on each scheduler readiness tick immediately prior to dispatch** against `ctx` and runtime flags. If `False`, the node is deferred.
 3. **Authorization Ticket & Budget Binding (I30)**:
    Single-use cryptographic execution ticket granting sandbox execution rights and reserving budget units at admission.
 
 ---
 
-### Tri-State Gating & Epistemic Model (G3, U2, C3)
+### Operational Gating & Epistemic Model (G1, G2, U2, U3, C1, C3)
 
-The scheduler resolves upstream status into three distinct epistemic states to prevent false equivalence:
+The scheduler resolves upstream status into five distinct operational classes:
 
 | Upstream Status ($A$) | Epistemic Classification | `OutputNonEmpty(A)` | Downstream Action ($B$) | Terminal Status ($B$) | Telemetry & Audit Reason |
 |---|---|---|---|---|---|
 | **`COMPLETED` (> 0 items)** | **Positive Findings** | `True` | Dispatches normally | `RUNNING` $\rightarrow$ `COMPLETED` | Standard scan execution |
 | **`COMPLETED` (0 items)** | **Authoritative Negative Proof** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY"` |
-| **`FAILED` / `DEGRADED`** | **Upstream Unobserved / Crash** | `False` | Gated skip | `SKIPPED` | `reason="UPSTREAM_UNOBSERVED"` |
-| **`SKIPPED_DISABLED`** | **Disabled by Policy / Profile** | `False` | Gated skip | `SKIPPED` | `reason="DISABLED_BY_POLICY"` |
+| **`DEGRADED` (> 0 items)** | **Partial Observation** | `True` | Dispatches in degraded mode | `RUNNING` $\rightarrow$ `DEGRADED` | Partial upstream input |
+| **`DEGRADED` (0 items)** | **Partial Empty Observation** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY_DEGRADED"` |
+| **`FAILED` / `SKIPPED_FAILED`** | **Unobserved Crash / Error** | `False` | Gated skip / Dep blocked | `SKIPPED_FAILED` | `reason="UPSTREAM_UNOBSERVED"` |
+| **`SKIPPED_DISABLED`** | **Disabled by Policy / Profile** | `False` | Gated skip (structural no-op) | `SKIPPED` | `reason="DISABLED_BY_POLICY"` |
 
-#### Universal Terminal Status Fulfillment (`ActorScheduler._need_met`)
+#### Formal Proof Condition for Negative Proof (`PROVEN_EMPTY`) (U3)
+A stage output of 0 items constitutes authoritative negative proof **only when**:
+1. Upstream stage finished with clean `COMPLETED` status (0 crashes, 0 unhandled timeouts, Circuit Breaker stayed `CLOSED`).
+2. Input target collection was non-empty (e.g. `subdomains` produced $\ge 1$ target for `live_hosts`).
+
+#### Universal Terminal Status Fulfillment (`ActorScheduler._need_met`) (C3)
 - **Standard Stage Downstream**: Unblocked by $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$. Blocked by $\{ \text{FAILED}, \text{SKIPPED\_FAILED} \}$.
 - **CAS-Aware Join Sinks (`_JOIN_SINKS`)**: Unblocked by **ANY** terminal status: $\{ \text{COMPLETED}, \text{DEGRADED}, \text{FAILED}, \text{SKIPPED\_DISABLED}, \text{SKIPPED\_FAILED} \}$.
+
+#### Blocked Downstream & Gated Liveness State Machine (G3, C1)
+- $\text{PENDING} \longrightarrow (\forall A \in \text{needs}, A \in \text{TERMINAL}) \longrightarrow \text{READY} \longrightarrow \text{when.is\_satisfied}(ctx, flags)$:
+  - If `True`: $\longrightarrow \text{DISPATCH} \longrightarrow \text{RUNNING} \longrightarrow \text{COMPLETED} \mid \text{DEGRADED} \mid \text{FAILED}$.
+  - If `False`: $\longrightarrow \text{DEFERRED}$ (re-evaluated on every subsequent tick).
+  - At pipeline termination ($\text{in\_flight} == \emptyset \land \text{ready} == \emptyset$):
+    - Deferred nodes whose `when` was never satisfied transition to `SKIPPED` (`reason="condition_never_satisfied"`).
+    - Nodes whose upstream `needs` failed transition to `SKIPPED_FAILED` (`reason="upstream_dependency_failed"`).
+    - **Total Liveness Guarantee**: Zero deadlocks; every node in `Graph.nodes` reaches a well-defined terminal state.
 
 ---
 
@@ -438,12 +459,15 @@ To prevent partial scans from being misinterpreted as complete clean scans, `rep
    Nodes with higher weight (`live_hosts=15`, `active_scan=15`, `nuclei=10`, `semgrep=10`, `subdomains=10`) receive worker pool capacity first.
 3. **Context Snapshot Semantics (U3, U4)**:
    Downstream stages observe the immutable CRDT state snapshot at the timestamp of stage admission (`admit_stage`), ordered monotonically by HLC (I23).
-4. **Retry & Re-execution Identity (U4)**:
-   Stage retries mint a new causal `AttemptId` (I33) and consume a fresh single-use ticket (I30), without reopening completed downstream stages.
-5. **Cancellation Propagation (U5)**:
-   SIGINT (Exit 130) cancels in-flight tasks (`asyncio.CancelledError`), marks pending/ready nodes `SKIPPED` (`reason="cancelled"`), releases outstanding budget reservations, and terminates subprocesses immediately.
+4. **Retry & Re-execution Semantics (U4)**:
+   Stage retries mint a new causal `AttemptId` (I33) and consume a fresh single-use ticket (I30). Downstream stages evaluate dependency fulfillment against the latest attempt's terminal state.
+5. **Cancellation & Settlement Boundary (U5)**:
+   - **Before Settlement WAL Commit**: If SIGINT arrives while a subprocess is running or during claim validation, the subprocess is killed, no WAL record is committed, outstanding budget reservation is `RELEASED`, and stage is marked `SKIPPED` (`reason="cancelled"`).
+   - **After Settlement WAL Commit**: If WAL committed (`wal_id` assigned), finding is durably recorded in WAL. Outbox ledger will replay dispatch on restart (I32); budget is settled; job exit code records `130`.
 6. **Budget Exhaustion Semantics (U6)**:
    If `HuntBudget.reserve` fails during admission, `ScopeAuthorizationError` is raised. The stage is marked `SKIPPED` (`reason="budget_exhausted"`), releasing reservations and unblocking downstream nodes whose gates do not require positive findings.
+7. **Deep Immutability at `FREEZE` (U7)**:
+   `Graph`, `StageNode`, and all `Condition` classes are `@dataclass(frozen=True)` with immutable tuple fields, guaranteeing deep immutability across the entire DAG.
 
 ---
 
