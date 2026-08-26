@@ -62,6 +62,7 @@ class PipelineAuthorityRuntime:
             wal_dir=raft_wal_dir,
             transport=transport,
         )
+        self.partition_log.bind_placement(self.placement)
         self.state_authority = StateAuthority(wal=scan_wal)
         self.settlement = SettlementCoordinator(state_authority=self.state_authority)
         self.hunt_budget = hunt_budget

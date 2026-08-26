@@ -386,7 +386,7 @@ class GlobalRunAggregate:
 
 
 class PlacementAuthority:
-    """Authoritative partition topology and 5-stage fenced migration manager on P-0000."""
+    """Authoritative partition topology and I37 fenced home transfer on P-0000."""
 
     def __init__(self, initial_version: int = 7, *, home_region: str = "local") -> None:
         self.placement_version = initial_version
@@ -394,13 +394,40 @@ class PlacementAuthority:
         self.ownership_epochs: dict[str, int] = {}  # aggregate_id -> epoch
         self.migration_states: dict[str, str] = {}  # aggregate_id -> status
         self.partition_home: dict[str, str] = {"P-0000": self.home_region}
+        self._leases: dict[str, Any] = {}
+        self._transfers: dict[str, Any] = {}
 
     def region_for_partition(self, partition_id: str) -> str:
-        """I36: which region currently homes this partition's leader."""
+        """I36: which region currently homes this partition's leader.
+
+        During I37 FENCED the old home is still reported. Pending home is
+        not live until ``activate_ownership``.
+        """
         key = str(partition_id or "").strip()
         if not key:
             return self.home_region
         return self.partition_home.get(key, self.home_region)
+
+    def lease_for(self, partition_id: str) -> Any:
+        """Live I37 authority lease for a partition (created on first use)."""
+        from src.core.frontier.authority_transfer import genesis_lease
+
+        key = str(partition_id or "").strip() or "P-0000"
+        lease = self._leases.get(key)
+        if lease is None:
+            lease = genesis_lease(
+                key, self.region_for_partition(key), placement_version=self.placement_version
+            )
+            self._leases[key] = lease
+        return lease
+
+    def is_fenced(self, partition_id: str) -> bool:
+        from src.core.frontier.authority_transfer import TransferPhase
+
+        return self.lease_for(partition_id).phase is TransferPhase.FENCED
+
+    def current_revision(self, partition_id: str) -> str:
+        return str(self.lease_for(partition_id).authority_revision)
 
     def get_partition_for_target(self, target_identity_hash: str) -> str:
         """Deterministic virtual partition placement (1024 fixed virtual partitions)."""
@@ -417,33 +444,77 @@ class PlacementAuthority:
         attempt_terminal: bool = False,
         to_region: str | None = None,
     ) -> int:
-        """Stage 1: P-0000 TransferIntentCommitted.
+        """I37 stage 1: fence the old home. Do **not** move ``partition_home``.
 
-        I36: an in-flight attempt cannot change partition/region.
+        After this returns, nobody may mutate ``from_partition`` until
+        ``activate_ownership``. Dual-writer is impossible; the gap is
+        fail-closed (I34).
         """
+        from src.core.frontier.authority_transfer import TransferRecord, fence_lease
         from src.core.frontier.region_model import assert_migration_allowed
 
         assert_migration_allowed(
             attempt_in_flight=attempt_in_flight,
             attempt_terminal=attempt_terminal,
         )
-        current_epoch = self.ownership_epochs.get(aggregate_id, 1)
-        new_epoch = current_epoch + 1
-        self.ownership_epochs[aggregate_id] = new_epoch
-        dest_region = str(to_region or self.region_for_partition(to_partition)).strip()
-        if dest_region:
-            self.partition_home[str(to_partition)] = dest_region
-        self.migration_states[aggregate_id] = (
-            f"TRANSFER_PREPARED:{from_partition}->{to_partition}:{new_epoch}"
-        )
+        src = str(from_partition)
+        dest = str(to_partition)
+        dest_region = str(to_region or self.region_for_partition(dest)).strip() or self.home_region
         self.placement_version += 1
-        return new_epoch
+        fenced, token = fence_lease(
+            self.lease_for(src),
+            pending_home=dest_region,
+            pending_partition=dest,
+            placement_version=self.placement_version,
+        )
+        self._leases[src] = fenced
+        self.ownership_epochs[aggregate_id] = fenced.authority_epoch
+        self._transfers[str(aggregate_id)] = TransferRecord(
+            aggregate_id=str(aggregate_id),
+            from_partition=src,
+            to_partition=dest,
+            to_region=dest_region,
+            epoch=fenced.authority_epoch,
+            fence_token=token,
+            revision=fenced.authority_revision,
+            leader_term=fenced.leader_term,
+        )
+        self.migration_states[aggregate_id] = f"FENCE_ISSUED:{src}->{dest}:{fenced.authority_epoch}"
+        return fenced.authority_epoch
 
-    def activate_ownership(self, aggregate_id: str, new_owner_partition: str, epoch: int) -> bool:
-        """Stage 4: P-0000 OwnershipActivated."""
-        if self.ownership_epochs.get(aggregate_id) != epoch:
+    def activate_ownership(
+        self,
+        aggregate_id: str,
+        new_owner_partition: str,
+        epoch: int,
+        fence_token: str | None = None,
+    ) -> bool:
+        """I37 stage 2: pending home becomes the only writer. Old token dies."""
+        from src.core.frontier.authority_transfer import activate_lease
+
+        rec = self._transfers.get(str(aggregate_id))
+        if rec is None or int(rec.epoch) != int(epoch):
             return False
-        self.migration_states[aggregate_id] = f"OWNED_BY:{new_owner_partition}:{epoch}"
+        if fence_token is not None and str(fence_token) != str(rec.fence_token):
+            return False
+        src_lease = self.lease_for(rec.from_partition)
+        if int(src_lease.authority_epoch) != int(epoch):
+            return False
+        self.placement_version += 1
+        live = activate_lease(src_lease, placement_version=self.placement_version)
+        dest = str(new_owner_partition or rec.to_partition)
+        self.partition_home[dest] = rec.to_region
+        self._leases[dest] = live
+        if dest != rec.from_partition:
+            from src.core.frontier.authority_transfer import genesis_lease
+
+            self._leases[rec.from_partition] = genesis_lease(
+                rec.from_partition,
+                self.region_for_partition(rec.from_partition),
+                placement_version=self.placement_version,
+            )
+        self.migration_states[aggregate_id] = f"OWNED_BY:{dest}:{epoch}"
+        self._transfers.pop(str(aggregate_id), None)
         return True
 
     def to_dict(self) -> dict[str, Any]:
@@ -453,4 +524,5 @@ class PlacementAuthority:
             "ownership_epochs": dict(self.ownership_epochs),
             "migration_states": dict(self.migration_states),
             "partition_home": dict(self.partition_home),
+            "leases": {k: v.to_dict() for k, v in self._leases.items()},
         }

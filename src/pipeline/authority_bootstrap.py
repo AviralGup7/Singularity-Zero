@@ -43,6 +43,7 @@ def build_pipeline_authority_runtime(
         global_budget=runtime.global_budget,
         partition_id="P-0000",
         run_id=run_id,
+        placement=runtime.placement,
     )
     runtime.bandit = BayesianParameterBandit()
     runtime.authorizer = ExecutionAuthorizer(budget_enforcer=runtime.hunt_budget)

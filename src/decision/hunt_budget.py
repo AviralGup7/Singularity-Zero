@@ -307,6 +307,7 @@ class HuntBudgetEnforcer:
         global_budget: Any | None = None,
         partition_id: str = "P-0000",
         run_id: str = "hunt",
+        placement: Any | None = None,
     ) -> None:
         self._budget = budget or HuntBudget()
         if label is not None:
@@ -314,6 +315,7 @@ class HuntBudgetEnforcer:
         self._global_budget = global_budget
         self._partition_id = partition_id
         self._run_id = run_id
+        self._placement = placement
         self._sublease_seq = 0
         self._authority_revision = 0
         self._issued_identities: dict[str, dict[str, str]] = {}
@@ -433,9 +435,7 @@ class HuntBudgetEnforcer:
                 command_id = f"cmd_{sl_id}"
             self._requests_reserved += int(count)
             self._authority_revision += 1
-            revision = str(
-                getattr(self._global_budget, "version", None) or self._authority_revision
-            )
+            revision = self.live_authority_revision()
             identity = {
                 "reservation_id": sl_id,
                 "command_id": command_id,
@@ -443,6 +443,13 @@ class HuntBudgetEnforcer:
             }
             self._issued_identities[sl_id] = dict(identity)
             return identity
+
+    def live_authority_revision(self) -> str:
+        """I37: tickets bind the live placement revision when a fence exists."""
+        placement = getattr(self, "_placement", None)
+        if placement is not None and hasattr(placement, "current_revision"):
+            return str(placement.current_revision(self._partition_id))
+        return str(getattr(self._global_budget, "version", None) or self._authority_revision)
 
     def has_reservation(self, reservation_id: str) -> bool:
         """True if this enforcer recorded the reservation (I30 authoritative record)."""

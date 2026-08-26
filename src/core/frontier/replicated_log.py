@@ -20,6 +20,7 @@ import time
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from src.core.contracts.canonical_target import (
     canonical_state_encode,
@@ -162,6 +163,9 @@ class ReplicatedPartitionLog:
         self.role = "LEADER" if is_leader else "FOLLOWER"
         self.local_region = str(local_region or "local").strip() or "local"
         self.leader_region = str(leader_region or self.local_region).strip() or self.local_region
+        self.authority_epoch = 1
+        self.fence_token = ""
+        self.placement: Any | None = None
         self.peers = list(peers)
         self.transport = transport
         self.signer_key_id = signer_key_id or signing_key_id()
@@ -191,6 +195,24 @@ class ReplicatedPartitionLog:
     def last_entry_hash(self) -> str:
         with self._lock:
             return self._last_entry_hash
+
+    def bind_placement(self, placement: Any) -> None:
+        """Attach P-0000 placement so propose_and_commit honors I37 fences."""
+        self.placement = placement
+
+    def install_authority(self, lease: Any) -> None:
+        """Adopt a live I37 lease after activate (new home) or genesis."""
+        self.authority_epoch = int(getattr(lease, "authority_epoch", 1) or 1)
+        self.fence_token = str(getattr(lease, "fence_token", "") or "")
+        self.leader_region = str(getattr(lease, "home_region", "") or self.leader_region)
+        self.current_term = int(
+            getattr(lease, "leader_term", self.current_term) or self.current_term
+        )
+        phase = str(
+            getattr(getattr(lease, "phase", None), "value", getattr(lease, "phase", "")) or ""
+        )
+        self.is_leader = phase != "fenced" and self.local_region == self.leader_region
+        self.role = "LEADER" if self.is_leader else "FOLLOWER"
 
     def _recover_from_wal(self) -> None:
         """Replay valid committed entries from persistent WAL storage into memory and FSM.
@@ -242,6 +264,17 @@ class ReplicatedPartitionLog:
                 role=RegionRole.AUTHORITY_HOME,
                 partition_id=self.partition_id,
             )
+            if self.placement is not None:
+                from src.core.frontier.authority_transfer import assert_mutation_allowed
+
+                lease = self.placement.lease_for(self.partition_id)
+                assert_mutation_allowed(
+                    lease,
+                    observed_region=self.local_region,
+                    observed_epoch=int(self.authority_epoch or lease.authority_epoch),
+                    observed_token=str(self.fence_token or lease.fence_token),
+                    observed_term=int(self.current_term) if self.fence_token else None,
+                )
             # 0. Command Admission Clock-Skew & Drift Validation (I22')
             now_admission = time.time()
             if cmd.created_at_unix > now_admission + 10.0:

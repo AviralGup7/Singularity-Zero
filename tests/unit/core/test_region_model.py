@@ -94,7 +94,12 @@ def test_i36_migration_forbidden_while_attempt_in_flight() -> None:
         to_region="eu-west",
     )
     assert epoch >= 2
+    # I37: home does not move until activate. Source is fenced.
+    assert placement.is_fenced("P-0001") is True
+    assert placement.region_for_partition("P-0002") != "eu-west"
+    assert placement.activate_ownership("agg-1", "P-0002", epoch) is True
     assert placement.region_for_partition("P-0002") == "eu-west"
+    assert placement.is_fenced("P-0001") is False
 
 
 def test_i36_heal_uses_placement_version_not_lww() -> None:

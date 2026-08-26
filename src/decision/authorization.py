@@ -393,6 +393,18 @@ class ExecutionAuthorizer:
             if enforcer is not None and hasattr(enforcer, "has_reservation"):
                 if not enforcer.has_reservation(ticket.budget_reservation_id):
                     return False
+            if enforcer is not None and hasattr(enforcer, "live_authority_revision"):
+                from src.core.frontier.authority_transfer import (
+                    AuthorityFenceError,
+                    assert_ticket_revision_live,
+                )
+
+                try:
+                    assert_ticket_revision_live(
+                        ticket.authority_revision, enforcer.live_authority_revision()
+                    )
+                except AuthorityFenceError:
+                    return False
             if not self.verify_ticket(ticket):
                 return False
             self._consumed_tickets.add(ticket.ticket_id)
