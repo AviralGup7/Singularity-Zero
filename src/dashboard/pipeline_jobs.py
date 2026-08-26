@@ -114,9 +114,10 @@ def run_pipeline_job(
         command.append("--skip-crtsh")
     if execution_options.get("dry_run"):
         command.append("--dry-run")
-    # Dashboard launches should always start from explicit config/scope files.
-    # Avoid restoring stale cross-run checkpoint metadata.
-    command.append("--force-fresh-run")
+    # Resume is a job flag. Default stays fresh so operator jobs do not
+    # silently restore a foreign checkpoint; I35 runs when force_fresh is False.
+    if bool(job.get("force_fresh", True)):
+        command.append("--force-fresh-run")
 
     # Bug #38: Log config fingerprint for resume drift detection
     config_fingerprint = job.get("config_fingerprint")

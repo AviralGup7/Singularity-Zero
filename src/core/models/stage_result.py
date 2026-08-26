@@ -27,8 +27,24 @@ from src.core.models.stage_status import (
 
 
 class StageName(StrEnum):
-    """Valid pipeline stage identifiers."""
+    """Pipeline stage identifiers.
 
+    Live DAG names are the source of truth. Legacy members are kept for
+    checkpoint fixtures; they are not STAGE_GRAPH nodes.
+    """
+
+    SUBDOMAINS = "subdomains"
+    LIVE_HOSTS = "live_hosts"
+    URLS = "urls"
+    PARAMETERS = "parameters"
+    RANKING = "ranking"
+    PASSIVE_SCAN = "passive_scan"
+    ACTIVE_SCAN = "active_scan"
+    SEMGREP = "semgrep"
+    NUCLEI = "nuclei"
+    VALIDATION = "validation"
+    INTELLIGENCE = "intelligence"
+    REPORTING = "reporting"
     SCOPE = "scope"
     SUBDOMAIN_DISCOVERY = "subdomain_discovery"
     HOST_PROBING = "host_probing"
@@ -37,9 +53,7 @@ class StageName(StrEnum):
     PARAMETER_DISCOVERY = "parameter_discovery"
     TARGET_PROFILING = "target_profiling"
     DEEP_ANALYSIS = "deep_analysis"
-    VALIDATION = "validation"
     MERGING = "merging"
-    REPORTING = "reporting"
     SCREENSHOTS = "screenshots"
     DIFF = "diff"
     NUCLEI_SCAN = "nuclei_scan"
@@ -232,7 +246,18 @@ class StageResult:
 
         self.subdomains = self._neural_state.subdomains.to_set()
         self.urls = self._neural_state.urls.to_set()
-        self.reportable_findings = list(self._neural_state.findings.values())
+        from src.core.contracts.finding_lifecycle import (
+            FindingLifecycleState,
+            surface_lifecycle_state,
+        )
+
+        self.reportable_findings = [
+            item
+            for item in self._neural_state.findings.values()
+            if surface_lifecycle_state(item.get("lifecycle_surface") or item.get("lifecycle_state"))
+            is FindingLifecycleState.REPORTABLE
+            or (not item.get("lifecycle_state") and not item.get("lifecycle_surface"))
+        ]
 
     def compact_state(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
         """Trigger CRDT tombstone compaction to save memory, respecting budget."""

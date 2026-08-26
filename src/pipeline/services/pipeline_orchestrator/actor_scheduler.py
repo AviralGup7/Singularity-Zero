@@ -403,15 +403,7 @@ class ActorScheduler:
                 continue
             # Allow forced dispatch after too many deferrals (starvation guard)
             if self._is_large_debt_node(node):
-                deferrals = self._deferral_count.get(node.name, 0)
-                if deferrals < self._max_deferrals:
-                    self._deferral_count[node.name] = deferrals + 1
-                    continue
-                logger.info(
-                    "Stage '%s' forced after %d deferrals (starvation guard)",
-                    node.name,
-                    self._max_deferrals,
-                )
+                continue
             ready.append((node.weight * -1, index, node))
 
         ready.sort(key=lambda triple: (triple[0], triple[1]))
@@ -437,30 +429,52 @@ class ActorScheduler:
             )
         return [node for _w, _i, node in ready]
 
+    _JOIN_SINKS = frozenset(
+        {"reporting", "intelligence", "sarif_export", "ci_export", "dedup_stage"}
+    )
+
     def _deps_satisfied(self, node: StageNode) -> bool:
-        # A dependency is "satisfied" (i.e. releases downstream stages
-        # for dispatch) when it is one of:
-        #
-        # * ``completed`` — ran and finished without error.
-        # * ``skipped`` — explicitly skipped by us or by the orchestrator
-        #   (e.g. ``suspend_triggered``).
-        # * ``outcome.skipped`` — finalized as ``SKIPPED`` (condition
-        #   never satisfied, etc.).
-        # * ``outcome.failed`` with a *non-critical* dep — supports the
-        #   degraded-continue path: when a recon stage declared as
-        #   ``critical=False`` (e.g. ``subdomains`` after the policy
-        #   moved it to the degraded set) fails, downstream stages are
-        #   still allowed to run so that salvage data (``urls`` via
-        #   crt.sh, ``subdomains`` for ``subdomain_takeover``, etc.)
-        #   can be collected.  Critical-stage failures still block
-        #   downstream as before.
-        return all(
-            dep in self._completed
+        return all(self._need_met(dep, node) for dep in node.needs)
+
+    def _need_met(self, dep: str, node: StageNode) -> bool:
+        """CAS-aware join.
+
+        Reporting/intel wait until every producer is *terminal* (including
+        FAILED, so the report still emits). FAILED never counts as success
+        for OutputNonEmpty gates (those use StageCompleted/OutputNonEmpty).
+        """
+        from src.core.models.stage_status import (
+            TERMINAL_STAGE_STATUSES,
+            StageStatus,
+            normalize_stage_status,
+        )
+
+        raw = None
+        try:
+            raw = self._ctx.result.stage_status.get(dep)
+        except Exception:
+            raw = None
+        status = normalize_stage_status(raw) if raw is not None else None
+        if node.name in self._JOIN_SINKS:
+            if status in TERMINAL_STAGE_STATUSES:
+                return True
+            return (
+                dep in self._completed
+                or dep in self._skipped
+                or dep in self._outcome.skipped
+                or dep in self._outcome.failed
+            )
+        if status in {StageStatus.COMPLETED, StageStatus.DEGRADED}:
+            return True
+        if (
+            status is StageStatus.SKIPPED_DISABLED
             or dep in self._skipped
             or dep in self._outcome.skipped
-            or (dep in self._outcome.failed and not self._graph.require(dep).critical)
-            for dep in node.needs
-        )
+        ):
+            return True
+        if dep in self._completed:
+            return True
+        return False
 
     def _condition_holds(self, node: StageNode) -> bool:
         try:

@@ -340,10 +340,9 @@ class LWWset[T]:
                 if clock.is_later_than(self._clock):
                     self._clock = clock
             return ts, clock
-        ts = time.time()
         with self._lock:
-            self._clock = self._clock.tick(ts)
-            return ts, self._clock
+            self._clock = self._clock.tick()
+            return self._clock.physical_time, self._clock
 
     @staticmethod
     def _key(item: Any) -> Any:
@@ -352,29 +351,24 @@ class LWWset[T]:
             return item
         except TypeError:
             if isinstance(item, dict):
-                fid = item.get("id")
-                if not fid:
-                    stable_parts = [
-                        str(item.get("type", "")),
-                        str(item.get("title", "")),
-                        str(item.get("url", item.get("endpoint", ""))),
-                        str(item.get("parameter", "")),
-                        str(item.get("method", "")),
-                    ]
-                    generated_fid = hashlib.sha256(
-                        "|".join(stable_parts).encode("utf-8")
-                    ).hexdigest()
-                    try:
-                        item["id"] = generated_fid
-                    except TypeError as exc:
-                        logger.debug(
-                            "_stable_finding_id: item of type %s does not support item assignment; "
-                            "returning generated ID without persisting it. %s",
-                            type(item).__name__,
-                            exc,
-                        )
-                    return generated_fid
-                return fid
+                event_id = str(item.get("event_id") or "").strip()
+                if event_id:
+                    return event_id
+                settlement_id = str(item.get("settlement_id") or "").strip()
+                if settlement_id:
+                    seq = str(item.get("event_seq") or item.get("sequence") or "0")
+                    return f"{settlement_id}:{seq}"
+                fid = str(item.get("id") or "").strip()
+                if fid:
+                    return fid
+                stable_parts = [
+                    str(item.get("type", "")),
+                    str(item.get("title", "")),
+                    str(item.get("url", item.get("endpoint", ""))),
+                    str(item.get("parameter", "")),
+                    str(item.get("method", "")),
+                ]
+                return hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()
             return repr(item)
 
 
@@ -392,27 +386,27 @@ class NeuralState:
         self.hlc = HybridLogicalClock(node_id="local")
 
     def _trim_applied_wal_ids(self) -> None:
-        if len(self.applied_wal_ids) > 1000:
-            try:
-                sorted_ids = sorted(
-                    self.applied_wal_ids,
-                    key=self._wal_id_sort_key,
-                )
-            except TypeError:
-                sorted_ids = sorted(self.applied_wal_ids)
-
-            to_keep = sorted_ids[-500:]
-            try:
-                first_kept = to_keep[0]
-                if first_kept.startswith("aof-"):
-                    # aof-<float_ts>-<txid> -> use float timestamp directly
-                    self.min_wal_timestamp = int(float(first_kept.split("-")[1]))
-                else:
-                    self.min_wal_timestamp = int(first_kept.split("-")[0])
-            except (ValueError, IndexError, AttributeError) as parse_exc:
-                logger.debug("Could not parse min_wal_timestamp from %r: %s", first_kept, parse_exc)
-                self.min_wal_timestamp = 0
-            self.applied_wal_ids = set(to_keep)
+        if len(self.applied_wal_ids) <= 1000:
+            return
+        try:
+            sorted_ids = sorted(self.applied_wal_ids, key=self._wal_id_sort_key)
+        except TypeError:
+            sorted_ids = sorted(self.applied_wal_ids)
+        kept = set(sorted_ids[-500:])
+        last = self.last_wal_id
+        if last:
+            last_key = self._wal_id_sort_key(last)
+            kept.update(item for item in sorted_ids if self._wal_id_sort_key(item) >= last_key)
+        self.applied_wal_ids = kept
+        try:
+            first_kept = min(kept, key=self._wal_id_sort_key) if kept else ""
+            if first_kept.startswith("aof-"):
+                self.min_wal_timestamp = int(float(first_kept.split("-")[1]))
+            elif first_kept:
+                self.min_wal_timestamp = int(first_kept.split("-")[0])
+        except (ValueError, IndexError, AttributeError, TypeError) as parse_exc:
+            logger.debug("Could not parse min_wal_timestamp: %s", parse_exc)
+            self.min_wal_timestamp = 0
 
     @staticmethod
     def _wal_id_sort_key(wal_id: str) -> tuple[float, str]:
@@ -441,6 +435,7 @@ class NeuralState:
             "subdomains": self.subdomains.compact(max_tombstone_age_seconds),
             "urls": self.urls.compact(max_tombstone_age_seconds),
             "findings": self.findings.compact(max_tombstone_age_seconds),
+            "candidates": self.candidates.compact(max_tombstone_age_seconds),
         }
         total = sum(purged.values())
 
@@ -467,16 +462,17 @@ class NeuralState:
             if wal_id in self.applied_wal_ids:
                 return
 
-        ts = delta.get("_ts", time.time())
         node_id = str(delta.get("_node_id") or delta.get("node_id") or "local")
 
-        # Update local HLC with remote event info
+        # One clock domain: local ticks are monotonic. Do not mix wall
+        # ``time.time()`` into ``tick``/``update``. Remote HLC is merged as-is.
         remote_hlc_dict = delta.get("hlc")
         if remote_hlc_dict:
             remote_hlc = HybridLogicalClock.from_dict(remote_hlc_dict)
-            self.hlc = self.hlc.update(remote_hlc, ts)
+            self.hlc = self.hlc.update(remote_hlc)
         else:
-            self.hlc = self.hlc.tick(ts)
+            self.hlc = self.hlc.tick()
+        ts = self.hlc.physical_time
 
         vclock = VectorClock().increment(node_id)
 
@@ -505,41 +501,76 @@ class NeuralState:
             findings = delta["findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self.findings.add(finding, ts, self.hlc, vclock)
-
-        if "active_scan_findings" in delta:
-            findings = delta["active_scan_findings"]
-            if isinstance(findings, list):
-                for finding in findings:
-                    self.findings.add(finding, ts, self.hlc, vclock)
+                    self._ingest_finding(finding, ts, vclock)
 
         if "reportable_findings" in delta:
             findings = delta["reportable_findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self.findings.add(finding, ts, self.hlc, vclock)
+                    self._ingest_finding(finding, ts, vclock, prefer_reportable=True)
+
+        # active_scan_findings / vulnerabilities are evidence bags, not the
+        # reportable CRDT. Route through lifecycle; they cannot bypass it.
+        if "active_scan_findings" in delta:
+            findings = delta["active_scan_findings"]
+            if isinstance(findings, list):
+                for finding in findings:
+                    self._ingest_finding(finding, ts, vclock)
 
         if "vulnerabilities" in delta:
             findings = delta["vulnerabilities"]
             if isinstance(findings, list):
                 for finding in findings:
-                    payload = (
-                        finding
-                        if isinstance(finding, dict)
-                        else {"id": str(finding), "title": str(finding)}
-                    )
-                    self.findings.add(payload, ts, self.hlc, vclock)
+                    payload = finding if isinstance(finding, dict) else {"title": str(finding)}
+                    self._ingest_finding(payload, ts, vclock)
 
         if isinstance(wal_id, str):
             self.applied_wal_ids.add(wal_id)
             self.last_wal_id = wal_id
             self._trim_applied_wal_ids()
 
+    def _ingest_finding(
+        self,
+        finding: Any,
+        ts: float,
+        vclock: VectorClock,
+        *,
+        prefer_reportable: bool = False,
+    ) -> None:
+        """Split CANDIDATE vs REPORTABLE. Never dump unstamped bags into reportable."""
+        if not isinstance(finding, dict):
+            return
+        try:
+            from src.core.contracts.finding_lifecycle import (
+                FindingLifecycleState,
+                apply_lifecycle,
+                surface_lifecycle_state,
+            )
+        except Exception:
+            self.candidates.add(dict(finding), ts, self.hlc, vclock)
+            return
+        stamped = apply_lifecycle([dict(finding)])[0]
+        if (
+            prefer_reportable
+            and not stamped.get("lifecycle_state")
+            and not finding.get("lifecycle_state")
+        ):
+            stamped["lifecycle_state"] = FindingLifecycleState.REPORTABLE.value
+            stamped["lifecycle_surface"] = FindingLifecycleState.REPORTABLE.value
+        surface = surface_lifecycle_state(
+            stamped.get("lifecycle_surface") or stamped.get("lifecycle_state")
+        )
+        if surface is FindingLifecycleState.REPORTABLE:
+            self.findings.add(stamped, ts, self.hlc, vclock)
+        else:
+            self.candidates.add(stamped, ts, self.hlc, vclock)
+
     def get_snapshot(self) -> dict[str, Any]:
         return {
             "subdomains": sorted(self.subdomains.to_set()),
             "urls": sorted(self.urls.to_set()),
             "findings": self.findings.values(),
+            "candidates": self.candidates.values(),
         }
 
     def to_crdt_snapshot(self) -> dict[str, Any]:
@@ -558,6 +589,7 @@ class NeuralState:
                 "subdomains": self.subdomains.to_dict(),
                 "urls": self.urls.to_dict(),
                 "findings": self.findings.to_dict(),
+                "candidates": self.candidates.to_dict(),
             },
             "metadata": dict(self.metadata),
         }
@@ -573,6 +605,7 @@ class NeuralState:
             state.subdomains = LWWset.from_dict(sets.get("subdomains", {}) or {})
             state.urls = LWWset.from_dict(sets.get("urls", {}) or {})
             state.findings = LWWset.from_dict(sets.get("findings", {}) or {})
+            state.candidates = LWWset.from_dict(sets.get("candidates", {}) or {})
             state.metadata = _clone_value(dict(snapshot.get("metadata", {}) or {}))
             last_wal_id = snapshot.get("last_wal_id")
             state.last_wal_id = last_wal_id if isinstance(last_wal_id, str) else None
@@ -735,6 +768,8 @@ def compact_state(
         purged_findings = state.findings.compact_with_budget(
             max_tombstone_age_seconds, budget_ms, start_time
         )
+    if (time.time() - start_time) * 1000.0 < budget_ms and hasattr(state, "candidates"):
+        state.candidates.compact_with_budget(max_tombstone_age_seconds, budget_ms, start_time)
 
     total_elapsed_ms = (time.time() - start_time) * 1000.0
     budget.adjust(total_elapsed_ms)

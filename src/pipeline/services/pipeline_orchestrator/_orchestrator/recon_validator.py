@@ -44,3 +44,30 @@ def validate_recon_outputs(ctx: PipelineContext) -> None:
         logger.warning(
             "Recon validation failed: urls stage completed but produced no discoverable URLs."
         )
+    else:
+        ctx.result.stage_status["recon_validation"] = StageStatus.COMPLETED.value
+        ctx.result.module_metrics["recon_validation"] = {
+            "status": "ok",
+            "fatal": False,
+        }
+
+
+async def run_recon_validation(
+    args: object,
+    config: object,
+    ctx: PipelineContext,
+    *,
+    stage_input: object = None,
+) -> object:
+    """DAG node wrapping :func:`validate_recon_outputs` (F-018 stage, not a ghost)."""
+    from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
+
+    validate_recon_outputs(ctx)
+    failed = ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value
+    return StageOutput(
+        stage_name="recon_validation",
+        outcome=StageOutcome.FAILED if failed else StageOutcome.COMPLETED,
+        duration_seconds=0.0,
+        reason="no_discoverable_urls" if failed else "",
+        metrics=dict(ctx.result.module_metrics.get("recon_validation") or {}),
+    )

@@ -87,6 +87,13 @@ _BASE_NODES: tuple[StageNode, ...] = (
         critical=False,
     ),
     StageNode(
+        name="recon_validation",
+        needs=("urls",),
+        weight=1,
+        timeout=30,
+        critical=False,
+    ),
+    StageNode(
         name="git_diff_crawl",
         needs=("urls",),
         weight=1,

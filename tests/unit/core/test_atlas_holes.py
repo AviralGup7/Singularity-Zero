@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from src.core.contracts.finding_lifecycle import (
     FindingLifecycleState,
     FindingTicketStatus,
@@ -123,6 +125,67 @@ def test_outbox_append_failure_does_not_notify_bus(tmp_path) -> None:
     )
     assert n == 1
     assert seen == []
+
+
+def test_finding_crdt_keys_by_event_id_and_does_not_mutate() -> None:
+    from src.core.frontier.state import NeuralState
+
+    finding = {"title": "xss", "url": "https://a", "event_id": "evt_1"}
+    state = NeuralState()
+    state.apply_delta({"reportable_findings": [finding], "lifecycle_state": "reportable"})
+    # original dict is not mutated with a generated id
+    assert "id" not in finding
+    assert state.findings._key(finding) == "evt_1"
+
+
+def test_vulnerabilities_do_not_bypass_reportable_crdt() -> None:
+    from src.core.frontier.state import NeuralState
+    from src.core.models.stage_result import StageResult
+
+    state = NeuralState()
+    state.apply_delta(
+        {
+            "vulnerabilities": [{"title": "raw", "url": "https://x"}],
+            "active_scan_findings": [{"title": "active", "url": "https://y"}],
+        }
+    )
+    result = StageResult(_neural_state=state)
+    result.apply_state_delta({})
+    titles = {item.get("title") for item in result.reportable_findings}
+    assert "raw" not in titles
+    assert "active" not in titles
+
+
+def test_job_exit_2_and_4_are_completed_not_failed() -> None:
+    from src.jobs.status import JobStatus, apply_pipeline_exit_status
+
+    policy = {"id": "p", "status": JobStatus.RUNNING.value}
+    assert apply_pipeline_exit_status(policy, stop_requested=False, returncode=2) is True
+    assert policy["status"] == "completed"
+    assert policy["exit_code"] == 2
+
+    partial = {"id": "q", "status": JobStatus.RUNNING.value}
+    assert apply_pipeline_exit_status(partial, stop_requested=False, returncode=4) is True
+    assert partial["status"] == "completed"
+    assert partial.get("degraded") is True
+
+
+def test_i36_foreign_region_cannot_settle_stage() -> None:
+    from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
+    from src.core.frontier.region_model import RegionConsistencyError
+    from src.core.frontier.state_authority import SettlementCoordinator, StateAuthority
+    from src.core.models.stage_result import PipelineContext, StageResult
+
+    coord = SettlementCoordinator(state_authority=StateAuthority())
+    ctx = PipelineContext(result=StageResult(), run_id="r")
+    ctx.home_region = "us-east"
+    ctx.settle_region = "eu-west"
+    with pytest.raises(RegionConsistencyError, match="I36"):
+        coord.settle_stage_output(
+            ctx,
+            "nuclei",
+            StageOutput(stage_name="nuclei", outcome=StageOutcome.COMPLETED, duration_seconds=0.0),
+        )
 
 
 def test_hunt_budget_fenced_and_breaker_refuse_reserve() -> None:

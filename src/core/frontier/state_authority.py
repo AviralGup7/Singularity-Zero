@@ -1018,11 +1018,24 @@ class SettlementCoordinator:
                 settlement_id=identity.settlement_id,
             )
 
+        from src.core.frontier.region_model import (
+            DEFAULT_REGION_ID,
+            assert_lease_settle_colocated,
+        )
+
+        acquire = str(getattr(ctx, "home_region", "") or DEFAULT_REGION_ID)
+        settle_region = str(getattr(ctx, "settle_region", "") or acquire)
+        assert_lease_settle_colocated(acquire_region=acquire, settle_region=settle_region)
+
         state_delta = _to_mutable(getattr(stage_output, "state_delta", {}) or {})
         committed_findings = _dict_findings_from_delta(state_delta)
-        outcome = (
-            "FAILED" if getattr(stage_output.outcome, "value", "") == "failed" else "COMPLETED"
-        )
+        outcome_value = str(getattr(getattr(stage_output, "outcome", None), "value", "") or "")
+        if outcome_value == "failed":
+            outcome = "FAILED"
+        elif outcome_value == "skipped":
+            outcome = "SKIPPED"
+        else:
+            outcome = "COMPLETED"
         intent = SettlementIntent(
             settlement_id=identity.settlement_id,
             execution_id=exec_id,

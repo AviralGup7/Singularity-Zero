@@ -159,6 +159,7 @@ def apply_pipeline_exit_status(
     When ``stage_map`` is supplied, :func:`derive_job_and_exit` is the
     single lattice; returncode is the fallback for process-only reap.
     """
+    job["exit_code"] = int(returncode)
     if stop_requested:
         dest = JobStatus.STOPPED
     elif stage_map is not None:
@@ -173,8 +174,15 @@ def apply_pipeline_exit_status(
         ).job_status
     elif returncode == 0 and (no_pipeline_output or has_running_stages):
         dest = JobStatus.FAILED
-    elif returncode == 0:
+    elif returncode in (0, 2):
         dest = JobStatus.COMPLETED
+    elif returncode == 4:
+        job["degraded"] = True
+        dest = JobStatus.COMPLETED
+    elif returncode in (130, 7):
+        dest = JobStatus.STOPPED
+    elif returncode in (1, 3):
+        dest = JobStatus.FAILED
     else:
         dest = JobStatus.FAILED
     if _transition(job, dest):

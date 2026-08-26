@@ -48,7 +48,18 @@ def _get_default_resource_guard() -> Any:
 
 # Required for honest exit codes / report emission. Planner must not
 # drop these because of low predicted value or a tight RAM estimate.
-_NEVER_SKIP_STAGES = frozenset({"reporting", "threat_modeling", "subdomains", "live_hosts", "urls"})
+_NEVER_SKIP_STAGES = frozenset(
+    {
+        "reporting",
+        "sarif_export",
+        "ci_export",
+        "threat_modeling",
+        "subdomains",
+        "live_hosts",
+        "urls",
+        "recon_validation",
+    }
+)
 
 
 def _get_graph_nodes() -> list:

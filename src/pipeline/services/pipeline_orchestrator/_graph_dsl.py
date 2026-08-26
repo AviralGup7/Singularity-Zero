@@ -89,6 +89,7 @@ class StageCompleted:
             StageStatusValue.COMPLETED,
             StageStatusValue.DEGRADED,
             StageStatusValue.SKIPPED,
+            "SKIPPED_DISABLED",
         )
 
 

@@ -153,6 +153,11 @@ def build_stage_methods_map(
     """Resolve concrete stage callables while preserving legacy monkeypatch seams."""
     stage_methods: dict[str, Any] = {}
     for stage_name in stage_order:
+        if stage_name == "recon_validation":
+            from .recon_validator import run_recon_validation
+
+            stage_methods[stage_name] = run_recon_validation
+            continue
         legacy_attr = LEGACY_STAGE_ATTRS.get(stage_name, "")
         legacy_runner = module_globals.get(legacy_attr) if legacy_attr else None
         if callable(legacy_runner):

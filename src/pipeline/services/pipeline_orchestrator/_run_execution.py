@@ -29,7 +29,6 @@ from src.pipeline.services.ci import (
     load_policy,
 )
 
-from ._orchestrator import validate_recon_outputs
 from .actor_scheduler import ActorScheduler
 from .graph_builder import build_pipeline_graph
 
@@ -38,11 +37,12 @@ logger = get_pipeline_logger(__name__)
 
 # Exit-code taxonomy (kept stable across versions):
 #   0  pass             — run completed, no policy violation
-#   1  error            — legacy/unclassified failure
+#   1  error            — OOM / unclassified scheduler failure
 #   2  policy_violation — findings exceeded declared policy thresholds
 #   3  infra_failure    — operational failure (network, missing tool, fatal recon)
 #   4  partial          — at least one non-fatal stage failed but the run
 #                          produced a usable report
+#   7  suspend          — hot-reload suspend trigger
 #  130 interrupted      — SIGINT / SIGTERM
 def _load_incremental_baseline(checkpoint_mgr: Any) -> list[dict[str, Any]]:
     """Load reportable_findings from the last successful checkpoint, if available."""
@@ -74,6 +74,9 @@ def _load_incremental_baseline(checkpoint_mgr: Any) -> list[dict[str, Any]]:
 def _fingerprint_finding(finding: dict[str, Any]) -> str:
     import hashlib
 
+    event_id = str(finding.get("event_id") or "").strip()
+    if event_id:
+        return event_id
     tool = str(finding.get("tool") or finding.get("source") or "unknown").strip().lower()
     target = (
         str(
@@ -203,20 +206,16 @@ async def execute_remaining_stages(
         try:
             state = checkpoint_mgr.load() if hasattr(checkpoint_mgr, "load") else None
             if state is not None and hasattr(state, "stage_status") and state.stage_status:
+                from src.core.models.stage_status import StageStatus, normalize_stage_status
+
                 for stage_name, status in state.stage_status.items():
-                    if status == "completed":
+                    if normalize_stage_status(status) in {
+                        StageStatus.COMPLETED,
+                        StageStatus.DEGRADED,
+                    }:
                         completed_stages.add(stage_name)
         except Exception:
             logger.warning("Suppressed exception", exc_info=True)
-
-    # The recon validator is a post-completion hook on ``urls``.  It
-    # sets ``recon_validation=FAILED`` in the context when the URL
-    # collection completed but produced no discoverable URLs.  The
-    # exit-code resolver consults that flag to decide whether to
-    # surface a non-zero exit for a dead-scope run.
-    post_hooks: dict[str, Any] = {
-        "urls": lambda _ctx: validate_recon_outputs(ctx),
-    }
 
     scheduler = ActorScheduler(
         graph=graph,
@@ -233,29 +232,9 @@ async def execute_remaining_stages(
         stage_checkpoint_guard=stage_checkpoint_guard,
         progress_emitter=progress_emitter,
         error_emitter=error_emitter,
-        post_completion_hooks=post_hooks,
     )
 
     outcome = await scheduler.run()
-
-    # Recon validator: the legacy code returned ``1`` from this
-    # function when ``recon_validation`` was FAILED.  The actor
-    # scheduler does not itself abort on this condition (it only
-    # aborts on critical stage failures), so the exit-code policy is
-    # enforced here, before the orchestrator's own resolver runs.
-    if (
-        outcome.exit_code is None
-        and ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value
-    ):
-        if not getattr(args, "dry_run", False):
-            logger.error("Recon validation failed: no discoverable URLs found.")
-            error_emitter(
-                "recon_validation",
-                "Recon validation failed: no discoverable URLs found.",
-            )
-            return EXIT_INFRA_FAILURE
-        ctx.result.stage_status["recon_validation"] = StageStatus.COMPLETED.value
-
     return outcome.exit_code
 
 
