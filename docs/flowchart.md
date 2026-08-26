@@ -92,7 +92,7 @@ flowchart TD
 
 Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37). Absorbed F-021.
 
-A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap). The relay is journal-only (`reconcile_with_peer` drops settlement/command rows).
+A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap; fenced placement also refuses `settle_stage_output`). The relay is journal-only (`reconcile_with_peer` drops settlement/command rows). Live CLI is single-home `local` — the two-region mermaid is the I36/I37 spec, not a running mesh.
 
 ```mermaid
 flowchart TD
@@ -183,6 +183,7 @@ flowchart TD
         Sub --> LiveH["live_hosts"]
         LiveH --> WAF["waf"]
         LiveH --> Urls["urls"]
+        Urls --> ReconVal["recon_validation"]
         Urls --> GitDiff["git_diff_crawl"]
         Urls --> Params["parameters"]
         Urls & Params & WAF --> Rank["ranking"]
@@ -201,7 +202,8 @@ flowchart TD
     Req --> Budget{"HuntBudget reserve"}
     Budget -->|exhausted| Rej["ScopeAuthorizationError"]
     Budget -->|ok| Ticket["AuthorizedExecutionTicket I30 binds scope+reservation+revision+command"]
-    Ticket --> SB["ProcessSandbox I29 metadata-guard"]
+    Ticket --> Consume["consume ticket before run I30"]
+    Consume --> SB["ProcessSandbox I29 metadata-guard"]
     SB -->|out of scope| Viol["EgressViolationError"]
     SB --> Out["StageOutput / RawExecutionClaim"]
     Out --> Coord["SettlementCoordinator (claim validation)"]
@@ -284,9 +286,11 @@ flowchart TD
         SR --> SF
         SR --> SSD
         SR --> SSF
+        SF --> SR
+        SF --> SC
+        SF --> SDG
         SC --> STerm["terminal"]
         SDG --> STerm
-        SF --> STerm
         SSD --> STerm
         SSF --> STerm
     end
@@ -362,7 +366,9 @@ Exit codes answer "what result did this scan produce?". The I34 table answers "w
 ```mermaid
 flowchart TD
     Run["Scan finished"] --> Q1{"Scan outcome / Stage status?"}
-    Q1 -->|FAILED stage| Infra["Exit 3 infrastructure / target down"]
+    Q1 -->|fatal FAILED stage| Infra["Exit 3 infrastructure / target down"]
+    Q1 -->|OOM unclassified| Err1["Exit 1 error"]
+    Q1 -->|hot-reload suspend| Susp["Exit 7 STOPPED"]
     Q1 -->|POLICY_VIOLATION policy outcome| Vuln["Exit 2 findings exceed policy"]
     Q1 -->|COMPLETED stage| Q2{"Finding count / policy?"}
     Q2 -->|findings under policy| Clean["Exit 0 genuine clean or under-policy"]
@@ -405,7 +411,7 @@ flowchart TD
     Rec -->|"behind or semantically old"| Replay["REPLAY_WAL"]
     Rec -->|"truncated frontier"| Stale["STALE snapshot then REPLAY_WAL"]
     Stale --> Replay
-    Replay --> FSMR["RECONSTRUCT_FSM from PartitionWAL"]
+    Replay --> FSMR["RECONSTRUCT_FSM: partition plane only; scan path is FrontierWAL CRDT"]
     FSMR --> Out["RECONCILE_OUTBOX"]
     Out -->|"FSM without outbox"| Rebuild["rebuild by EventId"]
     Out -->|"outbox without FSM"| Orphan["ignore orphan rows"]
@@ -425,7 +431,7 @@ flowchart TD
 
 PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered tickets/settlements violate I30–I33 (`invariant_graph.py`). Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
 
-`RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op). FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for job + exit.
+`RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op). FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for CLI exit and dashboard reap. A non-fatal FAILED producer unblocks reporting; only `fatal_stages` are exit 3. Scheduler may still emit 1 (OOM) and 7 (suspend).
 
 ---
 
@@ -642,5 +648,6 @@ flowchart TD
 | 2026-08-26 | F-004 per-stage ticket+FAILED settle+report join; F-007 CAS fail-closed + ticket axis; F-009 qos_admit; F-018 I35 execute + lattice; F-033 HMAC receipt | edit |
 | 2026-08-26 | F-033 proof graph I22→I37; F-018 VERIFY_INVARIANTS fail-closes on I30/I31 | edit |
 | 2026-08-26 | F-018: RecoveryManager collects recovered tickets/settlements for I35 | edit |
+| 2026-08-26 | F-004 consume-before-run + recon_validation; F-007 FAILED retry; F-018 exit 1/7 and Frontier reconstruct; F-002 live single-home | edit |
 
 Append a row for every later edit. Do not delete this table.
