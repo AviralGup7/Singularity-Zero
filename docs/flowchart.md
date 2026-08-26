@@ -39,9 +39,14 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 
 Every graph in this atlas adheres to a standardized visual taxonomy:
 
-### Edge Semantics & Grammar (G2 Resolved)
+### Edge Semantics & Grammar
 
-Every edge in this atlas uses typed syntax and explicit labels to prevent semantic overloading:
+Edges in this atlas are categorized into **Default Structural / Reference Edges** and **Semantic Runtime Edges**:
+
+#### 1. Default Structural & Reference Edges
+- `A --> B` : **Structural / Reference / Ingestion Flow (Default)** — documentation cross-reference, static structural hierarchy, CI workflow prerequisite, or standard downstream consumer handoff.
+
+#### 2. Semantic Runtime Edges
 - `A ==> B` : **Execution / Hot Path** — synchronous control flow, DAG scheduling dispatch, or hot pipeline execution.
 - `A -->|data| B` : **Dataflow & Ingestion** — transfer of findings, URLs, payloads, or context artifacts between components.
 - `A -->|replicate| B` : **Distributed Replication** — network journal sync or cross-region peer relay.
@@ -92,7 +97,7 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | 2026-08-26 (`479c106d`) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | 2026-08-26 (`479c106d`) |
 | F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `maintenance.py` | F-028, F-032, F-041 | 2026-08-26 (`479c106d`) |
-| F-033 | Global invariants I1–I37 proof graph & registry | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-26 (`7a2bb407`) |
+| F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-26 (`7a2bb407`) |
 
 
 ---
@@ -159,21 +164,22 @@ flowchart TD
     
     subgraph RegionA["Region A (Leader Home — I36 Single Writer)"]
         GA["Gossip Node A1"]:::impl
-        OA["P-0000 Leader + Partition Log"]:::impl
-        JA["FrontierWAL Journal"]:::impl
+        OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
+        JA["FrontierWAL Journal (Scan Discovery Events)"]:::impl
         RA["Redis Stream Journal"]:::impl
-        OA -->|durable| JA -->|stream| RA
+        JA -->|stream| RA
     end
     subgraph RegionB["Region B (Read Replica — Fail-Closed)"]
         GB["Gossip Node B1"]:::singleNode
         OB["Refuse Foreign Writer"]:::forbidden
         JB["FrontierWAL Replica (Monotonic Read)"]:::specOnly
         RB["Redis Stream Replica"]:::specOnly
-        JB -->|stream| RB
+        RB -->|ingest| JB
     end
-    State -->|durable| OA
+    State -->|durable append| OA
+    Orch -->|durable append| JA
     GA <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit)"| GB
-    RA -->|"replicate (Scan Journal Only I36)"| RB
+    RA -->|"WALReplicationRelay (Scan Journal Only I36)"| RB
     OB -.->|"refuse mutations"| Forbidden["I36 / I37 Refuse Foreign Writer"]:::forbidden
 ```
 
@@ -200,10 +206,10 @@ flowchart TD
         OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
         Upcaster --> Envelope["Canonical Envelope"]:::impl
         MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
-        Derive --> ReceiptKey["CommandReceipt Key"]:::impl
+        Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
         Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
         Derive --> JWTKey["JWT Session Key"]:::impl
-        MasterKey -.->|Missing Env| Fallback["Process-Local Random Key"]:::vacuous
+        MasterKey -.->|Missing in Env| Fallback["Ephemeral Random Key (secrets.token_bytes) — In-Process Only; Cross-Restart Verification FAILS_CLOSED"]:::forbidden
     end
 
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
@@ -223,7 +229,8 @@ flowchart TD
         Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
         Apply --> StateHash["Deterministic State Hash (SHA-256)"]:::impl
         StateHash --> Receipt["HMAC-SHA256 CommandReceipt (Signed by ReceiptKey)"]:::impl
-        Apply -->|durable| Outbox["L2: DurableOutboxLedger"]:::impl
+        Apply ==> Intent["Pure OutboxIntent Emitted (Zero I/O)"]:::impl
+        Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
     end
     
@@ -521,13 +528,13 @@ Source: [architecture.md](architecture.md), [performance.md](performance.md), `s
 
 ```mermaid
 flowchart TD
-    Load["Target Probe Latency & Error Rate"]:::impl --> PID["AdaptivePIDController (Concurrency Tuning)"]:::impl
+    Load["Target Probe Latency & Error Stream"]:::impl --> PID["AdaptivePIDController (Concurrency Tuning)"]:::impl
     PID --> Conc["Dynamic Concurrency Window"]:::impl
     Load --> Bulk["BulkheadPool (Per-Host Host Isolation)"]:::impl
     Load --> Bloom["NeuralBloomFilter (Fast Evasion Deduplication)"]:::impl
-    Fail["Consecutive Probe Failures (>= 5)"]:::impl --> CLOSED
-    subgraph CB["Circuit Breaker (Per-Target)"]
-        CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold"| OPEN["OPEN (Tripped / Shedding)"]:::forbidden
+    Load --> CB
+    subgraph CB["Circuit Breaker (Per-Target Fail-Closed Gate)"]
+        CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold (5 consecutive)"| OPEN["OPEN (Tripped / Shedding)"]:::forbidden
         OPEN -->|"Cooldown Elapsed (20s)"| HALF_OPEN["HALF_OPEN (Trial Generation N)"]:::impl
         HALF_OPEN -->|"Trial Probe OK"| CLOSED
         HALF_OPEN -->|"Trial Probe Failed"| OPEN
@@ -666,9 +673,9 @@ flowchart TD
     Hook --> REST["REST /api/jobs/:id"]:::impl
     Hook --> SSE["SSE /api/jobs/:id/progress/stream"]:::impl
     Hook --> WS["WebSocket /ws/logs/:id"]:::impl
-    Hook --> Triage["WebSocket /ws/triage/:run_id"]:::impl
     REST & SSE & WS --> Norm["telemetry/normalizer.ts"]:::impl
-    WS -->|Drop| REST
+    WS -.->|"fallback on disconnect"| REST
+    Triage -.->|"fallback on disconnect"| REST
     Norm --> Stores["Zustand Stores"]:::impl
     Stores --> Pages["Jobs / Findings / Cockpit UI"]:::impl
     
@@ -776,9 +783,13 @@ flowchart TD
 
 ---
 
-## F-033 — Global invariants I1–I37 proof graph & registry
+## F-033 — Global invariants I1–I37 enforcement & dependency graph
 
 Source: `src/core/frontier/invariant_graph.py`, `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`.
+
+### Formal Invariant Dependency & Enforcement Semantics
+
+An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **architectural / enforcement prerequisite** for $I_B$. The formal guarantees and cryptographic verifications of $I_B$ cannot be soundly admitted or enforced unless $I_A$ is satisfied.
 
 ### Formal System Invariant Registry (I1–I37)
 
