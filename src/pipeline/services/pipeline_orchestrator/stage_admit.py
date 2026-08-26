@@ -119,9 +119,15 @@ def admit_stage(
         raise StageAdmissionError(f"I30: stage '{stage_name}' ticket consume failed before sandbox")
     host = request.target.host
     # Install process-wide I29 filter for in-process httpx/requests (F-004).
+    # install_filter_from_scope also enables raw-client hooks so analysis/recon
+    # call sites that bypass shared_sessions still enforce the active filter.
     # Subprocess paths still go through ProcessSandbox.check_egress.
-    from src.sandbox.egress_context import install_filter_from_scope
+    from src.sandbox.egress_context import (
+        ensure_process_http_egress_hooks,
+        install_filter_from_scope,
+    )
 
+    ensure_process_http_egress_hooks()
     scope_entries = getattr(getattr(ctx, "result", ctx), "scope_entries", None)
     filt = install_filter_from_scope(
         scope_token=getattr(request, "scope_token", None),

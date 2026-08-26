@@ -351,10 +351,10 @@ flowchart TD
         Consume --> InstallFilt["install_filter_from_scope → egress_context ContextVar"]:::impl
         InstallFilt --> PreCheck["Stage Admit Pre-Flight Egress Check"]:::impl
         PreCheck --> Exec["Tool Subprocess Execution (Timeouts, Stdio Capture)"]:::impl
-        PreCheck --> InProc["In-process HTTP via shared_sessions hooks"]:::impl
+        PreCheck --> InProc["In-process HTTP (shared_sessions + raw client hooks)"]:::impl
         Exec --> SocketConn["Socket Connect / DNS Resolution"]:::impl
         SocketConn --> EgressGuard{"ProcessSandbox.check_egress"}:::impl
-        InProc --> HookGuard{"shared_sessions I29 event_hooks / session.request"}:::impl
+        InProc --> HookGuard{"I29 hooks: shared_sessions + ensure_process_http_egress_hooks"}:::impl
         EgressGuard -->|In Scope| Out["StageOutput / RawExecutionClaim"]:::impl
         HookGuard -->|In Scope| Out
         EgressGuard -->|Out of Scope / TOCTOU| Viol["EgressViolationError --> Kill Subprocess + Release Budget"]:::forbidden
@@ -444,7 +444,9 @@ Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspen
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
-**I29 In-Process Egress & Residuals:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; IMDS/metadata denied). Shared clients from `src/core/utils/shared_sessions.py` (also via `src/core/http_utils.py`) enforce filter hooks on every request. `SafeExploiter` / `ExploitationCampaign` call `assert_exploit_target_egress`. **Residual:** ~100+ raw `httpx`/`requests` constructions outside shared sessions (heaviest: `src/recon/`, `src/analysis/`, `src/fuzzing/`, `src/exploitation/`) bypass hooks unless refactored to the shared client or an explicit `assert_*_egress`. Prefer shared-boundary adoption over per-file rewrites.
+**I29 In-Process Egress:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; IMDS/metadata denied) and calls `ensure_process_http_egress_hooks()`. That idempotent patch injects I29 request hooks into **all** subsequent `httpx.Client` / `httpx.AsyncClient` constructions and wraps `requests.Session.request`, so raw clients in `recon` / `analysis` / `fuzzing` / `exploitation` inherit the active filter without per-file rewrites. Shared clients from `src/core/utils/shared_sessions.py` (also via `src/core/http_utils.py`) keep explicit hooks. `SafeExploiter` / `ExploitationCampaign` still call `assert_exploit_target_egress` at engine entry.
+
+**I29 residual:** transports that never use httpx/requests (raw `socket`, custom HTTP/2 stacks, headless browser CDP) are outside this patch; prefer asserting at those boundaries. Prefer `get_async_client` for pooling even though egress is now process-wide for HTTP libraries.
 
 **I28/I30 residual (exploitation entry):** campaign / SafeExploiter gates **egress only**. HuntBudget reserve + I30 ticket mint/consume remain on the `stage_admit` path when authority is attached; standalone exploit entry does not settle budget.
 
@@ -876,7 +878,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I26** | Multi-Raft quota slab conservation | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
 | **I27** | Bounded per-host bulkhead concurrency | F-009 | `infrastructure/` | `test_resilience.py` | `impl` |
 | **I28** | Settle-only budget commit & integer conservation | F-006 | `hunt_budget.py`, `state_authority.py` (COMPLETED+findings → COMMIT; COMPLETED+zero / FAILED/SKIPPED → RELEASE) | `test_global_invariants.py`, `test_state_authority_durability.py`, `test_i29_egress_context.py` | `impl` |
-| **I29** | Pre-flight & continuous egress scope enforcement | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (shared-client + subprocess; raw httpx residual) |
+| **I29** | Pre-flight & continuous egress scope enforcement | F-004 | `process_sandbox.py`, `egress_context.py` (`ensure_process_http_egress_hooks`), `shared_sessions.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (subprocess + shared + raw httpx/requests hooks; non-HTTP residual) |
 | **I30** | Cryptographic quartet ticket binding | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py` | `test_global_invariants.py` | `impl` (stage path; exploit campaign entry residual) |
 | **I31** | Settlement-gated `FINDING_CREATED` emission | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
 | **I32** | Non-authoritative EventBus outbox decoupling | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
@@ -1039,5 +1041,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | Convert Legend edge semantics and node classes into structured tables; compress narrative in F-002, F-006, F-019 | edit |
 | 2026-08-26 | Add F-001 node and architectural cross-reference for docs/architecture/code-consolidation.md | edit |
 | 2026-08-26 | Audit vs code: fix F-004 Readiness FSM (scheduler-local vs StageStatus); replace invented PROVEN_EMPTY reasons with actor_scheduler skip reasons; restore exploit I28/I30 + raw-httpx residual counts; F-025 index facades | edit |
+| 2026-08-26 | F-004 I29: `ensure_process_http_egress_hooks` patches raw httpx/requests at shared boundary; atlas residual narrowed to non-HTTP transports | edit |
 
 Append a row for every later edit. Do not delete this table.

@@ -159,7 +159,7 @@ response = await client.get(target_url)
 assert_url_egress_allowed(target_url)
 ```
 
-**Residual:** raw `httpx.AsyncClient()` / bare `requests.*` outside `shared_sessions` do not inherit hooks; prefer shared-client adoption. Subprocess tools still use `ProcessSandbox.check_egress`.
+**Boundary:** `ensure_process_http_egress_hooks()` (called from `stage_admit` / `install_filter_from_scope` / `get_async_client`) patches raw `httpx.Client`/`AsyncClient` and `requests.Session.request` so library call sites inherit the ContextVar filter. Prefer `get_async_client` for pooling. Subprocess tools still use `ProcessSandbox.check_egress`. Non-HTTP transports (raw sockets, CDP) need explicit asserts.
 
 ### 2. I28 / I30 Budget Quartet & Settle Accounting
 ```text

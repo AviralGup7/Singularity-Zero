@@ -6,6 +6,7 @@ import asyncio
 
 import httpx
 import pytest
+import requests
 
 from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.core.frontier.state import NeuralState
@@ -15,6 +16,7 @@ from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.sandbox.egress_context import (
     assert_url_egress_allowed,
     clear_current_egress_filter,
+    ensure_process_http_egress_hooks,
     install_filter_from_scope,
     set_current_egress_filter,
 )
@@ -67,6 +69,68 @@ def test_shared_async_client_hook_blocks_metadata() -> None:
 
     with pytest.raises(EgressViolationError):
         asyncio.run(_run())
+
+
+async def _fire_request_hooks(client: httpx.AsyncClient | httpx.Client, url: str) -> None:
+    req = httpx.Request("GET", url)
+    hooks = client.event_hooks.get("request") or []
+    assert hooks, "expected I29 request hooks on client"
+    for hook in hooks:
+        result = hook(req)
+        if asyncio.iscoroutine(result):
+            await result
+
+
+def test_raw_httpx_async_client_hook_blocks_imds_and_out_of_scope() -> None:
+    """Process-wide patch: raw httpx.AsyncClient() still enforces ContextVar filter."""
+    ensure_process_http_egress_hooks()
+    filt = NetworkEgressFilter(allowed_domains=("in-scope.test",), allowed_cidrs=(), strict=True)
+    set_current_egress_filter(filt)
+    try:
+        client = httpx.AsyncClient()
+        try:
+            with pytest.raises(EgressViolationError):
+                asyncio.run(_fire_request_hooks(client, "http://169.254.169.254/latest/meta-data/"))
+            with pytest.raises(EgressViolationError):
+                asyncio.run(_fire_request_hooks(client, "https://evil.example.org/"))
+            # In-scope host is allowed by the hook (no raise).
+            asyncio.run(_fire_request_hooks(client, "https://in-scope.test/path"))
+        finally:
+            asyncio.run(client.aclose())
+    finally:
+        clear_current_egress_filter()
+
+
+def test_raw_httpx_sync_client_hook_blocks_imds() -> None:
+    ensure_process_http_egress_hooks()
+    clear_current_egress_filter()  # metadata_guard default
+    client = httpx.Client()
+    try:
+        req = httpx.Request("GET", "http://169.254.169.254/latest/meta-data/")
+        hooks = client.event_hooks.get("request") or []
+        assert hooks
+        with pytest.raises(EgressViolationError):
+            for hook in hooks:
+                hook(req)
+    finally:
+        client.close()
+
+
+def test_raw_requests_session_blocks_imds() -> None:
+    """Process-wide Session.request wrap refuses IMDS before connect."""
+    ensure_process_http_egress_hooks()
+    clear_current_egress_filter()
+    session = requests.Session()
+    with pytest.raises(EgressViolationError):
+        session.request("GET", "http://169.254.169.254/latest/meta-data/")
+
+
+def test_process_hooks_install_is_idempotent() -> None:
+    first = ensure_process_http_egress_hooks()
+    second = ensure_process_http_egress_hooks()
+    # First call in a fresh interpreter may install; subsequent always False.
+    assert second is False
+    assert first in {True, False}
 
 
 def test_stage_settle_zero_findings_releases_budget(tmp_path) -> None:

@@ -72,6 +72,11 @@ async def _i29_async_request_hook(request: httpx.Request) -> None:
     _i29_request_hook(request)
 
 
+# Marker so process-wide httpx.__init__ patch does not double-inject I29 hooks.
+setattr(_i29_request_hook, "_i29_egress_hook", True)
+setattr(_i29_async_request_hook, "_i29_egress_hook", True)
+
+
 def get_async_client(
     verify_ssl: bool = True,
     follow_redirects: bool = True,
@@ -85,6 +90,14 @@ def get_async_client(
     duplicated connection pools and socket exhaustion. Subsequent calls
     with the same config return the same client instance.
     """
+    # Ensure raw httpx/requests constructions in the same process also enforce I29.
+    try:
+        from src.sandbox.egress_context import ensure_process_http_egress_hooks
+
+        ensure_process_http_egress_hooks()
+    except Exception:  # pragma: no cover - never block client creation on hook install
+        logger.debug("I29 process HTTP hooks unavailable", exc_info=True)
+
     key = (verify_ssl, follow_redirects)
     client = _async_clients.get(key)
     if client is not None and not client.is_closed:
@@ -276,7 +289,18 @@ def get_shared_sync_session() -> requests.Session:
 
     Each thread gets its own session to avoid thread-safety issues,
     but sessions are reused within a thread.
+
+    Process-wide I29 hooks (``ensure_process_http_egress_hooks``) already wrap
+    ``requests.Session.request``; this path still installs hooks eagerly so
+    the first shared session is covered even if the process patch is delayed.
     """
+    try:
+        from src.sandbox.egress_context import ensure_process_http_egress_hooks
+
+        ensure_process_http_egress_hooks()
+    except Exception:  # pragma: no cover
+        logger.debug("I29 process HTTP hooks unavailable", exc_info=True)
+
     session = getattr(_thread_local, "session", None)
     if session is None:
         session = requests.Session()
@@ -287,19 +311,22 @@ def get_shared_sync_session() -> requests.Session:
         )
         session.mount("http://", adapter)
         session.mount("https://", adapter)
-        _orig_request = session.request
+        # Process patch wraps Session.request; if it is not installed, wrap once.
+        if not getattr(session.request, "_i29_egress_hook", False):
+            _orig_request = session.request
 
-        def _i29_request(method, url, **kwargs):  # type: ignore[no-untyped-def]
-            from src.sandbox.egress_context import assert_url_egress_allowed
-            from src.sandbox.network_isolation import EgressViolationError
+            def _i29_request(method, url, **kwargs):  # type: ignore[no-untyped-def]
+                from src.sandbox.egress_context import assert_url_egress_allowed
+                from src.sandbox.network_isolation import EgressViolationError
 
-            try:
-                assert_url_egress_allowed(str(url))
-            except EgressViolationError:
-                raise
-            return _orig_request(method, url, **kwargs)
+                try:
+                    assert_url_egress_allowed(str(url))
+                except EgressViolationError:
+                    raise
+                return _orig_request(method, url, **kwargs)
 
-        session.request = _i29_request  # type: ignore[method-assign]
+            setattr(_i29_request, "_i29_egress_hook", True)
+            session.request = _i29_request  # type: ignore[method-assign]
         _thread_local.session = session
         # Bug #23: Track the session so cleanup can find it
         with _tracked_sessions_lock:
