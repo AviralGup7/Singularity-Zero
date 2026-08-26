@@ -376,7 +376,8 @@ def test_stage_execution_mark_skipped_uses_cas() -> None:
     stage = StageExecution(name="recon")
     stage.mark_running()
     stage.mark_completed()
-    stage.mark_skipped("disabled")
+    with pytest.raises(IllegalStageTransitionError):
+        stage.mark_skipped("disabled")
     assert stage.status == StageStatus.COMPLETED
 
 
