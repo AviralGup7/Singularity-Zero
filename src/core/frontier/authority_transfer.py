@@ -169,6 +169,19 @@ def assert_ticket_revision_live(ticket_revision: str, live_revision: str) -> Non
         )
 
 
+def assert_tickets_not_resurrected(tickets: Any, *, live_revision: str) -> None:
+    """I37 cannot mint I30 authority. Invalid tickets stay invalid across the fence."""
+    from src.core.frontier.invariant_graph import (
+        ProofGraphError,
+        assert_transfer_does_not_resurrect,
+    )
+
+    try:
+        assert_transfer_does_not_resurrect(tickets or (), live_revision=live_revision)
+    except ProofGraphError as exc:
+        raise AuthorityFenceError(str(exc)) from exc
+
+
 def fence_lease(
     lease: AuthorityLease,
     *,
@@ -231,6 +244,7 @@ __all__ = [
     "activate_lease",
     "assert_mutation_allowed",
     "assert_ticket_revision_live",
+    "assert_tickets_not_resurrected",
     "derive_authority_revision",
     "fence_lease",
     "genesis_lease",

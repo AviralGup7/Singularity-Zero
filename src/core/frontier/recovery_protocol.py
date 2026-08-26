@@ -69,6 +69,7 @@ class CrashWindow(StrEnum):
     WAL_COMMITTED_OUTBOX_MISSING = "wal_committed_outbox_missing"
     OUTBOX_APPENDED_DELIVERY_MISSING = "outbox_appended_delivery_missing"
     CRASH_DURING_COMPENSATION = "crash_during_compensation"
+    PREREQUISITE_INVARIANT_FAILED = "prerequisite_invariant_failed"
 
 
 class RecoveryPhase(StrEnum):
@@ -512,6 +513,20 @@ CRASH_RESOLUTIONS: dict[CrashWindow, CrashResolution] = {
         operator_action="Replay compensate_sublease. Terminal COMPENSATED/CONSUMED/EXPIRED is a no-op (I28).",
         notes="Do not panic-compensate on step-down (I34 AUTHORITY_LOSS).",
     ),
+    CrashWindow.PREREQUISITE_INVARIANT_FAILED: _resolution(
+        CrashWindow.PREREQUISITE_INVARIANT_FAILED,
+        action=RecoveryAction.FAIL_CLOSED,
+        partition=RecoveryAction.FAIL_CLOSED,
+        frontier=RecoveryAction.FAIL_CLOSED,
+        reconstructible=False,
+        deterministic=True,
+        idempotent=True,
+        operator_action=(
+            "Do not READY. Recovered tickets/settlements/identities violated I30/I31/I32/I33. "
+            "Refuse DAG resume (exit 3). Do not bless I30-invalid tickets via I35."
+        ),
+        notes="I35 cannot satisfy itself while a prerequisite invariant fails.",
+    ),
 }
 
 
@@ -834,6 +849,14 @@ def run_recovery_protocol(observed: ObservedDurableState) -> RecoveryVerdict:
         if comp is RecoveryAction.FAIL_CLOSED:
             return _fail("compensation crash on non-compensatable lease")
         notes.append(f"compensation crash → {comp.value}")
+
+    from src.core.frontier.invariant_graph import ProofGraphError, verify_recovery_prerequisites
+
+    try:
+        verify_recovery_prerequisites(observed)
+    except ProofGraphError as exc:
+        windows.append(CrashWindow.PREREQUISITE_INVARIANT_FAILED)
+        return _fail(str(exc))
 
     session.advance(RecoveryPhase.READY)
     final_action = RecoveryAction.STALE_CONTINUE if snapshot_stale else RecoveryAction.REPLAY

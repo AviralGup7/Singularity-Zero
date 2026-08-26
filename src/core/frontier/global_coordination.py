@@ -488,9 +488,17 @@ class PlacementAuthority:
         new_owner_partition: str,
         epoch: int,
         fence_token: str | None = None,
+        recovered_tickets: Any = (),
     ) -> bool:
-        """I37 stage 2: pending home becomes the only writer. Old token dies."""
-        from src.core.frontier.authority_transfer import activate_lease
+        """I37 stage 2: pending home becomes the only writer. Old token dies.
+
+        ``recovered_tickets`` are checked *before* cutover. An I30-invalid
+        ticket cannot be blessed by a successful transfer.
+        """
+        from src.core.frontier.authority_transfer import (
+            activate_lease,
+            assert_tickets_not_resurrected,
+        )
 
         rec = self._transfers.get(str(aggregate_id))
         if rec is None or int(rec.epoch) != int(epoch):
@@ -500,8 +508,12 @@ class PlacementAuthority:
         src_lease = self.lease_for(rec.from_partition)
         if int(src_lease.authority_epoch) != int(epoch):
             return False
-        self.placement_version += 1
-        live = activate_lease(src_lease, placement_version=self.placement_version)
+        next_version = int(self.placement_version) + 1
+        live = activate_lease(src_lease, placement_version=next_version)
+        assert_tickets_not_resurrected(
+            recovered_tickets or (), live_revision=live.authority_revision
+        )
+        self.placement_version = next_version
         dest = str(new_owner_partition or rec.to_partition)
         self.partition_home[dest] = rec.to_region
         self._leases[dest] = live

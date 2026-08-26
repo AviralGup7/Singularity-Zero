@@ -4,6 +4,11 @@ Local invariants (budget math, lease CAS, Raft CRC) live next to their
 aggregates. These checks bind *across* authorization, settlement, and
 notification so a ticket or EventBus payload cannot exist without
 authoritative provenance.
+
+The dependency / proof graph (I22 → I30 → I33/I28 → I31 → I32 → I34 →
+I35 → I36/I37) lives in ``invariant_graph.py``. I35 VERIFY_INVARIANTS
+and I37 activate consult it so recovery cannot READY while I30/I31 fail
+and transfer cannot resurrect an I30-invalid ticket.
 """
 
 from __future__ import annotations
