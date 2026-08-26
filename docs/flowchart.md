@@ -41,28 +41,28 @@ Every graph in this atlas adheres to a standardized visual taxonomy:
 
 ### Edge Semantics & Grammar
 
-Edges in this atlas are categorized into **Default Structural / Reference Edges** and **Semantic Runtime Edges**:
-
-#### 1. Default Structural & Reference Edges
-- `A --> B` : **Structural / Reference / Ingestion Flow (Default)** — documentation cross-reference, static structural hierarchy, CI workflow prerequisite, or standard downstream consumer handoff.
-
-#### 2. Semantic Runtime Edges
-- `A ==> B` : **Execution / Hot Path** — synchronous control flow, DAG scheduling dispatch, or hot pipeline execution.
-- `A -->|data| B` : **Dataflow & Ingestion** — transfer of findings, URLs, payloads, or context artifacts between components.
-- `A -->|replicate| B` : **Distributed Replication** — network journal sync or cross-region peer relay.
-- `A -->|state| B` : **Lifecycle State Transition** — deterministic CAS machine progression (e.g. `PENDING` $\rightarrow$ `RUNNING`).
-- `A -->|durable| B` : **Durable Side Effect** — synchronous WAL commit, Outbox append, or fsync flush.
-- `A -.->|when: cond| B` : **Conditional Scheduling Gate** — runtime predicate evaluation (e.g. `OutputNonEmpty`).
-- `A -.->|refuse/guard| B` : **Constraint & Invariant Refusal** — fail-closed security boundary, egress guard, or illegal flow prohibition.
-- `PORT_FNNN[["PORT: F-NNN ..."]]` : **Explicit Cross-Chart Interface Port** — typed boundary connector between partitioned charts.
+| Syntax | Category | Semantic Meaning & Runtime Role |
+|---|---|---|
+| `A --> B` | **Structural / Reference** | Documentation link, static hierarchy, CI prerequisite, downstream consumer |
+| `A ==> B` | **Hot Path / Execution** | Synchronous control flow, DAG scheduling dispatch, hot worker execution |
+| `A -->&#124;data&#124; B` | **Dataflow & Ingestion** | Findings, URLs, payloads, context artifact ingestion |
+| `A -->&#124;replicate&#124; B` | **Replication** | Network journal sync, cross-region peer relay |
+| `A -->&#124;state&#124; B` | **State Transition** | Deterministic CAS lifecycle progression (e.g. `PENDING` $\rightarrow$ `RUNNING`) |
+| `A -->&#124;durable&#124; B` | **Durable Side Effect** | Synchronous WAL commit, Outbox append, fsync flush |
+| `A -.->&#124;when: cond&#124; B` | **Scheduling Gate** | Runtime predicate evaluation (e.g. `OutputNonEmpty`) |
+| `A -.->&#124;refuse/guard&#124; B` | **Invariant Refusal** | Fail-closed security boundary, egress guard, illegal flow rejection |
+| `PORT_FNNN[["..."]]` | **Interface Port** | Typed boundary connector between partitioned charts |
 
 ### Node Status Classes (`classDef`)
-- `:::impl` : **Fully Implemented** — live production code in `src/`.
-- `:::singleNode` : **Single-Node Quorum-1** — operating in-process or local cluster mode.
-- `:::library` : **Library / Extensible Component** — imported as utility, not a stand-alone daemon.
-- `:::specOnly` : **Specification / Future Plane** — formalized target architecture not yet active in live CLI.
-- `:::vacuous` : **Vacuous / No-Op State** — rehydration or check step that is empty by design in normal runs.
-- `:::forbidden` : **Forbidden / Fail-Closed** — explicitly illegal transition rejected by runtime gates.
+
+| ClassDef | Name | Definition & Runtime Scope |
+|---|---|---|
+| `:::impl` | **Fully Implemented** | Live production code in `src/` |
+| `:::singleNode` | **Single-Node Quorum-1** | Operating in-process or local cluster mode |
+| `:::library` | **Library Component** | Imported as utility, not a stand-alone daemon |
+| `:::specOnly` | **Specification Plane** | Formalized target architecture not yet active in live CLI |
+| `:::vacuous` | **Vacuous State** | Rehydration or check step that is empty by design in normal runs |
+| `:::forbidden` | **Forbidden / Fail-Closed** | Explicitly illegal transition rejected by runtime gates |
 
 ### Typed Authority Taxonomy
 
@@ -143,8 +143,6 @@ Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGE
 
 Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37), `src/cli/launcher.py`. Absorbed F-021, F-040.
 
-A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap; fenced placement also refuses `settle_stage_output`). If a transfer stalls or times out, `abort_transfer` reverts to `OWNED` on the original home with an incremented epoch. The relay is journal-only (`reconcile_with_peer` drops settlement/command rows). Live CLI is single-home `local` — the multi-region topology is the I36/I37 specification.
-
 ### 1. Spatial Deployment & Multi-Region Topology
 
 ```mermaid
@@ -193,6 +191,8 @@ flowchart TD
     Fence -.->|"refuse: stale epoch attempt"| RejectA["Refuse: Stale Epoch / Token"]:::forbidden
     Fence -.->|"refuse: early mutation on target"| RejectB["Refuse: Partition FENCED"]:::forbidden
 ```
+
+**Multi-Region Authority (I36/I37):** Single active writer home per partition (`OWNED → FENCED → OWNED`). Fenced state creates zero-writer gap; journal-only relay syncs discovery events without admitting foreign mutations.
 
 ---
 
@@ -478,7 +478,7 @@ flowchart TD
     end
 ```
 
-`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. EXPIRED is **not** in `TERMINAL` (it can still compensate). `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state. I30 ticket **consume is not** an I28 budget commit — only settle (`BudgetProjection` COMMIT/RELEASE, including stage settle) moves RESERVED → CONSUMED / COMPENSATED. Adaptive scan reserve→commit mirrors settle when no stage ticket path is used.
+**Budget Conservation & Settle (I5, I28):** Total budget $\equiv \text{Consumed} + \text{Outstanding (Reserved+Active)} + \text{Available}$. Only WAL settle commits budget from `RESERVED` $\rightarrow$ `CONSUMED` / `COMPENSATED`.
 
 ### Budget Delta & Accounting Matrix
 
@@ -725,7 +725,7 @@ flowchart TD
     end
 ```
 
-SSE is `GET /api/jobs/{id}/progress/stream` (not `/progress/stream`). Logs WS is `/ws/logs/{job_id}`. Triage WS `/ws/triage/{run_id}` is live and uncharted before this row. Origin validation runs before the `DASHBOARD_AUTH_DISABLED` admin bypass.
+**Telemetry Streaming Paths:** Progress via SSE (`/api/jobs/{id}/progress/stream`); logs via WS (`/ws/logs/{job_id}`); triage via WS (`/ws/triage/{run_id}`) with automatic REST polling fallback. Origin validation precedes admin bypass.
 
 ---
 
@@ -1030,5 +1030,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | F-004 I29: egress_context + shared_sessions hooks; SafeExploiter gate; COMPLETED+zero findings RELEASE (settle table) | edit |
 | 2026-08-26 | F-004 sandbox mermaid + residual honesty (raw httpx bypass, exploit I28/I30 gap); F-025 facade/MemoryJournal non-authority; F-033 I28/I29/I30 code citations; atlas index `c989d3be` | edit |
 | 2026-08-26 | Streamline prose into rich Mermaid subgraphs (Readiness FSM in F-004, Tri-Axial Finding subgraphs in F-007) and high-density invariant tables | edit |
+| 2026-08-26 | Convert Legend edge semantics and node classes into structured tables; compress narrative in F-002, F-006, F-019 | edit |
 
 Append a row for every later edit. Do not delete this table.
