@@ -152,12 +152,16 @@ class ReplicatedPartitionLog:
         fsm: PartitionFSM | None = None,
         wal_dir: Path | str | None = None,
         outbox_dir: Path | str | None = None,
+        local_region: str = "local",
+        leader_region: str | None = None,
     ) -> None:
         self.partition_id = partition_id
         self.node_id = node_id
         self.current_term = current_term
         self.is_leader = is_leader
         self.role = "LEADER" if is_leader else "FOLLOWER"
+        self.local_region = str(local_region or "local").strip() or "local"
+        self.leader_region = str(leader_region or self.local_region).strip() or self.local_region
         self.peers = list(peers)
         self.transport = transport
         self.signer_key_id = signer_key_id or signing_key_id()
@@ -227,6 +231,17 @@ class ReplicatedPartitionLog:
                 raise AuthorityLostError(
                     "AUTHORITY_LOSS: refusing mutation; this node is not the partition leader"
                 )
+            from src.core.frontier.region_model import (
+                RegionRole,
+                assert_region_may_accept_command,
+            )
+
+            assert_region_may_accept_command(
+                local_region=self.local_region,
+                leader_region=self.leader_region,
+                role=RegionRole.AUTHORITY_HOME,
+                partition_id=self.partition_id,
+            )
             # 0. Command Admission Clock-Skew & Drift Validation (I22')
             now_admission = time.time()
             if cmd.created_at_unix > now_admission + 10.0:

@@ -156,6 +156,7 @@ class RecoveryManager:
         verdict = self._evaluate_protocol(
             payload=payload,
             checkpoint=checkpoint,
+            wal=wal,
             wal_state=wal_state,
             snapshot_cursor=snapshot_cursor,
             snapshot_applied=snapshot_applied,
@@ -329,6 +330,7 @@ class RecoveryManager:
         *,
         payload: dict[str, Any],
         checkpoint: CheckpointState,
+        wal: Any,
         wal_state: Any,
         snapshot_cursor: str | None,
         snapshot_applied: frozenset[str],
@@ -352,24 +354,46 @@ class RecoveryManager:
             snapshot_index = int(getattr(checkpoint, "authoritative_log_index", 0) or 0)
         except (TypeError, ValueError):
             snapshot_index = 0
+        # Do not add the snapshot cursor to wal_ids — that hid SNAPSHOT_AHEAD.
         wal_ids = frozenset(str(item) for item in snapshot_applied if item)
         cursor = str(snapshot_cursor or "").strip()
-        if cursor:
-            wal_ids = wal_ids | {cursor}
+        known_ids = self._wal_known_ids(wal)
+        if known_ids:
+            wal_ids = wal_ids | known_ids
+        wal_present = wal_state is not None
+        truncated = bool(cursor and known_ids and cursor not in known_ids)
         return run_recovery_protocol(
             ObservedDurableState(
                 plane=RecoveryPlane.FRONTIER,
                 snapshot_present=True,
-                wal_present=wal_state is not None,
+                wal_present=wal_present,
                 snapshot_schema_version=schema_version,
                 reader_schema_version=self.reader_schema_version,
                 snapshot_log_index=snapshot_index,
-                wal_commit_index=max(snapshot_index, 1 if wal_state is not None else 0),
+                wal_commit_index=snapshot_index if not wal_present else max(snapshot_index, 1),
                 snapshot_last_wal_id=cursor,
                 wal_ids=wal_ids,
-                snapshot_semantically_old=True,
+                wal_truncated_after_snapshot=truncated,
+                snapshot_semantically_old=False,
             )
         )
+
+    @staticmethod
+    def _wal_known_ids(wal: Any) -> frozenset[str]:
+        """Best-effort journal id listing. Missing API → empty (do not invent)."""
+        if wal is None:
+            return frozenset()
+        for attr in ("known_ids", "wal_ids", "applied_ids"):
+            getter = getattr(wal, attr, None)
+            if getter is None:
+                continue
+            try:
+                values = getter() if callable(getter) else getter
+            except Exception:  # noqa: BLE001
+                continue
+            if values:
+                return frozenset(str(item) for item in values if item)
+        return frozenset()
 
     def _open_wal(self, run_id: str) -> Any:
         factory = self._wal_factory

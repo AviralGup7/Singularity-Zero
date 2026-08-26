@@ -36,6 +36,7 @@ class GlobalSubLease:
     partition_id: str
     units_allocated: int
     status: str = LeaseStatus.RESERVED.value
+    home_region: str = "local"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -44,6 +45,7 @@ class GlobalSubLease:
             "partition_id": self.partition_id,
             "units_allocated": self.units_allocated,
             "status": self.status,
+            "home_region": self.home_region,
         }
 
 
@@ -70,13 +72,14 @@ class QuotaSlab:
 class GlobalBudgetAggregate:
     """Enforces Universal Budget Conservation and Multi-Raft Quota Slabs (Axiom 4, Invariants I5, I26)."""
 
-    def __init__(self, total_budget: int = 10000) -> None:
+    def __init__(self, total_budget: int = 10000, *, home_region: str = "local") -> None:
         self.total_budget: int = int(total_budget)
         self.consumed: int = 0
         self.available: int = int(total_budget)
         self.subleases: dict[str, GlobalSubLease] = {}
         self.quota_slabs: dict[str, QuotaSlab] = {}
         self.version: int = 1
+        self.home_region = str(home_region or "local").strip() or "local"
 
     @property
     def outstanding_reserved(self) -> int:
@@ -171,8 +174,16 @@ class GlobalBudgetAggregate:
         run_id: str,
         partition_id: str,
         units: int,
+        *,
+        request_region: str | None = None,
     ) -> tuple[bool, str]:
         """Atomically reserve units from available into an outstanding sub-lease."""
+        from src.core.frontier.region_model import assert_budget_home
+
+        assert_budget_home(
+            local_region=request_region or self.home_region,
+            p0000_region=self.home_region,
+        )
         if units <= 0:
             return False, "NON_POSITIVE_UNITS"
         if units > self.available:
@@ -185,6 +196,7 @@ class GlobalBudgetAggregate:
             partition_id=partition_id,
             units_allocated=units,
             status=LeaseStatus.RESERVED.value,
+            home_region=self.home_region,
         )
         self.version += 1
         self.require_conservation()
@@ -195,11 +207,20 @@ class GlobalBudgetAggregate:
         sublease_id: str,
         units_consumed: int,
         units_returned: int,
+        *,
+        settle_region: str | None = None,
     ) -> tuple[bool, str]:
         """Reconcile sub-lease consumption and return unconsumed units to available."""
+        from src.core.frontier.region_model import assert_lease_settle_colocated
+
         sublease = self.subleases.get(sublease_id)
         if not sublease:
             return False, f"Sublease {sublease_id} not found"
+        acquire_region = str(getattr(sublease, "home_region", "") or self.home_region)
+        assert_lease_settle_colocated(
+            acquire_region=acquire_region,
+            settle_region=settle_region or acquire_region,
+        )
 
         current = normalize_lease_status(sublease.status)
         if current is LeaseStatus.CONSUMED:
@@ -233,6 +254,7 @@ class GlobalBudgetAggregate:
             partition_id=sublease.partition_id,
             units_allocated=sublease.units_allocated,
             status=target.value,
+            home_region=str(getattr(sublease, "home_region", "") or self.home_region),
         )
         self.version += 1
         self.require_conservation()
@@ -268,6 +290,7 @@ class GlobalBudgetAggregate:
             partition_id=sublease.partition_id,
             units_allocated=sublease.units_allocated,
             status=LeaseStatus.EXPIRED.value,
+            home_region=str(getattr(sublease, "home_region", "") or self.home_region),
         )
         self.version += 1
         return True, "SUBLEASE_EXPIRED_AND_RECLAIMED"
@@ -282,17 +305,21 @@ class GlobalBudgetAggregate:
         cmd_type = envelope.command_type
         payload = envelope.payload
         if cmd_type == "ReserveGlobalBudgetCommand":
+            req_region = str(payload.get("request_region") or "").strip() or None
             return self.reserve_sublease(
                 sublease_id=str(payload.get("sublease_id") or f"sl_{envelope.command_id}"),
                 run_id=str(payload.get("run_id", "")),
                 partition_id=str(payload.get("partition_id", "P-0000")),
                 units=int(payload.get("units", 0)),
+                request_region=req_region,
             )
         if cmd_type == "SettlementReturnCommand":
+            settle_region = str(payload.get("settle_region") or "").strip() or None
             return self.settle_return(
                 sublease_id=str(payload.get("sublease_id", "")),
                 units_consumed=int(payload.get("units_consumed", 0)),
                 units_returned=int(payload.get("units_returned", 0)),
+                settle_region=settle_region,
             )
         if cmd_type == "ExpireSubLeaseCommand":
             return self.expire_sublease(
@@ -308,6 +335,7 @@ class GlobalBudgetAggregate:
             "outstanding_reserved": self.outstanding_reserved,
             "available": self.available,
             "version": self.version,
+            "home_region": self.home_region,
             "subleases": {k: v.to_dict() for k, v in self.subleases.items()},
         }
 

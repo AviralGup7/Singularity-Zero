@@ -138,22 +138,37 @@ class WALReplicationRelay:
         return deltas
 
     def reconcile_with_peer(self, peer_url: str, state_authority: Any | None = None) -> int:
-        """Fetch remote deltas and apply any uncommitted settlement intents locally."""
+        """Fetch remote journal deltas. Never commit peer settlements (I36).
+
+        ``state_authority`` is accepted for call-site compatibility and is
+        ignored. A replica must not ``append_settlement_intent`` from a peer.
+        Returns the count of journal-only (non-authority) rows observed.
+        """
+        from src.core.frontier.region_model import RegionDecision, classify_peer_entry
+
+        if state_authority is not None:
+            logger.warning(
+                "I36: WALReplicationRelay refusing to apply peer settlements "
+                "onto local StateAuthority (peer=%s)",
+                peer_url,
+            )
+
         pulled = self.pull_peer_deltas(peer_url)
-        applied_count = 0
-
+        journal_count = 0
+        refused = 0
         for entry in pulled:
-            exec_id = entry.get("execution_id")
-            if state_authority is not None and exec_id:
-                if not state_authority.is_committed(exec_id):
-                    from src.core.frontier.state_authority import SettlementIntent
-
-                    if entry.get("_is_settlement_intent") or "state_delta" in entry:
-                        intent = SettlementIntent.from_mapping(entry)
-                        state_authority.append_settlement_intent(intent)
-                        applied_count += 1
-
-        return applied_count
+            if classify_peer_entry(entry) is RegionDecision.REFUSE:
+                refused += 1
+                continue
+            journal_count += 1
+        if refused:
+            logger.warning(
+                "I36: dropped %d authoritative peer row(s) from %s; journal_only=%d",
+                refused,
+                peer_url,
+                journal_count,
+            )
+        return journal_count
 
 
 __all__ = ["WALReplicationRelay"]

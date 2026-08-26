@@ -150,9 +150,51 @@ class _WouldCommit:
 def test_i36_relay_reconcile_does_not_commit_peer_settlement() -> None:
     relay = WALReplicationRelay(local_wal=None, peer_redis_urls=[], run_id="r1")
     authority = _WouldCommit()
+    peer_rows = [
+        {"_is_settlement_intent": True, "execution_id": "e1", "state_delta": {"findings": []}},
+        {"urls": ["https://a.example"], "execution_id": "e2"},
+        {"command_type": "ReserveGlobalBudgetCommand", "command_id": "cmd_x"},
+    ]
+    relay.pull_peer_deltas = lambda *_a, **_k: peer_rows  # type: ignore[method-assign]
     applied = relay.reconcile_with_peer("redis://peer:6379/0", state_authority=authority)
-    assert applied == 0
+    assert applied == 1
     assert authority.committed is False
+
+
+def test_i36_propose_refuses_foreign_leader_home() -> None:
+    from src.core.contracts.command_envelope import CommandEnvelope
+    from src.core.frontier.replicated_log import ReplicatedPartitionLog
+
+    log = ReplicatedPartitionLog(
+        partition_id="P-0000",
+        is_leader=True,
+        local_region="eu-west",
+        leader_region="us-east",
+    )
+    cmd = CommandEnvelope(
+        command_id="cmd_region",
+        command_type="AllocateSubLeaseCommand",
+        aggregate_id="sl",
+        payload={"sublease_id": "sl", "units_allocated": 1, "run_id": "R"},
+        correlation_id="c",
+        causation_id="x",
+    )
+    with pytest.raises(RegionConsistencyError, match=I36_REGION_CONSISTENCY):
+        log.propose_and_commit(cmd)
+
+
+def test_i36_budget_reserve_and_settle_honor_region() -> None:
+    from src.core.frontier.global_coordination import GlobalBudgetAggregate
+
+    budget = GlobalBudgetAggregate(total_budget=100, home_region="us-east")
+    with pytest.raises(RegionConsistencyError, match="budget"):
+        budget.reserve_sublease("sl1", "run", "P-0001", 10, request_region="eu-west")
+    ok, _ = budget.reserve_sublease("sl1", "run", "P-0001", 10, request_region="us-east")
+    assert ok is True
+    with pytest.raises(RegionConsistencyError, match="cannot be settled"):
+        budget.settle_return("sl1", 0, 10, settle_region="eu-west")
+    ok, _ = budget.settle_return("sl1", 0, 10, settle_region="us-east")
+    assert ok is True
 
 
 def test_i36_evaluate_partitioned_replica_fail_closed() -> None:

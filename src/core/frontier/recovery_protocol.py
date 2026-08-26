@@ -534,6 +534,7 @@ class ObservedDurableState:
     fsm_event_ids: frozenset[str] = field(default_factory=frozenset)
     outbox_event_ids: frozenset[str] = field(default_factory=frozenset)
     delivered_event_ids: frozenset[str] = field(default_factory=frozenset)
+    """EventIds already delivered. DeliveryLedger stores DeliveryIds; convert first."""
     compensation_in_progress: bool = False
     compensation_lease_status: str = ""
 
