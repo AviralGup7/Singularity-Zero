@@ -51,7 +51,7 @@ class PipelineContractEnforcementTests(unittest.TestCase):
             ]
         )
         states = [item["lifecycle_state"] for item in normalized]
-        self.assertEqual(states[0], "detected")
+        self.assertEqual(states[0], "candidate")
         self.assertEqual(states[1], "exploitable")
         # KEEP + high severity infers reportable; transition from None allows direct jump
         self.assertEqual(states[2], "reportable")

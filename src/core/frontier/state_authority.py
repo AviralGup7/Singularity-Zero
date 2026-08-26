@@ -1051,6 +1051,15 @@ class SettlementCoordinator:
             outcome = "SKIPPED"
         else:
             outcome = "COMPLETED"
+        # I28: settlement is the only budget commit/release point (I30 consume
+        # is single-use only). Stage tickets reserve at authorize; COMPLETED
+        # commits, FAILED/SKIPPED releases so reservations cannot leak.
+        if outcome == "COMPLETED":
+            budget_action = "COMMIT"
+        elif outcome in {"FAILED", "SKIPPED", "REJECTED", "TIMED_OUT"}:
+            budget_action = "RELEASE"
+        else:
+            budget_action = "NONE"
         intent = SettlementIntent(
             settlement_id=identity.settlement_id,
             execution_id=exec_id,
@@ -1060,7 +1069,8 @@ class SettlementCoordinator:
             stage_name=stage_name,
             outcome=outcome,
             state_delta=state_delta,
-            budget_action="NONE",
+            budget_action=budget_action,
+            budget_request_count=1,
             lease_action="NONE",
         )
         try:

@@ -211,21 +211,21 @@ flowchart TD
     Req --> Budget{"HuntBudget reserve"}
     Budget -->|exhausted| Rej["ScopeAuthorizationError"]
     Budget -->|ok| Ticket["AuthorizedExecutionTicket I30 binds scope+reservation+revision+command"]
-    Ticket --> Consume["consume ticket before run I30"]
+    Ticket --> Consume["consume ticket I30 single-use (no I28 commit)"]
     Consume --> SB["ProcessSandbox I29 metadata-guard"]
     SB -->|out of scope| Viol["EgressViolationError"]
     SB --> Out["StageOutput / RawExecutionClaim"]
     Out --> Coord["SettlementCoordinator (claim validation)"]
     Coord --> Thaw["_to_mutable"]
     Thaw --> WAL["append SettlementIntent"]
-    WAL -->|COMMITTED + wal_id I31| Outbox["DurableOutbox FINDING_CREATED"]
+    WAL -->|COMMITTED + wal_id I31 + I28 budget commit/release| Outbox["DurableOutbox FINDING_CREATED"]
     Outbox -->|HMAC receipt| Emit["EventBus notify I32"]
     Outbox -->|append fail| NoBus["no bus notify; replay later"]
     WAL -->|FAILED attempt still has wal_id| FailedId["settle status REJECTED; I33 identity; no FINDING_CREATED"]
     WAL -->|REJECTED / DEDUPLICATED / no wal_id| Silent["no FINDING_CREATED"]
 ```
 
-Per-stage admit is `stage_admit.admit_stage`: authorize → **consume (I28 `commit_requests`)** → `ProcessSandbox.check_egress` (metadata-guard) → run. `ProcessSandbox.run` is unused. Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`; the settle **status** name is `REJECTED` (wal_id present). `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). `attach_pipeline_authority` is the only writer.
+Per-stage admit is `stage_admit.admit_stage`: authorize (I28 **reserve**) → **consume ticket (I30 single-use only)** → `ProcessSandbox.check_egress` (metadata-guard) → run. `ProcessSandbox.run` is unused. I28 **commit/release** is only at `SettlementCoordinator` / `BudgetProjection` (stage settle COMMIT on COMPLETED, RELEASE on FAILED/SKIPPED; execution settle same). Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`; the settle **status** name is `REJECTED` (wal_id present). `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). Report sinks alone do not pin low-value optional producers in the planner. Canonical `findings` CRDT bag is REPORTABLE surface (unstamped rows promote); evidence bags cannot bypass. `attach_pipeline_authority` is the only writer.
 
 Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` after plugins. Planner prefers the runtime Graph; some resume filters still walk import-time `STAGE_ORDER`. `STAGE_TIMEOUTS` omits `recon_validation`, `threat_modeling`, `subdomain_takeover`, sca/container/iac/git_secret, `ci_export`, `dedup_stage`. Nuclei/validation/active_scan/`_tool_runner` may still `authorize()` again (double reserve). HMAC has **no** published fallback string; missing env key → process-local random (verify dies across restart).
 
@@ -319,7 +319,7 @@ flowchart TD
 
 Illegal stage CAS **raises** (`IllegalStageTransitionError`): COMPLETED→FAILED, COMPLETED→SKIPPED*, SKIPPED*→COMPLETED. FAILED→COMPLETED and FAILED→SKIPPED_FAILED are legal (I33 retry). PENDING↛STOPPING (cancel-before-start is PENDING→STOPPED).
 
-Finding surface is CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE. `"open"` is **not** a lifecycle alias — dashboard `open/closed` is `ticket_status`. PDF filters `surface == REPORTABLE` (`filter_report_surface`). `derive_job_and_exit` maps stages × findings × policy → (JobStatus, exit).
+Finding surface is CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE on **normalize**; `apply_lifecycle` stamps unstamped defaults as **`candidate`** (not the legacy `detected` wire token). `"open"` is **not** a lifecycle alias — dashboard `open/closed` is `ticket_status`. PDF filters `surface == REPORTABLE` (`filter_report_surface`); unstamped rows in the reportable bag stay in. NeuralState `findings` is the REPORTABLE CRDT; `candidates` holds non-reportable. Empty stage lattice + exit 0 + no stdout/stderr → JobStatus.FAILED (`pipeline_no_output`) even when `derive_job_and_exit` would say COMPLETED. `derive_job_and_exit` maps stages × findings × policy → (JobStatus, exit).
 
 ## F-008 — RETIRED → F-007
 
@@ -677,5 +677,7 @@ Each edge is bidirectional in `invariant_graph.py`: a forward statement and the 
 | 2026-08-26 | F-004 consume commits I28 budget, P-0000, attach fail-closed + I35 PARTITION recovery | edit |
 | 2026-08-26 | F-033 bidirectional edges + reverse assumptions | edit |
 | 2026-08-26 | Sync atlas with live code: F-001 existing portal files only; F-004 runtime join producers + FAILED settle named REJECTED + HMAC/process-local key + double-reserve honesty; F-007 FAILED→SKIPPED_FAILED; F-018 lattice not total + empty I35 recovered sets; F-019 real SSE/WS paths; F-020 security-audit/scan/hardening/iac-scan/CI passed; F-022 Ghost in-process/gossip | edit |
+
+| 2026-08-26 | F-004/F-007: I30 consume is single-use only; I28 commit/release at settle; findings CRDT reportable bag; planner report-sink skip; no_pipeline_output FAIL | edit |
 
 Append a row for every later edit. Do not delete this table.

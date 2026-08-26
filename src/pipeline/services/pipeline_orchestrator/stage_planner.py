@@ -48,9 +48,7 @@ def _get_default_resource_guard() -> Any:
 
 # Required for honest exit codes / report emission. Planner must not
 # drop these because of low predicted value or a tight RAM estimate.
-_REPORT_SINK_STAGES = frozenset(
-    {"reporting", "sarif_export", "ci_export", "dedup_stage"}
-)
+_REPORT_SINK_STAGES = frozenset({"reporting", "sarif_export", "ci_export", "dedup_stage"})
 
 _NEVER_SKIP_STAGES = frozenset(
     {

@@ -415,8 +415,9 @@ class ExecutionAuthorizer:
                     return False
             if not self.verify_ticket(ticket):
                 return False
-            if enforcer is not None and hasattr(enforcer, "commit_requests"):
-                enforcer.commit_requests(1)
+            # I30 single-use only. I28 budget commits at SettlementCoordinator
+            # (BudgetProjection) so crash-before-settle keeps the reservation
+            # and WAL replay can reconstruct consumption exactly once.
             self._consumed_tickets.add(ticket.ticket_id)
             return True
 

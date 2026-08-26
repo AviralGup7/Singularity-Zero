@@ -492,18 +492,15 @@ class HuntBudgetEnforcer:
     def commit_requests(self, count: int = 1) -> None:
         """Commit reserved requests upon ExecutionResult ingestion.
 
-        Idempotent with I30 ``consume_ticket``: if the reservation was already
-        committed at consume time, reserved==0 and this is a no-op so settle
-        cannot double-count I28 consumption.
+        Settlement is the authoritative I28 commit point. Prefer an open
+        reservation when present; otherwise count the commit directly so WAL
+        replay and adaptive-scan paths can reconstruct consumption without a
+        live reserve.
         """
         if count <= 0:
             return
         with self._lock:
-            available = int(self._requests_reserved)
-            if available <= 0:
-                return
-            take_total = min(int(count), available)
-            remaining = take_total
+            remaining = int(count)
             if self._global_budget is not None:
                 from src.core.frontier.commands import settlement_return
 
@@ -517,8 +514,9 @@ class HuntBudgetEnforcer:
                     ).to_envelope()
                     self._global_budget.apply_command(env)
                     remaining -= take
-            self._requests_reserved = max(0, self._requests_reserved - take_total)
-            self._requests_consumed += take_total
+            reserved_take = min(int(count), int(self._requests_reserved))
+            self._requests_reserved = max(0, self._requests_reserved - reserved_take)
+            self._requests_consumed += int(count)
             self._requests_emitted = self._requests_consumed
 
     def release_requests(self, count: int = 1) -> None:

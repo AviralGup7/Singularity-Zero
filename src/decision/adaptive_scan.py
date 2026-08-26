@@ -346,8 +346,15 @@ class AdaptiveScanCoordinator:
                     batch_results = []
 
             self._results.extend(batch_results)
-            if self._budget_enforcer and hasattr(self._budget_enforcer, "commit_requests"):
-                self._budget_enforcer.commit_requests(len(urls))
+            if self._budget_enforcer is not None:
+                # Prefer reserve→commit so I28 mirrors the settle path. If the
+                # enforcer is already at capacity, still commit what was scanned
+                # so exhaustion is visible to early-terminate.
+                n = len(urls)
+                if hasattr(self._budget_enforcer, "reserve_requests"):
+                    self._budget_enforcer.reserve_requests(n)
+                if hasattr(self._budget_enforcer, "commit_requests"):
+                    self._budget_enforcer.commit_requests(n)
 
             # Collect findings and boost correlated targets
             batch_findings = []
