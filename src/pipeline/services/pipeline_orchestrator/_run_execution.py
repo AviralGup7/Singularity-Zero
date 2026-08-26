@@ -189,6 +189,9 @@ async def execute_remaining_stages(
     graph = build_pipeline_graph(
         stage_methods=stage_methods, tool_status=getattr(config, "tool_status", None)
     )
+    remaining_set = set(remaining_stages)
+    remaining_stages = [name for name in graph.topological_sort() if name in remaining_set]
+    remaining_stages.extend(sorted(remaining_set - set(remaining_stages)))
     logger.info(
         "Neural-Mesh ActorScheduler: greedy readiness loop "
         "(%d nodes, %d remaining, %d pre-completed)",

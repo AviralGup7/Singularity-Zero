@@ -207,7 +207,10 @@ class ActorScheduler:
         from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
 
         planner = StagePlanner(
-            self._config, self._ctx, self._orchestrator.observability_bus.learning_integration
+            self._config,
+            self._ctx,
+            self._orchestrator.observability_bus.learning_integration,
+            graph=self._graph,
         )
 
         # Capture initial config keys before starting the readiness loop
@@ -401,7 +404,6 @@ class ActorScheduler:
                 continue
             if not self._condition_holds(node):
                 continue
-            # Allow forced dispatch after too many deferrals (starvation guard)
             if self._is_large_debt_node(node):
                 continue
             ready.append((node.weight * -1, index, node))
@@ -754,8 +756,16 @@ class ActorScheduler:
         return DEFAULT_REBALANCE_THRESHOLD_FACTOR
 
     def _is_large_debt_node(self, node: StageNode) -> bool:
+        """Advisory rebalance only. Never starve a join sink.
+
+        Counting ``needs not in _completed`` treated FAILED nuclei as
+        unpaid debt and blocked reporting forever. Join waits for
+        *terminal* producers via ``_need_met``.
+        """
+        if node.name in self._JOIN_SINKS:
+            return False
         threshold = self._effective_rebalance_threshold()
-        count = sum(1 for dep in node.needs if dep not in self._completed)
+        count = sum(1 for dep in node.needs if not self._need_met(dep, node))
         return count >= threshold
 
     # ------------------------------------------------------------------

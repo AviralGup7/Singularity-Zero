@@ -160,6 +160,8 @@ def dispatch_committed_findings(
         if not isinstance(item, Mapping) or isinstance(item, (str, bytes)):
             continue
         finding = dict(item)
+        event_id = derive_event_id_from_wal(identity.wal_id, published)
+        finding.setdefault("event_id", event_id)
         dict_findings.append(finding)
         envelopes.append(
             _finding_event_envelope(

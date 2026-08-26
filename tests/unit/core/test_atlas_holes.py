@@ -210,3 +210,38 @@ def test_hunt_budget_fenced_and_breaker_refuse_reserve() -> None:
     assert open_enforcer.reserve_with_identity(1) is None
     open_enforcer.set_reserve_gate(lambda: True)
     assert open_enforcer.reserve_with_identity(1) is not None
+
+
+def test_join_sink_not_starved_when_producer_failed() -> None:
+    from src.pipeline.services.pipeline_orchestrator._graph_dsl import Graph, StageNode
+    from src.pipeline.services.pipeline_orchestrator.actor_scheduler import ActorScheduler
+
+    nuclei = StageNode(name="nuclei", needs=(), weight=1)
+    intel = StageNode(name="intelligence", needs=(), weight=1)
+    report = StageNode(name="reporting", needs=("nuclei", "intelligence"), weight=1)
+    graph = Graph(nodes=(nuclei, intel, report))
+    ctx = SimpleNamespace(
+        result=SimpleNamespace(
+            stage_status={"nuclei": "FAILED", "intelligence": "COMPLETED"},
+            module_metrics={},
+        )
+    )
+    sched = ActorScheduler(
+        graph=graph,
+        stage_methods={"reporting": lambda: None},
+        ctx=ctx,
+        remaining_stages=["reporting"],
+        completed_stages=set(),
+        orchestrator=SimpleNamespace(),
+        args=SimpleNamespace(),
+        config=SimpleNamespace(),
+        scope_interceptor=None,
+        nuclei_available=False,
+        checkpoint_mgr=None,
+        stage_checkpoint_guard=lambda *a, **k: None,
+        progress_emitter=lambda *a, **k: None,
+        error_emitter=lambda *a, **k: None,
+    )
+    sched._outcome.failed.add("nuclei")
+    assert sched._is_large_debt_node(report) is False
+    assert sched._deps_satisfied(report) is True

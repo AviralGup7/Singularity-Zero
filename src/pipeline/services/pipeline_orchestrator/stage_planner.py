@@ -62,8 +62,10 @@ _NEVER_SKIP_STAGES = frozenset(
 )
 
 
-def _get_graph_nodes() -> list:
-    """Return the current pipeline graph nodes for dependency checking."""
+def _get_graph_nodes(graph: Any | None = None) -> list:
+    """Prefer the runtime Graph (one object per process). Import-time STAGE_GRAPH is fallback."""
+    if graph is not None and getattr(graph, "nodes", None) is not None:
+        return list(graph.nodes)
     try:
         from src.pipeline.services.pipeline_orchestrator._constants import STAGE_GRAPH
 
@@ -79,6 +81,7 @@ class StagePlanner:
         ctx: Any,
         learning_integration: Any,
         resource_guard: ResourceGuardProtocol | Any | None = None,
+        graph: Any | None = None,
     ) -> None:
         self.config = config
         self.ctx = ctx
@@ -86,6 +89,7 @@ class StagePlanner:
         self.resource_guard = (
             resource_guard if resource_guard is not None else _get_default_resource_guard()
         )
+        self.graph = graph
 
     def plan_stages(self, remaining_stages: list[str]) -> tuple[list[str], dict[str, Any]]:
         adjusted_stages = list(remaining_stages)
@@ -112,7 +116,7 @@ class StagePlanner:
         target_count = len(scope_entries)
         url_count = len(urls)
         findings_count = len(getattr(result, "reportable_findings", []) or [])
-        graph_nodes = {node.name for node in _get_graph_nodes()}
+        graph_nodes = {node.name for node in _get_graph_nodes(self.graph)}
         if (
             findings_count >= 50
             and "threat_modeling" in graph_nodes
@@ -135,7 +139,7 @@ class StagePlanner:
         dependent_stages: set[str] = set()
 
         for s in active_stages:
-            for node in _get_graph_nodes():
+            for node in _get_graph_nodes(self.graph):
                 if node.name == s:
                     dependent_stages.update(node.needs)
         filtered_stages: list[str] = []
@@ -265,7 +269,9 @@ class StagePlanner:
                     continue
                 # Don't skip stages that have downstream dependents in the current plan
                 has_dependents = any(
-                    s in node.needs for node in _get_graph_nodes() if node.name in adjusted_stages
+                    s in node.needs
+                    for node in _get_graph_nodes(self.graph)
+                    if node.name in adjusted_stages
                 )
                 if has_dependents:
                     logger.info(
