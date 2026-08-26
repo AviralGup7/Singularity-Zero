@@ -96,7 +96,7 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 | F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py` | F-023, F-026, F-031, F-043 | 2026-08-26 (`479c106d`) |
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | 2026-08-26 (`479c106d`) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | 2026-08-26 (`479c106d`) |
-| F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, `src/pipeline/maintenance.py` | F-028, F-032, F-041 | 2026-08-26 (`479c106d`) |
+| F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | 2026-08-26 (`ce16770b`) |
 | F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-26 (`7a2bb407`) |
 
 
@@ -327,17 +327,17 @@ flowchart TD
         Report ==> Dedup["dedup_stage (needs: reporting)"]:::impl
     end
 
-    subgraph ReadinessFSM["Scheduler Stage Lifecycle & Gating State Machine"]
-        P_PEND["PENDING"]:::impl -->|"all needs met"| P_READY["READY"]:::impl
-        P_READY -->|"when == True"| P_DISP["DISPATCH"]:::impl
-        P_DISP --> P_RUN["RUNNING"]:::impl
+    subgraph ReadinessFSM["Scheduler readiness (ActorScheduler) vs persisted StageStatus"]
+        P_PEND["PENDING (persisted)"]:::impl -->|"_need_met all deps"| P_CAND["candidate ready (scheduler-local)"]:::impl
+        P_CAND -->|"when.is_satisfied == True"| P_DISP["dispatch actor"]:::impl
+        P_DISP --> P_RUN["RUNNING (persisted)"]:::impl
         P_RUN --> P_COMP["COMPLETED"]:::impl
         P_RUN --> P_DEG["DEGRADED"]:::impl
         P_RUN --> P_FAIL["FAILED"]:::impl
-        P_READY -->|"when == False"| P_DEF["DEFERRED"]:::impl
-        P_DEF -->|"tick retry"| P_READY
-        P_DEF -->|"scan end"| P_SKIP["SKIPPED (condition_never_satisfied)"]:::impl
-        P_PEND -->|"upstream failed"| P_SKIP_FAIL["SKIPPED_FAILED (upstream_dependency_failed)"]:::impl
+        P_CAND -->|"when == False (retry next tick)"| P_DEF["deferred (scheduler-local, not a StageStatus)"]:::vacuous
+        P_DEF -->|"tick retry"| P_CAND
+        P_DEF -->|"scan end"| P_SKIP["SKIPPED / SKIPPED_DISABLED reason=condition_never_satisfied"]:::impl
+        P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL["SKIPPED_FAILED"]:::impl
     end
 
     DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]:::impl
@@ -396,17 +396,20 @@ flowchart TD
 
 ### Operational Gating & Epistemic Matrix
 
-| Upstream Status ($A$) | Epistemic Classification | `OutputNonEmpty(A)` | Downstream Action ($B$) | Terminal Status ($B$) | Telemetry & Audit Reason |
-|---|---|---|---|---|---|
-| **`COMPLETED` (> 0 items)** | **Positive Findings** | `True` | Dispatches normally | `RUNNING` $\rightarrow$ `COMPLETED` | Standard scan execution |
-| **`COMPLETED` (0 items)** | **Authoritative Negative Proof** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY"` (Clean exit, 0 crashes) |
-| **`DEGRADED` (> 0 items)** | **Partial Observation** | `True` | Dispatches in degraded mode | `RUNNING` $\rightarrow$ `DEGRADED` | Partial upstream input |
-| **`DEGRADED` (0 items)** | **Partial Empty Observation** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY_DEGRADED"` |
-| **`FAILED` / `SKIPPED_FAILED`** | **Unobserved Crash / Error** | `False` | Gated skip / Dep blocked | `SKIPPED_FAILED` | `reason="UPSTREAM_UNOBSERVED"` |
-| **`SKIPPED_DISABLED`** | **Disabled by Policy / Profile** | `False` | Gated skip (structural no-op) | `SKIPPED` | `reason="DISABLED_BY_POLICY"` |
+Persisted terminals live in `StageStatus` (`PENDING`, `RUNNING`, `COMPLETED`, `DEGRADED`, `FAILED`, `SKIPPED_DISABLED`, `SKIPPED_FAILED`). Scheduler-local “ready / deferred / dispatch” are **not** enum values.
 
-- **Dependency Fulfillment (`_need_met`)**: Standard stages unblocked by $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$; Join sinks unblocked by **ANY** terminal status.
-- **Report Integrity**: `COMPLETE_REPORT` (all producers completed cleanly), `PARTIAL_REPORT` (one or more failed/degraded; SARIF `executionSuccessful: false`, exit 4), `EMPTY_REPORT` (verified negative proof).
+| Upstream Status ($A$) | `OutputNonEmpty(A)` / `when` | Downstream Action ($B$) | Typical terminal / skip reason (code) |
+|---|---|---|---|
+| **`COMPLETED` / `DEGRADED` with output** | `when` true | Dispatch → `RUNNING` → terminal | Normal execution |
+| **`COMPLETED` / `DEGRADED` empty (gate false)** | `OutputNonEmpty` false through end of scan | Skip at drain | `reason="condition_never_satisfied"` → `SKIPPED` / `SKIPPED_DISABLED` |
+| **`FAILED` on critical upstream** | n/a | Block / skip dependents | `reason="upstream_critical_failure"` → often `SKIPPED_FAILED` path |
+| **`SKIPPED_DISABLED` upstream** | n/a | Still satisfies non-join `_need_met` | Downstream may run or skip on its own `when` |
+| **Join sinks (`reporting`, …)** | n/a | Wait until **every** producer is terminal (incl. `FAILED`) | Report still emits (partial allowed) |
+
+Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspend_triggered`, `cancelled`, `global_deadline_exceeded`, `speculative_dispatch` (dispatch telemetry, not a skip).
+
+- **Dependency Fulfillment (`_need_met`)**: Non-join stages unblock on $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$ (plus internal completed/skipped sets). Join sinks unblock on **any** `TERMINAL_STAGE_STATUSES` member (including `FAILED`).
+- **Report Integrity**: Partial producer failure still reaches `reporting`; job exit lattice (F-018) maps partial vs fatal (`exit 4` vs `3`).
 - **Concurrency & Fairness**: Ready nodes sorted by $(-\text{node.weight}, \text{declaration\_index})$. Retries mint fresh `AttemptId` (I33) and single-use tickets (I30).
 
 ---
@@ -441,7 +444,9 @@ flowchart TD
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
-**I29 In-Process Egress & Residuals:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar). Shared clients from `src/core/utils/shared_sessions.py` enforce filter hooks on every request. `SafeExploiter` calls `assert_exploit_target_egress`. Raw `httpx`/`requests` instances outside shared sessions must be wrapped or use explicit assert calls.
+**I29 In-Process Egress & Residuals:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; IMDS/metadata denied). Shared clients from `src/core/utils/shared_sessions.py` (also via `src/core/http_utils.py`) enforce filter hooks on every request. `SafeExploiter` / `ExploitationCampaign` call `assert_exploit_target_egress`. **Residual:** ~100+ raw `httpx`/`requests` constructions outside shared sessions (heaviest: `src/recon/`, `src/analysis/`, `src/fuzzing/`, `src/exploitation/`) bypass hooks unless refactored to the shared client or an explicit `assert_*_egress`. Prefer shared-boundary adoption over per-file rewrites.
+
+**I28/I30 residual (exploitation entry):** campaign / SafeExploiter gates **egress only**. HuntBudget reserve + I30 ticket mint/consume remain on the `stage_admit` path when authority is attached; standalone exploit entry does not settle budget.
 
 **Package Path Authority:**
 | Surface | Role | Authority Model |
@@ -1033,5 +1038,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | Streamline prose into rich Mermaid subgraphs (Readiness FSM in F-004, Tri-Axial Finding subgraphs in F-007) and high-density invariant tables | edit |
 | 2026-08-26 | Convert Legend edge semantics and node classes into structured tables; compress narrative in F-002, F-006, F-019 | edit |
 | 2026-08-26 | Add F-001 node and architectural cross-reference for docs/architecture/code-consolidation.md | edit |
+| 2026-08-26 | Audit vs code: fix F-004 Readiness FSM (scheduler-local vs StageStatus); replace invented PROVEN_EMPTY reasons with actor_scheduler skip reasons; restore exploit I28/I30 + raw-httpx residual counts; F-025 index facades | edit |
 
 Append a row for every later edit. Do not delete this table.
