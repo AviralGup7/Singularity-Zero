@@ -609,21 +609,23 @@ flowchart TD
 ```mermaid
 flowchart TD
     I22["I22 clock admission"] --> I30g["I30 authorization causality"]
-    I30g --> I33g["I33 causal IDs"]
+    I30g -->|"every authorized execution gets causal ids"| I33g["I33 causal IDs"]
     I30g --> I28g["I28 budget / lease"]
     I33g --> I31g["I31 settlement"]
-    I28g --> I31g
-    I31g --> I32g["I32 durable outbox"]
+    I28g -->|"settle cannot consume outside a reservation"| I31g
+    I31g -->|"only COMMITTED wal may emit"| I32g["I32 durable outbox"]
     I32g --> I34g["I34 failure semantics"]
     I28g --> I34g
     I34g --> I35g["I35 recovery"]
-    I32g --> I35g
-    I35g --> I36g["I36 region"]
-    I36g --> I37g["I37 transfer fence"]
+    I32g -->|"recovery rebuilds delivery from durable state"| I35g
+    I35g -->|"READY before regional ownership"| I36g["I36 region"]
+    I36g -->|"transfer only via fence"| I37g["I37 transfer fence"]
     I30g --> I37g
     I35g -.->|"recovered ticket fails I30"| NoReady["FAIL_CLOSED not READY"]
     I37g -.->|"I30-invalid ticket"| NoMint["activate refuses; cannot mint I30"]
 ```
+
+Each edge is bidirectional in `invariant_graph.py`: a forward statement and the reverse assumption (what the downstream invariant assumes about the upstream). I31 COMMITTED with an unknown `budget_reservation_id` fails I28 even if wal_id is set.
 
 ## Changelog
 
@@ -650,5 +652,6 @@ flowchart TD
 | 2026-08-26 | F-018: RecoveryManager collects recovered tickets/settlements for I35 | edit |
 | 2026-08-26 | F-004 consume-before-run + recon_validation; F-007 FAILED retry; F-018 exit 1/7 and Frontier reconstruct; F-002 live single-home | edit |
 | 2026-08-26 | F-007 JX is STOPPING; reporting join not large-debt starved | edit |
+| 2026-08-26 | F-033 bidirectional edges + reverse assumptions | edit |
 
 Append a row for every later edit. Do not delete this table.
