@@ -91,6 +91,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             execution_id="exec_1",
             state_deltas=(("urls", ["https://example.com/target1"]),),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
+            ),
         )
 
         settle_res = coordinator.settle(res, lease=lease, stage_name="probing", request_count=1)
@@ -168,6 +177,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             execution_id="exec_env_1",
             state_deltas=(("urls", ["https://example.com/target_env"]),),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
+            ),
         )
 
         settle_res = coordinator.settle(res, lease=lease, stage_name="probing", request_count=1)
@@ -213,6 +231,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             execution_id="exec_lag_1",
             state_deltas=(("urls", ["https://example.com/target_lag"]),),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
+            ),
         )
 
         settle_res = coordinator.settle(res, lease=lease, stage_name="probing", request_count=1)
@@ -261,6 +288,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
                 outcome="COMPLETED",
                 execution_id=f"exec_{i}",
                 state_deltas=(("urls", [url]),),
+                findings=(
+                    Finding(
+                        category="test",
+                        title="budget-commit",
+                        severity="low",
+                        confidence=0.5,
+                        url="https://example.com/",
+                    ),
+                ),
             )
             coordinator.settle(res, lease=lease, stage_name="probing", request_count=1)
 
@@ -326,6 +362,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             execution_id="exec_old",
             state_deltas=(("urls", ["https://example.com/target_stale_replay"]),),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
+            ),
         )
 
         # Suppress queue projection for worker 1 to simulate projection lag
@@ -378,6 +423,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             state_deltas=(
                 ("subdomains", ["cold.example.com"]),
                 ("urls", ["https://example.com/cold_restart"]),
+            ),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
             ),
         )
         initial_coord.settle(res, lease=lease, stage_name="probing", request_count=1)
@@ -441,6 +495,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             execution_id="exec_walfail_1",
             state_deltas=(("urls", ["https://example.com/wal_fail_target"]),),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
+            ),
         )
 
         settle_res = coordinator.settle(res, lease=lease, stage_name="probing", request_count=1)
@@ -477,6 +540,15 @@ class TestStateAuthorityDurability(unittest.TestCase):
             outcome="COMPLETED",
             execution_id="exec_dup_1",
             state_deltas=(("urls", ["https://example.com/dup_target"]),),
+            findings=(
+                Finding(
+                    category="test",
+                    title="budget-commit",
+                    severity="low",
+                    confidence=0.5,
+                    url="https://example.com/",
+                ),
+            ),
         )
         coordinator.settle(res, lease=lease, stage_name="probing", request_count=1)
 

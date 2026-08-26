@@ -910,9 +910,13 @@ class SettlementCoordinator:
             if result.findings:
                 deltas_dict["findings"] = [f.to_dict() for f in result.findings]
 
-            # Determine actions
-            if result.outcome == "COMPLETED":
+            # Determine actions (F-004 settle table: COMPLETED+findings COMMIT,
+            # COMPLETED+zero findings RELEASE, non-success RELEASE).
+            if result.outcome == "COMPLETED" and result.findings:
                 budget_action = "COMMIT"
+                lease_action = "ACK"
+            elif result.outcome == "COMPLETED":
+                budget_action = "RELEASE"
                 lease_action = "ACK"
             else:
                 budget_action = "RELEASE"
@@ -1064,11 +1068,12 @@ class SettlementCoordinator:
         else:
             outcome = "COMPLETED"
         # I28: settlement is the only budget commit/release point (I30 consume
-        # is single-use only). Stage tickets reserve at authorize; COMPLETED
-        # commits, FAILED/SKIPPED releases so reservations cannot leak.
-        if outcome == "COMPLETED":
+        # is single-use only). F-004 settle table:
+        # COMPLETED+findings → COMMIT; COMPLETED+zero findings → RELEASE;
+        # FAILED/SKIPPED → RELEASE.
+        if outcome == "COMPLETED" and committed_findings:
             budget_action = "COMMIT"
-        elif outcome in {"FAILED", "SKIPPED", "REJECTED", "TIMED_OUT"}:
+        elif outcome in {"COMPLETED", "FAILED", "SKIPPED", "REJECTED", "TIMED_OUT"}:
             budget_action = "RELEASE"
         else:
             budget_action = "NONE"

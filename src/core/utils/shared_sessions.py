@@ -54,6 +54,24 @@ _cleanup_done = False
 _cleanup_lock = threading.Lock()
 
 
+def _i29_request_hook(request: httpx.Request) -> None:
+    """I29: deny cloud-metadata and out-of-scope destinations on shared clients."""
+    from src.sandbox.egress_context import assert_egress_allowed
+    from src.sandbox.network_isolation import EgressViolationError
+
+    host = request.url.host
+    if not host:
+        return
+    try:
+        assert_egress_allowed(host, request.url.port)
+    except EgressViolationError:
+        raise
+
+
+async def _i29_async_request_hook(request: httpx.Request) -> None:
+    _i29_request_hook(request)
+
+
 def get_async_client(
     verify_ssl: bool = True,
     follow_redirects: bool = True,
@@ -86,6 +104,7 @@ def get_async_client(
                 max_keepalive_connections=max_keepalive,
                 keepalive_expiry=_DEFAULT_KEEPALIVE_EXPIRY,
             ),
+            event_hooks={"request": [_i29_async_request_hook]},
         )
         _async_clients[key] = client
         logger.debug(
@@ -268,6 +287,19 @@ def get_shared_sync_session() -> requests.Session:
         )
         session.mount("http://", adapter)
         session.mount("https://", adapter)
+        _orig_request = session.request
+
+        def _i29_request(method, url, **kwargs):  # type: ignore[no-untyped-def]
+            from src.sandbox.egress_context import assert_url_egress_allowed
+            from src.sandbox.network_isolation import EgressViolationError
+
+            try:
+                assert_url_egress_allowed(str(url))
+            except EgressViolationError:
+                raise
+            return _orig_request(method, url, **kwargs)
+
+        session.request = _i29_request  # type: ignore[method-assign]
         _thread_local.session = session
         # Bug #23: Track the session so cleanup can find it
         with _tracked_sessions_lock:

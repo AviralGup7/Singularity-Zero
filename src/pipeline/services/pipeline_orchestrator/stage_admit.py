@@ -118,7 +118,16 @@ def admit_stage(
     if not authorizer.consume_ticket(ticket):
         raise StageAdmissionError(f"I30: stage '{stage_name}' ticket consume failed before sandbox")
     host = request.target.host
-    sandbox = ProcessSandbox()
+    # Install process-wide I29 filter for in-process httpx/requests (F-004).
+    # Subprocess paths still go through ProcessSandbox.check_egress.
+    from src.sandbox.egress_context import install_filter_from_scope
+
+    scope_entries = getattr(getattr(ctx, "result", ctx), "scope_entries", None)
+    filt = install_filter_from_scope(
+        scope_token=getattr(request, "scope_token", None),
+        scope_entries=scope_entries,
+    )
+    sandbox = ProcessSandbox(egress_filter=filt)
     try:
         sandbox.check_egress(host)
     except Exception as exc:
@@ -128,6 +137,7 @@ def admit_stage(
     try:
         ctx.execution_ticket = ticket
         ctx.command_id = getattr(ticket, "command_id", "")
+        ctx.egress_filter = filt
     except Exception:
         logger.debug("Could not stamp execution_ticket on ctx", exc_info=True)
     return ticket

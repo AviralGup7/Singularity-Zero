@@ -516,6 +516,8 @@ While `F-004` diagrams the 19 core DAG stages and scheduling loop, the runtime c
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
+**I29 in-process egress (code):** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py`. Shared `httpx`/`requests` clients from `src/core/utils/shared_sessions.py` enforce that filter on every request (cloud metadata IMDS always denied). `SafeExploiter` / `ExploitationCampaign` call `assert_exploit_target_egress` before engine run. Subprocess tools still use `ProcessSandbox.check_egress`.
+
 ---
 
 ---
@@ -1080,5 +1082,7 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | Date | Milestone / Change Description | Kind |
 |---|---|---|
 | 2026-08-26 | Unified Architecture Specification (consolidated 13 core survivor charts F-001–F-033, merged F-034–F-045, grounded formal I1–I37 invariant registry) | active |
+
+| 2026-08-26 | F-004 I29: egress_context + shared_sessions hooks; SafeExploiter gate; COMPLETED+zero findings RELEASE (settle table) | edit |
 
 Append a row for every later edit. Do not delete this table.
