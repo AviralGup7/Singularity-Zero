@@ -43,7 +43,7 @@ Every graph in this atlas adheres to a standardized visual taxonomy:
 - `A --> B` : **Authoritative transition / synchronous flow** — verified data or control handoff.
 - `A ==> B` : **Primary / hot path execution** — default DAG execution or fast-path route.
 - `A -.-> B` : **Constraint / Non-Effect / Invariant assertion** (e.g. `L5 -.-> L0` forbidden, `FC -.-> FV` refinement).
-- `PORT_F006[["→ F-006 RESERVED"]]` : **Explicit cross-chart interface port** connecting partitioned diagrams.
+- `PORT_F006[["PORT: F-006 RESERVED"]]` : **Explicit cross-chart interface port** connecting partitioned diagrams.
 
 ### Node Status Classes (`classDef`)
 - `:::impl` : **Fully Implemented** — live production code in `src/`.
@@ -52,6 +52,19 @@ Every graph in this atlas adheres to a standardized visual taxonomy:
 - `:::specOnly` : **Specification / Future Plane** — formalized target architecture not yet active in live CLI.
 - `:::vacuous` : **Vacuous / No-Op State** — rehydration or check step that is empty by design in normal runs.
 - `:::forbidden` : **Forbidden / Fail-Closed** — explicitly illegal transition rejected by runtime gates.
+
+### Typed Authority Taxonomy
+
+The term "authority" is strictly typed across this specification to avoid semantic overloading:
+
+| Typed Authority | Scope & Plane | Authoritative Entity | Governed Invariants |
+|---|---|---|---|
+| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate` | I4, I8, I9, I10, I11, I22 |
+| **`BudgetAuthority`** | Partition Plane (`P-0000` Materialized L3) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I7, I19, I20, I21, I26, I28 |
+| **`DiscoveryAuthority`** | Frontier Plane (CRDT / Ephemeral) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`) | I23, I24, I25 |
+| **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox` | I29, I30, I33 |
+| **`PersistenceAuthority`** | Storage & Durability Engine | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11, I12, I14, I15, I31, I32 |
+| **`PresentationAuthority`** | Read Projections (L4–L5) | FastAPI, Zustand Stores, Telemetry Normalizer | *None* (Forbidden as truth source) |
 
 ---
 
@@ -216,6 +229,8 @@ flowchart TD
     
     Outbox -->|"HMAC Receipt"| Bridge["SettlementCoordinator Bridge"]:::impl
     Bridge --> F_Findings
+    Bridge --> PORT_F004_CRDT[["PORT: F-004 Findings CRDT Bag"]]
+    Outbox --> PORT_F019_BUS[["PORT: F-019 DurableOutbox EventBus Dispatch"]]
     Proj --> Cache["L4: Caches & Telemetry"]:::impl
     Cache --> UI["L5: Presentation & Dashboard"]:::impl
     UI -.->|"must never author L0–L3"| Forbidden["Forbidden as Truth Source"]:::forbidden
@@ -227,11 +242,19 @@ Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_
 
 ## F-004 — Live scan path, execution DAG & egress sandbox
 
-Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `src/sandbox/process_sandbox.py`, `src/analysis/dedup/`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042.
+Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`, `src/sandbox/process_sandbox.py`, `src/analysis/dedup/`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042.
 
 ```mermaid
 flowchart TD
-    subgraph Init["CLI Launch & DAG Construction (F-035)"]
+    subgraph PluginLifecycle["Dynamic Plugin Graph Lifecycle (F-035 Immutability Boundary)"]
+        Discover["1. DISCOVER: Scan Plugin Registry & Manifest"]:::impl --> Validate["2. VALIDATE: Schema & Runner Contracts"]:::impl
+        Validate --> Compose["3. COMPOSE: Merge _BASE_NODES + Plugins + _join_finding_producers"]:::impl
+        Compose --> VerifyDAG["4. VERIFY: Cycle Check & Condition Trees"]:::impl
+        VerifyDAG --> Freeze["5. FREEZE: Immutable Graph Sealed"]:::impl
+        Freeze --> Execute["6. EXECUTE: ActorScheduler Dispatch"]:::impl
+    end
+
+    subgraph Init["CLI Launch & Process Initialization"]
         CSTP["cstp CLI"]:::impl --> Launch["launch: Dashboard + Background Worker"]:::impl
         CSTP --> Scan["scan run: Runtime Pipeline"]:::impl
         CSTP --> Sys["system doctor / status / setup / cleanup"]:::impl
@@ -241,14 +264,12 @@ flowchart TD
         Recover --> Verify["verify_checkpoint_against_fsm"]:::impl
         Recover --> Auth["attach_pipeline_authority"]:::impl
         Auth --> Stamp["ctx.budget_enforcer + authorizer"]:::impl
-        BaseDAG["Base STAGE_GRAPH (16 nodes)"]:::impl --> PluginReg["Dynamic Plugin Discovery"]:::impl
-        PluginReg --> PluginVal["Plugin Schema Validation"]:::impl
-        PluginVal --> Inject["_join_finding_producers Dynamic Injection"]:::impl
-        Inject --> Sub["subdomains"]:::impl
     end
 
-    Stamp --> Sub
-    subgraph DAG["Runtime STAGE_GRAPH (graph_builder.py)"]
+    Execute --> DAG
+    Stamp --> Sub["subdomains"]:::impl
+
+    subgraph DAG["Runtime STAGE_GRAPH (Immutable After FREEZE)"]
         Sub --> Takeover["subdomain_takeover"]:::impl
         Sub --> LiveH["live_hosts"]:::impl
         LiveH --> WAF["waf"]:::impl
@@ -278,6 +299,7 @@ flowchart TD
         Req --> Budget{"HuntBudget.reserve"}:::impl
         Budget -->|Exhausted| Rej["ScopeAuthorizationError (Stage Skipped / Degraded)"]:::forbidden
         Budget -->|OK| Ticket["AuthorizedExecutionTicket I30 (Binds Quartet)"]:::impl
+        Budget --> PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
         Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use, Zero Commit)"]:::impl
         Consume --> PreCheck["Stage Admit Pre-Flight Egress Check"]:::impl
         PreCheck --> Exec["Tool Subprocess Execution (Timeouts, Stdio Capture)"]:::impl
@@ -293,19 +315,64 @@ flowchart TD
         Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
         Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
         WAL -->|COMMITTED + wal_id I31| CommitB["I28 Budget COMMIT --> Outbox FINDING_CREATED"]:::impl
+        CommitB --> PORT_F006_COM[["PORT: F-006 Settle Consumed"]]
         CommitB --> DedupStage["dedup_stage Clustering"]:::impl
         DedupStage --> FinalReport["Canonical Report Output"]:::impl
         CommitB -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
+        Emit --> PORT_F019_BUS[["PORT: F-019 EventBus Dispatch"]]
         CommitB -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
         WAL -->|FAILED Attempt with wal_id| FailedId["Settle REJECTED --> I28 Budget RELEASE (No FINDING_CREATED)"]:::impl
         WAL -->|REJECTED / DEDUPLICATED / No wal_id| Silent["Silent Settle Drop --> I28 Budget RELEASE"]:::impl
+        FailedId & Silent & Viol --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
     end
 ```
 
-Per-stage admit is `stage_admit.admit_stage`: authorize (I28 **reserve**) → **consume ticket (I30 single-use only)** → `ProcessSandbox.check_egress` (metadata-guard) → run. `ProcessSandbox.run` is unused. I28 **commit/release** is only at `SettlementCoordinator` / `BudgetProjection` (stage settle COMMIT on COMPLETED, RELEASE on FAILED/SKIPPED; execution settle same). Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`; the settle **status** name is `REJECTED` (wal_id present). `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). Report sinks alone do not pin low-value optional producers in the planner. Canonical `findings` CRDT bag is REPORTABLE surface (unstamped rows promote); evidence bags cannot bypass. `attach_pipeline_authority` is the only writer.
+### DAG Tripartite Edge Contract (U1)
 
+In `STAGE_GRAPH`, an edge $A \longrightarrow B$ carries three distinct formal semantics:
 
-Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` after plugins. Planner prefers the runtime Graph; `resolve_stage_timeout` prefers the runtime Graph node timeout, then `STAGE_TIMEOUTS` (complete map including recon_validation / threat_modeling / sca* / ci_export / dedup_stage). Nested nuclei/validation/active_scan/`_tool_runner` **skip** second `authorize()` when `ctx.execution_ticket` is set (stage admit is the only reserve+consume). Standalone tool entry still authorizes once. HMAC has **no** published fallback string; missing env key → process-local random (verify dies across restart). SettlementIntent carries `budget_reservation_id` from the stage ticket (F-033 I28↔I31).
+1. **Scheduling Precedence & Readiness Guard**: Stage $B$ is barred from entering the `ready` set until stage $A$ reaches a terminal status (`COMPLETED`, `DEGRADED`, `SKIPPED_DISABLED`, `SKIPPED_FAILED`, or `FAILED` for join sinks).
+2. **Context & Data Flow**: Stage $B$ consumes the accumulated findings, URLs, and telemetry produced by $A$ from the shared execution context / CRDT bag. If $A$ produced zero findings or was skipped, $B$ receives an empty collection.
+3. **Independent Authorization Barrier**: An edge $A \longrightarrow B$ does **not** transfer execution authorization or share budget reservations. Stage $B$ must obtain its own independently signed `AuthorizedExecutionTicket` (I30) with distinct reservation ID and consume it at admission.
+
+---
+
+### Dependency Failure Propagation Matrix (U2)
+
+| Dependency Classification | Example Edges | Upstream Status ($A$) | Downstream Action ($B$) | Terminal Status ($B$) | Budget & Error Handling |
+|---|---|---|---|---|---|
+| **Hard Gated (`when=OutputNonEmpty`)** | `live_hosts` $\rightarrow$ `active_scan`<br>`live_hosts` $\rightarrow$ `semgrep`<br>`live_hosts` $\rightarrow$ `nuclei` | `FAILED` / `DEGRADED`<br>(Zero outputs) | Evaluates `when` condition $\rightarrow$ `False`. Dispatch skipped. | `SKIPPED` (`condition_never_satisfied`) | Zero budget consumed; unreserved immediately. |
+| **Soft Enrichment (Heuristic Fallback)** | `waf` $\rightarrow$ `ranking`<br>`parameters` $\rightarrow$ `ranking` | `FAILED` / `DEGRADED`<br>`SKIPPED_*` | Dispatches normally; utilizes fallback heuristic defaults. | `COMPLETED` / `DEGRADED` | Standard budget reservation; degraded telemetry logged. |
+| **Aggregator / Join Sink (`_JOIN_SINKS`)** | `active_scan` $\rightarrow$ `reporting`<br>`nuclei` $\rightarrow$ `reporting`<br>`semgrep` $\rightarrow$ `reporting` | Any Terminal Status (`COMPLETED`, `DEGRADED`, `FAILED`, `SKIPPED_*`) | CAS-aware barrier unblocks as soon as *all* producers finish. Aggregates all available findings. | `COMPLETED` | Sinks unblock report export regardless of upstream failure. |
+
+---
+
+### Empty-Output vs. Failed-Output Semantics (U3)
+
+| Dimension | $A = \text{COMPLETED}$ (Zero Findings / 0 Items) | $A = \text{FAILED}$ (Exception / Timeout / Breaker) |
+|---|---|---|
+| **Epistemic Meaning** | **Authoritative Negative Proof**: Target inspected; 0 findings exist. | **Unobserved / Indeterminate State**: Inspection incomplete or crashed. |
+| **Downstream `OutputNonEmpty` Gate** | Evaluates to `False` $\rightarrow$ Downstream stage skips cleanly. | Evaluates to `False` $\rightarrow$ Downstream stage skips. |
+| **Budget Action (I28)** | `RELEASE` unconsumed units (no charge for clean scan). | `RELEASE` outstanding reservation. |
+| **PID & Breaker Resilience** | Counts as **successful probe** (Breaker stays `CLOSED`). | Counts as **failure probe** (Increments breaker error counter). |
+| **Pipeline Exit Code** | Clean path: Does not degrade job exit. | If $A$ is `critical=True` $\rightarrow$ Exit 3; if non-critical $\rightarrow$ Exit 4 (`PARTIAL_RUN`). |
+
+---
+
+### Formal Dynamic Plugin Graph Lifecycle (U4)
+
+To prevent runtime race conditions, recovery replay nondeterminism (I35), and snapshot divergence, the pipeline enforces an explicit 6-phase lifecycle boundary:
+
+$$\text{DISCOVER} \longrightarrow \text{VALIDATE} \longrightarrow \text{COMPOSE} \longrightarrow \text{VERIFY} \longrightarrow \text{FREEZE} \longrightarrow \text{EXECUTE}$$
+
+1. **`DISCOVER`**: Discover registered plugins via `StageRegistry` and `.ai/capability_manifest.json`.
+2. **`VALIDATE`**: Validate stage schemas, runner contracts, produces declarations, and timeout bounds.
+3. **`COMPOSE`**: Merge built-in `_BASE_NODES` with validated plugin nodes; run `_join_finding_producers` to bind all finding producers into `reporting.needs`.
+4. **`VERIFY`**: Run cycle detection (`graph.is_acyclic()`), validate condition trees (`All`, `FlagSet`, `OutputNonEmpty`), and verify timeout completeness.
+5. **`FREEZE`**: Seal the graph into an immutable `Graph(nodes=tuple(...))` object. **No runtime additions, deletions, or edge mutations are permitted after this boundary.**
+6. **`EXECUTE`**: `ActorScheduler` dispatches stages against the frozen graph with total reproducibility.
+
+---
 
 ### Settle Outcome Decision Table
 
@@ -487,6 +554,7 @@ flowchart TD
     end
 
     Run --> Precedence{"derive_job_and_exit"}:::impl
+    Precedence --> PORT_F007_CAS[["PORT: F-007 JobStatus CAS"]]
     Precedence -->|Cancel Signal| Exit130["Exit 130: STOPPED"]:::impl
     Precedence -->|Fatal Stage / No Output / I35 FAIL_CLOSED| Exit3["Exit 3: FAILED (Infra Failure)"]:::impl
     Precedence -->|Policy Violation| Exit2["Exit 2: COMPLETED (Policy Violation)"]:::impl
