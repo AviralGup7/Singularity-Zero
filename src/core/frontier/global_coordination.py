@@ -529,6 +529,33 @@ class PlacementAuthority:
         self._transfers.pop(str(aggregate_id), None)
         return True
 
+    def abort_transfer(
+        self,
+        aggregate_id: str,
+        epoch: int,
+    ) -> bool:
+        """I37 abort: revert FENCED lease back to OWNED on original home (e.g. on timeout/crash).
+
+        Epoch increments to immediately kill in-flight tokens and tickets.
+        """
+        from src.core.frontier.authority_transfer import abort_lease
+
+        rec = self._transfers.get(str(aggregate_id))
+        if rec is None or int(rec.epoch) != int(epoch):
+            return False
+        src_lease = self.lease_for(rec.from_partition)
+        if int(src_lease.authority_epoch) != int(epoch):
+            return False
+        next_version = int(self.placement_version) + 1
+        aborted = abort_lease(src_lease, placement_version=next_version)
+        self.placement_version = next_version
+        self._leases[rec.from_partition] = aborted
+        self.migration_states[aggregate_id] = (
+            f"ABORTED:{rec.from_partition}:{aborted.authority_epoch}"
+        )
+        self._transfers.pop(str(aggregate_id), None)
+        return True
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "placement_version": self.placement_version,
@@ -538,3 +565,4 @@ class PlacementAuthority:
             "partition_home": dict(self.partition_home),
             "leases": {k: v.to_dict() for k, v in self._leases.items()},
         }
+

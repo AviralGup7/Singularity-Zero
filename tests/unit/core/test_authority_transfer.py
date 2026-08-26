@@ -130,3 +130,40 @@ def test_i37_wrong_token_cannot_activate() -> None:
     assert placement.activate_ownership("agg", "P-0000", epoch, "fnc_forged") is False
     assert placement.is_fenced("P-0000") is True
     assert placement.activate_ownership("agg", "P-0000", epoch) is True
+
+
+def test_i37_transfer_abort_resumes_original_home() -> None:
+    placement = PlacementAuthority(home_region="us-east")
+    log = ReplicatedPartitionLog(
+        partition_id="P-0002",
+        is_leader=True,
+        local_region="us-east",
+        leader_region="us-east",
+    )
+    log.bind_placement(placement)
+    log.install_authority(placement.lease_for("P-0002"))
+    log.propose_and_commit(_cmd("cmd_1"))
+
+    epoch = placement.initiate_transfer("agg-abort", "P-0002", "P-0002", to_region="eu-west")
+    assert placement.is_fenced("P-0002") is True
+
+    # Abort transfer (e.g. on timeout or network partition)
+    assert placement.abort_transfer("agg-abort", epoch) is True
+    assert placement.is_fenced("P-0002") is False
+    assert placement.region_for_partition("P-0002") == "us-east"
+
+    # Original home resumes writes after installing new revision
+    log.install_authority(placement.lease_for("P-0002"))
+    log.propose_and_commit(_cmd("cmd_resumed"))
+
+    # Foreign writer remains rejected
+    foreign = ReplicatedPartitionLog(
+        partition_id="P-0002",
+        is_leader=True,
+        local_region="eu-west",
+        leader_region="eu-west",
+    )
+    foreign.bind_placement(placement)
+    with pytest.raises(AuthorityFenceError, match=I37_AUTHORITY_TRANSFER):
+        foreign.propose_and_commit(_cmd("cmd_foreign"))
+

@@ -165,21 +165,19 @@ def apply_pipeline_exit_status(
     elif stage_map is not None:
         from src.jobs.run_outcome import derive_job_and_exit
 
-        dest = derive_job_and_exit(
+        outcome = derive_job_and_exit(
             stage_map,
             findings,
             policy,
             cancel=False,
             policy_violated=policy_violated or returncode == 2,
-        ).job_status
-        # Empty/placeholder stage maps must not mask a process that exited 0
-        # with no stdout/stderr — that is pipeline_no_output (FAILED).
-        if dest is JobStatus.COMPLETED and returncode == 0 and no_pipeline_output:
-            dest = JobStatus.FAILED
-        elif dest is JobStatus.COMPLETED and returncode in (1, 3):
-            dest = JobStatus.FAILED
-        elif dest is JobStatus.COMPLETED and returncode == 4:
+            no_pipeline_output=bool(no_pipeline_output and returncode == 0),
+        )
+        dest = outcome.job_status
+        if outcome.exit_code == 4 or returncode == 4:
             job["degraded"] = True
+        if dest is JobStatus.COMPLETED and returncode in (1, 3):
+            dest = JobStatus.FAILED
         elif dest is JobStatus.COMPLETED and returncode in (130, 7):
             dest = JobStatus.STOPPED
     elif returncode == 0 and (no_pipeline_output or has_running_stages):
@@ -195,8 +193,12 @@ def apply_pipeline_exit_status(
         dest = JobStatus.FAILED
     else:
         dest = JobStatus.FAILED
+    current = parse_job_status(job.get("status"))
+    if dest is JobStatus.COMPLETED and current in {JobStatus.PENDING, JobStatus.STARTING}:
+        dest = JobStatus.FAILED if returncode != 0 else JobStatus.STOPPED
     if _transition(job, dest):
         return True
     if dest is JobStatus.COMPLETED:
         return _transition(job, JobStatus.STOPPED)
     return False
+

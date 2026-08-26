@@ -212,6 +212,29 @@ def fence_lease(
     return fenced, token
 
 
+def abort_lease(lease: AuthorityLease, *, placement_version: int) -> AuthorityLease:
+    """FENCED → OWNED on original home (abort / timeout). Epoch bumps to kill in-flight tokens."""
+    if lease.phase is not TransferPhase.FENCED:
+        raise AuthorityFenceError(
+            f"{I37_AUTHORITY_TRANSFER}: abort requires FENCED, not {lease.phase.value}"
+        )
+    epoch = int(lease.authority_epoch) + 1
+    new_token = mint_fence_token(lease.partition_id, epoch)
+    return replace(
+        lease,
+        phase=TransferPhase.OWNED,
+        authority_epoch=epoch,
+        fence_token=new_token,
+        pending_home="",
+        pending_partition="",
+        authority_revision=derive_authority_revision(
+            epoch=epoch,
+            placement_version=int(placement_version),
+            fence_token=new_token,
+        ),
+    )
+
+
 def activate_lease(lease: AuthorityLease, *, placement_version: int) -> AuthorityLease:
     """FENCED → OWNED on pending home. Old token is dead (new revision)."""
     if lease.phase is not TransferPhase.FENCED:
@@ -241,6 +264,7 @@ __all__ = [
     "I37_AUTHORITY_TRANSFER",
     "TransferPhase",
     "TransferRecord",
+    "abort_lease",
     "activate_lease",
     "assert_mutation_allowed",
     "assert_ticket_revision_live",
@@ -250,3 +274,5 @@ __all__ = [
     "genesis_lease",
     "mint_fence_token",
 ]
+
+

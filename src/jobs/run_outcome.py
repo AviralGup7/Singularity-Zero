@@ -52,18 +52,29 @@ def derive_job_and_exit(
     degraded_probes: Sequence[str] = (),
     policy_violated: bool | None = None,
     fatal_stages: Sequence[str] = (),
+    no_pipeline_output: bool = False,
 ) -> RunOutcome:
     """Total function from observed machines onto operator job + CI exit.
 
+    Strict total precedence order:
+      130 (cancel) > 3 (infra/fatal/no_output) > 2 (policy violation) > 4 (degraded) > 0 (clean/pass)
+
     Exit codes (stable taxonomy):
-      0  — completed; findings absent or under policy
-      2  — completed; findings exceeded policy
-      3  — infra / fatal stage failure
-      4  — partial (DEGRADED or SKIPPED_FAILED, non-fatal)
-    130  — cancelled
+        0  — completed; findings absent or under policy
+        2  — completed; findings exceeded policy
+        3  — infra / fatal stage failure / pipeline_no_output
+        4  — partial (DEGRADED or SKIPPED_FAILED, non-fatal)
+      130  — cancelled
     """
     if cancel:
         return RunOutcome(job_status=JobStatus.STOPPED, exit_code=EXIT_INTERRUPTED, reason="cancel")
+
+    if no_pipeline_output:
+        return RunOutcome(
+            job_status=JobStatus.FAILED,
+            exit_code=EXIT_INFRA_FAILURE,
+            reason="pipeline_no_output",
+        )
 
     stages = _stage_items(stage_map)
     failed = tuple(name for name, status in stages.items() if status is StageStatus.FAILED)
@@ -127,6 +138,7 @@ def derive_job_and_exit(
         degraded_stages=degraded,
         failed_stages=failed,
     )
+
 
 
 __all__ = [
