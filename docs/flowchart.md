@@ -159,15 +159,14 @@ flowchart TD
     GA <-->|"SWIM UDP AES-256-GCM"| GB
     RA -->|"WALReplicationRelay (Scan Journal Only I36)"| RB
     OB -.->|"must not commit settlements"| Forbidden["I36 / I37 Refuse Foreign Writer"]:::forbidden
-```
-
-```mermaid
-flowchart LR
-    OwnedA["A: OWNED (Writes Active)"]:::impl --> Fence["initiate_transfer: FENCED (No Writer Gap)"]:::impl
-    Fence --> OwnedB["activate_ownership: B OWNED"]:::impl
-    Fence -->|"abort / timeout"| AbortA["abort_transfer: A OWNED (Epoch Bumped)"]:::impl
-    Fence -.->|"A stale attempt"| RejectA["I37 Refuse: Stale Epoch / Token"]:::forbidden
-    Fence -.->|"B early mutation"| RejectB["I37 Refuse: Partition FENCED"]:::forbidden
+    
+    subgraph I37_Transfer["I37 Authority Transfer Lifecycle"]
+        OwnedA["Region A: OWNED (Writes Active)"]:::impl --> Fence["initiate_transfer: FENCED (Zero-Writer Gap)"]:::impl
+        Fence --> OwnedB["activate_ownership: Region B OWNED"]:::impl
+        Fence -->|"abort / timeout"| AbortA["abort_transfer: Region A OWNED (Epoch Bumped)"]:::impl
+        Fence -.->|"A stale attempt"| RejectA["Refuse: Stale Epoch / Token"]:::forbidden
+        Fence -.->|"B early mutation"| RejectB["Refuse: Partition FENCED"]:::forbidden
+    end
 ```
 
 ---
@@ -280,8 +279,6 @@ Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` 
 
 ---
 
-## F-005 — RETIRED → F-004
-
 ## F-006 — Leases and global budget
 
 Source: [architecture.md](architecture.md) I19/I28, [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/decision/hunt_budget.py`, `src/core/frontier/lease_status.py`. Absorbed F-011.
@@ -376,8 +373,6 @@ flowchart TD
 
 ---
 
-## F-008 — RETIRED → F-007
-
 ## F-009 — Resilience: breaker, QoS, PID & flow control
 
 Source: [architecture.md](architecture.md), [performance.md](performance.md), `src/infrastructure/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`. Absorbed F-024, F-030.
@@ -415,22 +410,6 @@ flowchart TD
 
 ---
 
-## F-010 — RETIRED → F-004
-
-## F-011 — RETIRED → F-006
-
-## F-012 — RETIRED → F-003
-
-## F-013 — RETIRED → F-004
-
-## F-014 — RETIRED → F-003
-
-## F-015 — RETIRED → F-004
-
-## F-016 — RETIRED → F-003
-
-## F-017 — RETIRED → F-004
-
 ## F-018 — Failure decision tree & I35 recovery protocol
 
 Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34), `src/core/frontier/recovery_protocol.py` (I35), `src/jobs/run_outcome.py`.
@@ -467,50 +446,47 @@ flowchart TD
     end
 ```
 
+### I34 Formal Failure Recovery Semantics
+
+| Failure Domain | Retry | Rollback | Compensate | Fail-Closed | Authoritative Resolution |
+|---|---|---|---|---|---|
+| **WAL Corruption** | No | No | No | **Yes** | Restore from last verified FSM snapshot |
+| **Authority Loss** | No | No | No | **Yes** | Await leader election or restart in quorum-1 mode |
+| **Replication Divergence** | No | No | No | **Yes** | Restore local FSM from leader PartitionWAL |
+| **Event Delivery Failure** | **Yes** | No | No | No | Replay outbox dispatch by `DeliveryId` (I32) |
+| **Budget Inconsistency** | No | No | **Yes** | **Yes** | Compensate outstanding I28 reservations |
+| **FSM Invariant Violation** | No | No | No | **Yes** | Snapshot re-baseline plus sequential WAL replay |
+| **Egress Policy Violation** | No | No | **Yes** | **Yes** | Terminate subprocess; release reserved requests |
+| **RunLock Collision** | No | No | No | **Yes** | Abort execution (Exit 1: Target under active scan) |
 
 ```mermaid
 flowchart TD
-    subgraph Table["I34 recovery semantics"]
-        WALC["WAL corruption"] --> WALP["Retry no / Rollback no / Compensate no / Fail-closed yes / restore snapshot"]
-        AUTH["Authority loss"] --> AUTHP["Retry no / Rollback no / Compensate no / Fail-closed yes / wait for leader or restart quorum-1"]
-        DIV["Replication divergence"] --> DIVP["Retry no / Rollback no / Compensate no / Fail-closed yes / restore FSM from leader WAL"]
-        BUS["Event delivery failure"] --> BUSP["Retry yes / Rollback no / Compensate no / Fail-closed no / replay dispatch by DeliveryId"]
-        BUD["Budget inconsistency"] --> BUDP["Retry no / Rollback no / Compensate yes / Fail-closed yes / compensate outstanding I28"]
-        FSM["FSM invariant violation"] --> FSMP["Retry no / Rollback no / Compensate no / Fail-closed yes / snapshot plus sequential replay"]
-    end
-```
-
-```mermaid
-flowchart TD
-    U["UNINITIALIZED"] --> LS["LOAD_SNAPSHOT"]
-    U --> LW0["LOAD_WAL"]
-    U --> Fresh["FRESH"]
-    LS --> VS["VERIFY_SNAPSHOT"]
-    VS -->|"partition plane unread schema"| Closed["FAIL_CLOSED"]
+    U["UNINITIALIZED"]:::impl --> LS["LOAD_SNAPSHOT"]:::impl
+    U --> LW0["LOAD_WAL"]:::impl
+    U --> Fresh["FRESH"]:::impl
+    LS --> VS["VERIFY_SNAPSHOT"]:::impl
+    VS -->|"partition plane unread schema"| Closed["FAIL_CLOSED"]:::forbidden
     VS -->|"frontier snapshot unread schema"| Fresh
-    VS --> LW["LOAD_WAL"]
+    VS --> LW["LOAD_WAL"]:::impl
     LW0 --> Rec
-    LW --> Rec["RECONCILE_SNAPSHOT_WAL"]
+    LW --> Rec["RECONCILE_SNAPSHOT_WAL"]:::impl
     Rec -->|"snapshot ahead / truncated partition"| Closed
-    Rec -->|"behind or semantically old"| Replay["REPLAY_WAL"]
-    Rec -->|"truncated frontier"| Stale["STALE snapshot then REPLAY_WAL"]
+    Rec -->|"behind or semantically old"| Replay["REPLAY_WAL"]:::impl
+    Rec -->|"truncated frontier"| Stale["STALE snapshot then REPLAY_WAL"]:::impl
     Stale --> Replay
-    Replay --> FSMR["RECONSTRUCT_FSM: partition plane only; scan path is FrontierWAL CRDT"]
-    FSMR --> Out["RECONCILE_OUTBOX"]
-    Out -->|"FSM without outbox"| Rebuild["rebuild by EventId"]
-    Out -->|"outbox without FSM"| Orphan["ignore orphan rows"]
-    Rebuild --> Del
-    Orphan --> Del
-    Out --> Del["RECONCILE_DELIVERY"]
-    Del -->|"delivery ahead"| Drop["discard extra DeliveryIds"]
-    Del -->|"delivery missing"| ReplayD["replay dispatch I32"]
-    Drop --> Inv
-    ReplayD --> Inv["VERIFY_INVARIANTS"]
-    Inv -->|"compensation crash: valid lease"| Comp["idempotent I28 replay"]
+    Replay --> FSMR["RECONSTRUCT_FSM (Partition Plane Only)"]:::impl
+    FSMR --> Out["RECONCILE_OUTBOX"]:::impl
+    Out -->|"FSM without outbox"| Rebuild["Rebuild by EventId"]:::impl
+    Out -->|"outbox without FSM"| Orphan["Ignore Orphan Rows"]:::vacuous
+    Rebuild & Orphan --> Del["RECONCILE_DELIVERY"]:::vacuous
+    Del -->|"delivery ahead"| Drop["Discard Extra DeliveryIds"]:::vacuous
+    Del -->|"delivery missing"| ReplayD["Replay Dispatch I32"]:::vacuous
+    Drop & ReplayD --> Inv["VERIFY_INVARIANTS (I30–I33 Check)"]:::impl
+    Inv -->|"compensation crash: valid lease"| Comp["Idempotent I28 Replay"]:::impl
     Inv -->|"compensation crash: uncompensatable"| Closed
-    Inv -->|"prerequisite invariant failed I30/I31/I32/I33"| Closed
-    Comp --> Ready["READY"]
-    Inv --> Ready
+    Inv -->|"prerequisite invariant failed"| Closed
+    Inv -->|"invariants verified"| Ready["READY"]:::impl
+    Comp --> Ready
 ```
 
 PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered tickets/settlements violate I30–I33 (`invariant_graph.py`). Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
@@ -589,8 +565,6 @@ Per-test timeout 20s (`pytest-timeout`). Do not CI-fail on k8s `REPLACE_WITH_*`.
 
 ---
 
-## F-021 — RETIRED → F-002
-
 ## F-022 — Gap-analysis status
 
 Source: [GAP_ANALYSIS.md](GAP_ANALYSIS.md)
@@ -607,10 +581,6 @@ flowchart LR
 ```
 
 ---
-
-## F-023 — RETIRED → F-019
-
-## F-024 — RETIRED → F-009
 
 ## F-025 — Non-authoritative planes
 
@@ -639,19 +609,7 @@ flowchart TD
     Hot --> Index
 ```
 
-## F-026 — RETIRED → F-019
-
-## F-027 — RETIRED → F-007
-
-## F-028 — RETIRED → F-025
-
-## F-029 — RETIRED → F-004
-
-## F-030 — RETIRED → F-009
-
-## F-031 — RETIRED → F-019
-
-## F-032 — RETIRED → F-025
+---
 
 ## F-033 — Global invariants I1–I37 proof graph & registry
 
@@ -701,15 +659,16 @@ Source: `src/core/frontier/invariant_graph.py`, `src/core/frontier/global_invari
 
 ```mermaid
 flowchart TD
-    subgraph I30_Box["I30 Authorization Causality Quartet"]
+    subgraph I30_Causality["I30 Authorization Causality Quartet"]
         Scope["ScopeToken Hash"]:::impl
         Res["BudgetReservation ID"]:::impl
         Rev["AuthorityRevision"]:::impl
         Cmd["CommandID"]:::impl
         Scope & Res & Rev & Cmd --> Ticket["AuthorizedExecutionTicket"]:::impl
-        Ticket -->|"missing binding"| Reject["no ticket / consume False"]:::forbidden
+        Ticket -->|"missing binding"| Reject["Refuse: Ticket Invalid"]:::forbidden
     end
-    subgraph I33_Box["I33 Causal Identity Chain"]
+    
+    subgraph I33_Identity["I33 Causal Identity Chain"]
         Cmd --> ExecId["ExecutionId"]:::impl
         ExecId --> AttId["AttemptId (retry n)"]:::impl
         AttId --> StlId["SettlementId"]:::impl
@@ -717,34 +676,32 @@ flowchart TD
         WalId --> EvtId["EventId"]:::impl
         EvtId --> DlvId["DeliveryId"]:::impl
     end
-    subgraph I31_Box["I31 Settlement Causality"]
+    
+    subgraph I31_Settlement["I31 Settlement & Outbox Causality"]
         Intent["SettlementIntent"]:::impl --> Durable["WAL wal_id COMMITTED"]:::impl
         Durable -->|"yes"| Finding["FINDING_CREATED Allowed"]:::impl
         Durable -->|"no"| NoEmit["EventBus Refuses Finding"]:::forbidden
-    end
-    subgraph I32_Box["I32 Durable Outbox Delivery"]
         Finding --> Outbox["DurableOutboxLedger"]:::impl
-        Outbox --> Bus["EventBus (In-Process Notify)"]:::impl
-        Bus --> Consumers["Subscribers / UI"]:::impl
+        Outbox --> Bus["EventBus (In-Process Dispatch)"]:::impl
+        Bus --> Consumers["Observers / UI"]:::impl
         Outbox -->|Append Fail| NoBus["No Bus Notification; Replay Later"]:::vacuous
     end
-```
-
-```mermaid
-flowchart TD
-    I22["I22 Clock Admission"]:::impl --> I30g["I30 Ticket Binding"]:::impl
-    I30g -->|"Every authorized execution gets causal IDs"| I33g["I33 Causal Identity"]:::impl
-    I30g --> I28g["I28 Settle-Only Budget"]:::impl
-    I33g --> I31g["I31 Settlement"]:::impl
-    I28g -->|"Settle cannot consume outside reservation"| I31g
-    I31g -->|"Only COMMITTED WAL may emit"| I32g["I32 Durable Outbox"]:::impl
-    I32g --> I34g["I34 Failure Semantics"]:::impl
-    I28g --> I34g
-    I34g --> I35g["I35 Recovery Protocol"]:::impl
-    I32g -->|"Recovery rebuilds delivery from durable state"| I35g
-    I35g -->|"READY before regional ownership"| I36g["I36 Single-Writer Region"]:::impl
-    I36g -->|"Transfer only via fence"| I37g["I37 Transfer Fence"]:::impl
-    I30g --> I37g
+    
+    subgraph ProofGraph["Invariant Dependency & Proof Graph"]
+        I22["I22 Clock Admission"]:::impl --> I30g["I30 Ticket Binding"]:::impl
+        I30g -->|"Every authorized execution gets causal IDs"| I33g["I33 Causal Identity"]:::impl
+        I30g --> I28g["I28 Settle-Only Budget"]:::impl
+        I33g --> I31g["I31 Settlement"]:::impl
+        I28g -->|"Settle cannot consume outside reservation"| I31g
+        I31g -->|"Only COMMITTED WAL may emit"| I32g["I32 Durable Outbox"]:::impl
+        I32g --> I34g["I34 Failure Semantics"]:::impl
+        I28g --> I34g
+        I34g --> I35g["I35 Recovery Protocol"]:::impl
+        I32g -->|"Recovery rebuilds delivery from durable state"| I35g
+        I35g -->|"READY before regional ownership"| I36g["I36 Single-Writer Region"]:::impl
+        I36g -->|"Transfer only via fence"| I37g["I37 Transfer Fence"]:::impl
+        I30g --> I37g
+    end
 ```
 
 ---
@@ -931,6 +888,35 @@ flowchart TD
 
 ---
 
+## Retired Chart Registry
+
+In accordance with §0 (Maintenance Contract), retired IDs are preserved as stable pointers below:
+
+| Retired ID | Original Scope | Survivor Section |
+|---|---|---|
+| `F-005` | Live Scan Stage Path | → [F-004](#f-004--live-scan-path--execution-dag) |
+| `F-008` | Finding Lifecycle States | → [F-007](#f-007--application-state-machines--coupling) |
+| `F-010` | Tool Execution Subprocess | → [F-004](#f-004--live-scan-path--execution-dag) |
+| `F-011` | Budget State Machine | → [F-006](#f-006--leases-and-global-budget) |
+| `F-012` | Network Raft Transport | → [F-003](#f-003--authority-plane--raft-l0l5) |
+| `F-013` | Checkpoint & FSM Rebuild | → [F-004](#f-004--live-scan-path--execution-dag) |
+| `F-014` | Zero I/O FSM Determinism | → [F-003](#f-003--authority-plane--raft-l0l5) |
+| `F-015` | Process Sandbox Enforcement | → [F-004](#f-004--live-scan-path--execution-dag) |
+| `F-016` | Durable Outbox Delivery | → [F-003](#f-003--authority-plane--raft-l0l5) |
+| `F-017` | Event Delivery Semantics | → [F-004](#f-004--live-scan-path--execution-dag) |
+| `F-021` | Multi-Region Gossip Protocol | → [F-002](#f-002--system-topology-and-regions) |
+| `F-023` | Frontend WebSocket Feeds | → [F-019](#f-019--operator-surface) |
+| `F-024` | Circuit Breaker Shedding | → [F-009](#f-009--resilience-breaker-qos-pid--flow-control) |
+| `F-026` | Telemetry Event Normalizer | → [F-019](#f-019--operator-surface) |
+| `F-027` | Job Status CAS Machine | → [F-007](#f-007--application-state-machines--coupling) |
+| `F-028` | Multi-Tier Cache Layer | → [F-025](#f-025--non-authoritative-planes) |
+| `F-029` | Recon Validation Stage | → [F-004](#f-004--live-scan-path--execution-dag) |
+| `F-030` | Priority QoS Admission | → [F-009](#f-009--resilience-breaker-qos-pid--flow-control) |
+| `F-031` | Telemetry Dispatch Normalizer | → [F-019](#f-019--operator-surface) |
+| `F-032` | Storage Tiering & Archival | → [F-025](#f-025--non-authoritative-planes) |
+
+---
+
 ## System Tunables & Environment Configuration
 
 | Variable | Default Value | Owning Subsystem | Description |
@@ -948,35 +934,13 @@ flowchart TD
 
 ## Changelog
 
-| Date | Change | Kind |
+| Date | Milestone / Change Description | Kind |
 |---|---|---|
-| 2026-08-25 | F-001–F-030 created | add |
-| 2026-08-25 | F-001/F-008 edit; F-031 F-032 added | edit |
-| 2026-08-25 | Merged into 11 survivors; retired absorbed ids | edit |
-| 2026-08-25 | Compacted retired headings and changelog (live charts unchanged) | edit |
-| 2026-08-25 | F-033: fail-closed I30 ledger + EventBus refuse unauthoritative FINDING_CREATED | edit |
-| 2026-08-25 | F-033: I33 CommandId→DeliveryId chain after code landed | edit |
-| 2026-08-25 | F-018: I34 recovery model next to the exit-code tree | edit |
-| 2026-08-26 | F-007: CANDIDATE is the finding surface start state | edit |
-| 2026-08-26 | F-019: Norm is frontend/src/telemetry/normalizer.ts | edit |
-| 2026-08-26 | F-003: attach_pipeline_authority lives in authority_bootstrap | edit |
-| 2026-08-26 | F-006: SETTLEMENT_PENDING is alias of ACTIVE | edit |
-| 2026-08-26 | F-018: I35 recovery protocol state machine | edit |
-| 2026-08-26 | F-002: I36 single-writer regions; relay is journal-only | edit |
-| 2026-08-26 | Align F-001 portal, F-004 DAG with graph_builder, F-007 SMs, F-018 recovery branches, F-020 CI combine job | edit |
-| 2026-08-26 | F-002/F-018/F-033: honest live path for I35 observation and I36 relay refuse | edit |
-| 2026-08-26 | F-002: I37 OWNED→FENCED→OWNED transfer fence | edit |
-| 2026-08-26 | F-004 per-stage ticket+FAILED settle+report join; F-007 CAS fail-closed + ticket axis; F-009 qos_admit; F-018 I35 execute + lattice; F-033 HMAC receipt | edit |
-| 2026-08-26 | F-033 proof graph I22→I37; F-018 VERIFY_INVARIANTS fail-closes on I30/I31 | edit |
-| 2026-08-26 | F-018: RecoveryManager collects recovered tickets/settlements for I35 | edit |
-| 2026-08-26 | F-004 consume-before-run + recon_validation; F-007 FAILED retry; F-018 exit 1/7 and Frontier reconstruct; F-002 live single-home | edit |
-| 2026-08-26 | F-007 JX is STOPPING; reporting join not large-debt starved | edit |
-| 2026-08-26 | F-004 consume commits I28 budget, P-0000, attach fail-closed + I35 PARTITION recovery | edit |
-| 2026-08-26 | F-033 bidirectional edges + reverse assumptions | edit |
-| 2026-08-26 | Sync atlas with live code: F-001 existing portal files only; F-004 runtime join producers + FAILED settle named REJECTED + HMAC/process-local key + double-reserve honesty; F-007 FAILED→SKIPPED_FAILED; F-018 lattice not total + empty I35 recovered sets; F-019 real SSE/WS paths; F-020 security-audit/scan/hardening/iac-scan/CI passed; F-022 Ghost in-process/gossip | edit |
-| 2026-08-26 | F-004/F-007: I30 consume is single-use only; I28 commit/release at settle; findings CRDT reportable bag; planner report-sink skip; no_pipeline_output FAIL | edit |
-| 2026-08-26 | Hardened atlas & codebase: F-002 abort_transfer; F-003 deterministic FSM apply; F-004 settle decision matrix + budget release; F-006 budget delta matrix; F-007 total lattice; F-009 QoS shedding matrix; F-018 total exit precedence; F-033 I1–I37 registry; added F-034–F-045 | edit |
-
-| 2026-08-26 | F-004/F-006: no nested double-reserve under stage ticket; complete STAGE_TIMEOUTS; settle budget_reservation_id; I30 consume ≠ I28 commit | edit |
+| 2026-08-25 | Initial Atlas baseline (F-001–F-032 created) | add |
+| 2026-08-25 | Architecture survivor consolidation (merged overlapping flows into survivor charts) | merge |
+| 2026-08-25 | Added F-033: fail-closed I30 ledger + I33 causal identity chain + I34 failure model | add |
+| 2026-08-26 | Formal invariant grounding: I35 dual-plane recovery protocol, I36 single-writer regions, I37 authority transfer fence | edit |
+| 2026-08-26 | Comprehensive Atlas audit hardening: resolved A1–A9, F-001–F-033 defects, added full I1–I37 Invariant Registry, and appended specialized architecture charts F-034–F-045 | harden |
+| 2026-08-26 | Atlas compression: merged dual diagrams, moved retired headings to end registry, and compacted milestone changelog | compress |
 
 Append a row for every later edit. Do not delete this table.
