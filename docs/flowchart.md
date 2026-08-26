@@ -268,12 +268,12 @@ Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [command
 ```mermaid
 flowchart TD
     subgraph GraphBuilderPipeline["Graph Construction & Conditioning Pipeline (graph_builder.py)"]
-        BaseNodes["1. _BASE_NODES (16 Static Nodes)"]:::impl --> MergePlugins["2. Merge Plugins from StageRegistry"]:::impl
+        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. Merge Plugins from StageRegistry"]:::impl
         MergePlugins --> ProfileOverride["3. Apply Capability Profile Manifest"]:::impl
         ProfileOverride --> PruneTools["4. Prune Unavailable Tools (nuclei/semgrep binary check)"]:::impl
         PruneTools --> DynamicJoin["5. _join_finding_producers (Bind all finding producers to reporting)"]:::impl
         DynamicJoin --> CycleCheck["6. Acyclic Verification (graph.is_acyclic)"]:::impl
-        CycleCheck ==> Freeze["7. FREEZE: Immutable Graph(nodes=tuple)"]:::impl
+        CycleCheck ==> Freeze["7. FREEZE: Immutable Graph(nodes=tuple) + GraphGenID"]:::impl
     end
 
     subgraph Init["Process Bootstrap & Authority Attachment"]
@@ -303,10 +303,10 @@ flowchart TD
         Urls & Params & WAF ==> Rank["ranking (needs: urls, params, waf)"]:::impl
         Rank & LiveH & Urls ==> Passive["passive_scan (needs: ranking, live_hosts, urls)"]:::impl
         
-        Passive ==> Active["active_scan"]:::impl
-        Passive ==> Semgrep["semgrep"]:::impl
-        Passive ==> Nuclei["nuclei"]:::impl
-        Rank & Passive ==> Access["access_control"]:::impl
+        Passive ==> Active["active_scan (needs: passive_scan)"]:::impl
+        Passive ==> Semgrep["semgrep (needs: passive_scan)"]:::impl
+        Passive ==> Nuclei["nuclei (needs: passive_scan)"]:::impl
+        Rank & Passive ==> Access["access_control (needs: ranking, passive_scan)"]:::impl
         
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Active
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Semgrep
@@ -360,23 +360,31 @@ flowchart TD
     end
 ```
 
-### Formal Graph Invariants & Construction Rules (G1, G4, G7, G8, G9)
+### Formal Graph Invariants & Construction Rules (G1–G9, U1–U2, U6)
 
-The runtime DAG adheres to four formal construction invariants verified at the `FREEZE` boundary:
+The runtime DAG adheres to eight formal invariants verified at the `FREEZE` boundary:
 
-1. **`I-GRAPH-01` (Need-Edge Equivalence)**:
-   $$\forall B \in \text{Graph.nodes}, \quad \text{incoming\_edges}(B) \equiv \text{declared\_needs}(B)$$
-   `Graph.__post_init__` derives in-degree and adjacency directly from `StageNode.needs`. There is zero divergence between graphical edges and declared dependencies.
-2. **`I-GRAPH-02` (Root & Sink Validity Contract)**:
-   The graph must contain at least one root node ($\text{in\_degree}=0$, e.g. `subdomains`) and at least one terminal sink ($\text{out\_degree}=0$, e.g. `sarif_export`, `ci_export`, `dedup_stage`). Every node must be reachable from a root, and every finding producer must have a directed path to `reporting`.
-3. **`I-GRAPH-03` (Orphan-Node Prohibition)**:
-   Any dynamically registered plugin node that lacks both incoming dependencies and downstream consumers is rejected during validation (`Graph.validate()`).
-4. **`I-GRAPH-04` (Stage Collision & Override Policy)**:
-   Plugin definitions override built-in nodes with matching IDs (`nodes_by_name[stage.name] = stage`). If two external plugins declare the same un-namespaced ID, validation raises `ValueError: Duplicate stage names in graph`.
-5. **`I-GRAPH-05` (Sink Membership Rule)**:
+1. **`I-GRAPH-01` (Topological Need-Edge Equivalence)**:
+   $$\forall B \in \text{Graph.nodes}, \quad \text{incoming\_topological\_edges}(B) \equiv B.\text{needs}$$
+   Only declared `needs` construct DAG topology and participate in Kahn topological ordering. Runtime conditional gates (`when`) are non-topological scheduling predicates.
+2. **`I-GRAPH-02` (Conjunctive Dependency Semantics)**:
+   All items in `StageNode.needs` are strictly **conjunctive (AND)**: Node $B$ cannot enter candidate readiness until $\forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$.
+3. **`I-GRAPH-03` (Root & Sink Validity Contract)**:
+   The graph must contain at least one root ($\text{in\_degree}=0$, `subdomains`) and at least one terminal sink ($\text{out\_degree}=0$, e.g. `sarif_export`), with all nodes reachable from a root and all finding producers having a directed path to `reporting`.
+4. **`I-GRAPH-04` (Isolated Node Prohibition)**:
+   Any registered stage lacking both incoming `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) is rejected during validation unless explicitly declared as a root or sink.
+5. **`I-GRAPH-05` (Stage Collision & Override Policy)**:
+   Plugin definitions override built-in nodes with matching IDs (`nodes_by_name[defn.name] = defn`). Duplicate un-namespaced IDs between two external plugins fail validation (`ValueError: Duplicate stage names in graph`).
+6. **`I-GRAPH-06` (Plugin Override Dependency Invariance)**:
+   A plugin stage that overrides a built-in stage ID MUST NOT remove mandatory architectural dependencies required by downstream consumers or weaken safety contracts.
+7. **`I-GRAPH-07` (Immutable Sink Membership Rule)**:
    At `FREEZE`, `reporting.needs` is dynamically populated with all active finding producers:
    $$\text{reporting.needs} = \{ n \in \text{Graph.nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$$
-   Disabled plugins and pruned tools (e.g. missing `nuclei`/`semgrep` binaries) are removed *prior* to `_join_finding_producers`, guaranteeing that sinks never wait on phantom nodes.
+   Disabled plugins and pruned tools (missing `nuclei`/`semgrep` binaries) are removed *prior* to `_join_finding_producers`, guaranteeing sinks never block on phantom nodes.
+8. **`I-GRAPH-08` (Deterministic Graph Generation & Fingerprint)**:
+   Every frozen graph computes a deterministic SHA-256 fingerprint:
+   $$\text{GraphGenID} = \text{SHA256}\Big(\big((n.\text{name}, n.\text{needs}, n.\text{weight}, n.\text{timeout}, n.\text{critical}) \text{ for } n \in \text{Graph.nodes}\big)\Big)$$
+   stamped on the run outcome for audit and recovery reproducibility (I35).
 
 ---
 
@@ -393,7 +401,7 @@ The orchestrator strictly decouples three orthogonal dependency concepts:
 
 ---
 
-### Tri-State Gating & Epistemic Model (G3, U2)
+### Tri-State Gating & Epistemic Model (G3, U2, C3)
 
 The scheduler resolves upstream status into three distinct epistemic states to prevent false equivalence:
 
@@ -404,7 +412,7 @@ The scheduler resolves upstream status into three distinct epistemic states to p
 | **`FAILED` / `DEGRADED`** | **Upstream Unobserved / Crash** | `False` | Gated skip | `SKIPPED` | `reason="UPSTREAM_UNOBSERVED"` |
 | **`SKIPPED_DISABLED`** | **Disabled by Policy / Profile** | `False` | Gated skip | `SKIPPED` | `reason="DISABLED_BY_POLICY"` |
 
-#### Universal Terminal Status Fulfillment Matrix (`_need_met`)
+#### Universal Terminal Status Fulfillment (`ActorScheduler._need_met`)
 - **Standard Stage Downstream**: Unblocked by $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$. Blocked by $\{ \text{FAILED}, \text{SKIPPED\_FAILED} \}$.
 - **CAS-Aware Join Sinks (`_JOIN_SINKS`)**: Unblocked by **ANY** terminal status: $\{ \text{COMPLETED}, \text{DEGRADED}, \text{FAILED}, \text{SKIPPED\_DISABLED}, \text{SKIPPED\_FAILED} \}$.
 
@@ -420,15 +428,21 @@ To prevent partial scans from being misinterpreted as complete clean scans, `rep
 
 ---
 
-### Runtime Readiness, Concurrency & Snapshot Semantics (U4, U5, U6)
+### Runtime Readiness, Concurrency, Snapshot, Retries & Cancellation (C4, U3, U4, U5, U7)
 
-1. **Concurrent Readiness Priority (U5)**:
+1. **Readiness Tick Triggers & Liveness (C4)**:
+   Readiness ticks fire on: (1) Stage completion/failure, (2) Worker capacity release, (3) Periodic heartbeat tick. Deferred nodes are re-evaluated on subsequent ticks; starvation prevention forces or skips nodes exceeding `_max_deferrals`.
+2. **Concurrent Readiness Priority (U5, U7)**:
    When multiple nodes unblock simultaneously, `_collect_ready_nodes` orders dispatch deterministically:
    $$\text{Sort Key} = (-\text{node.weight}, \quad \text{declaration\_index})$$
-   Nodes with higher weight (longer critical-path duration) receive worker pool capacity first.
-2. **Context Snapshot Semantics (U4)**:
+   Nodes with higher weight (`live_hosts=15`, `active_scan=15`, `nuclei=10`, `semgrep=10`, `subdomains=10`) receive worker pool capacity first.
+3. **Context Snapshot Semantics (U3, U4)**:
    Downstream stages observe the immutable CRDT state snapshot at the timestamp of stage admission (`admit_stage`), ordered monotonically by HLC (I23).
-3. **Budget Exhaustion Semantics (U6)**:
+4. **Retry & Re-execution Identity (U4)**:
+   Stage retries mint a new causal `AttemptId` (I33) and consume a fresh single-use ticket (I30), without reopening completed downstream stages.
+5. **Cancellation Propagation (U5)**:
+   SIGINT (Exit 130) cancels in-flight tasks (`asyncio.CancelledError`), marks pending/ready nodes `SKIPPED` (`reason="cancelled"`), releases outstanding budget reservations, and terminates subprocesses immediately.
+6. **Budget Exhaustion Semantics (U6)**:
    If `HuntBudget.reserve` fails during admission, `ScopeAuthorizationError` is raised. The stage is marked `SKIPPED` (`reason="budget_exhausted"`), releasing reservations and unblocking downstream nodes whose gates do not require positive findings.
 
 ---
@@ -439,9 +453,9 @@ $$\text{DISCOVER} \longrightarrow \text{VALIDATE} \longrightarrow \text{COMPOSE}
 
 1. **`DISCOVER`**: Discover registered plugins via `StageRegistry` and `.ai/capability_manifest.json`.
 2. **`VALIDATE`**: Validate stage schemas, runner contracts, produces declarations, and timeout bounds.
-3. **`COMPOSE`**: Merge built-in `_BASE_NODES` with plugin overrides; prune missing tool binaries; run `_join_finding_producers`.
-4. **`VERIFY`**: Enforce `I-GRAPH-01` through `I-GRAPH-05` (acyclicity, reachability, sink coverage).
-5. **`FREEZE`**: Seal the graph into an immutable `Graph(nodes=tuple(...))` object.
+3. **`COMPOSE`**: Merge built-in `_BASE_NODES` (19 nodes) with plugin overrides; prune missing tool binaries; run `_join_finding_producers`.
+4. **`VERIFY`**: Enforce `I-GRAPH-01` through `I-GRAPH-08` (acyclicity, reachability, sink coverage, collision safety).
+5. **`FREEZE`**: Seal the graph into an immutable `Graph(nodes=tuple(...))` object with `GraphGenID`.
 6. **`EXECUTE`**: `ActorScheduler` dispatches stages against the frozen graph.
 
 ---
