@@ -425,7 +425,7 @@ flowchart TD
 
 PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered tickets/settlements violate I30–I33 (`invariant_graph.py`). Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
 
-`RecoveryManager._execute_verdict` runs rebuild_outbox. FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for job + exit.
+`RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op). FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for job + exit.
 
 ---
 
@@ -641,5 +641,6 @@ flowchart TD
 | 2026-08-26 | F-002: I37 OWNED→FENCED→OWNED transfer fence | edit |
 | 2026-08-26 | F-004 per-stage ticket+FAILED settle+report join; F-007 CAS fail-closed + ticket axis; F-009 qos_admit; F-018 I35 execute + lattice; F-033 HMAC receipt | edit |
 | 2026-08-26 | F-033 proof graph I22→I37; F-018 VERIFY_INVARIANTS fail-closes on I30/I31 | edit |
+| 2026-08-26 | F-018: RecoveryManager collects recovered tickets/settlements for I35 | edit |
 
 Append a row for every later edit. Do not delete this table.
