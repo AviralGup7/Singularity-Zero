@@ -90,6 +90,7 @@ async def run_validation(
 
     authorizer = resolve_execution_authorizer(ctx=ctx, budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)
+    stage_ticket = getattr(ctx, "execution_ticket", None)
 
     for attempt in range(1, 3):
         try:
@@ -117,8 +118,6 @@ async def run_validation(
                 deadline=time.time() + 360.0,
             )
 
-            ticket = authorizer.authorize(req)
-
             def _run_val_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
                 summary = _validation_runtime(
                     analysis_results,
@@ -132,6 +131,12 @@ async def run_validation(
             worker.register_handler("validation_run", _run_val_action)
 
             def _execute_worker() -> dict[str, Any]:
+                # F-004: stage admit already reserved+consumed.
+                if stage_ticket is not None:
+                    action_res = _run_val_action(action, req)
+                    summary = action_res.get("summary", {})
+                    return summary if isinstance(summary, dict) else {}
+                ticket = authorizer.authorize(req)
                 res = worker.execute(ticket)
                 if res.outcome == "REJECTED":
                     raise RuntimeError(f"Validation execution rejected: {res.error}")

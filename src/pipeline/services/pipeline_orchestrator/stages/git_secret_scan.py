@@ -131,7 +131,9 @@ async def run_git_secret_scan_stage(
             if gitleaks_config.exists():
                 cmd.extend(["--config", str(gitleaks_config)])
 
-            result = await run_scanner(cmd, timeout=600)
+            result = await run_scanner(
+                cmd, timeout=600, execution_ticket=getattr(ctx, "execution_ticket", None)
+            )
             if is_scanner_crash(result.returncode):
                 logger.warning("Gitleaks exited with code %d: %s", result.returncode, result.stderr)
 

@@ -369,6 +369,15 @@ def resolve_stage_timeout(
     ctx: PipelineContext,
 ) -> int:
     base_timeout = int(STAGE_TIMEOUTS.get(stage_name, 600) or 600)
+    # F-004: runtime Graph is authoritative over the import-time map.
+    graph = getattr(orchestrator, "graph", None) or getattr(orchestrator, "_graph", None)
+    if graph is not None:
+        for node in getattr(graph, "nodes", ()) or ():
+            if getattr(node, "name", None) == stage_name:
+                node_timeout = int(getattr(node, "timeout", 0) or 0)
+                if node_timeout > 0:
+                    base_timeout = node_timeout
+                break
 
     filters = getattr(config, "filters", {}) if config is not None else {}
     if not isinstance(filters, dict):

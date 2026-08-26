@@ -227,7 +227,7 @@ flowchart TD
 
 Per-stage admit is `stage_admit.admit_stage`: authorize (I28 **reserve**) → **consume ticket (I30 single-use only)** → `ProcessSandbox.check_egress` (metadata-guard) → run. `ProcessSandbox.run` is unused. I28 **commit/release** is only at `SettlementCoordinator` / `BudgetProjection` (stage settle COMMIT on COMPLETED, RELEASE on FAILED/SKIPPED; execution settle same). Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`; the settle **status** name is `REJECTED` (wal_id present). `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). Report sinks alone do not pin low-value optional producers in the planner. Canonical `findings` CRDT bag is REPORTABLE surface (unstamped rows promote); evidence bags cannot bypass. `attach_pipeline_authority` is the only writer.
 
-Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` after plugins. Planner prefers the runtime Graph; some resume filters still walk import-time `STAGE_ORDER`. `STAGE_TIMEOUTS` omits `recon_validation`, `threat_modeling`, `subdomain_takeover`, sca/container/iac/git_secret, `ci_export`, `dedup_stage`. Nuclei/validation/active_scan/`_tool_runner` may still `authorize()` again (double reserve). HMAC has **no** published fallback string; missing env key → process-local random (verify dies across restart).
+Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` after plugins. Planner prefers the runtime Graph; `resolve_stage_timeout` prefers the runtime Graph node timeout, then `STAGE_TIMEOUTS` (complete map including recon_validation / threat_modeling / sca* / ci_export / dedup_stage). Nested nuclei/validation/active_scan/`_tool_runner` **skip** second `authorize()` when `ctx.execution_ticket` is set (stage admit is the only reserve+consume). Standalone tool entry still authorizes once. HMAC has **no** published fallback string; missing env key → process-local random (verify dies across restart). SettlementIntent carries `budget_reservation_id` from the stage ticket (F-033 I28↔I31).
 
 
 
@@ -258,7 +258,7 @@ flowchart TD
     EXPIRED --> Avail
 ```
 
-`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. EXPIRED is **not** in `TERMINAL` (it can still compensate). `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state.
+`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. EXPIRED is **not** in `TERMINAL` (it can still compensate). `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state. I30 ticket **consume is not** an I28 budget commit — only settle (`BudgetProjection` COMMIT/RELEASE, including stage settle) moves RESERVED → CONSUMED / COMPENSATED. Adaptive scan reserve→commit mirrors settle when no stage ticket path is used.
 
 ## F-007 — Application state machines
 
@@ -679,5 +679,7 @@ Each edge is bidirectional in `invariant_graph.py`: a forward statement and the 
 | 2026-08-26 | Sync atlas with live code: F-001 existing portal files only; F-004 runtime join producers + FAILED settle named REJECTED + HMAC/process-local key + double-reserve honesty; F-007 FAILED→SKIPPED_FAILED; F-018 lattice not total + empty I35 recovered sets; F-019 real SSE/WS paths; F-020 security-audit/scan/hardening/iac-scan/CI passed; F-022 Ghost in-process/gossip | edit |
 
 | 2026-08-26 | F-004/F-007: I30 consume is single-use only; I28 commit/release at settle; findings CRDT reportable bag; planner report-sink skip; no_pipeline_output FAIL | edit |
+
+| 2026-08-26 | F-004/F-006: no nested double-reserve under stage ticket; complete STAGE_TIMEOUTS; settle budget_reservation_id; I30 consume ≠ I28 commit | edit |
 
 Append a row for every later edit. Do not delete this table.

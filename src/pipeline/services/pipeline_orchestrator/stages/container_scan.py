@@ -107,6 +107,7 @@ async def run_container_scan_stage(
                     str(image),
                 ],
                 timeout=900,
+                execution_ticket=getattr(ctx, "execution_ticket", None),
             )
             if is_scanner_crash(result.returncode):
                 crashed = True
@@ -136,6 +137,7 @@ async def run_container_scan_stage(
                     config_target,
                 ],
                 timeout=600,
+                execution_ticket=getattr(ctx, "execution_ticket", None),
             )
             if is_scanner_crash(result.returncode):
                 crashed = True

@@ -113,7 +113,9 @@ async def run_sca_scan_stage(
                 scan_roots[0],
             ]
 
-        result = await run_scanner(cmd, timeout=600)
+        result = await run_scanner(
+            cmd, timeout=600, execution_ticket=getattr(ctx, "execution_ticket", None)
+        )
         if is_scanner_crash(result.returncode):
             ctx.mark_stage_failed("sca_scan", result.stderr or f"{tool} exit {result.returncode}")
             duration = round(time.monotonic() - stage_started, 2)

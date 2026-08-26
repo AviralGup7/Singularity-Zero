@@ -210,10 +210,25 @@ async def run_active_scanning_adaptive(
         error_accumulator=degraded_probes,
     )
 
+    stage_ticket = getattr(ctx, "execution_ticket", None)
+
     async def authorized_probe_fn(url: str) -> list[dict[str, Any]]:
         parsed = urlparse(url)
         host = parsed.hostname or url
         path = parsed.path or "/"
+        # F-004: stage admit already reserved+consumed for active_scan. Per-URL
+        # authorize() double-reserves HuntBudget and is skipped under a stage
+        # ticket. Still enforce I29 egress against the target host.
+        if stage_ticket is not None:
+            try:
+                from src.sandbox.process_sandbox import ProcessSandbox
+
+                ProcessSandbox().check_egress(host)
+            except Exception as exc:
+                logger.warning("I29 egress refused for %s: %s", url, exc)
+                return []
+            return await raw_composite_probe(url)
+
         req = ExecutionRequest(
             request_id=f"req_{uuid.uuid4().hex[:12]}",
             tenant_id=str(getattr(ctx, "tenant_id", "default") or "default"),

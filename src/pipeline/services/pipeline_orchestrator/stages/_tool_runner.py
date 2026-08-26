@@ -31,8 +31,15 @@ async def run_scanner(
     stage_name: str = "tool_scan",
     tenant_id: str = "default",
     budget_enforcer: Any | None = None,
+    execution_ticket: Any | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run authorized scanner subprocess under formal contract of intent."""
+    """Run scanner under ProcessSandbox.
+
+    F-004: stage admit already reserved+consumed. Nested ``authorize()`` is a
+    double-reserve and is skipped when ``execution_ticket`` (or the live hunt
+    budget with a stage ticket on ctx) is supplied. Fresh authorize is only for
+    standalone tool invocations outside the stage path.
+    """
     from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
     from src.decision.models import (
         ActionSpec,
@@ -42,6 +49,7 @@ async def run_scanner(
         TargetSpec,
     )
     from src.execution.request_executor import ExecutionRequestWorker
+    from src.pipeline.authority_bootstrap import resolve_execution_authorizer
 
     if budget_enforcer is None:
         from src.core.frontier.authority_runtime import get_current_hunt_budget
@@ -50,8 +58,6 @@ async def run_scanner(
     enforcer = budget_enforcer or HuntBudgetEnforcer(
         HuntBudget(max_requests=1000), label=stage_name
     )
-    from src.pipeline.authority_bootstrap import resolve_execution_authorizer
-
     authorizer = resolve_execution_authorizer(budget_enforcer=enforcer)
     worker = ExecutionRequestWorker(authorizer=authorizer)
 
@@ -74,7 +80,11 @@ async def run_scanner(
         deadline=time.time() + timeout + 10.0,
     )
 
-    ticket = authorizer.authorize(req)
+    ticket = execution_ticket
+    skip_consume = ticket is not None
+    if ticket is None:
+        ticket = authorizer.authorize(req)
+        skip_consume = False
 
     def _run_tool_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
         from src.sandbox.network_isolation import NetworkEgressFilter
@@ -107,6 +117,16 @@ async def run_scanner(
     worker.register_handler("subprocess_scan", _run_tool_action)
 
     def _execute_worker() -> subprocess.CompletedProcess[str]:
+        # Stage-admit already consumed the ticket (F-004). Nested worker.execute
+        # would fail I30 single-use; run the handler under the parent ticket.
+        if skip_consume:
+            action_res = _run_tool_action(action, req)
+            return subprocess.CompletedProcess(
+                args=list(cmd),
+                returncode=action_res.get("returncode", 1),
+                stdout=action_res.get("stdout", ""),
+                stderr=action_res.get("stderr", ""),
+            )
         res = worker.execute(ticket)
         if res.outcome == "REJECTED":
             raise RuntimeError(f"Tool execution authorization rejected: {res.error}")

@@ -137,6 +137,7 @@ async def run_nuclei_stage(
 
         authorizer = resolve_execution_authorizer(ctx=ctx, budget_enforcer=enforcer)
         worker = ExecutionRequestWorker(authorizer=authorizer)
+        stage_ticket = getattr(ctx, "execution_ticket", None)
 
         action = ActionSpec(
             action_id=f"act_{uuid.uuid4().hex[:8]}",
@@ -159,8 +160,6 @@ async def run_nuclei_stage(
             deadline=time.time() + 360.0,
         )
 
-        ticket = authorizer.authorize(req)
-
         def _run_nuclei_action(act: ActionSpec, r: ExecutionRequest) -> dict[str, Any]:
             findings = run_nuclei_adaptive(
                 nuclei_targets,
@@ -175,6 +174,12 @@ async def run_nuclei_stage(
         worker.register_handler("nuclei_scan", _run_nuclei_action)
 
         def _execute_worker() -> list[dict[str, Any]]:
+            # F-004: stage admit already reserved+consumed — no nested authorize.
+            if stage_ticket is not None:
+                action_res = _run_nuclei_action(action, req)
+                findings = action_res.get("findings", [])
+                return findings if isinstance(findings, list) else []
+            ticket = authorizer.authorize(req)
             res = worker.execute(ticket)
             if res.outcome == "REJECTED":
                 logger.error("Nuclei execution authorization rejected: %s", res.error)

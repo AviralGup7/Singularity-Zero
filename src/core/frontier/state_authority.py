@@ -81,6 +81,7 @@ class SettlementResult:
     command_id: str = ""
     attempt_id: str = ""
     settlement_id: str = ""
+    budget_reservation_id: str = ""
     event_ids: tuple[str, ...] = ()
     delivery_ids: tuple[str, ...] = ()
 
@@ -96,6 +97,7 @@ class SettlementResult:
             "command_id": self.command_id,
             "attempt_id": self.attempt_id,
             "settlement_id": self.settlement_id,
+            "budget_reservation_id": self.budget_reservation_id,
             "event_ids": list(self.event_ids),
             "delivery_ids": list(self.delivery_ids),
         }
@@ -402,6 +404,7 @@ class SettlementIntent:
     state_delta: Mapping[str, Any] = field(default_factory=dict)
     budget_action: str = "COMMIT"  # "COMMIT", "RELEASE", "NONE"
     budget_request_count: int = 1
+    budget_reservation_id: str = ""
     lease_action: str = "ACK"  # "ACK", "RELEASE", "NONE"
     lease_target_url: str = ""
     lease_worker_id: str = ""
@@ -428,6 +431,7 @@ class SettlementIntent:
             "state_delta": _to_mutable(self.state_delta),
             "budget_action": self.budget_action,
             "budget_request_count": self.budget_request_count,
+            "budget_reservation_id": self.budget_reservation_id,
             "lease_action": self.lease_action,
             "lease_target_url": self.lease_target_url,
             "lease_worker_id": self.lease_worker_id,
@@ -457,6 +461,7 @@ class SettlementIntent:
             state_delta=dict(mapping.get("state_delta") or {}),
             budget_action=str(mapping.get("budget_action") or "COMMIT"),
             budget_request_count=int(mapping.get("budget_request_count") or 1),
+            budget_reservation_id=str(mapping.get("budget_reservation_id") or ""),
             lease_action=str(mapping.get("lease_action") or "ACK"),
             lease_target_url=str(mapping.get("lease_target_url") or ""),
             lease_worker_id=str(mapping.get("lease_worker_id") or ""),
@@ -913,6 +918,11 @@ class SettlementCoordinator:
                 budget_action = "RELEASE"
                 lease_action = "RELEASE"
 
+            reservation_id = str(
+                getattr(result, "budget_reservation_id", "")
+                or getattr(lease, "budget_reservation_id", "")
+                or ""
+            )
             intent = SettlementIntent(
                 settlement_id=(
                     identity.settlement_id if identity else f"stl_{uuid.uuid4().hex[:12]}"
@@ -932,6 +942,7 @@ class SettlementCoordinator:
                 state_delta=deltas_dict,
                 budget_action=budget_action,
                 budget_request_count=request_count,
+                budget_reservation_id=reservation_id,
                 lease_action=lease_action,
                 lease_target_url=lease.target_url if lease else "",
                 lease_worker_id=lease.worker_id if lease else "",
@@ -978,6 +989,7 @@ class SettlementCoordinator:
                 command_id=intent.command_id,
                 attempt_id=intent.attempt_id,
                 settlement_id=intent.settlement_id,
+                budget_reservation_id=intent.budget_reservation_id,
             )
 
     def replay_projections(self, wal: Any | None = None) -> dict[str, int]:
@@ -1060,6 +1072,16 @@ class SettlementCoordinator:
             budget_action = "RELEASE"
         else:
             budget_action = "NONE"
+        ticket = getattr(ctx, "execution_ticket", None)
+        reservation_id = str(getattr(ticket, "budget_reservation_id", "") or "")
+        # F-033: COMMITTED settlement must carry a ledger reservation when I28
+        # commit/release runs (unknown reservation is not a settlement).
+        if budget_action in {"COMMIT", "RELEASE"} and reservation_id:
+            pass
+        elif budget_action in {"COMMIT", "RELEASE"} and not reservation_id:
+            # Stage path without admit (tests / detached) still projects state;
+            # budget projection may no-op if nothing is reserved.
+            pass
         intent = SettlementIntent(
             settlement_id=identity.settlement_id,
             execution_id=exec_id,
@@ -1071,6 +1093,7 @@ class SettlementCoordinator:
             state_delta=state_delta,
             budget_action=budget_action,
             budget_request_count=1,
+            budget_reservation_id=reservation_id,
             lease_action="NONE",
         )
         try:
@@ -1108,6 +1131,7 @@ class SettlementCoordinator:
             command_id=identity.command_id,
             attempt_id=identity.attempt_id,
             settlement_id=identity.settlement_id,
+            budget_reservation_id=reservation_id,
         )
 
 

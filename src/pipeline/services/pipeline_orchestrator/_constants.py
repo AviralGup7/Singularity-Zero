@@ -63,24 +63,40 @@ PIPELINE_STAGES = {
     for node in STAGE_GRAPH.nodes
 }
 
+# Prefer Graph node timeouts (F-004). Keep a complete map so resume /
+# dashboard / resolve_stage_timeout never silently fall back to 600s for
+# stages the graph already named.
 STAGE_TIMEOUTS = {
     "subdomains": 600,
     "live_hosts": 900,
     "waf": 120,
     "urls": 900,
+    "recon_validation": 30,
     "parameters": 120,
     "ranking": 60,
     "passive_scan": 300,
     "active_scan": 900,
     "semgrep": 600,
+    "subdomain_takeover": 300,
     "validation": 300,
     "intelligence": 180,
+    "threat_modeling": 300,
     "access_control": 600,
     "reporting": 300,
     "nuclei": 600,
     "git_diff_crawl": 30,
     "sarif_export": 30,
+    "sca_scan": 600,
+    "container_scan": 900,
+    "iac_scan": 600,
+    "git_secret_scan": 600,
+    "ci_export": 120,
+    "dedup_stage": 120,
+    "sbom_generate": 120,
+    "sbom_diff": 120,
 }
+for _node in STAGE_GRAPH.nodes:
+    STAGE_TIMEOUTS.setdefault(_node.name, int(getattr(_node, "timeout", 600) or 600))
 
 STAGE_DEPS: dict[str, frozenset[str]] = {
     node.name: frozenset(node.needs) for node in STAGE_GRAPH.nodes
