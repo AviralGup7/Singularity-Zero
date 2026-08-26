@@ -88,7 +88,7 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 | F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | 2026-08-26 (`9cb16b25`) |
 | F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | 2026-08-26 (`eb763fe7`) |
 | F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | 2026-08-26 (`95ed3b7e`) |
-| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | 2026-08-26 (`1ebc2754`) |
+| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | 2026-08-26 (`c989d3be`) |
 | F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py` | F-011, F-038 | 2026-08-26 (`d49bfb05`) |
 | F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | 2026-08-26 (`12113b4b`) |
 | F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py` | F-024, F-030 | 2026-08-26 (`e7803858`) |
@@ -263,7 +263,7 @@ Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_
 
 ## F-004 — Live scan path, execution DAG & egress sandbox
 
-Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`, `src/sandbox/process_sandbox.py`, `src/analysis/dedup/`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042.
+Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`, `src/pipeline/services/pipeline_orchestrator/stage_admit.py`, `src/sandbox/process_sandbox.py`, `src/sandbox/egress_context.py`, `src/core/utils/shared_sessions.py`, `src/analysis/dedup/`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042.
 
 ```mermaid
 flowchart TD
@@ -334,12 +334,17 @@ flowchart TD
         Budget -->|OK| Ticket["AuthorizedExecutionTicket I30 (Binds Quartet)"]:::impl
         Budget --> PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
         Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use, Zero Commit)"]:::impl
-        Consume --> PreCheck["Stage Admit Pre-Flight Egress Check"]:::impl
+        Consume --> InstallFilt["install_filter_from_scope → egress_context ContextVar"]:::impl
+        InstallFilt --> PreCheck["Stage Admit Pre-Flight Egress Check"]:::impl
         PreCheck --> Exec["Tool Subprocess Execution (Timeouts, Stdio Capture)"]:::impl
+        PreCheck --> InProc["In-process HTTP via shared_sessions hooks"]:::impl
         Exec --> SocketConn["Socket Connect / DNS Resolution"]:::impl
-        SocketConn --> EgressGuard{"In-Scope IP Guard"}:::impl
+        SocketConn --> EgressGuard{"ProcessSandbox.check_egress"}:::impl
+        InProc --> HookGuard{"shared_sessions I29 event_hooks / session.request"}:::impl
         EgressGuard -->|In Scope| Out["StageOutput / RawExecutionClaim"]:::impl
+        HookGuard -->|In Scope| Out
         EgressGuard -->|Out of Scope / TOCTOU| Viol["EgressViolationError --> Kill Subprocess + Release Budget"]:::forbidden
+        HookGuard -->|Out of Scope / IMDS| Viol
     end
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (F-042)"]
@@ -516,9 +521,19 @@ While `F-004` diagrams the 19 core DAG stages and scheduling loop, the runtime c
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
-**I29 in-process egress (code):** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py`. Shared `httpx`/`requests` clients from `src/core/utils/shared_sessions.py` enforce that filter on every request (cloud metadata IMDS always denied). `SafeExploiter` / `ExploitationCampaign` call `assert_exploit_target_egress` before engine run. Subprocess tools still use `ProcessSandbox.check_egress`.
+**I29 in-process egress (code):** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; metadata/IMDS always denied). Shared `httpx`/`requests` clients from `src/core/utils/shared_sessions.py` enforce that filter on every request via event hooks / wrapped `session.request`. `SafeExploiter` / `ExploitationCampaign` call `assert_exploit_target_egress` before engine run. Subprocess tools still use `ProcessSandbox.check_egress`.
 
----
+**I29 residual (honest gap):** raw `httpx.AsyncClient()` / `httpx.Client()` / bare `requests.*` call sites outside `shared_sessions` (notably `src/analysis/active/**`, some `src/execution/auth/**`) do **not** inherit the ContextVar hooks unless refactored to the shared client or an explicit `assert_*_egress` call. Prefer shared-boundary hooks over per-file rewrites.
+
+**I28/I30 residual on exploitation:** campaign / SafeExploiter entry currently gates **egress only** (I29). Full HuntBudget reserve + I30 ticket binding remains on the stage_admit path; standalone exploit entry does not yet mint/consume an `AuthorizedExecutionTicket` or settle budget.
+
+**Package path honesty (not dual writers):**
+| Surface | Role | Authority |
+|---|---|---|
+| `src/core/frontier/*` | Live authority (StateAuthority, WAL settle, CRDT, Raft helpers) | **Authoritative** |
+| `src/frontier/*` | Thin facades + test-only `MemoryJournal` (in-memory WAL stand-in) | **Non-authoritative** — never a production settle path |
+| `src/cache`, `src/checkpoint` | Facades → `pipeline.unified_cache` / `core.checkpoint` | **Non-authoritative** caches |
+| `src/intel` vs `src/intelligence` | Distinct domains (feed/IOC aggregation vs attack-chain / risk scoring), both attach at `intelligence` stage | Both `impl`; not duplicates |
 
 ---
 
@@ -857,7 +872,7 @@ flowchart LR
 
 ## F-025 — Non-authoritative planes, caches & multi-tier storage
 
-Source: [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), [architecture.md](architecture.md) §7.17, `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, `src/pipeline/maintenance.py`. Absorbed F-028, F-032, F-041.
+Source: [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), [architecture.md](architecture.md) §7.17, `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, `src/pipeline/maintenance.py`, facades `src/cache/`, `src/checkpoint/`. Absorbed F-028, F-032, F-041.
 
 ```mermaid
 flowchart TD
@@ -882,7 +897,19 @@ flowchart TD
         PruneCheck -->|Yes| Arch["Gzip Compressed Archive Tier"]:::impl
         Arch --> PruneJob["cstp system cleanup (Pruning)"]:::impl
     end
+
+    subgraph Facades["Thin non-authoritative import facades"]
+        CacheFacade["src/cache → pipeline.unified_cache"]:::library
+        CkptFacade["src/checkpoint → core.checkpoint"]:::library
+        FrontFacade["src/frontier facades → core.frontier / infrastructure WAL"]:::library
+        MemJ["src/frontier.MemoryJournal (unit-test WAL stand-in only)"]:::vacuous
+        CacheFacade -.->|never truth| MultiTierCache
+        CkptFacade -.->|never truth| MultiTierCache
+        MemJ -.->|refuse/guard| AuthPlane["StateAuthority / PartitionWAL (F-003)"]:::forbidden
+    end
 ```
+
+Facade packages re-export live implementations for stable import paths. They must not grow a second settle, budget, or WAL writer. `MemoryJournal` is explicitly test-only and is not attached on the live scan path.
 
 ---
 
@@ -925,9 +952,9 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I25** | CRDT convergence under commutative merge | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
 | **I26** | Multi-Raft quota slab conservation | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
 | **I27** | Bounded per-host bulkhead concurrency | F-009 | `infrastructure/` | `test_resilience.py` | `impl` |
-| **I28** | Settle-only budget commit & integer conservation | F-006 | `hunt_budget.py` | `test_global_invariants.py` | `impl` |
-| **I29** | Pre-flight & continuous egress scope enforcement | F-004 | `process_sandbox.py` | `test_sandbox.py` | `impl` |
-| **I30** | Cryptographic quartet ticket binding | F-033 | `authorization.py` | `test_global_invariants.py` | `impl` |
+| **I28** | Settle-only budget commit & integer conservation | F-006 | `hunt_budget.py`, `state_authority.py` (COMPLETED+findings → COMMIT; COMPLETED+zero / FAILED/SKIPPED → RELEASE) | `test_global_invariants.py`, `test_state_authority_durability.py`, `test_i29_egress_context.py` | `impl` |
+| **I29** | Pre-flight & continuous egress scope enforcement | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (shared-client + subprocess; raw httpx residual) |
+| **I30** | Cryptographic quartet ticket binding | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py` | `test_global_invariants.py` | `impl` (stage path; exploit campaign entry residual) |
 | **I31** | Settlement-gated `FINDING_CREATED` emission | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
 | **I32** | Non-authoritative EventBus outbox decoupling | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
 | **I33** | Causal identity chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `test_causal_identity.py` | `impl` |
@@ -1084,5 +1111,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | Unified Architecture Specification (consolidated 13 core survivor charts F-001–F-033, merged F-034–F-045, grounded formal I1–I37 invariant registry) | active |
 
 | 2026-08-26 | F-004 I29: egress_context + shared_sessions hooks; SafeExploiter gate; COMPLETED+zero findings RELEASE (settle table) | edit |
+| 2026-08-26 | F-004 sandbox mermaid + residual honesty (raw httpx bypass, exploit I28/I30 gap); F-025 facade/MemoryJournal non-authority; F-033 I28/I29/I30 code citations; atlas index `c989d3be` | edit |
 
 Append a row for every later edit. Do not delete this table.
