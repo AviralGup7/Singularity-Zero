@@ -42,7 +42,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | Id | Chart | Source |
 |---|---|---|
 | F-001 | Documentation portal map | [index.md](index.md) |
-| F-002 | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `region_model.py` (I36) |
+| F-002 | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `region_model.py` (I36), `authority_transfer.py` (I37) |
 | F-003 | Authority plane | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
 | F-004 | Live scan path | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md) |
 | F-006 | Leases and global budget | [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md) |
@@ -90,9 +90,9 @@ flowchart TD
 
 ## F-002 — System topology and regions
 
-Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `src/core/frontier/region_model.py` (I36). Absorbed F-021.
+Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37). Absorbed F-021.
 
-A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home can move after a fenced `P-0000` transfer. The relay is journal-only (`reconcile_with_peer` drops settlement/command rows).
+A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap). The relay is journal-only (`reconcile_with_peer` drops settlement/command rows).
 
 ```mermaid
 flowchart TD
@@ -120,6 +120,14 @@ flowchart TD
     GA <-->|"SWIM UDP AES-256-GCM"| GB
     RA -->|"WALReplicationRelay journal only I36"| RB
     OB -.->|"must not commit peer settlements"| Forbidden["I36 refuse"]
+```
+
+```mermaid
+flowchart LR
+    OwnedA["A OWNED writes"] --> Fence["initiate_transfer FENCED no writer"]
+    Fence --> OwnedB["activate_ownership B OWNED"]
+    Fence -.->|"A still believes leader"| RejectA["I37 refuse stale epoch or token"]
+    Fence -.->|"B not activated"| RejectB["I37 refuse FENCED"]
 ```
 
 ## F-003 — Authority plane
@@ -535,7 +543,7 @@ flowchart TD
 
 ## F-033 — Global invariants I30–I33
 
-Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`. I34–I35 live on F-018. I36 lives on F-002.
+Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`. I34–I35 live on F-018. I36–I37 live on F-002.
 
 EventBus is an **in-process notification dispatcher**, not a durable log and not a source of truth. Authoritative Event → Durable Outbox → Delivery Dispatcher → EventBus → consumers. `EventBus.emit(FINDING_CREATED)` without `wal_id` + `authoritative=True` is refused.
 
@@ -597,5 +605,6 @@ flowchart TD
 | 2026-08-26 | F-002: I36 single-writer regions; relay is journal-only | edit |
 | 2026-08-26 | Align F-001 portal, F-004 DAG with graph_builder, F-007 SMs, F-018 recovery branches, F-020 CI combine job | edit |
 | 2026-08-26 | F-002/F-018/F-033: honest live path for I35 observation and I36 relay refuse | edit |
+| 2026-08-26 | F-002: I37 OWNED→FENCED→OWNED transfer fence | edit |
 
 Append a row for every later edit. Do not delete this table.

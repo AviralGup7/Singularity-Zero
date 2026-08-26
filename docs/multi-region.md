@@ -44,6 +44,24 @@ graph TD
 | Lease acquired in A, settled in B? | **No**, unless B became the same leader via fenced transfer. |
 | Can an execution migrate? | **Yes**, only through `P-0000` 5-stage fence. |
 | After an attempt starts? | **No.** In-flight `AttemptId` stays (I33). |
+| How does home move? | **I37 fence.** `OWNED → FENCED → OWNED`. Nobody writes in the gap. |
+| Can A and B both think they are leader? | **No.** FENCED seals A before B is activated. Stale epoch/token/revision fail. |
+
+### I37 Authority Transfer Fence
+
+`src/core/frontier/authority_transfer.py` is the contract. Bindings on every mutation:
+
+| Field | Role |
+|---|---|
+| `AuthorityEpoch` | Monotonic per partition. Stale epoch cannot mutate. |
+| `AuthorityRevision` | Bound into I30 tickets. Dies on activate. |
+| `HomeRegion` | Current writer. Unchanged until activate. |
+| `FenceToken` | Minted at fence. Required to activate. Old token dies. |
+| `LeaderTerm` | Adopted by the new home on `install_authority`. |
+
+```
+A OWNED  --initiate_transfer-->  FENCED (no writer)  --activate_ownership-->  B OWNED
+```
 
 ### Region-Aware Sharding
 - **Deterministic placement**: Target hashes map to one of 1024 virtual partitions (`PlacementAuthority.get_partition_for_target`). The partition's **home region** is recorded on `PlacementAuthority.partition_home`.
