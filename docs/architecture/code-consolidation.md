@@ -144,16 +144,22 @@ flowchart TD
 
 ### 1. I29 Continuous Egress Sandbox Enforcement
 ```python
-# Canonical Egress Flow
-from src.sandbox.egress_context import scoped_egress_guard
-from src.core.utils.shared_sessions import create_scoped_async_client
+# Canonical egress flow (APIs that exist today)
+from src.sandbox.egress_context import install_filter_from_scope, assert_url_egress_allowed
+from src.core.utils.shared_sessions import get_async_client
 
-# stage_admit installs the filter into the task ContextVar
-with scoped_egress_guard(egress_filter):
-    async with create_scoped_async_client() as client:
-        # Every request is checked against in-scope IP/CIDRs and blocked if IMDS/out-of-scope
-        response = await client.get(target_url)
+# stage_admit: install ContextVar filter from ScopeToken / scope_entries
+filt = install_filter_from_scope(scope_token=scope_token, scope_entries=scope_entries)
+
+# In-process HTTP must use shared clients (event_hooks enforce the filter)
+client = get_async_client(verify_ssl=True, follow_redirects=True)
+response = await client.get(target_url)
+
+# Engines that open sockets without the shared client must assert explicitly:
+assert_url_egress_allowed(target_url)
 ```
+
+**Residual:** raw `httpx.AsyncClient()` / bare `requests.*` outside `shared_sessions` do not inherit hooks; prefer shared-client adoption. Subprocess tools still use `ProcessSandbox.check_egress`.
 
 ### 2. I28 / I30 Budget Quartet & Settle Accounting
 ```text
