@@ -51,19 +51,19 @@ Manage individual distributed subsystem processes:
   ```
   *Exit Codes: `0` = All checks passed, `2` = Missing system binaries, `3` = `.env` configuration error, `5` = Invalid configuration.*
 
-- **Infrastructure Health Probes** (Inspects Redis, database connectivity, and worker slots):
+- **Infrastructure Health Probes** (Inspects Redis backplane, workspace root, output store directory, and Python runtime):
   ```bash
   cstp system status
   ```
 
-- **Automated External Tool Setup** (Downloads and configures required binaries: `subfinder`, `httpx`, `nuclei`, `katana`, `gau`):
+- **Automated External Tool Setup** (Downloads and installs required Go binaries: `subfinder`, `httpx`, `nuclei`):
   ```bash
   cstp system setup --dir .tools/bin
   ```
 
-- **Prune Old Artifacts & Checkpoints**:
+- **Prune Old Artifacts & Checkpoints** (Retains specified number of latest runs):
   ```bash
-  cstp system cleanup --days 7 --output-root output --keep-target-runs 2 --keep-launcher-runs 5
+  cstp system cleanup --output-root output --keep-target-runs 2 --keep-launcher-runs 5
   ```
 
 ### 5. Plugin Scaffolding (`cstp plugin`)
@@ -96,7 +96,7 @@ python -m src.pipeline.runtime \
 | `--scope PATH` | Path to target scope text file | Required |
 | `--policy PATH` | Path to `policy.toml` compliance policy gate | `None` |
 | `--incremental` | Re-scan only URLs and routes modified since `--base-ref` | `False` |
-| `--base-ref REF` | Git branch/commit ref used for incremental diffing | `origin/main` |
+| `--base-ref REF` | Git branch/commit ref used for incremental diffing | `None` |
 | `--resume-from ID` | Resume execution from a previously persisted checkpoint ID | `None` |
 | `--wal-replay MODE`| Journal recovery mode: `verify`, `replay`, `dry-run` | `replay` |
 | `--max-duration SEC`| Wall-clock budget in seconds before graceful termination | `None` |

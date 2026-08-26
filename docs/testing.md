@@ -18,16 +18,37 @@ This document outlines the testing strategy, test suite organization, quality ga
 
 ```text
 tests/
-├── unit/                 # Domain-specific isolated unit tests
+├── unit/                 # Domain-specific isolated unit tests across 31 module subdirectories
 │   ├── analysis/         # Security analyzer and signal detection tests
+│   ├── api_tests/        # API route and client tests
 │   ├── auth/             # Authentication, RBAC, and session lifecycle tests
-│   ├── cli/              # Command line argument parser and rich UI tests
+│   ├── bootstrap/        # Authority bootstrapping and context creation tests
+│   ├── config/           # Configuration schema validation tests
+│   ├── console/          # Operator console and layout tests
 │   ├── core/             # Core contracts, utilities, and cryptographic vault tests
 │   ├── dashboard/        # FastAPI endpoints and route handlers
+│   ├── decision/         # Bayesian bandit, priority queue, and authorizer tests
+│   ├── detection/        # Vulnerability detection heuristics
+│   ├── execution/        # Execution workers and runtime sandboxing tests
 │   ├── exploitation/     # Exploit engine payload generation and safety tests
-│   ├── learning/         # ML model training, deduplication, and feedback tests
+│   ├── frontier/         # Replicated log, state authority, and WAL recovery tests
+│   ├── fuzzing/          # Active fuzzing orchestrator tests
+│   ├── infrastructure/   # Flow control, PID, circuit breaker, and DB metrics tests
+│   ├── intel/            # Threat intel heuristics and voting tests
+│   ├── intelligence/     # Graph reasoning and CVE aggregation tests
+│   ├── jobs/             # Job state machine and execution lifecycle tests
+│   ├── learning/         # ML policy governance, deduplication, and feedback tests
+│   ├── mesh/             # P2P gossip encryption, fragmentation, and sync tests
+│   ├── notifications/    # Slack, Discord, and webhook dispatcher tests
 │   ├── pipeline/         # DAG graph builder, scheduler, and retry logic
-│   └── recon/            # Recon collectors, DNS, and parsing tests
+│   ├── realtime/         # Prioritized QoS broker and lane shedding tests
+│   ├── recon/            # Recon collectors, DNS, and parsing tests
+│   ├── reporting/        # Platform clients (Jira, ServiceNow, DefectDojo) and export tests
+│   ├── resilience/       # Adaptive rate limiters and recovery tests
+│   ├── sandbox/          # Process isolation, seccomp filters, and egress guard tests
+│   ├── scripts/          # Operational script tests
+│   ├── websocket_server/ # WebSocket protocol, broadcaster, and metrics tests
+│   └── test_*.py         # Cross-cutting invariant, authority, and CLI launch tests
 │
 ├── integration/          # Multi-component integration tests (Redis, DB, Orchestrator)
 ├── architecture/         # Layer boundary and import linter architecture assertions

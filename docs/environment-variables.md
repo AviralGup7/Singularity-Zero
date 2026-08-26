@@ -22,19 +22,25 @@ This document serves as the authoritative single source of truth for all environ
 
 ---
 
-## 🌐 Server & Dashboard API (`src/dashboard/fastapi/`)
+## 🌐 Server & Dashboard API (`src/dashboard/fastapi/config.py`)
+
+All FastAPI server settings accept the `DASHBOARD_` environment variable prefix:
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `HOST` | string | `127.0.0.1` | Network interface for the FastAPI REST server. |
-| `PORT` | integer | `8000` | Port for the FastAPI REST service. |
-| `WORKERS` | integer | `1` | Number of Uvicorn worker processes. |
-| `CORS_ORIGINS` | string | `http://localhost:3000,http://localhost:5173` | Comma-separated list of allowed CORS origins. |
-| `ENABLE_API_SECURITY`| boolean| `true` | When true, enforces JWT / API Key authentication across all REST routes. |
-| `VITE_DISABLE_AUTH` | boolean| `false` | Development flag to bypass UI authentication prompts. |
+| `DASHBOARD_HOST` | string | `127.0.0.1` | Network interface for the FastAPI REST server. |
+| `DASHBOARD_PORT` | integer | `8000` | Port for the FastAPI REST service. |
+| `DASHBOARD_WORKERS` | integer | `1` | Number of Uvicorn worker processes. |
+| `DASHBOARD_DEBUG` | boolean | `false` | Enable debug logging and stack traces in API errors. |
+| `DASHBOARD_ALLOWED_ORIGINS` | string | (empty) | Comma-separated list of allowed CORS origins. |
+| `DASHBOARD_API_KEY` | string | (None) | Master API key for administrative API authentication. |
+| `DASHBOARD_GUEST_ACCESS_ENABLED` | boolean | `false` | Allow unauthenticated read-only guest access. |
 | `DASHBOARD_RATE_LIMIT_DEFAULT` | integer | `60` | Default rate limit (requests per minute per IP). |
 | `DASHBOARD_RATE_LIMIT_JOBS` | integer | `10` | Rate limit for scan job creation endpoints. |
 | `DASHBOARD_RATE_LIMIT_REPLAY` | integer | `30` | Rate limit for HTTP request replay endpoints. |
+| `DASHBOARD_RATE_LIMIT_REMEDIATION` | integer | `5` | Rate limit for remediation trigger endpoints. |
+| `DASHBOARD_REDIS_URL` | string | (None) | Optional Redis URL for distributed dashboard session/state caching. |
+| `DASHBOARD_MTLS_ENABLED` | boolean | `false` | Enable mutual TLS verification for incoming REST connections. |
 
 ---
 
@@ -52,7 +58,7 @@ This document serves as the authoritative single source of truth for all environ
 
 ---
 
-## 🕸️ Distributed Actor Mesh & Sharding (`src/mesh/`)
+## 🕸️ Distributed Actor Mesh & Sharding (`src/infrastructure/mesh/`)
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
@@ -60,8 +66,11 @@ This document serves as the authoritative single source of truth for all environ
 | `MESH_BIND_INTERFACE` | string | (None) | Interface name or IP address for binding the P2P mesh listener. |
 | `MESH_REGION` | string | `local` | Geographic region tag (e.g. `us-east-1`, `eu-west-1`) for latency-aware routing. |
 | `MESH_ZONE` | string | `default` | Availability zone tag for fault-domain isolation. |
-| `MESH_LEADER_ELECTION_TIMEOUT_SEC` | integer | `5` | Leader election consensus timeout in seconds. |
-| `MESH_PEER_RATE_LIMIT_PPS` | integer | `50` | Maximum gossip packets per second per peer node. |
+| `MESH_LEADER_ELECTION_TIMEOUT_SEC` | float | `10.0` | Leader election consensus timeout in seconds. |
+| `MESH_LEADER_LEASE_TTL_MS` | integer | `15000` | Redis leader lease time-to-live in milliseconds. |
+| `MESH_LEADER_REFRESH_SEC` | float | `5.0` | Leader lease refresh heartbeat interval in seconds. |
+| `MESH_PEER_RATE_LIMIT_PPS` | integer | `200` | Maximum gossip packets per second per peer node. |
+| `MESH_FRAGMENT_THRESHOLD` | integer | `1300` | Safe UDP MTU threshold before fragmenting mesh packets. |
 
 ---
 
@@ -71,8 +80,8 @@ This document serves as the authoritative single source of truth for all environ
 |---|---|---|---|
 | `OBSERVABILITY_METRICS_ENABLED` | boolean | `true` | Enables Prometheus metrics collection and `/metrics` endpoint. |
 | `OBSERVABILITY_METRICS_PORT` | integer | `9090` | Dedicated metrics port when running in standalone sidecar mode. |
-| `OBSERVABILITY_TRACING_ENABLED` | boolean | `false` | Enables OpenTelemetry distributed tracing spans. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | string | `http://localhost:4318` | OpenTelemetry OTLP collector endpoint. |
+| `OBSERVABILITY_TRACING_ENABLED` | boolean | `true` | Enables OpenTelemetry distributed tracing spans. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | string | `http://localhost:4317` | OpenTelemetry OTLP collector gRPC endpoint. |
 | `OBSERVABILITY_LOG_LEVEL` | string | `INFO` | Structured logging minimum level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `OBSERVABILITY_LOG_FORMAT` | string | `json` | Log output format (`json` for machine ingestion or `console` for human readability). |
 
@@ -100,7 +109,8 @@ Live HTTP clients live in `src/intelligence/feeds/`. `src/intel/` is an offline 
 
 | Variable | Type | Description |
 |---|---|---|
-| `HACKERONE_API_KEY` | string | HackerOne API token for automated scope sync and report drafting. |
+| `HACKERONE_API_TOKEN` | string | HackerOne API token for automated scope sync and report drafting. |
+| `HACKERONE_PROGRAM_HANDLE` | string | HackerOne program handle identifier. |
 | `BUGCROWD_API_TOKEN` | string | Bugcrowd API token for program scope sync. |
 | `INTIGRITI_API_TOKEN` | string | Intigriti API token for scope synchronization. |
 | `YESWEHACK_API_TOKEN` | string | YesWeHack API token for scope retrieval and finding submission. |

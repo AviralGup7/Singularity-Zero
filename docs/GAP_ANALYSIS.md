@@ -9,7 +9,7 @@ This document provides a realistic, technical audit of gaps between target speci
 | Gap | Severity | Status | Technical Details & Current Code State |
 |:---|:---|:---|:---|
 | **Distributed Raft Consensus & Transport** | Low | Implemented | `src/core/frontier/raft_transport.py` implements `RaftTransportProtocol`, `AppendEntriesRequest`/`Response`, `RequestVoteRequest`/`Response`, and `InMemoryRaftTransport`. `ReplicatedPartitionLog` enforces majority quorum ($N // 2 + 1$), term step-down, election failover, crash-safe disk WAL (`PartitionWAL` with CRC-64 + fsync), and durable outbox stream (`DurableOutboxLedger`). |
-| **Multi-Node Actor Migration** | High | Single-Node | `GhostActorCoordinator` and `actor_scheduler.py` run in-process using Pykka and Asyncio (`src/infrastructure/frontier/ghost_actor.py`). Live actor migration across physical network hosts is not wired. |
+| **Multi-Node Actor Migration** | Medium | In-Process / Gossip Handoff | `GhostActorCoordinator` (`src/ghost_actors/ghost_actor_coordinator.py`) supports state serialization and handoff signalling across the gossip mesh (`src/ghost_actors/network_handoff.py`), while live process execution remains hosted in-process. |
 | **Ghost-VFS RAM Isolation** | Medium | In-Memory Heap | Encrypted RAM isolation operates via Python `bytearray` and zeroing routines (`src/core/frontier/vfs_isolation.py`) rather than OS kernel-locked encrypted pages. |
 
 ---
@@ -49,7 +49,7 @@ This document provides a realistic, technical audit of gaps between target speci
 |:---|:---|:---|:---|
 | **Enterprise Ticketing Sinks** | Low | Implemented | `JiraClient`, `ServiceNowClient`, and `DefectDojoClient` implemented in `src/reporting/platforms/` and registered into platform submission router and client factories. |
 | **Threat Intelligence Feeds** | Medium | Partial | MISP client is implemented. VirusTotal and AlienVault OTX client wrappers exist for manual API queries, while live enrichment largely uses local CVE heuristics. |
-| **AI Explainability Endpoints** | Low | Implemented | `GET /api/findings/{id}/ai-explain` and `GET /api/reports/ai-summary` fully implemented via `src/analysis/intelligence/finding_explainer.py` for Developer, Auditor, and Executive personas and scan risk index scoring. |
+| **AI Explainability Endpoints** | Low | Implemented | `FindingExplainer` engine in `src/analysis/intelligence/finding_explainer.py` powers `GET /api/findings/{id}/ai-explain` (`routers/ai_explain.py`) and `GET /api/reports/ai-summary` (`routers/reports.py`) for Developer, Auditor, and Executive personas and scan risk index scoring. |
 
 ---
 
