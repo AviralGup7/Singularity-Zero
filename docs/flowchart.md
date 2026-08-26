@@ -261,7 +261,7 @@ flowchart TD
         JP --> JF["FAILED"]
         JP --> JD["STOPPED"]
         JS --> JR
-        JS --> JX
+        JS --> JX["STOPPING"]
         JS --> JF
         JS --> JD
         JR --> JX
@@ -649,5 +649,6 @@ flowchart TD
 | 2026-08-26 | F-033 proof graph I22→I37; F-018 VERIFY_INVARIANTS fail-closes on I30/I31 | edit |
 | 2026-08-26 | F-018: RecoveryManager collects recovered tickets/settlements for I35 | edit |
 | 2026-08-26 | F-004 consume-before-run + recon_validation; F-007 FAILED retry; F-018 exit 1/7 and Frontier reconstruct; F-002 live single-home | edit |
+| 2026-08-26 | F-007 JX is STOPPING; reporting join not large-debt starved | edit |
 
 Append a row for every later edit. Do not delete this table.
