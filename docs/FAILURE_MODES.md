@@ -21,7 +21,7 @@ Why WAL compensate is **No**: I15 never applied the corrupt record, so there is 
 
 ## I35 Recovery Protocol
 
-I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. Exotic multi-node repair is still not implemented; the outcome is still named.
+I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. `RecoveryManager` on scan resume supplies a FrontierWAL observation only; PartitionWAL outbox rebuild is `ReplicatedPartitionLog._recover_from_wal`. Exotic multi-node repair is still not implemented; the outcome is still named.
 
 Recovery is a state machine, not another table:
 

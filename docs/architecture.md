@@ -207,7 +207,7 @@ graph TD
   ```
 - **Crash Recovery & Replay**:
   - On restart, `replay_from_wal()` rehydrates projection state by sequentially reapplying all committed `SettlementIntent` records from the durable WAL.
-  - **I35 recovery protocol** (`src/core/frontier/recovery_protocol.py`) walks every durable boundary before DAG resume:
+  - **I35 recovery protocol** (`src/core/frontier/recovery_protocol.py`) is the catalog and state machine. `RecoveryManager` on the scan path supplies a **FrontierWAL** observation (schema, snapshot cursor, known journal ids) and does **not** reconstruct `PartitionFSM`. PartitionWAL outbox rebuild runs in `ReplicatedPartitionLog._recover_from_wal`. Full walk:
     ```text
     LOAD_SNAPSHOT → VERIFY_SNAPSHOT → LOAD_WAL
             → RECONCILE_SNAPSHOT_WAL → REPLAY_WAL → RECONSTRUCT_FSM

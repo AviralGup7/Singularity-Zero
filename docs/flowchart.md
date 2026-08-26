@@ -53,7 +53,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
 | F-025 | Non-authoritative planes | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) |
-| F-033 | Global invariants I30–I33 | `src/core/frontier/global_invariants.py`, `causal_identity.py`, `event_delivery.py` |
+| F-033 | Global invariants I30–I33 | `global_invariants.py`, `causal_identity.py`, `event_delivery.py` (I34–I35 → F-018, I36 → F-002) |
 
 ---
 
@@ -92,7 +92,7 @@ flowchart TD
 
 Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `src/core/frontier/region_model.py` (I36). Absorbed F-021.
 
-A region is a placement/replica boundary, not a second authority. Only the leader home admits commands. The relay is journal-only.
+A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home can move after a fenced `P-0000` transfer. The relay is journal-only (`reconcile_with_peer` drops settlement/command rows).
 
 ```mermaid
 flowchart TD
@@ -535,7 +535,7 @@ flowchart TD
 
 ## F-033 — Global invariants I30–I33
 
-Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`.
+Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`. I34–I35 live on F-018. I36 lives on F-002.
 
 EventBus is an **in-process notification dispatcher**, not a durable log and not a source of truth. Authoritative Event → Durable Outbox → Delivery Dispatcher → EventBus → consumers. `EventBus.emit(FINDING_CREATED)` without `wal_id` + `authoritative=True` is refused.
 
@@ -596,5 +596,6 @@ flowchart TD
 | 2026-08-26 | F-018: I35 recovery protocol state machine | edit |
 | 2026-08-26 | F-002: I36 single-writer regions; relay is journal-only | edit |
 | 2026-08-26 | Align F-001 portal, F-004 DAG with graph_builder, F-007 SMs, F-018 recovery branches, F-020 CI combine job | edit |
+| 2026-08-26 | F-002/F-018/F-033: honest live path for I35 observation and I36 relay refuse | edit |
 
 Append a row for every later edit. Do not delete this table.

@@ -8,7 +8,7 @@ Welcome to the Cyber Security Test Pipeline documentation portal. This hub index
 
 - **[🚀 Getting Started Guide](getting-started.md)**: Environment setup, dependency installation, scope configuration, and running your first scan.
 - **[📂 Codebase Map](codebase.md)**: Exhaustive structural map covering all 35 modules in `src/`, plus `frontend/src/`, `tests/`, `configs/`, `deploy/`, and `scripts/`.
-- **[🏛️ System Architecture Specification & Engineering Contract](architecture.md)**: Unified master blueprint containing the 10 Non-Negotiable System Axioms, 6-Level Authority Hierarchy, 7-Layer Control Plane, 16 Formal Invariants, Raft consensus protocol, and operational lifecycles.
+- **[🏛️ System Architecture Specification & Engineering Contract](architecture.md)**: Unified master blueprint containing the 10 Non-Negotiable System Axioms, 6-Level Authority Hierarchy, I1–I29 plus cross-subsystem I30–I36, Raft consensus protocol, and operational lifecycles.
 - **[📋 Formal Command & State Transition Specification](FORMAL_COMMAND_SPECIFICATION.md)**: Complete transition matrix, schemas, preconditions, budget equations, and recovery semantics for all system commands.
 - **[🏗️ Architecture Overview](architecture-overview.md)**: Engineering-focused map of subsystems, data flows, and design patterns.
 - **[🔀 Flowchart Atlas](flowchart.md)**: One mermaid file. Overlapping or nested flows are merged into survivor charts; retired ids stay as pointers. Incremental edits only — no full rewrite.
