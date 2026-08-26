@@ -212,6 +212,66 @@ def test_i37_cannot_mint_ticket_bound_to_post_activate_revision() -> None:
     assert placement.is_fenced("P-0000") is True
 
 
+def test_collect_recovered_artifacts_from_payload_and_wal() -> None:
+    from src.core.frontier.invariant_graph import collect_recovered_proof_artifacts
+
+    class _Wal:
+        entries = (
+            {
+                "_is_settlement_intent": True,
+                "execution_id": "exec-1",
+                "command_id": "cmd_1",
+                "attempt_id": "att_1",
+                "settlement_id": "stl_1",
+                "state_delta": {"findings": [{"title": "x"}]},
+                "_wal_id": "wal_1",
+            },
+        )
+
+    artifacts = collect_recovered_proof_artifacts(
+        payload={
+            "tickets": [
+                {
+                    "scope_token_hash": "s",
+                    "budget_reservation_id": "hunt_1",
+                    "authority_revision": "arev_1",
+                    "command_id": "cmd_1",
+                    "request": {"scope_token": {"scope_hash": "s"}},
+                }
+            ]
+        },
+        wal=_Wal(),
+    )
+    assert len(artifacts.tickets) == 1
+    assert artifacts.tickets[0].command_id == "cmd_1"
+    assert artifacts.settlements[0].status == "COMMITTED"
+    assert artifacts.settlements[0].wal_id == "wal_1"
+    verify_recovery_prerequisites(
+        SimpleNamespace(
+            recovered_tickets=artifacts.tickets,
+            recovered_settlements=artifacts.settlements,
+            recovered_identities=artifacts.identities,
+        )
+    )
+
+
+def test_collect_wal_finding_without_wal_id_fails_i31() -> None:
+    from src.core.frontier.invariant_graph import collect_recovered_proof_artifacts
+
+    class _Wal:
+        entries = (
+            {
+                "_is_settlement_intent": True,
+                "execution_id": "exec-ghost",
+                "state_delta": {"findings": [{"title": "ghost"}]},
+            },
+        )
+
+    artifacts = collect_recovered_proof_artifacts(wal=_Wal())
+    with pytest.raises(ProofGraphError, match="I31"):
+        verify_recovery_prerequisites(SimpleNamespace(recovered_settlements=artifacts.settlements))
+
+
 def test_assert_transfer_does_not_resurrect_i30_invalid() -> None:
     bare = _ticket(scope="", reservation="r", revision="arev", command_id="c")
     bare.request = SimpleNamespace(scope_token=None)

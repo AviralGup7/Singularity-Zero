@@ -38,9 +38,10 @@ an I30-invalid ticket.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import SimpleNamespace
 from typing import Any
 
 from src.core.frontier.causal_identity import (
@@ -471,6 +472,170 @@ def verify_recovery_prerequisites(observed: Any) -> None:
         )
 
 
+_TICKET_KEYS = (
+    "tickets",
+    "authorized_tickets",
+    "execution_tickets",
+    "recovered_tickets",
+)
+_SETTLEMENT_KEYS = ("settlements", "settlement_results", "recovered_settlements")
+_IDENTITY_KEYS = ("identities", "causal_identities", "recovered_identities")
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveredProofArtifacts:
+    """Artifacts I35 VERIFY_INVARIANTS can check without inventing state."""
+
+    tickets: tuple[Any, ...] = ()
+    settlements: tuple[Any, ...] = ()
+    identities: tuple[Any, ...] = ()
+    bus_emitted_without_outbox: bool = False
+    live_authority_revision: str = ""
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [item for item in value if item is not None]
+    return [value]
+
+
+def _from_keys(payload: Mapping[str, Any], keys: tuple[str, ...]) -> list[Any]:
+    found: list[Any] = []
+    for key in keys:
+        if key in payload:
+            found.extend(_as_list(payload.get(key)))
+    return found
+
+
+def _as_ticket(raw: Any) -> Any:
+    if raw is None or not isinstance(raw, dict):
+        return raw
+    request = raw.get("request")
+    token = None
+    if isinstance(request, dict):
+        token_raw = request.get("scope_token")
+        token = SimpleNamespace(**token_raw) if isinstance(token_raw, dict) else token_raw
+        request_ns = SimpleNamespace(scope_token=token)
+    elif request is not None:
+        request_ns = request
+    else:
+        request_ns = SimpleNamespace(scope_token=raw.get("scope_token"))
+    return SimpleNamespace(
+        scope_token_hash=str(raw.get("scope_token_hash") or ""),
+        budget_reservation_id=str(raw.get("budget_reservation_id") or ""),
+        authority_revision=str(raw.get("authority_revision") or ""),
+        command_id=str(raw.get("command_id") or ""),
+        request=request_ns,
+    )
+
+
+def _as_settlement(raw: Any) -> Any:
+    if raw is None or not isinstance(raw, dict):
+        return raw
+    delta = raw.get("state_delta") if isinstance(raw.get("state_delta"), dict) else {}
+    findings = (
+        raw.get("committed_findings")
+        or (delta or {}).get("reportable_findings")
+        or (delta or {}).get("findings")
+        or ()
+    )
+    wal_id = str(raw.get("wal_id") or raw.get("_wal_id") or "").strip()
+    status = str(raw.get("status") or "").strip()
+    if not status and (findings or raw.get("_is_settlement_intent")):
+        # A settlement intent that carried findings must still satisfy I31.
+        status = "COMMITTED" if findings else ""
+    return SimpleNamespace(
+        status=status,
+        wal_id=wal_id,
+        committed_findings=tuple(findings or ()),
+        execution_id=str(raw.get("execution_id") or ""),
+        command_id=str(raw.get("command_id") or ""),
+        attempt_id=str(raw.get("attempt_id") or ""),
+        settlement_id=str(raw.get("settlement_id") or ""),
+    )
+
+
+def _as_identity(raw: Any) -> Any:
+    if raw is None or not isinstance(raw, dict):
+        return raw
+    return SimpleNamespace(
+        command_id=str(raw.get("command_id") or ""),
+        execution_id=str(raw.get("execution_id") or ""),
+        attempt_id=str(raw.get("attempt_id") or ""),
+        settlement_id=str(raw.get("settlement_id") or ""),
+        wal_id=str(raw.get("wal_id") or raw.get("_wal_id") or ""),
+        event_id=str(raw.get("event_id") or ""),
+        delivery_id=str(raw.get("delivery_id") or ""),
+    )
+
+
+def _iter_wal_records(wal: Any) -> list[Any]:
+    if wal is None:
+        return []
+    records: list[Any] = []
+    for attr in ("entries", "committed_entries", "_entries"):
+        values = getattr(wal, attr, None)
+        if values:
+            records.extend(list(values))
+            break
+    if not records and hasattr(wal, "recover_deltas"):
+        try:
+            records.extend(list(wal.recover_deltas() or ()))
+        except Exception:
+            pass
+    if not records and hasattr(wal, "since"):
+        try:
+            records.extend(list(wal.since(None) or ()))
+        except Exception:
+            pass
+    return records
+
+
+def collect_recovered_proof_artifacts(
+    *,
+    payload: Any = None,
+    wal: Any = None,
+) -> RecoveredProofArtifacts:
+    """Pull I30/I31/I33 artifacts from a checkpoint payload and WAL. Never invent."""
+    mapping: dict[str, Any] = dict(payload) if isinstance(payload, Mapping) else {}
+    tickets = [_as_ticket(item) for item in _from_keys(mapping, _TICKET_KEYS)]
+    for key in ("ticket", "authorized_ticket", "execution_ticket"):
+        if mapping.get(key) is not None:
+            tickets.append(_as_ticket(mapping.get(key)))
+    settlements = [_as_settlement(item) for item in _from_keys(mapping, _SETTLEMENT_KEYS)]
+    identities = [_as_identity(item) for item in _from_keys(mapping, _IDENTITY_KEYS)]
+    for record in _iter_wal_records(wal):
+        entry = record if isinstance(record, dict) else getattr(record, "__dict__", None)
+        if not isinstance(entry, dict):
+            continue
+        status = str(entry.get("status") or "")
+        if (
+            entry.get("_is_settlement_intent")
+            or "committed_findings" in entry
+            or status in {"COMMITTED", "REJECTED", "DEDUPLICATED"}
+        ):
+            settlements.append(_as_settlement(entry))
+        if entry.get("execution_id") and (
+            entry.get("command_id") or entry.get("attempt_id") or entry.get("settlement_id")
+        ):
+            identities.append(_as_identity(entry))
+        if entry.get("ticket_id") or (
+            entry.get("scope_token_hash") and entry.get("command_id") is not None
+        ):
+            tickets.append(_as_ticket(entry))
+    live = str(mapping.get("live_authority_revision") or mapping.get("authority_revision") or "")
+    bus_gap = bool(mapping.get("bus_emitted_without_outbox"))
+    return RecoveredProofArtifacts(
+        tickets=tuple(item for item in tickets if item is not None),
+        settlements=tuple(item for item in settlements if item is not None),
+        identities=tuple(item for item in identities if item is not None),
+        bus_emitted_without_outbox=bus_gap,
+        live_authority_revision=live.strip(),
+    )
+
+
 def assert_transfer_does_not_resurrect(
     tickets: Iterable[Any],
     *,
@@ -507,9 +672,11 @@ __all__ = [
     "InvariantNode",
     "PROOF_GRAPH_ID",
     "ProofGraphError",
+    "RecoveredProofArtifacts",
     "assert_graph_sound",
     "assert_requires",
     "assert_transfer_does_not_resurrect",
+    "collect_recovered_proof_artifacts",
     "dependents_of",
     "node_for",
     "prerequisites_of",

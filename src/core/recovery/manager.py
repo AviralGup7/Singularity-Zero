@@ -389,6 +389,9 @@ class RecoveryManager:
         wal_present = wal_state is not None
         truncated = bool(cursor and known_ids and cursor not in known_ids)
         fsm_ids, outbox_ids, delivered_ids = self._observe_event_sets(wal)
+        from src.core.frontier.invariant_graph import collect_recovered_proof_artifacts
+
+        artifacts = collect_recovered_proof_artifacts(payload=payload, wal=wal)
         return run_recovery_protocol(
             ObservedDurableState(
                 plane=RecoveryPlane.FRONTIER,
@@ -405,6 +408,11 @@ class RecoveryManager:
                 fsm_event_ids=fsm_ids,
                 outbox_event_ids=outbox_ids,
                 delivered_event_ids=delivered_ids,
+                recovered_tickets=artifacts.tickets,
+                recovered_settlements=artifacts.settlements,
+                recovered_identities=artifacts.identities,
+                bus_emitted_without_outbox=artifacts.bus_emitted_without_outbox,
+                live_authority_revision=artifacts.live_authority_revision,
             )
         )
 

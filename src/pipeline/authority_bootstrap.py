@@ -140,6 +140,14 @@ def apply_authority_recovery(runtime: PipelineAuthorityRuntime, reconstructed: A
         except (TypeError, ValueError):
             snapshot_index = 0
     commit_index = int(getattr(log, "commit_index", 0) or 0)
+    from src.core.frontier.invariant_graph import collect_recovered_proof_artifacts
+
+    payload = getattr(reconstructed, "context_payload", None) if reconstructed is not None else None
+    artifacts = collect_recovered_proof_artifacts(payload=payload, wal=log)
+    live_rev = artifacts.live_authority_revision
+    placement = getattr(runtime, "placement", None)
+    if placement is not None and hasattr(placement, "current_revision"):
+        live_rev = str(placement.current_revision("P-0000") or live_rev)
     verdict = run_recovery_protocol(
         ObservedDurableState(
             plane=RecoveryPlane.PARTITION,
@@ -152,6 +160,11 @@ def apply_authority_recovery(runtime: PipelineAuthorityRuntime, reconstructed: A
             fsm_event_ids=frozenset(fsm_ids),
             outbox_event_ids=frozenset(outbox_ids),
             delivered_event_ids=frozenset(),
+            recovered_tickets=artifacts.tickets,
+            recovered_settlements=artifacts.settlements,
+            recovered_identities=artifacts.identities,
+            bus_emitted_without_outbox=artifacts.bus_emitted_without_outbox,
+            live_authority_revision=live_rev,
         )
     )
     if verdict.rebuild_outbox:

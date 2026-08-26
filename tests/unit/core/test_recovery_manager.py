@@ -219,3 +219,47 @@ def test_i35_newer_checkpoint_schema_starts_fresh(
     assert state.can_recover is False
     assert state.source == "none"
     assert state.recovery_phase == "fresh"
+
+
+@pytest.mark.unit
+def test_i35_fail_closed_when_checkpoint_ticket_violates_i30(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = CheckpointState(
+        pipeline_run_id="run-bad-tkt",
+        completed_stages=["recon"],
+        checkpoint_version=2,
+    )
+    payload = {
+        "scope_entries": ["example.com"],
+        "stage_status": {"recon": "completed"},
+        "target_name": "example",
+        "checkpoint_version": 2,
+        "tickets": [
+            {
+                "ticket_id": "tkt_ghost",
+                "scope_token_hash": "",
+                "budget_reservation_id": "",
+                "authority_revision": "",
+                "command_id": "",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        "src.core.recovery.manager.attempt_recovery",
+        lambda *a, **k: (True, checkpoint),
+    )
+    monkeypatch.setattr(
+        "src.core.recovery.manager.create_checkpoint_manager",
+        lambda *a, **k: _FakeCheckpointMgr(payload),
+    )
+    manager = RecoveryManager(
+        tmp_path,
+        "example",
+        stage_order=["recon", "scan"],
+        wal_factory=_FakeWal,
+    )
+    state = manager.recover()
+    assert state.execute_stages is False
+    assert state.recovery_phase == "fail_closed"
+    assert "prerequisite_invariant_failed" in state.recovery_windows
