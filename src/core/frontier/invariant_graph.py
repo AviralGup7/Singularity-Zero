@@ -29,11 +29,15 @@ live. This module is the machine-checkable proof:
           ▼
     I36 region ──► I37 transfer (also depends on I30)
 
-Every node names prerequisites, the state it protects, the transitions it
-constrains, crash / concurrency windows, the recovery rule, and the tests
-that prove it. Runtime gates consult the graph: I35 VERIFY_INVARIANTS
-fail-closes on a prerequisite violation; I37 activate refuses to resurrect
-an I30-invalid ticket.
+Every node names what it requires, guarantees, and invalidates, plus
+recovery / concurrency / authority dependencies. Every edge is
+bidirectional: a forward statement and the reverse assumption the
+downstream invariant makes about the upstream one. That catches
+"I31 is locally correct but its assumptions about I28 are false."
+
+Runtime gates consult the graph: I35 VERIFY_INVARIANTS fail-closes on a
+prerequisite or reverse-assumption violation; I37 activate refuses to
+resurrect an I30-invalid ticket.
 """
 
 from __future__ import annotations
@@ -81,6 +85,46 @@ class ProofGraphError(PermissionError):
 
 
 @dataclass(frozen=True, slots=True)
+class InvariantEdge:
+    """One directed proof edge with the reverse assumption it encodes."""
+
+    src: InvariantId
+    dst: InvariantId
+    statement: str
+    reverse_assumption: str
+    invalidates: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "src": self.src.value,
+            "dst": self.dst.value,
+            "statement": self.statement,
+            "reverse_assumption": self.reverse_assumption,
+            "invalidates": self.invalidates,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class InvariantClaim:
+    """What one invariant guarantees, and what a violation of it invalidates."""
+
+    guarantees: str
+    invalidates: str
+    recovery_dependency: str
+    concurrency_dependency: str
+    authority_dependency: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "guarantees": self.guarantees,
+            "invalidates": self.invalidates,
+            "recovery_dependency": self.recovery_dependency,
+            "concurrency_dependency": self.concurrency_dependency,
+            "authority_dependency": self.authority_dependency,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class InvariantNode:
     """One row of the architecture proof graph."""
 
@@ -97,9 +141,10 @@ class InvariantNode:
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "id": self.id.value,
             "name": self.name,
+            "requires": [p.value for p in self.prerequisites],
             "prerequisites": [p.value for p in self.prerequisites],
             "protects": self.protects,
             "transitions": self.transitions,
@@ -110,6 +155,10 @@ class InvariantNode:
             "module": self.module,
             "notes": self.notes,
         }
+        claim = INVARIANT_CLAIMS.get(self.id)
+        if claim is not None:
+            payload.update(claim.to_dict())
+        return payload
 
 
 def _node(
@@ -309,6 +358,191 @@ INVARIANT_GRAPH: dict[InvariantId, InvariantNode] = {
 }
 
 
+def _edge(
+    src: InvariantId,
+    dst: InvariantId,
+    statement: str,
+    reverse_assumption: str,
+    invalidates: str,
+) -> InvariantEdge:
+    return InvariantEdge(
+        src=src,
+        dst=dst,
+        statement=statement,
+        reverse_assumption=reverse_assumption,
+        invalidates=invalidates,
+    )
+
+
+INVARIANT_EDGES: tuple[InvariantEdge, ...] = (
+    _edge(
+        InvariantId.I22,
+        InvariantId.I30,
+        "A ticket is admitted only after the command clock passes the skew gate.",
+        "I30 assumes I22 that command_id timestamps are admission-monotonic, not wall-clock.",
+        "A skewed command cannot mint a live I30 ticket.",
+    ),
+    _edge(
+        InvariantId.I30,
+        InvariantId.I33,
+        "Every authorized execution receives causally derived identity.",
+        "I33 assumes I30 that command_id was minted by authorize, not invented on the identity.",
+        "An unauthorized command_id cannot start a causal chain.",
+    ),
+    _edge(
+        InvariantId.I30,
+        InvariantId.I28,
+        "A budget reservation exists only as the I30 ticket binding.",
+        "I28 assumes I30 that budget_reservation_id on the ledger was reserved under a live ticket.",
+        "A ticket without a reservation cannot consume or compensate budget.",
+    ),
+    _edge(
+        InvariantId.I33,
+        InvariantId.I31,
+        "Settlement identity is parent-linked: AttemptId → SettlementId → WalId.",
+        "I31 assumes I33 that a COMMITTED wal_id has a complete ancestor chain.",
+        "A settlement without ancestors is not COMMITTED.",
+    ),
+    _edge(
+        InvariantId.I28,
+        InvariantId.I31,
+        "Settlement cannot consume budget outside a valid reservation.",
+        "I31 assumes I28 that budget_reservation_id on a COMMITTED settlement is on the ledger.",
+        "A COMMITTED settlement with an unknown reservation is not a settlement.",
+    ),
+    _edge(
+        InvariantId.I31,
+        InvariantId.I32,
+        "Only durably committed settlements may create authoritative events.",
+        "I32 assumes I31 that FINDING_CREATED carries COMMITTED + nonempty wal_id.",
+        "EventBus cannot author a finding that settlement never committed.",
+    ),
+    _edge(
+        InvariantId.I28,
+        InvariantId.I34,
+        "Budget inconsistency compensates outstanding leases; it does not roll back WAL.",
+        "I34 assumes I28 that EXPIRED is compensatable and CONSUMED is not.",
+        "A compensate of CONSUMED is an illegal recovery action.",
+    ),
+    _edge(
+        InvariantId.I32,
+        InvariantId.I34,
+        "Event delivery failure retries dispatch and never un-commits settlement.",
+        "I34 assumes I32 that EventBus is not authority, so rollback is forbidden.",
+        "A bus failure cannot become a WAL rollback.",
+    ),
+    _edge(
+        InvariantId.I32,
+        InvariantId.I35,
+        "Recovery reconstructs delivery from durable authoritative state.",
+        "I35 assumes I32 that EventBus and DeliveryLedger are not restore sources.",
+        "Replaying bus without outbox cannot READY.",
+    ),
+    _edge(
+        InvariantId.I34,
+        InvariantId.I35,
+        "VERIFY_INVARIANTS consults the I34 table; it does not invent a recovery action.",
+        "I35 assumes I34 that FAIL_CLOSED failures do not retry or roll back.",
+        "A recovery walk cannot READY after a fail-closed class.",
+    ),
+    _edge(
+        InvariantId.I35,
+        InvariantId.I36,
+        "Recovered state must be valid before regional ownership can activate.",
+        "I36 assumes I35 that READY means recovered tickets/settlements already held.",
+        "A region cannot accept commands on unrecovered or FAIL_CLOSED state.",
+    ),
+    _edge(
+        InvariantId.I36,
+        InvariantId.I37,
+        "Transfer can only occur through the fenced ownership protocol.",
+        "I37 assumes I36 that only the leader home writes while OWNED.",
+        "A dual-home activate is not a transfer.",
+    ),
+    _edge(
+        InvariantId.I30,
+        InvariantId.I37,
+        "A live ticket dies when the fence activates a new authority revision.",
+        "I37 assumes I30 that tickets without the quartet were never authorized.",
+        "Transfer cannot mint I30 authority or resurrect an invalid ticket.",
+    ),
+)
+
+
+INVARIANT_CLAIMS: dict[InvariantId, InvariantClaim] = {
+    InvariantId.I22: InvariantClaim(
+        guarantees="Admitted commands have non-decreasing created_at within skew bounds.",
+        invalidates="Any later mutation that trusts a future or regressing timestamp.",
+        recovery_dependency="Replay uses committed timestamps only; never re-admit.",
+        concurrency_dependency="Two proposers cannot both pass a regressing clock.",
+        authority_dependency="PartitionFSM stays clock-free (Axiom 9).",
+    ),
+    InvariantId.I30: InvariantClaim(
+        guarantees="A live ticket binds scope hash, reservation, revision, and command_id.",
+        invalidates="Consume of a ticket missing any binding or unknown reservation.",
+        recovery_dependency="Reconstructed tickets must still pass assert_authorization_causality.",
+        concurrency_dependency="ticket_id is single-use under the authorizer lock.",
+        authority_dependency="Revision must match the live I37 fence.",
+    ),
+    InvariantId.I28: InvariantClaim(
+        guarantees="Lease transitions are the I28 table; EXPIRED is not TERMINAL.",
+        invalidates="Compensate of CONSUMED; ACTIVE compensate; invented budget units.",
+        recovery_dependency="Compensation crash replays idempotently from RESERVED|EXPIRED.",
+        concurrency_dependency="Reserve and settle of the same sublease_id cannot interleave illegally.",
+        authority_dependency="Reservations live on P-0000; they do not span regions (I36).",
+    ),
+    InvariantId.I33: InvariantClaim(
+        guarantees="Child ids are derived from parents; a FAILED attempt does not close execution.",
+        invalidates="A nonempty child without ancestors; colliding EventId schemes.",
+        recovery_dependency="Rebuild ids from parents; never mint a new chain on replay.",
+        concurrency_dependency="Two retries of one execution_id mint distinct AttemptIds.",
+        authority_dependency="command_id originates in I30 authorize, not in the identity helper.",
+    ),
+    InvariantId.I31: InvariantClaim(
+        guarantees="FINDING_CREATED requires COMMITTED settlement with nonempty wal_id.",
+        invalidates="Self-attested authoritative=True; emit without wal_id.",
+        recovery_dependency="Missing intent is never committed.",
+        concurrency_dependency="One AttemptId has at most one COMMITTED settlement.",
+        authority_dependency="HMAC receipt is the authority bit; EventBus is not.",
+    ),
+    InvariantId.I32: InvariantClaim(
+        guarantees="Outbox-before-bus; bus failure does not un-commit WAL.",
+        invalidates="Notify consumers of a finding that is not in the outbox.",
+        recovery_dependency="Rebuild outbox from committed emitted_events; replay dispatch.",
+        concurrency_dependency="DeliveryId is recorded only after a successful emit.",
+        authority_dependency="EventBus and DeliveryLedger are caches, not L0.",
+    ),
+    InvariantId.I34: InvariantClaim(
+        guarantees="Each FailureClass has exactly one recovery policy; must_not forbids drift.",
+        invalidates="A call site that retries or rolls back a fail-closed class.",
+        recovery_dependency="I35 consults this table; it does not invent actions.",
+        concurrency_dependency="Bus failure racing commit cannot flip rollback=True.",
+        authority_dependency="AUTHORITY_LOSS is fail-closed, not panic-compensate.",
+    ),
+    InvariantId.I35: InvariantClaim(
+        guarantees="VERIFY_INVARIANTS fail-closes if a prerequisite or reverse assumption fails.",
+        invalidates="READY while recovered tickets fail I30 or settlements fail I31/I28.",
+        recovery_dependency="This node *is* the recovery protocol.",
+        concurrency_dependency="One RecoveryManager per run_id; no dual reconstruct.",
+        authority_dependency="Partition plane fail-closed; Frontier journal may STALE_CONTINUE.",
+    ),
+    InvariantId.I36: InvariantClaim(
+        guarantees="One writer per partition; lease acquire and settle are colocated.",
+        invalidates="Replica propose_and_commit; LWW merge of two leaders.",
+        recovery_dependency="Heal by replaying leader WAL after I35 READY.",
+        concurrency_dependency="Acquire in A concurrent with settle in B is refused.",
+        authority_dependency="A region is placement, not an authority domain.",
+    ),
+    InvariantId.I37: InvariantClaim(
+        guarantees="OWNED → FENCED → OWNED; nobody writes in the gap.",
+        invalidates="Dual-home; resurrected I30-invalid tickets; stale revision consume.",
+        recovery_dependency="Activate only after I35 READY on the pending home.",
+        concurrency_dependency="Old home and pending home cannot both believe they are leader.",
+        authority_dependency="Fence token + epoch + revision are the live writer identity.",
+    ),
+}
+
+
 def node_for(inv: InvariantId | str) -> InvariantNode:
     return INVARIANT_GRAPH[InvariantId(inv)]
 
@@ -320,6 +554,37 @@ def prerequisites_of(inv: InvariantId | str) -> tuple[InvariantId, ...]:
 def dependents_of(inv: InvariantId | str) -> tuple[InvariantId, ...]:
     key = InvariantId(inv)
     return tuple(node.id for node in INVARIANT_GRAPH.values() if key in node.prerequisites)
+
+
+def claim_for(inv: InvariantId | str) -> InvariantClaim:
+    return INVARIANT_CLAIMS[InvariantId(inv)]
+
+
+def edge_for(src: InvariantId | str, dst: InvariantId | str) -> InvariantEdge:
+    src_id = InvariantId(src)
+    dst_id = InvariantId(dst)
+    for edge in INVARIANT_EDGES:
+        if edge.src is src_id and edge.dst is dst_id:
+            return edge
+    raise ProofGraphError(
+        f"{PROOF_GRAPH_ID}: no edge {src_id.value} → {dst_id.value}",
+        invariant=dst_id.value,
+    )
+
+
+def edges_into(dst: InvariantId | str) -> tuple[InvariantEdge, ...]:
+    key = InvariantId(dst)
+    return tuple(edge for edge in INVARIANT_EDGES if edge.dst is key)
+
+
+def edges_out_of(src: InvariantId | str) -> tuple[InvariantEdge, ...]:
+    key = InvariantId(src)
+    return tuple(edge for edge in INVARIANT_EDGES if edge.src is key)
+
+
+def reverse_assumptions_of(dst: InvariantId | str) -> tuple[str, ...]:
+    """What ``dst`` assumes about each upstream invariant."""
+    return tuple(edge.reverse_assumption for edge in edges_into(dst))
 
 
 def transitive_prerequisites(inv: InvariantId | str) -> frozenset[InvariantId]:
@@ -400,9 +665,39 @@ def assert_graph_sound() -> None:
     assert_requires(InvariantId.I37, InvariantId.I36)
     assert_requires(InvariantId.I36, InvariantId.I35)
 
+    if set(INVARIANT_CLAIMS) != set(InvariantId):
+        raise ProofGraphError(f"{PROOF_GRAPH_ID}: claims catalog is incomplete")
+    for inv, claim in INVARIANT_CLAIMS.items():
+        if not (
+            claim.guarantees
+            and claim.invalidates
+            and claim.recovery_dependency
+            and claim.concurrency_dependency
+            and claim.authority_dependency
+        ):
+            raise ProofGraphError(f"{PROOF_GRAPH_ID}: {inv.value} claim is missing fields")
+
+    declared = {(pred, inv) for inv in InvariantId for pred in prerequisites_of(inv)}
+    edged = {(edge.src, edge.dst) for edge in INVARIANT_EDGES}
+    if declared != edged:
+        missing = declared - edged
+        extra = edged - declared
+        raise ProofGraphError(
+            f"{PROOF_GRAPH_ID}: edge catalog mismatch missing={sorted(missing)} extra={sorted(extra)}"
+        )
+    for edge in INVARIANT_EDGES:
+        if not edge.statement or not edge.reverse_assumption:
+            raise ProofGraphError(
+                f"{PROOF_GRAPH_ID}: edge {edge.src.value}→{edge.dst.value} lacks semantics"
+            )
+
 
 def proof_catalog() -> tuple[dict[str, Any], ...]:
     return tuple(INVARIANT_GRAPH[inv].to_dict() for inv in InvariantId)
+
+
+def edge_catalog() -> tuple[dict[str, Any], ...]:
+    return tuple(edge.to_dict() for edge in INVARIANT_EDGES)
 
 
 def _identity_up_to(identity: Any) -> str:
@@ -410,6 +705,63 @@ def _identity_up_to(identity: Any) -> str:
         if str(getattr(identity, name, "") or "").strip():
             return name
     return "command_id"
+
+
+def verify_upstream_assumptions(observed: Any) -> None:
+    """Fail closed when a downstream invariant's reverse assumption is false.
+
+    Catches "I31 is locally COMMITTED but its I28 reservation is not on the
+    ledger" and "I33 command_id was not authorized by I30".
+    Empty recovered sets are a no-op (nothing to assume).
+    """
+    tickets = tuple(getattr(observed, "recovered_tickets", ()) or ())
+    settlements = tuple(getattr(observed, "recovered_settlements", ()) or ())
+    identities = tuple(getattr(observed, "recovered_identities", ()) or ())
+    reservation_ids = {
+        str(item).strip()
+        for item in (getattr(observed, "recovered_reservation_ids", ()) or ())
+        if str(item or "").strip()
+    }
+    for ticket in tickets:
+        rid = str(getattr(ticket, "budget_reservation_id", "") or "").strip()
+        if rid:
+            reservation_ids.add(rid)
+    ticket_commands = {
+        str(getattr(ticket, "command_id", "") or "").strip()
+        for ticket in tickets
+        if str(getattr(ticket, "command_id", "") or "").strip()
+    }
+
+    # I31 assumes I28: COMMITTED settlement reservation is on the ledger.
+    if reservation_ids:
+        for result in settlements:
+            status = str(getattr(result, "status", "") or "")
+            findings = getattr(result, "committed_findings", ()) or ()
+            if status != "COMMITTED" and not findings:
+                continue
+            rid = str(getattr(result, "budget_reservation_id", "") or "").strip()
+            if rid and rid not in reservation_ids:
+                edge = edge_for(InvariantId.I28, InvariantId.I31)
+                raise ProofGraphError(
+                    f"{InvariantId.I31.value}: {edge.reverse_assumption} "
+                    f"(reservation {rid!r} not on ledger)",
+                    invariant=InvariantId.I28.value,
+                )
+
+    # I33 assumes I30: command_id was authorized.
+    if ticket_commands:
+        for identity in identities:
+            cmd = str(getattr(identity, "command_id", "") or "").strip()
+            if cmd and cmd not in ticket_commands:
+                edge = edge_for(InvariantId.I30, InvariantId.I33)
+                raise ProofGraphError(
+                    f"{InvariantId.I33.value}: {edge.reverse_assumption} "
+                    f"(command_id {cmd!r} was not authorized)",
+                    invariant=InvariantId.I30.value,
+                )
+
+    # I32 assumes I31: bus cannot emit without COMMITTED wal (already gated
+    # by bus_emitted_without_outbox). I35 assumes I32: same flag.
 
 
 def verify_recovery_prerequisites(observed: Any) -> None:
@@ -470,6 +822,8 @@ def verify_recovery_prerequisites(observed: Any) -> None:
             f"violates {InvariantId.I32.value}",
             invariant=InvariantId.I32.value,
         )
+
+    verify_upstream_assumptions(observed)
 
 
 _TICKET_KEYS = (
@@ -554,6 +908,7 @@ def _as_settlement(raw: Any) -> Any:
         command_id=str(raw.get("command_id") or ""),
         attempt_id=str(raw.get("attempt_id") or ""),
         settlement_id=str(raw.get("settlement_id") or ""),
+        budget_reservation_id=str(raw.get("budget_reservation_id") or ""),
     )
 
 
@@ -667,7 +1022,11 @@ def assert_transfer_does_not_resurrect(
 
 
 __all__ = [
+    "INVARIANT_CLAIMS",
+    "INVARIANT_EDGES",
     "INVARIANT_GRAPH",
+    "InvariantClaim",
+    "InvariantEdge",
     "InvariantId",
     "InvariantNode",
     "PROOF_GRAPH_ID",
@@ -676,11 +1035,18 @@ __all__ = [
     "assert_graph_sound",
     "assert_requires",
     "assert_transfer_does_not_resurrect",
+    "claim_for",
     "collect_recovered_proof_artifacts",
     "dependents_of",
+    "edge_catalog",
+    "edge_for",
+    "edges_into",
+    "edges_out_of",
     "node_for",
     "prerequisites_of",
     "proof_catalog",
+    "reverse_assumptions_of",
     "transitive_prerequisites",
     "verify_recovery_prerequisites",
+    "verify_upstream_assumptions",
 ]

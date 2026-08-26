@@ -15,17 +15,23 @@ from src.core.frontier.authority_transfer import (
 from src.core.frontier.causal_identity import mint_causal_identity
 from src.core.frontier.global_coordination import PlacementAuthority
 from src.core.frontier.invariant_graph import (
+    INVARIANT_EDGES,
     INVARIANT_GRAPH,
     InvariantId,
     ProofGraphError,
     assert_graph_sound,
     assert_requires,
     assert_transfer_does_not_resurrect,
+    claim_for,
     dependents_of,
+    edge_catalog,
+    edge_for,
     node_for,
     proof_catalog,
+    reverse_assumptions_of,
     transitive_prerequisites,
     verify_recovery_prerequisites,
+    verify_upstream_assumptions,
 )
 from src.core.frontier.recovery_protocol import (
     CrashWindow,
@@ -142,7 +148,7 @@ def test_i35_ready_when_recovered_ticket_and_settlement_hold() -> None:
             recovered_settlements=(
                 SettlementResult(execution_id="x", status="COMMITTED", wal_id="wal_1"),
             ),
-            recovered_identities=(mint_causal_identity(execution_id="exec-1"),),
+            recovered_identities=(mint_causal_identity(execution_id="exec-1", command_id="cmd_1"),),
         )
     )
     assert verdict.phase is RecoveryPhase.READY
@@ -300,6 +306,64 @@ def test_i37_fenced_partition_refuses_settle() -> None:
     )
     assert res.status == "REJECTED"
     assert "I37" in (res.error or "")
+
+
+def test_proof_edges_are_bidirectional() -> None:
+    assert_graph_sound()
+    assert len(edge_catalog()) == len(INVARIANT_EDGES)
+    i30_i33 = edge_for(InvariantId.I30, InvariantId.I33)
+    assert "causally derived identity" in i30_i33.statement
+    i28_i31 = edge_for(InvariantId.I28, InvariantId.I31)
+    assert "valid reservation" in i28_i31.statement
+    assert "ledger" in i28_i31.reverse_assumption
+    assumptions = reverse_assumptions_of(InvariantId.I31)
+    assert any("I28" in item for item in assumptions)
+    assert any("I33" in item for item in assumptions)
+    claim = claim_for(InvariantId.I35)
+    assert claim.guarantees
+    assert claim.invalidates
+    assert claim.authority_dependency
+
+
+def test_i31_locally_committed_but_i28_assumption_false() -> None:
+    ticket = _ticket()
+    settlement = SettlementResult(
+        execution_id="x",
+        status="COMMITTED",
+        wal_id="wal_1",
+    )
+    # Duck-type a reservation I31 claims but I28 never recorded.
+    settlement_wrong = SimpleNamespace(
+        status="COMMITTED",
+        wal_id="wal_1",
+        committed_findings=({"title": "x"},),
+        budget_reservation_id="hunt_unknown",
+    )
+    with pytest.raises(ProofGraphError, match="I28"):
+        verify_upstream_assumptions(
+            SimpleNamespace(
+                recovered_tickets=(ticket,),
+                recovered_settlements=(settlement_wrong,),
+            )
+        )
+    verify_upstream_assumptions(
+        SimpleNamespace(
+            recovered_tickets=(ticket,),
+            recovered_settlements=(settlement,),
+        )
+    )
+
+
+def test_i33_assumes_i30_command_was_authorized() -> None:
+    ticket = _ticket(command_id="cmd_live")
+    ghost = mint_causal_identity(execution_id="exec-ghost", command_id="cmd_forged")
+    with pytest.raises(ProofGraphError, match="I30"):
+        verify_upstream_assumptions(
+            SimpleNamespace(
+                recovered_tickets=(ticket,),
+                recovered_identities=(ghost,),
+            )
+        )
 
 
 def test_assert_transfer_does_not_resurrect_i30_invalid() -> None:
