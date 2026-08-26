@@ -549,9 +549,14 @@ class ObservedDurableState:
     fsm_event_ids: frozenset[str] = field(default_factory=frozenset)
     outbox_event_ids: frozenset[str] = field(default_factory=frozenset)
     delivered_event_ids: frozenset[str] = field(default_factory=frozenset)
-    """EventIds already delivered. DeliveryLedger stores DeliveryIds; convert first."""
+    # EventIds already delivered. DeliveryLedger stores DeliveryIds; convert first.
     compensation_in_progress: bool = False
     compensation_lease_status: str = ""
+    recovered_tickets: tuple[Any, ...] = ()
+    recovered_settlements: tuple[Any, ...] = ()
+    recovered_identities: tuple[Any, ...] = ()
+    bus_emitted_without_outbox: bool = False
+    live_authority_revision: str = ""
 
 
 @dataclass(frozen=True, slots=True)
