@@ -379,6 +379,7 @@ class NeuralState:
         self.subdomains = LWWset[str]()
         self.urls = LWWset[str]()
         self.findings = LWWset[dict[str, Any]]()
+        self.candidates = LWWset[dict[str, Any]]()
         self.metadata: dict[str, Any] = {}
         self.last_wal_id: str | None = None
         self.applied_wal_ids: set[str] = set()
@@ -549,12 +550,11 @@ class NeuralState:
         except Exception:
             self.candidates.add(dict(finding), ts, self.hlc, vclock)
             return
+        original_unstamped = not finding.get("lifecycle_state") and not finding.get(
+            "lifecycle_surface"
+        )
         stamped = apply_lifecycle([dict(finding)])[0]
-        if (
-            prefer_reportable
-            and not stamped.get("lifecycle_state")
-            and not finding.get("lifecycle_state")
-        ):
+        if prefer_reportable and original_unstamped:
             stamped["lifecycle_state"] = FindingLifecycleState.REPORTABLE.value
             stamped["lifecycle_surface"] = FindingLifecycleState.REPORTABLE.value
         surface = surface_lifecycle_state(
