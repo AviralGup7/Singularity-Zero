@@ -216,7 +216,7 @@ flowchart TD
     WAL -->|REJECTED / DEDUPLICATED / no wal_id| Silent["no FINDING_CREATED"]
 ```
 
-Per-stage admit is `stage_admit.admit_stage` (ticket then ProcessSandbox). FAILED stages still `settle_stage_output`. `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). `attach_pipeline_authority` is the only writer.
+Per-stage admit is `stage_admit.admit_stage`: authorize → **consume (I28 `commit_requests`)** → ProcessSandbox metadata-guard → run. Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`. `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). `attach_pipeline_authority` is the only writer.
 
 
 
@@ -652,6 +652,7 @@ Each edge is bidirectional in `invariant_graph.py`: a forward statement and the 
 | 2026-08-26 | F-018: RecoveryManager collects recovered tickets/settlements for I35 | edit |
 | 2026-08-26 | F-004 consume-before-run + recon_validation; F-007 FAILED retry; F-018 exit 1/7 and Frontier reconstruct; F-002 live single-home | edit |
 | 2026-08-26 | F-007 JX is STOPPING; reporting join not large-debt starved | edit |
+| 2026-08-26 | F-004 consume commits I28 budget, P-0000, attach fail-closed + I35 PARTITION recovery | edit |
 | 2026-08-26 | F-033 bidirectional edges + reverse assumptions | edit |
 
 Append a row for every later edit. Do not delete this table.
