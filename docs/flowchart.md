@@ -194,10 +194,10 @@ flowchart TD
         Passive & Active --> Val["validation"]
         Passive & Active & Nuclei & Val --> Intel["intelligence"]
         Intel --> Threat["threat_modeling"]
-        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive --> Report["reporting"]
+        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover --> Report["reporting"]
         Report --> Sarif["sarif_export"]
     end
-    DAG --> Req["ExecutionRequest + ScopeToken"]
+    DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]
     Req --> Budget{"HuntBudget reserve"}
     Budget -->|exhausted| Rej["ScopeAuthorizationError"]
     Budget -->|ok| Ticket["AuthorizedExecutionTicket I30 binds scope+reservation+revision+command"]
@@ -208,9 +208,15 @@ flowchart TD
     Coord --> Thaw["_to_mutable"]
     Thaw --> WAL["append SettlementIntent"]
     WAL -->|COMMITTED + wal_id I31| Outbox["DurableOutbox FINDING_CREATED"]
-    Outbox --> Emit["EventBus notify I32"]
+    Outbox -->|HMAC receipt| Emit["EventBus notify I32"]
+    Outbox -->|append fail| NoBus["no bus notify; replay later"]
+    WAL -->|FAILED attempt still has wal_id| FailedId["I33 identity; no FINDING_CREATED"]
     WAL -->|REJECTED / DEDUPLICATED / no wal_id| Silent["no FINDING_CREATED"]
 ```
+
+Per-stage admit is `stage_admit.admit_stage` (ticket then ProcessSandbox). FAILED stages still `settle_stage_output`. `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). `attach_pipeline_authority` is the only writer.
+
+
 
 ## F-005 — RETIRED → F-004
 
@@ -239,7 +245,7 @@ flowchart TD
     EXPIRED --> Avail
 ```
 
-`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state.
+`Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. EXPIRED is **not** in `TERMINAL` (it can still compensate). `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state.
 
 ## F-007 — Application state machines
 
@@ -252,7 +258,6 @@ flowchart TD
         JP --> JR["RUNNING"]
         JP --> JF["FAILED"]
         JP --> JD["STOPPED"]
-        JP --> JX["STOPPING"]
         JS --> JR
         JS --> JX
         JS --> JF
@@ -296,9 +301,9 @@ flowchart TD
     end
 ```
 
-Illegal stage: COMPLETED→FAILED, COMPLETED→SKIPPED*, FAILED→COMPLETED, SKIPPED*→COMPLETED.
+Illegal stage CAS **raises** (`IllegalStageTransitionError`): COMPLETED→FAILED, COMPLETED→SKIPPED*, SKIPPED*→COMPLETED. FAILED→COMPLETED is legal (I33 retry). PENDING↛STOPPING (cancel-before-start is PENDING→STOPPED).
 
-Finding surface is CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE. Dashboard `open/closed` is a different axis (ticket status), not this SM.
+Finding surface is CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE. `"open"` is **not** a lifecycle alias — dashboard `open/closed` is `ticket_status`. PDF filters `surface == REPORTABLE` (`filter_report_surface`). `derive_job_and_exit` maps stages × findings × policy → (JobStatus, exit).
 
 ## F-008 — RETIRED → F-007
 
@@ -325,11 +330,12 @@ flowchart TD
     Q -->|P2| P2["coalesce findings"]
     Q -->|P3| P3["1s aggregates"]
     Q -->|P4| P4["drop first"]
-    Disk{"disk percent"} -->|85| P4
-    Disk -->|92| P3
+    Disk{"disk percent"} -->|"qos_admit ≥85 DROP P4"| P4
+    Disk -->|"qos_admit ≥92 DROP P3/P4 COALESCE P1/P2"| P3
+    OPEN -->|"set_reserve_gate"| NoTicket["HuntBudget reserve None"]
 ```
 
-One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN.
+`qos_admit(event, disk_pct) -> admit|coalesce|drop` is the named function. Breaker OPEN stops **new** HuntBudget reserves (F-009 → F-006). One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN.
 
 ## F-010 — RETIRED → F-004
 
@@ -358,11 +364,13 @@ flowchart TD
     Run["Scan finished"] --> Q1{"Scan outcome / Stage status?"}
     Q1 -->|FAILED stage| Infra["Exit 3 infrastructure / target down"]
     Q1 -->|POLICY_VIOLATION policy outcome| Vuln["Exit 2 findings exceed policy"]
-    Q1 -->|COMPLETED stage| Q2{"Finding count?"}
-    Q2 -->|greater than 0| Report["Report findings"]
-    Q2 -->|0| Q3{"degraded_probes or warnings?"}
-    Q3 -->|no| Clean["Exit 0 genuine clean target"]
+    Q1 -->|COMPLETED stage| Q2{"Finding count / policy?"}
+    Q2 -->|findings under policy| Clean["Exit 0 genuine clean or under-policy"]
+    Q2 -->|findings exceed policy| Vuln
+    Q2 -->|0| Q3{"DEGRADED or SKIPPED_FAILED?"}
+    Q3 -->|no| Clean
     Q3 -->|yes| Deg["Exit 4 degraded run"]
+    Q1 -->|I35 FAIL_CLOSED| Infra
     Run --> CB["Circuit OPEN HTTP 429"]
     Run --> WAL["WALCorruptionError I15 fail-closed"]
     Run --> Pol["Policy gate fail-closed without log"]
@@ -415,6 +423,8 @@ flowchart TD
 ```
 
 PartitionWAL is never reconstructed. Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
+
+`RecoveryManager._execute_verdict` runs rebuild_outbox. FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for job + exit.
 
 ---
 
@@ -581,7 +591,8 @@ flowchart TD
         Finding --> Outbox["DurableOutbox append by EventId"]
         Outbox --> Bus["EventBus in-process notify by DeliveryId"]
         Bus --> Consumers["observers"]
-        Bus -.->|"handler/outbox fail"| Still["authoritative state unchanged"]
+        Outbox -->|append fail| NoBus["do not notify bus"]
+        Bus -.->|"handler fail"| Still["authoritative state unchanged"]
         DlvId -->|"already delivered"| Skip["skip emit"]
     end
 ```
@@ -606,5 +617,6 @@ flowchart TD
 | 2026-08-26 | Align F-001 portal, F-004 DAG with graph_builder, F-007 SMs, F-018 recovery branches, F-020 CI combine job | edit |
 | 2026-08-26 | F-002/F-018/F-033: honest live path for I35 observation and I36 relay refuse | edit |
 | 2026-08-26 | F-002: I37 OWNED→FENCED→OWNED transfer fence | edit |
+| 2026-08-26 | F-004 per-stage ticket+FAILED settle+report join; F-007 CAS fail-closed + ticket axis; F-009 qos_admit; F-018 I35 execute + lattice; F-033 HMAC receipt | edit |
 
 Append a row for every later edit. Do not delete this table.
