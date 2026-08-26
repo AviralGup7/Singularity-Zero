@@ -79,6 +79,9 @@ flowchart TD
     Index --> Perf["performance.md"]
     Index --> Gloss["glossary.md"]
     Index --> ApiDoc["api-reference.md"]
+    Index --> Guides["Ops: getting-started / deployment / ci-cd / dynamic-plugins / troubleshooting"]
+    Index --> PagesOver["frontend_pages_overview.md"]
+    Index --> Standards["Standards: CONTRIBUTING / SECURITY / BENCHMARK / CHANGES"]
     Arch --> ExecReq["architecture/execution-request-contract.md"]
     Arch --> CacheDoc["architecture/cache-unification.md"]
 ```
@@ -167,20 +170,24 @@ flowchart TD
     Recover --> Auth["attach_pipeline_authority"]
     Auth --> Stamp["ctx.budget_enforcer + authorizer"]
     Stamp --> DAG
-    subgraph DAG["STAGE_GRAPH spine"]
-        Scope["scope"] --> Sub["subdomains"]
+    subgraph DAG["STAGE_GRAPH (graph_builder.py)"]
+        Sub["subdomains"] --> Takeover["subdomain_takeover"]
         Sub --> LiveH["live_hosts"]
+        LiveH --> WAF["waf"]
         LiveH --> Urls["urls"]
+        Urls --> GitDiff["git_diff_crawl"]
         Urls --> Params["parameters"]
-        Params --> Rank["ranking"]
-        Rank --> Passive["passive / analysis"]
-        Rank --> Nuclei["nuclei"]
-        Rank --> Active["active_scan"]
-        Passive --> Val["validation"]
-        Nuclei --> Val
-        Active --> Val
-        Val --> Merge["merge"]
-        Merge --> Report["reporting"]
+        Urls & Params & WAF --> Rank["ranking"]
+        Rank & LiveH & Urls --> Passive["passive_scan"]
+        Passive --> Active["active_scan"]
+        Passive --> Semgrep["semgrep"]
+        Passive --> Nuclei["nuclei"]
+        Rank & Passive --> Access["access_control"]
+        Passive & Active --> Val["validation"]
+        Passive & Active & Nuclei & Val --> Intel["intelligence"]
+        Intel --> Threat["threat_modeling"]
+        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive --> Report["reporting"]
+        Report --> Sarif["sarif_export"]
     end
     DAG --> Req["ExecutionRequest + ScopeToken"]
     Req --> Budget{"HuntBudget reserve"}
@@ -189,7 +196,7 @@ flowchart TD
     Ticket --> SB["ProcessSandbox I29 metadata-guard"]
     SB -->|out of scope| Viol["EgressViolationError"]
     SB --> Out["StageOutput / RawExecutionClaim"]
-    Out --> Coord["SettlementCoordinator 5-stage"]
+    Out --> Coord["SettlementCoordinator (claim validation)"]
     Coord --> Thaw["_to_mutable"]
     Thaw --> WAL["append SettlementIntent"]
     WAL -->|COMMITTED + wal_id I31| Outbox["DurableOutbox FINDING_CREATED"]
@@ -232,37 +239,53 @@ Source: `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contr
 
 ```mermaid
 flowchart TD
-    subgraph Job["JobStatus — only _transition writes"]
+    subgraph Job["JobStatus (src/jobs/status.py)"]
         JP["PENDING"] --> JS["STARTING"]
-        JS --> JR["RUNNING"]
-        JR --> JX["STOPPING"]
-        JX --> JD["STOPPED"]
+        JP --> JR["RUNNING"]
+        JP --> JF["FAILED"]
+        JP --> JD["STOPPED"]
+        JP --> JX["STOPPING"]
+        JS --> JR
+        JS --> JX
+        JS --> JF
+        JS --> JD
+        JR --> JX
         JR --> JC["COMPLETED"]
-        JR --> JF["FAILED"]
+        JR --> JF
+        JR --> JD
+        JX --> JD
+        JX --> JF
         JC --> JTerm["terminal"]
         JF --> JTerm
         JD --> JTerm
     end
-    subgraph Stage["Stage CAS"]
+    subgraph Stage["Stage CAS (src/core/models/stage_status.py)"]
         SP["PENDING"] --> SR["RUNNING"]
         SP --> SSD["SKIPPED_DISABLED"]
         SP --> SDG["DEGRADED"]
-        SR --> SC["COMPLETED"]
+        SP --> SC["COMPLETED"]
+        SP --> SF["FAILED"]
+        SP --> SSF["SKIPPED_FAILED"]
+        SR --> SC
         SR --> SDG
-        SR --> SF["FAILED"]
-        SR --> SSF["SKIPPED_FAILED"]
+        SR --> SF
+        SR --> SSD
+        SR --> SSF
+        SC --> STerm["terminal"]
+        SDG --> STerm
+        SF --> STerm
+        SSD --> STerm
+        SSF --> STerm
     end
-    subgraph Finding["Finding lifecycle — REPORTABLE and FP sticky"]
+    subgraph Finding["Finding lifecycle (src/core/contracts/finding_lifecycle.py)"]
         FC["CANDIDATE"] --> FR["REPORTABLE"]
         FC --> FF["FALSE_POSITIVE"]
-        FR --> FR
-        FF --> FF
-        FC -.-> FV["VALIDATED / EXPLOITABLE refine CANDIDATE"]
+        FC -.-> FV["VALIDATED / EXPLOITABLE<br/>(refine CANDIDATE)"]
         FV --> FR
         FV --> FF
+        FR -->|"triage"| FF
+        FF --> FPTerm["FALSE_POSITIVE terminal sticky"]
     end
-    Job --> Stage
-    Stage --> Finding
 ```
 
 Illegal stage: COMPLETED→FAILED, COMPLETED→SKIPPED*, FAILED→COMPLETED, SKIPPED*→COMPLETED.
@@ -324,10 +347,10 @@ Exit codes answer "what result did this scan produce?". The I34 table answers "w
 
 ```mermaid
 flowchart TD
-    Run["Scan finished"] --> Q1{"Stage status?"}
-    Q1 -->|FAILED| Infra["Exit 3 infrastructure / target down"]
-    Q1 -->|POLICY_VIOLATION| Vuln["Exit 2 findings exceed policy"]
-    Q1 -->|COMPLETED| Q2{"Finding count?"}
+    Run["Scan finished"] --> Q1{"Scan outcome / Stage status?"}
+    Q1 -->|FAILED stage| Infra["Exit 3 infrastructure / target down"]
+    Q1 -->|POLICY_VIOLATION policy outcome| Vuln["Exit 2 findings exceed policy"]
+    Q1 -->|COMPLETED stage| Q2{"Finding count?"}
     Q2 -->|greater than 0| Report["Report findings"]
     Q2 -->|0| Q3{"degraded_probes or warnings?"}
     Q3 -->|no| Clean["Exit 0 genuine clean target"]
@@ -357,8 +380,8 @@ flowchart TD
     U --> LW0["LOAD_WAL"]
     U --> Fresh["FRESH"]
     LS --> VS["VERIFY_SNAPSHOT"]
-    VS -->|"schema newer than reader"| Fresh
-    VS -->|"partition unread schema"| Closed["FAIL_CLOSED"]
+    VS -->|"partition plane unread schema"| Closed["FAIL_CLOSED"]
+    VS -->|"frontier snapshot unread schema"| Fresh
     VS --> LW["LOAD_WAL"]
     LW0 --> Rec
     LW --> Rec["RECONCILE_SNAPSHOT_WAL"]
@@ -377,7 +400,8 @@ flowchart TD
     Del -->|"delivery missing"| ReplayD["replay dispatch I32"]
     Drop --> Inv
     ReplayD --> Inv["VERIFY_INVARIANTS"]
-    Inv -->|"compensation crash"| Comp["idempotent I28 replay"]
+    Inv -->|"compensation crash: valid lease"| Comp["idempotent I28 replay"]
+    Inv -->|"compensation crash: uncompensatable"| Closed
     Comp --> Ready["READY"]
     Inv --> Ready
 ```
@@ -392,7 +416,7 @@ Source: [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSER
 
 ```mermaid
 flowchart TD
-    HTTP["Inbound HTTP"] --> Tenant["X-Tenant-ID"]
+    HTTP["Inbound HTTP"] --> Tenant["X-Tenant-ID (optional namespace)"]
     Tenant --> Auth{"auth mode"}
     Auth -->|"Bearer / API key"| Dispatch["route handler"]
     Auth -->|"session cookie mutating"| CSRF{"CSRF ok?"}
@@ -428,7 +452,7 @@ flowchart TD
     Push --> Mypy["mypy"]
     Push --> TS["typescript"]
     Push --> FE["frontend"]
-    Push --> Shards["pytest shards"]
+    Push --> Shards["pytest shards (test matrix)"]
     Shards --> Infra["unit-infra"]
     Shards --> Core["unit-core"]
     Shards --> Pipe["unit-pipeline"]
@@ -437,8 +461,9 @@ flowchart TD
     Shards --> Dash["unit-dashboard"]
     Shards --> Exploit["unit-exploit"]
     Shards --> App["unit-app"]
-    Shards --> Suites["suites architecture"]
-    Shards --> Cov["coverage fail_under 45"]
+    Shards --> Suites["suites: integration + architecture + regression + infrastructure"]
+    Shards --> Combine["coverage combine job (needs: test)"]
+    Combine --> Cov["coverage fail_under 45"]
     Local["Local agents"] --> Small["only smallest relevant slice less than or equal 50s"]
 ```
 
@@ -456,7 +481,7 @@ flowchart LR
     Tickets["Jira ServiceNow DefectDojo"] --> Impl
     Policy["Policy via Raft commands"] --> Impl
     Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]
-    WASM["WASM AEVE"] --> Flag["Fd"]
+    WASM["WASM AEVE"] --> Flag["Feature Flagged"]
     PPO["PPO / DRL"] --> Heur["Heuristic stub"]
     GNN["GNN attack graph"] --> Dijk["Dijkstra LIBRARY"]
 ```
@@ -570,5 +595,6 @@ flowchart TD
 | 2026-08-26 | F-006: SETTLEMENT_PENDING is alias of ACTIVE | edit |
 | 2026-08-26 | F-018: I35 recovery protocol state machine | edit |
 | 2026-08-26 | F-002: I36 single-writer regions; relay is journal-only | edit |
+| 2026-08-26 | Align F-001 portal, F-004 DAG with graph_builder, F-007 SMs, F-018 recovery branches, F-020 CI combine job | edit |
 
 Append a row for every later edit. Do not delete this table.
