@@ -53,7 +53,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
 | F-025 | Non-authoritative planes | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) |
-| F-033 | Global invariants I30–I33 | `global_invariants.py`, `causal_identity.py`, `event_delivery.py` (I34–I35 → F-018, I36 → F-002) |
+| F-033 | Global invariants I30–I33 | `global_invariants.py`, `causal_identity.py`, `event_delivery.py` (I34–I35 → F-018, I36–I37 → F-002) |
 
 ---
 
