@@ -267,12 +267,12 @@ Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [command
 
 ```mermaid
 flowchart TD
-    subgraph GraphBuilderPipeline["Graph Construction & Conditioning Pipeline (graph_builder.py)"]
-        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. Merge Plugins from StageRegistry"]:::impl
+    subgraph GraphBuilderPipeline["Dynamic Plugin & DAG Lifecycle: DISCOVER → VALIDATE → COMPOSE → VERIFY → FREEZE"]
+        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. COMPOSE: Merge Plugins from StageRegistry"]:::impl
         MergePlugins --> ProfileOverride["3. Apply Capability Profile Manifest"]:::impl
         ProfileOverride --> PruneTools["4. Prune Unavailable Tools (nuclei/semgrep binary check)"]:::impl
-        PruneTools --> DynamicJoin["5. _join_finding_producers (Bind all finding producers to reporting)"]:::impl
-        DynamicJoin --> CycleCheck["6. Acyclic Verification (graph.is_acyclic)"]:::impl
+        PruneTools --> DynamicJoin["5. _join_finding_producers (Bind finding producers to reporting)"]:::impl
+        DynamicJoin --> CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
         CycleCheck ==> Freeze["7. FREEZE: Immutable Graph(nodes=tuple) + GraphGenID"]:::impl
     end
 
@@ -326,6 +326,19 @@ flowchart TD
         Report ==> Dedup["dedup_stage (needs: reporting)"]:::impl
     end
 
+    subgraph ReadinessFSM["Scheduler Stage Lifecycle & Gating State Machine"]
+        P_PEND["PENDING"]:::impl -->|"all needs met"| P_READY["READY"]:::impl
+        P_READY -->|"when == True"| P_DISP["DISPATCH"]:::impl
+        P_DISP --> P_RUN["RUNNING"]:::impl
+        P_RUN --> P_COMP["COMPLETED"]:::impl
+        P_RUN --> P_DEG["DEGRADED"]:::impl
+        P_RUN --> P_FAIL["FAILED"]:::impl
+        P_READY -->|"when == False"| P_DEF["DEFERRED"]:::impl
+        P_DEF -->|"tick retry"| P_READY
+        P_DEF -->|"scan end"| P_SKIP["SKIPPED (condition_never_satisfied)"]:::impl
+        P_PEND -->|"upstream failed"| P_SKIP_FAIL["SKIPPED_FAILED (upstream_dependency_failed)"]:::impl
+    end
+
     DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]:::impl
     
     subgraph Sandbox["Execution Gate & Continuous Egress Sandbox (F-036)"]
@@ -365,127 +378,35 @@ flowchart TD
     end
 ```
 
-### Formal Graph Invariants & Construction Rules (G1–G9, U1–U8, C1–C4)
+### Formal Graph Invariants Table (`FREEZE` Boundary)
 
-The runtime DAG adheres to eight formal invariants verified at the `FREEZE` boundary:
-
-1. **`I-GRAPH-01` (Topological Need-Edge Equivalence)**:
-   $$\forall B \in \text{Graph.nodes}, \quad \text{incoming\_topological\_edges}(B) \equiv B.\text{needs}$$
-   Only declared `needs` construct DAG topology and participate in Kahn topological ordering. Runtime conditional gates (`when`) are non-topological scheduling predicates.
-2. **`I-GRAPH-02` (Conjunctive Dependency Semantics)**:
-   All items in `StageNode.needs` are strictly **conjunctive (AND)**: Node $B$ cannot enter candidate readiness until $\forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$.
-3. **`I-GRAPH-03` (Root & Sink Validity Contract)**:
-   The graph must contain at least one root ($\text{in\_degree}=0$, `subdomains`) and at least one terminal sink ($\text{out\_degree}=0$, e.g. `sarif_export`), with all nodes reachable from a root and all finding producers having a directed path to `reporting`.
-4. **`I-GRAPH-04` (Isolated Node Prohibition)**:
-   Any registered stage lacking both incoming `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) is rejected during validation unless explicitly declared as a root or sink.
-5. **`I-GRAPH-05` (Stage Collision & Override Policy)**:
-   Plugin definitions override built-in nodes with matching IDs (`nodes_by_name[defn.name] = defn`). Duplicate un-namespaced IDs between two external plugins fail validation (`ValueError: Duplicate stage names in graph`).
-6. **`I-GRAPH-06` (Machine-Checkable Plugin Override Safety)**:
-   A plugin stage $S_{\text{plugin}}$ that overrides a built-in stage $S_{\text{builtin}}$ MUST satisfy four machine-checkable invariants:
-   - **Dependency Monotonicity**: $S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$ (cannot drop mandatory upstream prerequisites).
-   - **Criticality Preservation**: If $S_{\text{builtin}}.\text{critical} == \text{True}$, then $S_{\text{plugin}}.\text{critical}$ MUST be `True`.
-   - **Producer Preservation**: If $S_{\text{builtin}}$ produces reportable findings, $S_{\text{plugin}}.\text{produces}$ MUST declare finding production.
-   - **Sandbox Invariance**: $S_{\text{plugin}}$ is subject to identical continuous egress checks (I29) and execution ticket binding (I30).
-7. **`I-GRAPH-07` (Immutable Sink Membership Rule)**:
-   At `FREEZE`, `reporting.needs` is dynamically populated with all active finding producers:
-   $$\text{reporting.needs} = \{ n \in \text{Graph.nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$$
-   Disabled plugins and pruned tools (missing `nuclei`/`semgrep` binaries) are removed *prior* to `_join_finding_producers`, guaranteeing sinks never block on phantom nodes.
-8. **`I-GRAPH-08` (Deterministic GraphGenID & Canonical Fingerprint)**:
-   Every frozen graph computes a deterministic SHA-256 fingerprint sorted canonically by stage name:
-   $$\text{CanonicalNode}(n) = \big(n.\text{name}, \quad \text{tuple}(n.\text{needs}), \quad \text{repr}(n.\text{when}), \quad n.\text{weight}, \quad n.\text{timeout}, \quad n.\text{critical}, \quad \text{tuple}(n.\text{produces})\big)$$
-   $$\text{GraphGenID} = \text{SHA256}\Big(\text{tuple}\big(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Graph.nodes}, \text{ key}=\lambda x: x[0])\big)\Big)$$
-   Sorting guarantees that discovery/registration order never alters the fingerprint, and including `repr(n.when)` and `produces` guarantees that two graphs with different conditional gates or finding contracts never share a `GraphGenID`.
+| Invariant | Name & Scope | Formal Verification Rule |
+|---|---|---|
+| **`I-GRAPH-01`** | **Topological Need-Edge Equivalence** | $\forall B \in \text{Graph.nodes}, \text{incoming\_edges}(B) \equiv B.\text{needs}$. Only `needs` create Kahn topological ordering; `when` gates are pure runtime predicates. |
+| **`I-GRAPH-02`** | **Conjunctive Dependencies** | Multiple `needs` are strictly conjunctive (AND): $B$ unblocks $\iff \forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$. |
+| **`I-GRAPH-03`** | **Root & Sink Validity** | $\ge 1$ root ($\text{in\_degree}=0$, `subdomains`), $\ge 1$ terminal sink ($\text{out\_degree}=0$, `sarif_export`). All finding producers have directed paths to `reporting`. |
+| **`I-GRAPH-04`** | **Isolated Node Prohibition** | Registered nodes lacking both `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) fail validation unless declared root/sink. |
+| **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). |
+| **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. |
+| **`I-GRAPH-07`** | **Immutable Sink Membership** | At `FREEZE`, $\text{reporting.needs} = \{ n \in \text{Nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$. Pruned tools removed prior to join. |
+| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$. Canonical sorting ensures identity is independent of discovery order. |
 
 ---
 
-### Dependency Classification & Scheduling Semantics (G2, G6, U1, U3)
-
-The orchestrator strictly decouples three orthogonal dependency concepts:
-
-1. **Topological Dependency (`needs: tuple[str, ...]`)**:
-   Structural prerequisite governing scheduler readiness. Node $B$ cannot enter the candidate dispatch set until all $A \in \text{needs}(B)$ reach a terminal status (`_need_met`).
-2. **Runtime Scheduling Gate (`when: Condition`)**:
-   Pure predicate evaluated **synchronously on each scheduler readiness tick immediately prior to dispatch** against `ctx` and runtime flags. If `False`, the node is deferred.
-3. **Authorization Ticket & Budget Binding (I30)**:
-   Single-use cryptographic execution ticket granting sandbox execution rights and reserving budget units at admission.
-
----
-
-### Operational Gating & Epistemic Model (G1, G2, U2, U3, C1, C3)
-
-The scheduler resolves upstream status into five distinct operational classes:
+### Operational Gating & Epistemic Matrix
 
 | Upstream Status ($A$) | Epistemic Classification | `OutputNonEmpty(A)` | Downstream Action ($B$) | Terminal Status ($B$) | Telemetry & Audit Reason |
 |---|---|---|---|---|---|
 | **`COMPLETED` (> 0 items)** | **Positive Findings** | `True` | Dispatches normally | `RUNNING` $\rightarrow$ `COMPLETED` | Standard scan execution |
-| **`COMPLETED` (0 items)** | **Authoritative Negative Proof** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY"` |
+| **`COMPLETED` (0 items)** | **Authoritative Negative Proof** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY"` (Clean exit, 0 crashes) |
 | **`DEGRADED` (> 0 items)** | **Partial Observation** | `True` | Dispatches in degraded mode | `RUNNING` $\rightarrow$ `DEGRADED` | Partial upstream input |
 | **`DEGRADED` (0 items)** | **Partial Empty Observation** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY_DEGRADED"` |
 | **`FAILED` / `SKIPPED_FAILED`** | **Unobserved Crash / Error** | `False` | Gated skip / Dep blocked | `SKIPPED_FAILED` | `reason="UPSTREAM_UNOBSERVED"` |
 | **`SKIPPED_DISABLED`** | **Disabled by Policy / Profile** | `False` | Gated skip (structural no-op) | `SKIPPED` | `reason="DISABLED_BY_POLICY"` |
 
-#### Formal Proof Condition for Negative Proof (`PROVEN_EMPTY`) (U3)
-A stage output of 0 items constitutes authoritative negative proof **only when**:
-1. Upstream stage finished with clean `COMPLETED` status (0 crashes, 0 unhandled timeouts, Circuit Breaker stayed `CLOSED`).
-2. Input target collection was non-empty (e.g. `subdomains` produced $\ge 1$ target for `live_hosts`).
-
-#### Universal Terminal Status Fulfillment (`ActorScheduler._need_met`) (C3)
-- **Standard Stage Downstream**: Unblocked by $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$. Blocked by $\{ \text{FAILED}, \text{SKIPPED\_FAILED} \}$.
-- **CAS-Aware Join Sinks (`_JOIN_SINKS`)**: Unblocked by **ANY** terminal status: $\{ \text{COMPLETED}, \text{DEGRADED}, \text{FAILED}, \text{SKIPPED\_DISABLED}, \text{SKIPPED\_FAILED} \}$.
-
-#### Blocked Downstream & Gated Liveness State Machine (G3, C1)
-- $\text{PENDING} \longrightarrow (\forall A \in \text{needs}, A \in \text{TERMINAL}) \longrightarrow \text{READY} \longrightarrow \text{when.is\_satisfied}(ctx, flags)$:
-  - If `True`: $\longrightarrow \text{DISPATCH} \longrightarrow \text{RUNNING} \longrightarrow \text{COMPLETED} \mid \text{DEGRADED} \mid \text{FAILED}$.
-  - If `False`: $\longrightarrow \text{DEFERRED}$ (re-evaluated on every subsequent tick).
-  - At pipeline termination ($\text{in\_flight} == \emptyset \land \text{ready} == \emptyset$):
-    - Deferred nodes whose `when` was never satisfied transition to `SKIPPED` (`reason="condition_never_satisfied"`).
-    - Nodes whose upstream `needs` failed transition to `SKIPPED_FAILED` (`reason="upstream_dependency_failed"`).
-    - **Total Liveness Guarantee**: Zero deadlocks; every node in `Graph.nodes` reaches a well-defined terminal state.
-
----
-
-### Report Integrity Contract (G5)
-
-To prevent partial scans from being misinterpreted as complete clean scans, `reporting` stamps an explicit **Report Integrity Classification**:
-
-- **`COMPLETE_REPORT`**: Every finding producer in `reporting.needs` terminated as `COMPLETED` or `SKIPPED_DISABLED`.
-- **`PARTIAL_REPORT`**: One or more finding producers terminated as `FAILED`, `DEGRADED`, or `SKIPPED_FAILED`. Export sinks (`sarif_export`, `ci_export`) stamp SARIF output with `executionSuccessful: false` and emit exit code 4 (`PARTIAL_RUN`).
-- **`EMPTY_REPORT`**: All producers terminated cleanly with 0 findings; verified negative proof.
-
----
-
-### Runtime Readiness, Concurrency, Snapshot, Retries & Cancellation (C4, U3, U4, U5, U7)
-
-1. **Readiness Tick Triggers & Liveness (C4)**:
-   Readiness ticks fire on: (1) Stage completion/failure, (2) Worker capacity release, (3) Periodic heartbeat tick. Deferred nodes are re-evaluated on subsequent ticks; starvation prevention forces or skips nodes exceeding `_max_deferrals`.
-2. **Concurrent Readiness Priority (U5, U7)**:
-   When multiple nodes unblock simultaneously, `_collect_ready_nodes` orders dispatch deterministically:
-   $$\text{Sort Key} = (-\text{node.weight}, \quad \text{declaration\_index})$$
-   Nodes with higher weight (`live_hosts=15`, `active_scan=15`, `nuclei=10`, `semgrep=10`, `subdomains=10`) receive worker pool capacity first.
-3. **Context Snapshot Semantics (U3, U4)**:
-   Downstream stages observe the immutable CRDT state snapshot at the timestamp of stage admission (`admit_stage`), ordered monotonically by HLC (I23).
-4. **Retry & Re-execution Semantics (U4)**:
-   Stage retries mint a new causal `AttemptId` (I33) and consume a fresh single-use ticket (I30). Downstream stages evaluate dependency fulfillment against the latest attempt's terminal state.
-5. **Cancellation & Settlement Boundary (U5)**:
-   - **Before Settlement WAL Commit**: If SIGINT arrives while a subprocess is running or during claim validation, the subprocess is killed, no WAL record is committed, outstanding budget reservation is `RELEASED`, and stage is marked `SKIPPED` (`reason="cancelled"`).
-   - **After Settlement WAL Commit**: If WAL committed (`wal_id` assigned), finding is durably recorded in WAL. Outbox ledger will replay dispatch on restart (I32); budget is settled; job exit code records `130`.
-6. **Budget Exhaustion Semantics (U6)**:
-   If `HuntBudget.reserve` fails during admission, `ScopeAuthorizationError` is raised. The stage is marked `SKIPPED` (`reason="budget_exhausted"`), releasing reservations and unblocking downstream nodes whose gates do not require positive findings.
-7. **Deep Immutability at `FREEZE` (U7)**:
-   `Graph`, `StageNode`, and all `Condition` classes are `@dataclass(frozen=True)` with immutable tuple fields, guaranteeing deep immutability across the entire DAG.
-
----
-
-### Formal Dynamic Plugin Graph Lifecycle
-
-$$\text{DISCOVER} \longrightarrow \text{VALIDATE} \longrightarrow \text{COMPOSE} \longrightarrow \text{VERIFY} \longrightarrow \text{FREEZE} \longrightarrow \text{EXECUTE}$$
-
-1. **`DISCOVER`**: Discover registered plugins via `StageRegistry` and `.ai/capability_manifest.json`.
-2. **`VALIDATE`**: Validate stage schemas, runner contracts, produces declarations, and timeout bounds.
-3. **`COMPOSE`**: Merge built-in `_BASE_NODES` (19 nodes) with plugin overrides; prune missing tool binaries; run `_join_finding_producers`.
-4. **`VERIFY`**: Enforce `I-GRAPH-01` through `I-GRAPH-08` (acyclicity, reachability, sink coverage, collision safety).
-5. **`FREEZE`**: Seal the graph into an immutable `Graph(nodes=tuple(...))` object with `GraphGenID`.
-6. **`EXECUTE`**: `ActorScheduler` dispatches stages against the frozen graph.
+- **Dependency Fulfillment (`_need_met`)**: Standard stages unblocked by $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$; Join sinks unblocked by **ANY** terminal status.
+- **Report Integrity**: `COMPLETE_REPORT` (all producers completed cleanly), `PARTIAL_REPORT` (one or more failed/degraded; SARIF `executionSuccessful: false`, exit 4), `EMPTY_REPORT` (verified negative proof).
+- **Concurrency & Fairness**: Ready nodes sorted by $(-\text{node.weight}, \text{declaration\_index})$. Retries mint fresh `AttemptId` (I33) and single-use tickets (I30).
 
 ---
 
@@ -503,8 +424,6 @@ $$\text{DISCOVER} \longrightarrow \text{VALIDATE} \longrightarrow \text{COMPOSE}
 
 ### Subsystem Architecture & Domain Package Mapping
 
-While `F-004` diagrams the 19 core DAG stages and scheduling loop, the runtime coordinates specialized domain packages attached to specific pipeline stages:
-
 | Domain Subsystem | Active Package Path | Pipeline Attachment Stage | Primary Responsibility & Core Classes |
 |---|---|---|---|
 | **Asset Discovery & Recon** | `src/recon/` | `subdomains`, `live_hosts`, `urls` | OSINT ingestion, Cloud recon (AWS/Azure/GCP), JS AST parsing, API spec reconstruction (`APISchemaReconstructor`, `CloudBucketScanner`, `AlienURL`). |
@@ -521,19 +440,15 @@ While `F-004` diagrams the 19 core DAG stages and scheduling loop, the runtime c
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
-**I29 in-process egress (code):** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; metadata/IMDS always denied). Shared `httpx`/`requests` clients from `src/core/utils/shared_sessions.py` enforce that filter on every request via event hooks / wrapped `session.request`. `SafeExploiter` / `ExploitationCampaign` call `assert_exploit_target_egress` before engine run. Subprocess tools still use `ProcessSandbox.check_egress`.
+**I29 In-Process Egress & Residuals:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar). Shared clients from `src/core/utils/shared_sessions.py` enforce filter hooks on every request. `SafeExploiter` calls `assert_exploit_target_egress`. Raw `httpx`/`requests` instances outside shared sessions must be wrapped or use explicit assert calls.
 
-**I29 residual (honest gap):** raw `httpx.AsyncClient()` / `httpx.Client()` / bare `requests.*` call sites outside `shared_sessions` (notably `src/analysis/active/**`, some `src/execution/auth/**`) do **not** inherit the ContextVar hooks unless refactored to the shared client or an explicit `assert_*_egress` call. Prefer shared-boundary hooks over per-file rewrites.
-
-**I28/I30 residual on exploitation:** campaign / SafeExploiter entry currently gates **egress only** (I29). Full HuntBudget reserve + I30 ticket binding remains on the stage_admit path; standalone exploit entry does not yet mint/consume an `AuthorizedExecutionTicket` or settle budget.
-
-**Package path honesty (not dual writers):**
-| Surface | Role | Authority |
+**Package Path Authority:**
+| Surface | Role | Authority Model |
 |---|---|---|
-| `src/core/frontier/*` | Live authority (StateAuthority, WAL settle, CRDT, Raft helpers) | **Authoritative** |
-| `src/frontier/*` | Thin facades + test-only `MemoryJournal` (in-memory WAL stand-in) | **Non-authoritative** — never a production settle path |
-| `src/cache`, `src/checkpoint` | Facades → `pipeline.unified_cache` / `core.checkpoint` | **Non-authoritative** caches |
-| `src/intel` vs `src/intelligence` | Distinct domains (feed/IOC aggregation vs attack-chain / risk scoring), both attach at `intelligence` stage | Both `impl`; not duplicates |
+| `src/core/frontier/*` | Live authority (StateAuthority, WAL settle, CRDT, Raft) | **Authoritative State Plane** |
+| `src/frontier/*` | Facades + test-only `MemoryJournal` | **Non-authoritative** |
+| `src/cache`, `src/checkpoint` | Facades → `pipeline.unified_cache` / `core.checkpoint` | **Non-authoritative Caches** |
+| `src/intel` vs `src/intelligence` | IOC feed aggregation vs attack chain / risk scoring | **Distinct Domain Modules** (both attach at `intelligence`) |
 
 ---
 
@@ -619,24 +534,28 @@ flowchart TD
         SF --> SDG
         SF --> SSF
     end
-    subgraph Finding["Finding Lifecycle & Tri-Axial Model"]
-        FC["CANDIDATE (Surface)"]:::impl --> FR["REPORTABLE (Surface)"]:::impl
-        FC --> FF["FALSE_POSITIVE (Surface Sticky)"]:::impl
-        FC -.->|"Confidence Refinement"| FV["VALIDATED / EXPLOITABLE"]:::impl
-        FV --> FR
-        FV --> FF
-        FR -->|"Analyst Triage"| FF
+    subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
+        subgraph SurfaceAxis["Axis 1: Surface Lifecycle"]
+            FC["CANDIDATE"]:::impl --> FR["REPORTABLE"]:::impl
+            FC --> FF["FALSE_POSITIVE"]:::impl
+            FR -->|"Analyst Triage"| FF
+        end
+        subgraph ConfidenceAxis["Axis 2: Confidence & Exploitability"]
+            C_HEUR["heuristic_candidate"]:::impl --> C_PASS["passive_only"]:::impl
+            C_PASS --> C_VAL["validated"]:::impl
+            C_VAL --> C_EXP["exploitable"]:::impl
+        end
+        subgraph TicketAxis["Axis 3: Operator Ticket Status"]
+            T_OPEN["OPEN"]:::impl --> T_CLOSED["CLOSED"]:::impl
+        end
+        C_VAL & C_EXP -.->|"Confidence Refinement"| FR
     end
     SC & SDG & SF & SSD & SSF --> Coupling["derive_job_and_exit (Total Mapping Lattice)"]:::impl
     FR & FF --> Coupling
     Coupling --> JP
 ```
 
-### Finding Tri-Axial State Model
-
-1. **Surface Lifecycle Axis** (`FindingLifecycleState`): `CANDIDATE` $\rightarrow$ `REPORTABLE` $\mid$ `FALSE_POSITIVE`.
-2. **Confidence / Exploitability Axis**: `heuristic_candidate` $\rightarrow$ `passive_only` $\rightarrow$ `validated` $\rightarrow$ `exploitable`.
-3. **Operator Ticket Axis** (`FindingTicketStatus`): `OPEN` $\rightarrow$ `CLOSED` (orthogonal to surface lifecycle).
+**Tri-Axial Lifecycle Coupling:** Surface state (`FindingLifecycleState`), Confidence (`heuristic` $\rightarrow$ `exploitable`), and Operator Ticket (`OPEN` $\rightarrow$ `CLOSED`) operate orthogonally. Stage and finding terminal states couple through `derive_job_and_exit` into the job exit lattice.
 
 ---
 
@@ -764,9 +683,7 @@ flowchart TD
     Comp --> Ready
 ```
 
-PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered tickets/settlements violate I30–I33 (`invariant_graph.py`). Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
-
-`RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op — live checkpoints usually have no `tickets`/`settlements` keys). `delivered_event_ids` on the scan observation are empty by design; `replay_delivery` is a log line. FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the strictly total lattice for CLI exit and dashboard reap with defined total priority order (130 > 3 > 7 > 2 > 4 > 1 > 0) and unified `no_pipeline_output` handling. A non-fatal FAILED producer unblocks reporting; only `fatal_stages` trigger exit 3.
+**Recovery & Exit Governance (I34/I35):** PartitionWAL is authoritative and never reconstructed; outbox is rebuilt from WAL on restart. Unreadable partition schemas or I30–I33 invariant failures trigger `FAIL_CLOSED` (Exit 3). Total exit priority order: $130 > 3 > 7 > 2 > 4 > 1 > 0$. Non-fatal stage failures yield partial run (Exit 4); only fatal stages trigger Exit 3.
 
 ---
 
@@ -1112,5 +1029,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 
 | 2026-08-26 | F-004 I29: egress_context + shared_sessions hooks; SafeExploiter gate; COMPLETED+zero findings RELEASE (settle table) | edit |
 | 2026-08-26 | F-004 sandbox mermaid + residual honesty (raw httpx bypass, exploit I28/I30 gap); F-025 facade/MemoryJournal non-authority; F-033 I28/I29/I30 code citations; atlas index `c989d3be` | edit |
+| 2026-08-26 | Streamline prose into rich Mermaid subgraphs (Readiness FSM in F-004, Tri-Axial Finding subgraphs in F-007) and high-density invariant tables | edit |
 
 Append a row for every later edit. Do not delete this table.
