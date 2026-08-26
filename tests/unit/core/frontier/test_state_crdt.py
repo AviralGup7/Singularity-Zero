@@ -88,7 +88,12 @@ def test_neural_state_replay_is_idempotent_for_duplicate_wal_ids() -> None:
     state.apply_delta(delta)
 
     assert state.last_wal_id == "2-0"
-    assert state.get_snapshot()["findings"] == [{"id": "same", "title": "Same"}]
+    findings = state.get_snapshot()["findings"]
+    assert len(findings) == 1
+    assert findings[0]["id"] == "same"
+    assert findings[0]["title"] == "Same"
+    # Canonical findings bag is reportable surface; lifecycle stamps are expected.
+    assert findings[0].get("lifecycle_surface") == "reportable"
 
 
 def test_neural_state_skips_malformed_string_members() -> None:
