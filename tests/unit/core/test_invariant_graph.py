@@ -296,7 +296,7 @@ def test_i37_fenced_partition_refuses_settle() -> None:
     res = coord.settle_stage_output(
         ctx,
         "urls",
-        StageOutput(stage_name="urls", outcome=StageOutcome.COMPLETED),
+        StageOutput(stage_name="urls", outcome=StageOutcome.COMPLETED, duration_seconds=0.0),
     )
     assert res.status == "REJECTED"
     assert "I37" in (res.error or "")
