@@ -40,7 +40,11 @@ def test_i30_ticket_binds_scope_reservation_revision_command() -> None:
     assert ticket.authority_revision
     assert ticket.command_id
     assert auth.verify_ticket(ticket) is True
+    assert ticket.partition_id == "P-0000"
+    assert enforcer.reserved_requests == 1
     assert auth.consume_ticket(ticket) is True
+    assert enforcer.consumed_requests == 1
+    assert enforcer.reserved_requests == 0
 
 
 def test_i30_ticket_without_bindings_is_rejected() -> None:

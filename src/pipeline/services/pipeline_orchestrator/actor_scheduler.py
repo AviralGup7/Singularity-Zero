@@ -173,8 +173,6 @@ class ActorScheduler:
         self._injected: set[str] = set()
         self._failed_critical: str | None = None
         self._outcome = SchedulerOutcome()
-        self._deferral_count: dict[str, int] = {}
-        self._max_deferrals: int = 5
         self._run_started_at = time.monotonic()
         max_duration = getattr(self._args, "max_duration_seconds", None)
         if max_duration is None:

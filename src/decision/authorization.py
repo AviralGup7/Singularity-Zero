@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import os
 import posixpath
 import re
+import secrets
 import threading
 import time
 import urllib.parse
@@ -49,7 +51,7 @@ class AuthorizedExecutionTicket:
     signature: str
     request: ExecutionRequest
     epoch: int = 1
-    partition_id: str = "P0"
+    partition_id: str = "P-0000"
     canonical_identity_hash: str = ""
     policy_generation: int = 1
     scope_token_hash: str = ""
@@ -91,7 +93,7 @@ class AuthorizedExecutionTicket:
             signature=str(data.get("signature", "")),
             request=req,
             epoch=int(data.get("epoch", 1)),
-            partition_id=str(data.get("partition_id", "P0")),
+            partition_id=str(data.get("partition_id", "P-0000")),
             canonical_identity_hash=str(data.get("canonical_identity_hash", "")),
             policy_generation=int(data.get("policy_generation", 1)),
             scope_token_hash=str(data.get("scope_token_hash", "")),
@@ -106,10 +108,16 @@ class ExecutionAuthorizer:
 
     def __init__(
         self,
-        secret_key: str = "cstp-scope-authorizer-v1",
+        secret_key: str | None = None,
         budget_enforcer: Any | None = None,
     ) -> None:
-        self._secret_key = secret_key.encode("utf-8")
+        material = (
+            secret_key
+            or os.environ.get("AUTHORITY_SIGNING_KEY", "").strip()
+            or os.environ.get("APP_SECRET_KEY", "").strip()
+            or secrets.token_hex(32)
+        )
+        self._secret_key = material.encode("utf-8")
         self._budget_enforcer = budget_enforcer
         self._consumed_tickets: set[str] = set()
         self._lock = threading.Lock()
@@ -146,7 +154,7 @@ class ExecutionAuthorizer:
         nonce: str,
         expires_at: float,
         epoch: int = 1,
-        partition_id: str = "P0",
+        partition_id: str = "P-0000",
         policy_generation: int = 1,
         scope_token_hash: str = "",
         budget_reservation_id: str = "",
@@ -217,7 +225,7 @@ class ExecutionAuthorizer:
         request: ExecutionRequest,
         budget_enforcer: Any | None = None,
         epoch: int = 1,
-        partition_id: str = "P0",
+        partition_id: str = "P-0000",
         policy_generation: int = 1,
     ) -> AuthorizedExecutionTicket:
         """Validate execution request, reserve budget quota, and issue an AuthorizedExecutionTicket.
@@ -407,6 +415,8 @@ class ExecutionAuthorizer:
                     return False
             if not self.verify_ticket(ticket):
                 return False
+            if enforcer is not None and hasattr(enforcer, "commit_requests"):
+                enforcer.commit_requests(1)
             self._consumed_tickets.add(ticket.ticket_id)
             return True
 

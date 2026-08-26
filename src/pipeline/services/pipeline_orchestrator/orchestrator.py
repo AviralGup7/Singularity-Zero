@@ -951,11 +951,10 @@ class PipelineOrchestrator:
                 return None
 
             try:
-                ticket = None
                 try:
                     from .stage_admit import StageAdmissionError, admit_stage
 
-                    ticket = admit_stage(self, ctx, stage_name, config)
+                    admit_stage(self, ctx, stage_name, config)
                 except StageAdmissionError as exc:
                     from .stage_admit import failed_stage_output as _failed_out
 
@@ -964,26 +963,6 @@ class PipelineOrchestrator:
                         stage_name, error=str(exc), reason="admission_refused"
                     )
                     self._settle_stage_attempt(ctx, stage_name, stage_output)
-                    return 1
-
-                from .stage_admit import consume_stage_ticket
-
-                if ticket is not None and not consume_stage_ticket(self, ticket):
-                    from .stage_admit import failed_stage_output as _failed_out
-
-                    logger.error(
-                        "I30: stage '%s' ticket consume failed before run (unknown reservation)",
-                        stage_name,
-                    )
-                    self._settle_stage_attempt(
-                        ctx,
-                        stage_name,
-                        _failed_out(
-                            stage_name,
-                            error="I30 ticket consume failed",
-                            reason="ticket_consume_failed",
-                        ),
-                    )
                     return 1
 
                 stage_output = await self._run_stage_with_retry(

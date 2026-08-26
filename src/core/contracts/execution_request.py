@@ -111,7 +111,7 @@ class CandidateLease:
     worker_id: str
     expires_at: float
     epoch: int = 1
-    partition_id: str = "P0"
+    partition_id: str = "P-0000"
     fencing_token: str = ""
     status: str = (
         "ACTIVE"  # REQUESTED, ISSUED, ACTIVE, SETTLEMENT_PENDING, SETTLED, CANCELLED, EXPIRED
@@ -146,7 +146,7 @@ class CandidateLease:
             worker_id=str(data.get("worker_id", "")),
             expires_at=float(data.get("expires_at", 0.0)),
             epoch=int(data.get("epoch", 1)),
-            partition_id=str(data.get("partition_id", "P0")),
+            partition_id=str(data.get("partition_id", "P-0000")),
             fencing_token=str(data.get("fencing_token", "")),
             status=str(data.get("status", "ACTIVE")),
             units_reserved=int(data.get("units_reserved", 1)),

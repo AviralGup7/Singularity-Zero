@@ -395,7 +395,7 @@ class SettlementIntent:
     candidate_id: str = ""
     lease_id: str = ""
     epoch: int = 1
-    partition_id: str = "P0"
+    partition_id: str = "P-0000"
     policy_version: str = ""
     outcome: str = "COMPLETED"  # "COMPLETED", "FAILED", "TIMED_OUT", "REJECTED"
     stage_name: str = "execution"
@@ -450,7 +450,7 @@ class SettlementIntent:
             candidate_id=str(mapping.get("candidate_id") or ""),
             lease_id=str(mapping.get("lease_id") or ""),
             epoch=int(mapping.get("epoch") or 1),
-            partition_id=str(mapping.get("partition_id") or "P0"),
+            partition_id=str(mapping.get("partition_id") or "P-0000"),
             policy_version=str(mapping.get("policy_version") or ""),
             outcome=str(mapping.get("outcome") or "COMPLETED"),
             stage_name=str(mapping.get("stage_name") or "execution"),
@@ -925,7 +925,7 @@ class SettlementCoordinator:
                 candidate_id=result.candidate_id or (lease.candidate_id if lease else ""),
                 lease_id=result.lease_id or (lease.lease_id if lease else ""),
                 epoch=lease.epoch if lease else 1,
-                partition_id=lease.partition_id if lease else "P0",
+                partition_id=lease.partition_id if lease else "P-0000",
                 policy_version=result.policy_version or "",
                 outcome=result.outcome,
                 stage_name=stage_name,

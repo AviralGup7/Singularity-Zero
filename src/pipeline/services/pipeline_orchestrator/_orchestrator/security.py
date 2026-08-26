@@ -314,11 +314,19 @@ async def run_secured(
             aof_dir=wal_aof_dir,
         )
     try:
-        from src.pipeline.authority_bootstrap import attach_pipeline_authority
+        from src.pipeline.authority_bootstrap import (
+            apply_authority_recovery,
+            attach_pipeline_authority,
+        )
 
         attach_pipeline_authority(orchestrator, run_id, config)
+        runtime = getattr(orchestrator, "_authority_runtime", None)
+        if runtime is not None:
+            apply_authority_recovery(runtime, reconstructed)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Pipeline authority runtime attach failed: %s", exc)
+        logger.error("Pipeline authority runtime attach failed (fail-closed): %s", exc)
+        emit_progress("startup", "Authority attach failed; refusing scan", 100, status="failed")
+        return 3
     logger.info(
         "Recovery Manager: WAL journal ready stream=cyber:wal:%s source=%s mode=%s",
         run_id,

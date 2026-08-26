@@ -115,6 +115,8 @@ def admit_stage(
         ticket = authorizer.authorize(request)
     except ScopeAuthorizationError as exc:
         raise StageAdmissionError(f"I30: stage '{stage_name}' refused a ticket: {exc}") from exc
+    if not authorizer.consume_ticket(ticket):
+        raise StageAdmissionError(f"I30: stage '{stage_name}' ticket consume failed before sandbox")
     host = request.target.host
     sandbox = ProcessSandbox()
     try:

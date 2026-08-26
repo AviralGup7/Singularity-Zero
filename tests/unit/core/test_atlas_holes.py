@@ -212,6 +212,25 @@ def test_hunt_budget_fenced_and_breaker_refuse_reserve() -> None:
     assert open_enforcer.reserve_with_identity(1) is not None
 
 
+def test_authorizer_has_no_published_hmac_secret() -> None:
+    from pathlib import Path
+
+    from src.decision import authorization
+
+    source = Path(authorization.__file__).read_text(encoding="utf-8")
+    assert "cstp-scope-authorizer-v1" not in source
+
+
+def test_run_secured_calls_apply_authority_recovery_and_fail_closes_attach() -> None:
+    from pathlib import Path
+
+    source = Path(
+        "src/pipeline/services/pipeline_orchestrator/_orchestrator/security.py"
+    ).read_text(encoding="utf-8")
+    assert "apply_authority_recovery" in source
+    assert "Authority attach failed; refusing scan" in source
+
+
 def test_join_sink_not_starved_when_producer_failed() -> None:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import Graph, StageNode
     from src.pipeline.services.pipeline_orchestrator.actor_scheduler import ActorScheduler
