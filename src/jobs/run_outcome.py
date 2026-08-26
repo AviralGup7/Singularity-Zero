@@ -140,7 +140,6 @@ def derive_job_and_exit(
     )
 
 
-
 __all__ = [
     "EXIT_ERROR",
     "EXIT_INFRA_FAILURE",

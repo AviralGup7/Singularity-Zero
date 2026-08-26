@@ -166,4 +166,3 @@ def test_i37_transfer_abort_resumes_original_home() -> None:
     foreign.bind_placement(placement)
     with pytest.raises(AuthorityFenceError, match=I37_AUTHORITY_TRANSFER):
         foreign.propose_and_commit(_cmd("cmd_foreign"))
-

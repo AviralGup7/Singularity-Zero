@@ -201,4 +201,3 @@ def apply_pipeline_exit_status(
     if dest is JobStatus.COMPLETED:
         return _transition(job, JobStatus.STOPPED)
     return False
-

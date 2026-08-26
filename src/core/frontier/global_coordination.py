@@ -565,4 +565,3 @@ class PlacementAuthority:
             "partition_home": dict(self.partition_home),
             "leases": {k: v.to_dict() for k, v in self._leases.items()},
         }
-

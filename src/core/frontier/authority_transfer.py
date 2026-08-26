@@ -274,5 +274,3 @@ __all__ = [
     "genesis_lease",
     "mint_fence_token",
 ]
-
-
