@@ -360,50 +360,89 @@ flowchart TD
     end
 ```
 
-### DAG Tripartite Edge Contract (U1)
+### Formal Graph Invariants & Construction Rules (G1, G4, G7, G8, G9)
 
-In `STAGE_GRAPH`, an edge $A \longrightarrow B$ carries three distinct formal semantics:
+The runtime DAG adheres to four formal construction invariants verified at the `FREEZE` boundary:
 
-1. **Scheduling Precedence & Readiness Guard**: Stage $B$ is barred from entering the `ready` set until stage $A$ reaches a terminal status (`COMPLETED`, `DEGRADED`, `SKIPPED_DISABLED`, `SKIPPED_FAILED`, or `FAILED` for join sinks).
-2. **Context & Data Flow**: Stage $B$ consumes the accumulated findings, URLs, and telemetry produced by $A$ from the shared execution context / CRDT bag. If $A$ produced zero findings or was skipped, $B$ receives an empty collection.
-3. **Independent Authorization Barrier**: An edge $A \longrightarrow B$ does **not** transfer execution authorization or share budget reservations. Stage $B$ must obtain its own independently signed `AuthorizedExecutionTicket` (I30) with distinct reservation ID and consume it at admission.
+1. **`I-GRAPH-01` (Need-Edge Equivalence)**:
+   $$\forall B \in \text{Graph.nodes}, \quad \text{incoming\_edges}(B) \equiv \text{declared\_needs}(B)$$
+   `Graph.__post_init__` derives in-degree and adjacency directly from `StageNode.needs`. There is zero divergence between graphical edges and declared dependencies.
+2. **`I-GRAPH-02` (Root & Sink Validity Contract)**:
+   The graph must contain at least one root node ($\text{in\_degree}=0$, e.g. `subdomains`) and at least one terminal sink ($\text{out\_degree}=0$, e.g. `sarif_export`, `ci_export`, `dedup_stage`). Every node must be reachable from a root, and every finding producer must have a directed path to `reporting`.
+3. **`I-GRAPH-03` (Orphan-Node Prohibition)**:
+   Any dynamically registered plugin node that lacks both incoming dependencies and downstream consumers is rejected during validation (`Graph.validate()`).
+4. **`I-GRAPH-04` (Stage Collision & Override Policy)**:
+   Plugin definitions override built-in nodes with matching IDs (`nodes_by_name[stage.name] = stage`). If two external plugins declare the same un-namespaced ID, validation raises `ValueError: Duplicate stage names in graph`.
+5. **`I-GRAPH-05` (Sink Membership Rule)**:
+   At `FREEZE`, `reporting.needs` is dynamically populated with all active finding producers:
+   $$\text{reporting.needs} = \{ n \in \text{Graph.nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$$
+   Disabled plugins and pruned tools (e.g. missing `nuclei`/`semgrep` binaries) are removed *prior* to `_join_finding_producers`, guaranteeing that sinks never wait on phantom nodes.
 
 ---
 
-### Dependency Failure Propagation Matrix (U2)
+### Dependency Classification & Scheduling Semantics (G2, G6, U1, U3)
 
-| Dependency Classification | Example Edges | Upstream Status ($A$) | Downstream Action ($B$) | Terminal Status ($B$) | Budget & Error Handling |
+The orchestrator strictly decouples three orthogonal dependency concepts:
+
+1. **Topological Dependency (`needs: tuple[str, ...]`)**:
+   Structural prerequisite governing scheduler readiness. Node $B$ cannot enter the candidate dispatch set until all $A \in \text{needs}(B)$ reach a terminal status (`_need_met`).
+2. **Runtime Scheduling Gate (`when: Condition`)**:
+   Pure predicate evaluated **synchronously on each scheduler readiness tick immediately prior to dispatch** against `ctx` and runtime flags. If `False`, the node is deferred (and marked `SKIPPED` with `condition_never_satisfied` at scan end).
+3. **Authorization Ticket & Budget Binding (I30)**:
+   Single-use cryptographic execution ticket granting sandbox execution rights and reserving budget units at admission.
+
+---
+
+### Tri-State Gating & Epistemic Model (G3, U2)
+
+The scheduler resolves upstream status into three distinct epistemic states to prevent false equivalence:
+
+| Upstream Status ($A$) | Epistemic Classification | `OutputNonEmpty(A)` | Downstream Action ($B$) | Terminal Status ($B$) | Telemetry & Audit Reason |
 |---|---|---|---|---|---|
-| **Hard Gated (`when=OutputNonEmpty`)** | `live_hosts` $\rightarrow$ `active_scan`<br>`live_hosts` $\rightarrow$ `semgrep`<br>`live_hosts` $\rightarrow$ `nuclei` | `FAILED` / `DEGRADED`<br>(Zero outputs) | Evaluates `when` condition $\rightarrow$ `False`. Dispatch skipped. | `SKIPPED` (`condition_never_satisfied`) | Zero budget consumed; unreserved immediately. |
-| **Soft Enrichment (Heuristic Fallback)** | `waf` $\rightarrow$ `ranking`<br>`parameters` $\rightarrow$ `ranking` | `FAILED` / `DEGRADED`<br>`SKIPPED_*` | Dispatches normally; utilizes fallback heuristic defaults. | `COMPLETED` / `DEGRADED` | Standard budget reservation; degraded telemetry logged. |
-| **Aggregator / Join Sink (`_JOIN_SINKS`)** | `active_scan` $\rightarrow$ `reporting`<br>`nuclei` $\rightarrow$ `reporting`<br>`semgrep` $\rightarrow$ `reporting` | Any Terminal Status (`COMPLETED`, `DEGRADED`, `FAILED`, `SKIPPED_*`) | CAS-aware barrier unblocks as soon as *all* producers finish. Aggregates all available findings. | `COMPLETED` | Sinks unblock report export regardless of upstream failure. |
+| **`COMPLETED` (> 0 items)** | **Positive Findings** | `True` | Dispatches normally | `RUNNING` $\rightarrow$ `COMPLETED` | Standard scan execution |
+| **`COMPLETED` (0 items)** | **Authoritative Negative Proof** | `False` | Gated skip | `SKIPPED` | `reason="PROVEN_EMPTY"` |
+| **`FAILED` / `DEGRADED`** | **Upstream Unobserved / Crash** | `False` | Gated skip | `SKIPPED` | `reason="UPSTREAM_UNOBSERVED"` |
+| **`SKIPPED_DISABLED`** | **Disabled by Policy / Profile** | `False` | Gated skip | `SKIPPED` | `reason="DISABLED_BY_POLICY"` |
+
+#### Universal Terminal Status Fulfillment Matrix (`_need_met`)
+- **Standard Stage Downstream**: Unblocked by $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$. Blocked by $\{ \text{FAILED}, \text{SKIPPED\_FAILED} \}$.
+- **CAS-Aware Join Sinks (`_JOIN_SINKS`)**: Unblocked by **ANY** terminal status: $\{ \text{COMPLETED}, \text{DEGRADED}, \text{FAILED}, \text{SKIPPED\_DISABLED}, \text{SKIPPED\_FAILED} \}$.
 
 ---
 
-### Empty-Output vs. Failed-Output Semantics (U3)
+### Report Integrity Contract (G5)
 
-| Dimension | $A = \text{COMPLETED}$ (Zero Findings / 0 Items) | $A = \text{FAILED}$ (Exception / Timeout / Breaker) |
-|---|---|---|
-| **Epistemic Meaning** | **Authoritative Negative Proof**: Target inspected; 0 findings exist. | **Unobserved / Indeterminate State**: Inspection incomplete or crashed. |
-| **Downstream `OutputNonEmpty` Gate** | Evaluates to `False` $\rightarrow$ Downstream stage skips cleanly. | Evaluates to `False` $\rightarrow$ Downstream stage skips. |
-| **Budget Action (I28)** | `RELEASE` unconsumed units (no charge for clean scan). | `RELEASE` outstanding reservation. |
-| **PID & Breaker Resilience** | Counts as **successful probe** (Breaker stays `CLOSED`). | Counts as **failure probe** (Increments breaker error counter). |
-| **Pipeline Exit Code** | Clean path: Does not degrade job exit. | If $A$ is `critical=True` $\rightarrow$ Exit 3; if non-critical $\rightarrow$ Exit 4 (`PARTIAL_RUN`). |
+To prevent partial scans from being misinterpreted as complete clean scans, `reporting` stamps an explicit **Report Integrity Classification**:
+
+- **`COMPLETE_REPORT`**: Every finding producer in `reporting.needs` terminated as `COMPLETED` or `SKIPPED_DISABLED`.
+- **`PARTIAL_REPORT`**: One or more finding producers terminated as `FAILED`, `DEGRADED`, or `SKIPPED_FAILED`. Export sinks (`sarif_export`, `ci_export`) stamp SARIF output with `executionSuccessful: false` and emit exit code 4 (`PARTIAL_RUN`).
+- **`EMPTY_REPORT`**: All producers terminated cleanly with 0 findings; verified negative proof.
 
 ---
 
-### Formal Dynamic Plugin Graph Lifecycle (U4)
+### Runtime Readiness, Concurrency & Snapshot Semantics (U4, U5, U6)
 
-To prevent runtime race conditions, recovery replay nondeterminism (I35), and snapshot divergence, the pipeline enforces an explicit 6-phase lifecycle boundary:
+1. **Concurrent Readiness Priority (U5)**:
+   When multiple nodes unblock simultaneously, `_collect_ready_nodes` orders dispatch deterministically:
+   $$\text{Sort Key} = (-\text{node.weight}, \quad \text{declaration\_index})$$
+   Nodes with higher weight (longer critical-path duration) receive worker pool capacity first.
+2. **Context Snapshot Semantics (U4)**:
+   Downstream stages observe the immutable CRDT state snapshot at the timestamp of stage admission (`admit_stage`), ordered monotonically by HLC (I23).
+3. **Budget Exhaustion Semantics (U6)**:
+   If `HuntBudget.reserve` fails during admission, `ScopeAuthorizationError` is raised. The stage is marked `SKIPPED` (`reason="budget_exhausted"`), releasing reservations and unblocking downstream nodes whose gates do not require positive findings.
+
+---
+
+### Formal Dynamic Plugin Graph Lifecycle
 
 $$\text{DISCOVER} \longrightarrow \text{VALIDATE} \longrightarrow \text{COMPOSE} \longrightarrow \text{VERIFY} \longrightarrow \text{FREEZE} \longrightarrow \text{EXECUTE}$$
 
 1. **`DISCOVER`**: Discover registered plugins via `StageRegistry` and `.ai/capability_manifest.json`.
 2. **`VALIDATE`**: Validate stage schemas, runner contracts, produces declarations, and timeout bounds.
-3. **`COMPOSE`**: Merge built-in `_BASE_NODES` with validated plugin nodes; run `_join_finding_producers` to bind all finding producers into `reporting.needs`.
-4. **`VERIFY`**: Run cycle detection (`graph.is_acyclic()`), validate condition trees (`All`, `FlagSet`, `OutputNonEmpty`), and verify timeout completeness.
-5. **`FREEZE`**: Seal the graph into an immutable `Graph(nodes=tuple(...))` object. **No runtime additions, deletions, or edge mutations are permitted after this boundary.**
-6. **`EXECUTE`**: `ActorScheduler` dispatches stages against the frozen graph with total reproducibility.
+3. **`COMPOSE`**: Merge built-in `_BASE_NODES` with plugin overrides; prune missing tool binaries; run `_join_finding_producers`.
+4. **`VERIFY`**: Enforce `I-GRAPH-01` through `I-GRAPH-05` (acyclicity, reachability, sink coverage).
+5. **`FREEZE`**: Seal the graph into an immutable `Graph(nodes=tuple(...))` object.
+6. **`EXECUTE`**: `ActorScheduler` dispatches stages against the frozen graph.
 
 ---
 
