@@ -16,7 +16,7 @@ from typing import Any
 from src.core.contracts.canonical_target import canonical_state_encode
 
 DEFAULT_KEY_ID = "authority-hmac-v1"
-_DEV_FALLBACK_MATERIAL = "singularity-zero-dev-receipt-key"
+_ephemeral_material: bytes | None = None
 
 
 def signing_key_id() -> str:
@@ -26,9 +26,22 @@ def signing_key_id() -> str:
 
 
 def _signing_key() -> bytes:
+    """HMAC key. Never a well-known fallback string.
+
+    Prefer AUTHORITY_SIGNING_KEY, then APP_SECRET_KEY. If neither is set,
+    mint a process-local random key so in-process verify still works and
+    the old published default cannot forge receipts.
+    """
+    global _ephemeral_material
     material = os.environ.get("AUTHORITY_SIGNING_KEY", "").encode("utf-8")
     if not material:
-        material = os.environ.get("APP_SECRET_KEY", _DEV_FALLBACK_MATERIAL).encode("utf-8")
+        material = os.environ.get("APP_SECRET_KEY", "").encode("utf-8")
+    if not material:
+        if _ephemeral_material is None:
+            import secrets
+
+            _ephemeral_material = secrets.token_bytes(32)
+        material = _ephemeral_material
     return hashlib.sha256(material).digest()
 
 

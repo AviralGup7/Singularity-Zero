@@ -445,6 +445,33 @@ def resolve_pipeline_exit_code(
         branch=branch,
     )
 
+    from src.jobs.run_outcome import derive_job_and_exit
+
+    fatal = tuple(
+        str(name) for name in (getattr(getattr(policy, "infra", None), "fatal_stages", ()) or ())
+    )
+    lattice = derive_job_and_exit(
+        getattr(ctx.result, "stage_status", None),
+        findings_for_policy,
+        policy,
+        cancel=bool(getattr(ctx.result, "cancel_requested", False)),
+        policy_violated=evaluation.exit_code == EXIT_POLICY_VIOLATION,
+        fatal_stages=fatal,
+        degraded_probes=tuple(evaluation.degraded_stages or ()),
+    )
+    if lattice.exit_code != evaluation.exit_code:
+        evaluation = PolicyEvaluation(
+            exit_code=lattice.exit_code,
+            outcome=evaluation.outcome,
+            counts=evaluation.counts,
+            violations=evaluation.violations,
+            failed_stages=evaluation.failed_stages or lattice.failed_stages,
+            partial=lattice.exit_code == EXIT_PARTIAL,
+            branch=evaluation.branch,
+            policy_snapshot=evaluation.policy_snapshot,
+            degraded_stages=evaluation.degraded_stages or lattice.degraded_stages,
+        )
+
     # Backwards compatibility: legacy code returned 1 for any non-zero
     # exit; callers that haven't been updated to handle the new codes
     # can opt in to the legacy mapping via ``--legacy-exit-codes``.

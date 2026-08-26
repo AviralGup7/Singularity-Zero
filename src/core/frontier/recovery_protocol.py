@@ -716,6 +716,33 @@ def orphan_outbox_ids(
     return tuple(extras)
 
 
+def frontier_committed_event_entries(wal: Any) -> list[Any]:
+    """Wrap FrontierWAL journal records that already carry emitted_events.
+
+    FrontierWAL has no ``entries`` / ``outbox`` attributes. I35 rebuild
+    must not invent EventEnvelopes; it only forwards records that already
+    stored ``emitted_events``.
+    """
+    from types import SimpleNamespace
+
+    records: list[Any] = []
+    deltas: list[Any] = []
+    if wal is None:
+        return records
+    if hasattr(wal, "recover_deltas"):
+        try:
+            deltas = list(wal.recover_deltas() or ())
+        except Exception:
+            deltas = []
+    for rec in deltas:
+        if not isinstance(rec, dict):
+            continue
+        events = rec.get("emitted_events")
+        if events:
+            records.append(SimpleNamespace(emitted_events=events))
+    return records
+
+
 def rebuild_outbox_from_committed_entries(entries: Sequence[Any], outbox: Any) -> int:
     """I35 FSM_WITHOUT_OUTBOX: append stored emitted_events; EventId dedupes."""
     if outbox is None or not hasattr(outbox, "append_events"):
@@ -916,6 +943,7 @@ __all__ = [
     "detect_outbox_window",
     "detect_snapshot_wal_window",
     "durable_catalog",
+    "frontier_committed_event_entries",
     "orphan_outbox_ids",
     "rebuild_outbox_from_committed_entries",
     "resolution_for",

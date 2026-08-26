@@ -1,11 +1,12 @@
 """CAS-style pipeline stage status machine.
 
-Illegal transitions keep the existing status instead of overwriting:
+Illegal transitions raise ``IllegalStageTransitionError`` (fail-closed):
 
     COMPLETED → FAILED     rejected
     COMPLETED → SKIPPED*   rejected
-    FAILED → COMPLETED     rejected
     SKIPPED* → COMPLETED   rejected
+
+I33 retry: FAILED → RUNNING / COMPLETED / DEGRADED is legal.
 
 ``SKIPPED`` is split so a failed stage cannot satisfy downstream gates:
 

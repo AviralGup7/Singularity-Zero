@@ -342,12 +342,19 @@ def run_pipeline_job(
             isinstance(sp, dict) and sp.get("status") == "running" for sp in stage_progress.values()
         )
 
+        stage_map = {
+            str(name): sp.get("status")
+            for name, sp in stage_progress.items()
+            if isinstance(sp, dict) and sp.get("status")
+        }
         apply_pipeline_exit_status(
             job,
             stop_requested=stop_requested,
             returncode=returncode,
             no_pipeline_output=no_pipeline_output,
             has_running_stages=has_running_stages,
+            stage_map=stage_map or None,
+            policy_violated=returncode == 2,
         )
         if not stop_requested and returncode == 0 and has_running_stages and not no_pipeline_output:
             # Process exited cleanly but stages still running = incomplete

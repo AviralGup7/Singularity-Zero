@@ -7,6 +7,7 @@ without ``_authority_runtime`` skip the ticket (no dual writer).
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any
 from urllib.parse import urlparse
@@ -34,15 +35,37 @@ def _target_host(config: Any, ctx: Any) -> str:
     return raw.split(":")[0].strip().lower() or "localhost"
 
 
+def _allowed_domains(config: Any, ctx: Any, host: str) -> tuple[str, ...]:
+    domains: list[str] = []
+    if host and host not in {"localhost", "127.0.0.1"}:
+        domains.append(host)
+    entries = getattr(getattr(ctx, "result", ctx), "scope_entries", None) or []
+    for entry in entries:
+        raw = str(entry or "").strip().lower()
+        if "://" in raw:
+            parsed = urlparse(raw)
+            raw = (parsed.hostname or raw).lower()
+        raw = raw.split(":")[0].strip()
+        if raw and raw not in {"localhost", "127.0.0.1"}:
+            domains.append(raw)
+    return tuple(dict.fromkeys(domains))
+
+
 def build_stage_request(ctx: Any, stage_name: str, config: Any) -> ExecutionRequest:
     host = _target_host(config, ctx)
     run_id = str(getattr(ctx, "run_id", "") or "run")
+    allowed = _allowed_domains(config, ctx, host)
+    scope_hash = hashlib.sha256(f"{run_id}:{','.join(allowed)}".encode()).hexdigest()[:32]
+    tenant = (
+        str(getattr(config, "tenant_id", "") or getattr(ctx, "tenant_id", "") or "default").strip()
+        or "default"
+    )
     return ExecutionRequest(
         request_id=f"stage:{run_id}:{stage_name}",
-        tenant_id="default",
+        tenant_id=tenant,
         target=TargetSpec(host=host),
         stage=stage_name,
-        scope_token=ScopeToken(scope_hash=f"stage:{run_id}"),
+        scope_token=ScopeToken(scope_hash=scope_hash, allowed_domains=allowed),
         correlation_id=run_id,
         execution_id=f"{run_id}:{stage_name}",
     )

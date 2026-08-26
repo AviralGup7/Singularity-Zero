@@ -99,9 +99,7 @@ def derive_job_and_exit(
                 degraded_stages=degraded,
             )
 
-    violated = policy_violated
-    if violated is None and policy is not None and hasattr(policy, "findings"):
-        violated = False
+    violated = bool(policy_violated)
     if violated:
         return RunOutcome(
             job_status=JobStatus.COMPLETED,

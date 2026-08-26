@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -270,6 +271,35 @@ def test_collect_wal_finding_without_wal_id_fails_i31() -> None:
     artifacts = collect_recovered_proof_artifacts(wal=_Wal())
     with pytest.raises(ProofGraphError, match="I31"):
         verify_recovery_prerequisites(SimpleNamespace(recovered_settlements=artifacts.settlements))
+
+
+def test_hmac_receipt_does_not_use_published_fallback() -> None:
+    from src.core.frontier import receipt_crypto
+
+    source = Path(receipt_crypto.__file__).read_text(encoding="utf-8")
+    assert "singularity-zero-dev-receipt-key" not in source
+    sig = receipt_crypto.sign_receipt({"command_id": "c"})
+    assert receipt_crypto.verify_receipt_signature({"command_id": "c"}, sig) is True
+
+
+def test_i37_fenced_partition_refuses_settle() -> None:
+    from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
+    from src.core.frontier.global_coordination import PlacementAuthority
+    from src.core.frontier.state_authority import SettlementCoordinator, StateAuthority
+    from src.core.models.stage_result import PipelineContext, StageResult
+
+    placement = PlacementAuthority(home_region="us-east")
+    placement.initiate_transfer("agg", "P-0000", "P-0000", to_region="eu-west")
+    ctx = PipelineContext(result=StageResult(), run_id="r1")
+    ctx.placement = placement  # type: ignore[attr-defined]
+    coord = SettlementCoordinator(StateAuthority())
+    res = coord.settle_stage_output(
+        ctx,
+        "urls",
+        StageOutput(stage_name="urls", outcome=StageOutcome.COMPLETED),
+    )
+    assert res.status == "REJECTED"
+    assert "I37" in (res.error or "")
 
 
 def test_assert_transfer_does_not_resurrect_i30_invalid() -> None:

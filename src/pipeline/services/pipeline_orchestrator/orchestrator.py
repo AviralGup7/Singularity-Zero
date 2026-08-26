@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import concurrent.futures
 import json
 import os
 from pathlib import Path
@@ -479,15 +478,7 @@ class PipelineOrchestrator:
                 "Cannot call run_sync() from the event loop thread while the loop is running; "
                 "this would deadlock. Use asyncio.run() or call from a separate thread."
             )
-            coro = self.run(args)
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            try:
-                return future.result(timeout=3600)
-            except concurrent.futures.TimeoutError:
-                logger.error("Pipeline run timed out waiting for event loop")
-                return 1
-        else:
-            return asyncio.run(self.run(args))
+        return asyncio.run(self.run(args))
 
     async def _finalize_run(
         self,
@@ -975,6 +966,26 @@ class PipelineOrchestrator:
                     self._settle_stage_attempt(ctx, stage_name, stage_output)
                     return 1
 
+                from .stage_admit import consume_stage_ticket
+
+                if ticket is not None and not consume_stage_ticket(self, ticket):
+                    from .stage_admit import failed_stage_output as _failed_out
+
+                    logger.error(
+                        "I30: stage '%s' ticket consume failed before run (unknown reservation)",
+                        stage_name,
+                    )
+                    self._settle_stage_attempt(
+                        ctx,
+                        stage_name,
+                        _failed_out(
+                            stage_name,
+                            error="I30 ticket consume failed",
+                            reason="ticket_consume_failed",
+                        ),
+                    )
+                    return 1
+
                 stage_output = await self._run_stage_with_retry(
                     stage_name,
                     method,
@@ -999,15 +1010,6 @@ class PipelineOrchestrator:
                             raise RuntimeError(
                                 f"Stage output integrity validation failed: {err_msg}"
                             )
-                from .stage_admit import consume_stage_ticket
-
-                if ticket is not None and not consume_stage_ticket(self, ticket):
-                    logger.error(
-                        "I30: stage '%s' ticket consume failed (unknown reservation)",
-                        stage_name,
-                    )
-                    return 1
-
                 elapsed = time.time() - stage_started
 
                 await self._record_stage_post_run(stage_name, ctx, checkpoint_mgr)

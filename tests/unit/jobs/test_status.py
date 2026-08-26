@@ -31,3 +31,33 @@ def test_stop_requested_reaps_as_stopped() -> None:
     job = {"id": "j2", "status": JobStatus.STOPPING.value}
     assert apply_pipeline_exit_status(job, stop_requested=True, returncode=0) is True
     assert job["status"] == JobStatus.STOPPED.value
+
+
+def test_lattice_policy_exit_completes_job() -> None:
+    job = {"id": "j3", "status": JobStatus.RUNNING.value}
+    assert (
+        apply_pipeline_exit_status(
+            job,
+            stop_requested=False,
+            returncode=2,
+            stage_map={"reporting": "COMPLETED"},
+            policy_violated=True,
+        )
+        is True
+    )
+    assert job["status"] == JobStatus.COMPLETED.value
+    assert job["exit_code"] == 2
+
+
+def test_lattice_does_not_hide_infra_exit() -> None:
+    job = {"id": "j4", "status": JobStatus.RUNNING.value}
+    assert (
+        apply_pipeline_exit_status(
+            job,
+            stop_requested=False,
+            returncode=3,
+            stage_map={"startup": "completed"},
+        )
+        is True
+    )
+    assert job["status"] == JobStatus.FAILED.value

@@ -170,8 +170,14 @@ def apply_pipeline_exit_status(
             findings,
             policy,
             cancel=False,
-            policy_violated=policy_violated,
+            policy_violated=policy_violated or returncode == 2,
         ).job_status
+        if dest is JobStatus.COMPLETED and returncode in (1, 3):
+            dest = JobStatus.FAILED
+        elif dest is JobStatus.COMPLETED and returncode == 4:
+            job["degraded"] = True
+        elif dest is JobStatus.COMPLETED and returncode in (130, 7):
+            dest = JobStatus.STOPPED
     elif returncode == 0 and (no_pipeline_output or has_running_stages):
         dest = JobStatus.FAILED
     elif returncode in (0, 2):

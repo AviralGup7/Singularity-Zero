@@ -1026,6 +1026,21 @@ class SettlementCoordinator:
         acquire = str(getattr(ctx, "home_region", "") or DEFAULT_REGION_ID)
         settle_region = str(getattr(ctx, "settle_region", "") or acquire)
         assert_lease_settle_colocated(acquire_region=acquire, settle_region=settle_region)
+        placement = getattr(ctx, "placement", None)
+        if placement is None:
+            runtime = getattr(ctx, "authority_runtime", None)
+            placement = getattr(runtime, "placement", None) if runtime is not None else None
+        if placement is not None and hasattr(placement, "is_fenced"):
+            part = str(getattr(ctx, "partition_id", "") or "P-0000")
+            if placement.is_fenced(part):
+                return SettlementResult(
+                    execution_id=exec_id,
+                    status="REJECTED",
+                    error=f"I37: partition {part} is FENCED; refuse settle",
+                    command_id=identity.command_id,
+                    attempt_id=identity.attempt_id,
+                    settlement_id=identity.settlement_id,
+                )
 
         state_delta = _to_mutable(getattr(stage_output, "state_delta", {}) or {})
         committed_findings = _dict_findings_from_delta(state_delta)

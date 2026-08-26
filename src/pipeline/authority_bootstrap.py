@@ -170,7 +170,10 @@ def apply_authority_recovery(runtime: PipelineAuthorityRuntime, reconstructed: A
     if verdict.rebuild_outbox:
         rebuild_outbox_from_committed_entries(getattr(log, "entries", ()) or (), outbox)
     if verdict.discarded_delivery_ids:
-        get_delivery_ledger().discard_unknown([])
+        ledger = get_delivery_ledger()
+        discarded = set(verdict.discarded_delivery_ids)
+        allowed = [item for item in ledger.delivered_ids() if item not in discarded]
+        ledger.discard_unknown(allowed)
     if verdict.phase is RecoveryPhase.FAIL_CLOSED and reconstructed is not None:
         reconstructed.execute_stages = False
         reconstructed.recovery_phase = "fail_closed"

@@ -426,10 +426,22 @@ class RecoveryManager:
                     rebuild_outbox_from_committed_entries,
                 )
 
-                entries = (
+                entries = list(
                     getattr(wal, "entries", None) or getattr(wal, "committed_entries", None) or ()
                 )
+                if not entries:
+                    from src.core.frontier.recovery_protocol import frontier_committed_event_entries
+
+                    entries = frontier_committed_event_entries(wal)
                 outbox = getattr(wal, "outbox", None)
+                if outbox is None:
+                    from pathlib import Path as _Path
+
+                    from src.core.frontier.outbox import DurableOutboxLedger
+
+                    aof = getattr(wal, "aof_dir", None) or getattr(self, "output_dir", None)
+                    if aof is not None:
+                        outbox = DurableOutboxLedger("P-0000", outbox_dir=_Path(aof) / ".outbox")
                 rebuild_outbox_from_committed_entries(list(entries), outbox)
             except Exception as exc:  # noqa: BLE001
                 logger.debug("I35 rebuild_outbox skipped: %s", exc)
@@ -440,7 +452,9 @@ class RecoveryManager:
             try:
                 from src.core.frontier.event_delivery import get_delivery_ledger
 
-                get_delivery_ledger().discard_unknown([])
+                ledger = get_delivery_ledger()
+                allowed = [item for item in ledger.delivered_ids() if item not in set(discarded)]
+                ledger.discard_unknown(allowed)
             except Exception as exc:  # noqa: BLE001
                 logger.debug("I35 delivery discard skipped: %s", exc)
 
