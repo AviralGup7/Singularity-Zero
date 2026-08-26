@@ -57,35 +57,23 @@ Every graph in this atlas adheres to a standardized visual taxonomy:
 
 ## Atlas Index
 
-Live charts only. Retired ids are one-line headings preserved after the live charts (ids are never reused).
+Live charts only. Retired ids are one-line headings preserved after the live charts in the Retired Chart Registry (ids are never reused).
 
 | Id | Chart | Source Specification & Symbols | Absorbed | Verified |
 |---|---|---|---|---|
 | F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | 2026-08-26 (`9cb16b25`) |
-| F-002 | System topology and regions | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `region_model.py` (I36), `authority_transfer.py` (I37) | F-021 | 2026-08-26 (`eb763fe7`) |
-| F-003 | Authority plane & Raft L0–L5 | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py` | F-012, F-014, F-016 | 2026-08-26 (`95ed3b7e`) |
-| F-004 | Live scan path & execution DAG | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py` | F-005, F-010, F-013, F-015, F-017, F-029 | 2026-08-26 (`1ebc2754`) |
-| F-006 | Leases and global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py` | F-011 | 2026-08-26 (`d49bfb05`) |
-| F-007 | Application state machines | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | 2026-08-26 (`12113b4b`) |
-| F-009 | Resilience: breaker, QoS, PID | [architecture.md](architecture.md), [performance.md](performance.md), `resilience/`, `prioritized_broker.py`, `qos_admit.py` | F-024, F-030 | 2026-08-26 (`e7803858`) |
-| F-018 | Failure decision tree & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py` | — | 2026-08-26 (`6843c35b`) |
-| F-019 | Operator surface & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts` | F-023, F-026, F-031 | 2026-08-26 (`479c106d`) |
-| F-020 | Tests and CI shards | [testing.md](testing.md), `.github/workflows/ci.yml` | — | 2026-08-26 (`479c106d`) |
+| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | 2026-08-26 (`eb763fe7`) |
+| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | 2026-08-26 (`95ed3b7e`) |
+| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | 2026-08-26 (`1ebc2754`) |
+| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py` | F-011, F-038 | 2026-08-26 (`d49bfb05`) |
+| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | 2026-08-26 (`12113b4b`) |
+| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `resilience/`, `prioritized_broker.py`, `qos_admit.py` | F-024, F-030 | 2026-08-26 (`e7803858`) |
+| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `run_lock.py` | F-039 | 2026-08-26 (`6843c35b`) |
+| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py` | F-023, F-026, F-031, F-043 | 2026-08-26 (`479c106d`) |
+| F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | 2026-08-26 (`479c106d`) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | 2026-08-26 (`479c106d`) |
-| F-025 | Non-authoritative planes & cache | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/` | F-028, F-032 | 2026-08-26 (`479c106d`) |
-| F-033 | Global invariants I1–I37 proof graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-26 (`7a2bb407`) |
-| F-034 | Plane boundary & object ownership | `replicated_log.py` (PartitionWAL) vs `state.py` (FrontierWAL / CRDT) | — | 2026-08-26 (`new`) |
-| F-035 | Plugin load & runtime DAG builder | `dynamic-plugins.md`, `src/pipeline/services/pipeline_orchestrator/graph_builder.py` | — | 2026-08-26 (`new`) |
-| F-036 | Scope & continuous egress (TOCTOU) | `src/decision/authorization.py`, `src/sandbox/process_sandbox.py` | — | 2026-08-26 (`new`) |
-| F-037 | Cryptographic key hierarchy | `src/core/frontier/receipt_crypto.py`, `src/infrastructure/security/` | — | 2026-08-26 (`new`) |
-| F-038 | Time, monotonic clocks & lease expiry | `src/core/frontier/lease_status.py`, `src/decision/hunt_budget.py` | — | 2026-08-26 (`new`) |
-| F-039 | Concurrency, run locking & single-writer | `src/infrastructure/task_pool/run_lock.py`, `orchestrator.py` | — | 2026-08-26 (`new`) |
-| F-040 | Deployment topology & process model | [deployment.md](deployment.md), `src/cli/launcher.py` | — | 2026-08-26 (`new`) |
-| F-041 | Multi-tier persistence & retention | `src/infrastructure/cache/`, `src/pipeline/maintenance.py` | — | 2026-08-26 (`new`) |
-| F-042 | Finding deduplication & CRDT merge | `src/analysis/dedup/`, `src/core/frontier/state.py` | — | 2026-08-26 (`new`) |
-| F-043 | Multi-tenant isolation | `src/decision/authorization.py`, `src/dashboard/fastapi/middleware.py` | — | 2026-08-26 (`new`) |
-| F-044 | Schema upcasting & state evolution | `src/core/contracts/schema_upcaster.py`, `src/core/frontier/marshaller.py` | — | 2026-08-26 (`new`) |
-| F-045 | CI/CD consumer contract & exit codes | [ci-cd-integration.md](ci-cd-integration.md), `src/jobs/run_outcome.py` | — | 2026-08-26 (`new`) |
+| F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `maintenance.py` | F-028, F-032, F-041 | 2026-08-26 (`479c106d`) |
+| F-033 | Global invariants I1–I37 proof graph & registry | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-26 (`7a2bb407`) |
 
 
 ---
@@ -127,20 +115,27 @@ Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGE
 
 ---
 
-## F-002 — System topology and regions
+## F-002 — System topology, regions & deployment
 
-Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37). Absorbed F-021.
+Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37), `src/cli/launcher.py`. Absorbed F-021, F-040.
 
 A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap; fenced placement also refuses `settle_stage_output`). If a transfer stalls or times out, `abort_transfer` reverts to `OWNED` on the original home with an incremented epoch. The relay is journal-only (`reconcile_with_peer` drops settlement/command rows). Live CLI is single-home `local` — the two-region mermaid is the I36/I37 spec, not a running mesh.
 
 ```mermaid
 flowchart TD
-    UI["React 19 dashboard"]:::impl <-->|"HTTP REST / WebSocket"| API["FastAPI dashboard"]:::impl
-    API -->|"enqueue / control"| Orch["Pipeline orchestrator"]:::impl
+    subgraph Deployment["Deployment Process Topology (launcher.py)"]
+        Browser["React 19 Dashboard (:5173 / :8000)"]:::impl <-->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
+        API <-->|"Redis Job Queue & Streams"| Worker["Pipeline Background Worker Daemon"]:::impl
+        Worker <-->|"Local Sandbox"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
+        Worker <-->|"Prometheus /metrics (:9090)"| PromSink["Prometheus / Grafana"]:::impl
+    end
+    
+    Worker --> Orch["Pipeline Orchestrator"]:::impl
     Orch --> Engines["Recon / Analysis / Fuzz / Exploit"]:::impl
     Orch --> State["WAL / CRDT / Cache / Mesh"]:::impl
     Engines --> Sinks["Learning + Reporting"]:::impl
     State --> Sinks
+    
     subgraph RegionA["Region A (Leader Home)"]
         GA["Gossip Node A1"]:::impl
         OA["P-0000 Leader + Partition Log"]:::impl
@@ -171,32 +166,53 @@ flowchart TD
 
 ---
 
-## F-003 — Authority plane & Raft L0–L5
+## F-003 — Authority plane, Raft L0–L5 & security keys
 
-Source: [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/core/frontier/replicated_log.py`, `src/core/frontier/receipt_crypto.py`. Absorbed F-012, F-014, F-016.
+Source: [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/core/frontier/replicated_log.py`, `src/core/frontier/receipt_crypto.py`, `src/core/contracts/schema_upcaster.py`, `src/core/frontier/state.py`. Absorbed F-012, F-014, F-016, F-034, F-037, F-044.
 
 ```mermaid
 flowchart TD
-    Tuner["Policy Tuner / Governance"]:::impl --> Gate["PolicyGovernanceGate"]:::impl
-    Gate -->|No Log Attached| Closed["Fail-Closed (Refused)"]:::forbidden
-    Gate -->|Log Attached| Promo["Promote / RollbackPolicyCommand"]:::impl
-    Promo --> Typed["TypedCommand.to_envelope"]:::impl
-    Typed --> Up["SchemaUpcaster on Load"]:::impl
-    Up --> Admit["Admission Clock-Skew Check I22"]:::impl
-    Admit --> Log["ReplicatedPartitionLog"]:::impl
-    subgraph Raft["L0: Raft Distributed Commit"]
-        Leader["Leader PartitionWAL L0"]:::impl
-        F1["Follower PartitionWAL"]:::library
-        Leader -->|"AppendEntries"| F1
-        F1 -->|"ACK (Quorum-1 Live)"| Leader
-        Leader --> Commit["Advance commitIndex"]:::impl
+    subgraph Upcasting["Schema Upcasting & Key Hierarchy (F-044, F-037)"]
+        OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl --> Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
+        Upcaster --> Envelope["Canonical Envelope"]:::impl
+        MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
+        Derive --> ReceiptKey["CommandReceipt Key"]:::impl
+        Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
+        Derive --> JWTKey["JWT Session Key"]:::impl
+        MasterKey -.->|Missing Env| Fallback["Process-Local Random Key"]:::vacuous
     end
-    Log --> Leader
-    Commit --> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
-    Apply --> StateHash["Deterministic State Hash (SHA-256)"]:::impl
-    StateHash --> Receipt["HMAC-SHA256 CommandReceipt (External MAC)"]:::impl
-    Apply --> Outbox["L2: DurableOutboxLedger"]:::impl
-    Outbox --> Proj["L3: Materialized Projections"]:::impl
+
+    subgraph PartitionPlane["Partition Plane (Raft / PartitionWAL L0–L3) — AUTHORITATIVE FOR GOVERNANCE"]
+        Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
+        Promo --> Envelope
+        Envelope --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
+        Admit --> Log["ReplicatedPartitionLog"]:::impl
+        
+        subgraph Raft["L0: Raft Distributed Commit"]
+            Leader["Leader PartitionWAL L0"]:::impl
+            F1["Follower PartitionWAL"]:::library
+            Leader -->|"AppendEntries"| F1
+            F1 -->|"ACK (Quorum-1 Live)"| Leader
+            Leader --> Commit["Advance commitIndex"]:::impl
+        end
+        Log --> Leader
+        Commit --> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
+        Apply --> StateHash["Deterministic State Hash (SHA-256)"]:::impl
+        StateHash --> Receipt["HMAC-SHA256 CommandReceipt (Signed by ReceiptKey)"]:::impl
+        Apply --> Outbox["L2: DurableOutboxLedger"]:::impl
+        Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
+    end
+    
+    subgraph FrontierPlane["Frontier Plane (FrontierWAL / CRDT) — AUTHORITATIVE FOR SCAN DISCOVERY"]
+        F_Targets["Target Subdomains & URLs"]:::impl
+        F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
+        F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
+        F_Tombstones["Compaction Tombstones (1h TTL)"]:::impl
+        F_Targets --> F_Findings & F_Candidates --> F_Tombstones
+    end
+    
+    Outbox -->|"HMAC Receipt"| Bridge["SettlementCoordinator Bridge"]:::impl
+    Bridge --> F_Findings
     Proj --> Cache["L4: Caches & Telemetry"]:::impl
     Cache --> UI["L5: Presentation & Dashboard"]:::impl
     UI -.->|"must never author L0–L3"| Forbidden["Forbidden as Truth Source"]:::forbidden
@@ -205,23 +221,31 @@ flowchart TD
 Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_pipeline_authority` is `src/pipeline/authority_bootstrap.py`.
 
 
-## F-004 — Live scan path & execution DAG
 
-Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029.
+## F-004 — Live scan path, execution DAG & egress sandbox
+
+Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `src/sandbox/process_sandbox.py`, `src/analysis/dedup/`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042.
 
 ```mermaid
 flowchart TD
-    CSTP["cstp CLI"]:::impl --> Launch["launch: Dashboard + Background Worker"]:::impl
-    CSTP --> Scan["scan run: Runtime Pipeline"]:::impl
-    CSTP --> Sys["system doctor / status / setup / cleanup"]:::impl
-    Scan --> Runtime["src.pipeline.runtime"]:::impl
-    Runtime --> Bind["register_process_bindings"]:::impl
-    Bind --> Recover["RecoveryManager (I35 Snapshot + WAL Protocol)"]:::impl
-    Recover --> Verify["verify_checkpoint_against_fsm"]:::impl
-    Recover --> Auth["attach_pipeline_authority"]:::impl
-    Auth --> Stamp["ctx.budget_enforcer + authorizer"]:::impl
+    subgraph Init["CLI Launch & DAG Construction (F-035)"]
+        CSTP["cstp CLI"]:::impl --> Launch["launch: Dashboard + Background Worker"]:::impl
+        CSTP --> Scan["scan run: Runtime Pipeline"]:::impl
+        CSTP --> Sys["system doctor / status / setup / cleanup"]:::impl
+        Scan --> Runtime["src.pipeline.runtime"]:::impl
+        Runtime --> Bind["register_process_bindings"]:::impl
+        Bind --> Recover["RecoveryManager (I35 Snapshot + WAL Protocol)"]:::impl
+        Recover --> Verify["verify_checkpoint_against_fsm"]:::impl
+        Recover --> Auth["attach_pipeline_authority"]:::impl
+        Auth --> Stamp["ctx.budget_enforcer + authorizer"]:::impl
+        BaseDAG["Base STAGE_GRAPH (16 nodes)"]:::impl --> PluginReg["Dynamic Plugin Discovery"]:::impl
+        PluginReg --> PluginVal["Plugin Schema Validation"]:::impl
+        PluginVal --> Inject["_join_finding_producers Dynamic Injection"]:::impl
+        Inject --> DAG
+    end
+
     Stamp --> DAG
-    subgraph DAG["Runtime STAGE_GRAPH (graph_builder.py, zero plugins)"]
+    subgraph DAG["Runtime STAGE_GRAPH (graph_builder.py)"]
         Sub["subdomains"]:::impl --> Takeover["subdomain_takeover"]:::impl
         Sub --> LiveH["live_hosts"]:::impl
         LiveH --> WAF["waf"]:::impl
@@ -244,26 +268,39 @@ flowchart TD
         Report --> Dedup["dedup_stage"]:::impl
         Sca["sca_scan / container_scan / iac_scan / git_secret_scan"]:::impl -.->|"runtime _join_finding_producers"| Report
     end
+
     DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]:::impl
-    Req --> Budget{"HuntBudget.reserve"}:::impl
-    Budget -->|Exhausted| Rej["ScopeAuthorizationError (Stage Skipped / Degraded)"]:::forbidden
-    Budget -->|OK| Ticket["AuthorizedExecutionTicket I30 (Binds Quartet)"]:::impl
-    Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use, Zero Commit)"]:::impl
-    Consume --> SB["ProcessSandbox.check_egress (Metadata Policy Guard)"]:::impl
-    SB -->|Out of Scope| Viol["EgressViolationError --> release_requests"]:::forbidden
-    SB --> Exec["Tool Subprocess Execution (Timeouts, Stdio Capture)"]:::impl
-    Exec --> Out["StageOutput / RawExecutionClaim"]:::impl
-    Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
-    Coord --> Thaw["_to_mutable Record Format"]:::impl
-    Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
-    WAL -->|COMMITTED + wal_id I31| CommitB["I28 Budget COMMIT --> Outbox FINDING_CREATED"]:::impl
-    CommitB -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
-    CommitB -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
-    WAL -->|FAILED Attempt with wal_id| FailedId["Settle REJECTED --> I28 Budget RELEASE (No FINDING_CREATED)"]:::impl
-    WAL -->|REJECTED / DEDUPLICATED / No wal_id| Silent["Silent Settle Drop --> I28 Budget RELEASE"]:::impl
+    
+    subgraph Sandbox["Execution Gate & Continuous Egress Sandbox (F-036)"]
+        Req --> Budget{"HuntBudget.reserve"}:::impl
+        Budget -->|Exhausted| Rej["ScopeAuthorizationError (Stage Skipped / Degraded)"]:::forbidden
+        Budget -->|OK| Ticket["AuthorizedExecutionTicket I30 (Binds Quartet)"]:::impl
+        Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use, Zero Commit)"]:::impl
+        Consume --> PreCheck["Stage Admit Pre-Flight Egress Check"]:::impl
+        PreCheck --> Exec["Tool Subprocess Execution (Timeouts, Stdio Capture)"]:::impl
+        Exec --> SocketConn["Socket Connect / DNS Resolution"]:::impl
+        SocketConn --> EgressGuard{"In-Scope IP Guard"}:::impl
+        EgressGuard -->|In Scope| Out["StageOutput / RawExecutionClaim"]:::impl
+        EgressGuard -->|Out of Scope / TOCTOU| Viol["EgressViolationError --> Kill Subprocess + Release Budget"]:::forbidden
+    end
+
+    subgraph SettlementPipeline["Settlement & Deduplication Pipeline (F-042)"]
+        Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
+        Coord --> Fingerprint["SHA256 Fingerprint (tool|target|type|endpoint)"]:::impl
+        Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
+        Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
+        WAL -->|COMMITTED + wal_id I31| CommitB["I28 Budget COMMIT --> Outbox FINDING_CREATED"]:::impl
+        CommitB --> DedupStage["dedup_stage Clustering"]:::impl
+        DedupStage --> FinalReport["Canonical Report Output"]:::impl
+        CommitB -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
+        CommitB -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
+        WAL -->|FAILED Attempt with wal_id| FailedId["Settle REJECTED --> I28 Budget RELEASE (No FINDING_CREATED)"]:::impl
+        WAL -->|REJECTED / DEDUPLICATED / No wal_id| Silent["Silent Settle Drop --> I28 Budget RELEASE"]:::impl
+    end
 ```
 
 Per-stage admit is `stage_admit.admit_stage`: authorize (I28 **reserve**) → **consume ticket (I30 single-use only)** → `ProcessSandbox.check_egress` (metadata-guard) → run. `ProcessSandbox.run` is unused. I28 **commit/release** is only at `SettlementCoordinator` / `BudgetProjection` (stage settle COMMIT on COMPLETED, RELEASE on FAILED/SKIPPED; execution settle same). Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`; the settle **status** name is `REJECTED` (wal_id present). `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). Report sinks alone do not pin low-value optional producers in the planner. Canonical `findings` CRDT bag is REPORTABLE surface (unstamped rows promote); evidence bags cannot bypass. `attach_pipeline_authority` is the only writer.
+
 
 Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` after plugins. Planner prefers the runtime Graph; `resolve_stage_timeout` prefers the runtime Graph node timeout, then `STAGE_TIMEOUTS` (complete map including recon_validation / threat_modeling / sca* / ci_export / dedup_stage). Nested nuclei/validation/active_scan/`_tool_runner` **skip** second `authorize()` when `ctx.execution_ticket` is set (stage admit is the only reserve+consume). Standalone tool entry still authorizes once. HMAC has **no** published fallback string; missing env key → process-local random (verify dies across restart). SettlementIntent carries `budget_reservation_id` from the stage ticket (F-033 I28↔I31).
 
@@ -279,22 +316,30 @@ Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` 
 
 ---
 
-## F-006 — Leases and global budget
+## F-006 — Leases, time & global budget
 
-Source: [architecture.md](architecture.md) I19/I28, [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/decision/hunt_budget.py`, `src/core/frontier/lease_status.py`. Absorbed F-011.
+Source: [architecture.md](architecture.md) I19/I28, [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/decision/hunt_budget.py`, `src/core/frontier/lease_status.py`. Absorbed F-011, F-038.
 
 ```mermaid
 flowchart TD
-    Reserve["ReserveGlobalBudget"]:::impl --> RESERVED["RESERVED (Outstanding)"]:::impl
-    RESERVED -->|"allocate / dispatch"| ACTIVE["ACTIVE (Outstanding)"]:::impl
-    RESERVED -->|"expire (timeout)"| EXPIRED["EXPIRED (Available)"]:::impl
-    RESERVED -->|"compensate (abort/failure)"| COMPENSATED["COMPENSATED (Available)"]:::impl
-    RESERVED -->|"settle consumed"| CONSUMED["CONSUMED (Committed)"]:::impl
-    ACTIVE -->|"settle consumed > 0"| CONSUMED
-    ACTIVE -->|"expire (TTL elapsed)"| EXPIRED
-    EXPIRED -->|"compensate (late reconciliation)"| COMPENSATED
-    CONSUMED -->|"idempotent re-settle"| CONSUMED
-    COMPENSATED -->|"idempotent no-op"| COMPENSATED
+    subgraph ClockModel["Multi-Clock Model (F-038)"]
+        HLC["Hybrid Logical Clock (HLC)"]:::impl --> EventOrder["Scan Journal Ordering I23"]:::impl
+        Mono["time.monotonic()"]:::impl --> LeaseTTL["Sublease & Fence Expiration (Zero Skew Drift)"]:::impl
+        Wall["time.time() (UTC)"]:::impl --> AuditTime["Audit Logs & SIEM Export (I22 < 1000ms Bound)"]:::impl
+    end
+
+    subgraph LeaseFSM["Lease State Machine & Compensation (I19, I20, I21)"]
+        Reserve["ReserveGlobalBudget"]:::impl --> RESERVED["RESERVED (Outstanding)"]:::impl
+        RESERVED -->|"allocate / dispatch"| ACTIVE["ACTIVE (Outstanding)"]:::impl
+        RESERVED -->|"expire (timeout via Mono)"| EXPIRED["EXPIRED (Available)"]:::impl
+        RESERVED -->|"compensate (abort/failure)"| COMPENSATED["COMPENSATED (Available)"]:::impl
+        RESERVED -->|"settle consumed"| CONSUMED["CONSUMED (Committed)"]:::impl
+        ACTIVE -->|"settle consumed > 0"| CONSUMED
+        ACTIVE -->|"expire (TTL elapsed via Mono)"| EXPIRED
+        EXPIRED -->|"compensate (late reconciliation)"| COMPENSATED
+        CONSUMED -->|"idempotent re-settle"| CONSUMED
+        COMPENSATED -->|"idempotent no-op"| COMPENSATED
+    end
 ```
 
 `Total = Consumed + Outstanding + Available`. Slabs add `SlabReserved` (I26). COMPENSATED only from RESERVED or EXPIRED. EXPIRED is **not** in `TERMINAL` (it can still compensate). `SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not a written state. I30 ticket **consume is not** an I28 budget commit — only settle (`BudgetProjection` COMMIT/RELEASE, including stage settle) moves RESERVED → CONSUMED / COMPENSATED. Adaptive scan reserve→commit mirrors settle when no stage ticket path is used.
@@ -405,14 +450,13 @@ flowchart TD
 |---|---|---|---|---|---|
 | **Normal (< 85% Disk, < 80% RAM)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | `Admit` |
 | **Moderate (>= 85% Disk / CPU > 90%)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | **`DROP`** |
-| **Severe (>= 92% Disk / RAM > 90%)** | `Admit` (Spool) | `Admit` | **`COALESCE`** | **`DROP`** | **`DROP`** |
 | **Spool Saturated (> 1000 P0 items)** | `Backpressure` (Block caller) | `Drop` | `Drop` | `Drop` | `Drop` |
 
 ---
 
-## F-018 — Failure decision tree & I35 recovery protocol
+## F-018 — Failure decision tree, concurrency & I35 recovery
 
-Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34), `src/core/frontier/recovery_protocol.py` (I35), `src/jobs/run_outcome.py`.
+Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34), `src/core/frontier/recovery_protocol.py` (I35), `src/jobs/run_outcome.py`, `src/infrastructure/task_pool/run_lock.py`. Absorbed F-039.
 
 ### Total Exit Code Precedence Table (`derive_job_and_exit`)
 
@@ -430,7 +474,14 @@ Strict Priority: $$\text{Cancel (130)} > \text{Infra/Fatal (3)} > \text{Suspend 
 
 ```mermaid
 flowchart TD
-    Run["Pipeline Execution Finalized"]:::impl --> Precedence{"derive_job_and_exit"}:::impl
+    subgraph Concurrency["Concurrency & Run Locking (F-039)"]
+        ScanReq["cstp scan run target"]:::impl --> Acquire{"Acquire RunLock (Target Name)"}:::impl
+        Acquire -->|Collision| CollisionExit["Exit 1 (Lock Collision Error)"]:::forbidden
+        Acquire -->|Acquired| Run["Pipeline Execution"]:::impl
+        Run --> ReleaseLock["Release RunLock on Exit"]:::impl
+    end
+
+    Run --> Precedence{"derive_job_and_exit"}:::impl
     Precedence -->|Cancel Signal| Exit130["Exit 130: STOPPED"]:::impl
     Precedence -->|Fatal Stage / No Output / I35 FAIL_CLOSED| Exit3["Exit 3: FAILED (Infra Failure)"]:::impl
     Precedence -->|Policy Violation| Exit2["Exit 2: COMPLETED (Policy Violation)"]:::impl
@@ -442,7 +493,7 @@ flowchart TD
         WAL["WALCorruptionError I15"]:::forbidden -->|"Unrecoverable"| Exit3
         Pol["Policy Gate (No Log)"]:::forbidden -->|"Fail-Closed"| Exit2
         Egress["EgressViolationError I29"]:::forbidden -->|"Scope Guard"| Exit3
-        Lock["RunLock Collision"]:::forbidden -->|"Single-Writer Collision"| Exit1["Exit 1: FAILED"]:::impl
+        CollisionExit --> Exit1["Exit 1: FAILED"]:::impl
     end
 ```
 
@@ -493,72 +544,85 @@ PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered 
 
 `RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op — live checkpoints usually have no `tickets`/`settlements` keys). `delivered_event_ids` on the scan observation are empty by design; `replay_delivery` is a log line. FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the strictly total lattice for CLI exit and dashboard reap with defined total priority order (130 > 3 > 7 > 2 > 4 > 1 > 0) and unified `no_pipeline_output` handling. A non-fatal FAILED producer unblocks reporting; only `fatal_stages` trigger exit 3.
 
-
 ---
 
-## F-019 — Operator surface
+## F-019 — Operator surface, multi-tenancy & telemetry
 
-Source: [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md). Absorbed F-023, F-026, F-031.
+Source: [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `src/telemetry/normalizer.ts`, `src/dashboard/fastapi/middleware.py`. Absorbed F-023, F-026, F-031, F-043.
 
 ```mermaid
 flowchart TD
-    HTTP["Inbound HTTP"] --> Tenant["X-Tenant-ID (optional namespace)"]
-    Tenant --> Auth{"auth mode"}
-    Auth -->|"Bearer / API key"| Dispatch["route handler"]
-    Auth -->|"session cookie mutating"| CSRF{"CSRF ok?"}
-    CSRF -->|no| R403["403"]
-    CSRF -->|yes| Dispatch
-    Dispatch --> Hook["useJobMonitor"]
-    Hook --> REST["REST /api/jobs/:id"]
-    Hook --> SSE["SSE /api/jobs/:id/progress/stream"]
-    Hook --> WS["WebSocket /ws/logs/:id"]
-    Hook --> Triage["WebSocket /ws/triage/:run_id"]
-    REST --> Norm["telemetry/normalizer.ts"]
-    SSE --> Norm
-    WS --> Norm
-    WS -->|drop| REST
-    Norm --> Stores["Zustand stores"]
-    Stores --> Pages["Jobs / Findings / Cockpit"]
-    Settle["Settlement COMMITTED"] --> Outbox["L2 DurableOutbox"]
-    Outbox --> LiveBus["event_bus.EventBus in-process notify"]
-    LiveBus --> Fan["fan-out cap 5"]
-    LiveBus -.->|"delivery fail ≠ uncommit I32"| Settle
-    Unused["events.bus UNUSED"] --> PerfSuite["perfection suite only"]
-    App["pipeline + dashboard"] --> Prom["Prometheus"]
-    App --> Logs["JSON logs + HMAC audit"]
-    Prom --> Graf["Grafana"]
+    subgraph MultiTenant["Multi-Tenant Isolation & Auth (F-043)"]
+        HTTP["Inbound HTTP Request"]:::impl --> Tenant["X-Tenant-ID Header Extraction"]:::impl
+        Tenant --> Auth{"Auth Mode Verification"}:::impl
+        Auth -->|"Bearer / API Key"| ScopeSigned["Tenant-Scoped Ticket Signed"]:::impl
+        Auth -->|"Session Cookie (Mutating)"| CSRF{"CSRF Token Valid?"}:::impl
+        CSRF -->|No| R403["403 Forbidden"]:::forbidden
+        CSRF -->|Yes| ScopeSigned
+        ScopeSigned --> TenantStorage["Partitioned Storage & Budget Allocation"]:::impl
+        ScopeSigned --> Dispatch["FastAPI Route Handlers"]:::impl
+    end
+
+    Dispatch --> Hook["useJobMonitor (React Hook)"]:::impl
+    Hook --> REST["REST /api/jobs/:id"]:::impl
+    Hook --> SSE["SSE /api/jobs/:id/progress/stream"]:::impl
+    Hook --> WS["WebSocket /ws/logs/:id"]:::impl
+    Hook --> Triage["WebSocket /ws/triage/:run_id"]:::impl
+    REST & SSE & WS --> Norm["telemetry/normalizer.ts"]:::impl
+    WS -->|Drop| REST
+    Norm --> Stores["Zustand Stores"]:::impl
+    Stores --> Pages["Jobs / Findings / Cockpit UI"]:::impl
+    
+    subgraph OutboxNotify["Outbox & Telemetry Pipeline"]
+        Settle["Settlement COMMITTED"]:::impl --> Outbox["L2 DurableOutbox"]:::impl
+        Outbox --> LiveBus["event_bus.EventBus (In-Process Dispatch)"]:::impl
+        LiveBus --> Fan["Fan-Out (Cap 5)"]:::impl
+        LiveBus -.->|"Delivery Fail ≠ Uncommit I32"| Settle
+        App["Pipeline + Dashboard"]:::impl --> Prom["Prometheus Metrics (:9090)"]:::impl
+        App --> Logs["JSON Logs + HMAC Audit"]:::impl
+        Prom --> Graf["Grafana Dashboard"]:::impl
+    end
 ```
 
 SSE is `GET /api/jobs/{id}/progress/stream` (not `/progress/stream`). Logs WS is `/ws/logs/{job_id}`. Triage WS `/ws/triage/{run_id}` is live and uncharted before this row. Origin validation runs before the `DASHBOARD_AUTH_DISABLED` admin bypass.
 
-## F-020 — Tests and CI shards
+---
 
-Source: [testing.md](testing.md)
+## F-020 — Tests, CI shards & quality policy gates
+
+Source: [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `src/jobs/run_outcome.py`. Absorbed F-045.
 
 ```mermaid
 flowchart TD
-    Push["Push to main"] --> Lint["ruff + format + Bandit HIGH"]
-    Push --> Mypy["mypy"]
-    Push --> TS["typescript tsc --noEmit"]
-    Push --> FE["frontend"]
-    Push --> Shards["pytest shards (test matrix, fail-fast false)"]
-    Push --> Audit["security-audit"]
-    Push --> Scan["security-scan Semgrep p/ci"]
-    Push --> Hard["hardening"]
-    Push --> Iac["iac-scan Checkov yaml"]
-    Shards --> Infra["unit-infra"]
-    Shards --> Core["unit-core"]
-    Shards --> Pipe["unit-pipeline"]
-    Shards --> Recon["unit-recon"]
-    Shards --> Analysis["unit-analysis"]
-    Shards --> Dash["unit-dashboard"]
-    Shards --> Exploit["unit-exploit"]
-    Shards --> App["unit-app"]
-    Shards --> Suites["suites: integration + architecture + regression + infrastructure"]
-    Shards --> Combine["coverage combine job (needs: test)"]
-    Combine --> Cov["coverage fail_under 45"]
-    Lint & Mypy & TS & FE & Combine & Audit & Scan & Hard & Iac --> Ok["CI passed"]
-    Local["Local agents"] --> Small["only smallest relevant slice less than or equal 50s"]
+    subgraph CI_Pipeline["GitHub Actions CI Pipeline (.github/workflows/ci.yml)"]
+        Push["Push to main / PR"]:::impl --> Lint["ruff + format + Bandit HIGH"]:::impl
+        Push --> Mypy["mypy typecheck"]:::impl
+        Push --> TS["typescript tsc --noEmit"]:::impl
+        Push --> FE["frontend build"]:::impl
+        Push --> Shards["pytest shards (test matrix, fail-fast false)"]:::impl
+        Push --> Audit["security-audit"]:::impl
+        Push --> Scan["security-scan Semgrep p/ci"]:::impl
+        Push --> Hard["hardening check"]:::impl
+        Push --> Iac["iac-scan Checkov yaml"]:::impl
+        Shards --> Infra["unit-infra"]:::impl
+        Shards --> Core["unit-core"]:::impl
+        Shards --> Pipe["unit-pipeline"]:::impl
+        Shards --> Recon["unit-recon"]:::impl
+        Shards --> Analysis["unit-analysis"]:::impl
+        Shards --> Dash["unit-dashboard"]:::impl
+        Shards --> Exploit["unit-exploit"]:::impl
+        Shards --> App["unit-app"]:::impl
+        Shards --> Suites["suites: integration + architecture + regression"]:::impl
+        Shards --> Combine["coverage combine job (needs: test)"]:::impl
+        Combine --> Cov["coverage fail_under 45"]:::impl
+        Lint & Mypy & TS & FE & Combine & Audit & Scan & Hard & Iac --> Ok["CI passed"]:::impl
+    end
+
+    subgraph PolicyGateSub["CI/CD Quality Contract & Policy Gates (F-045)"]
+        ScanDone["Pipeline Scan Finalized"]:::impl --> PolicyGate{"evaluate_policy"}:::impl
+        PolicyGate -->|Critical >= Max Allowed| FailExit["Exit 2: Policy Violation (Block Merge)"]:::forbidden
+        PolicyGate -->|Within Thresholds| PassExit["Exit 0: Clean Pass (Export SARIF)"]:::impl
+    end
 ```
 
 Per-test timeout 20s (`pytest-timeout`). Do not CI-fail on k8s `REPLACE_WITH_*`. Fail-fast recon tests stay skipped.
@@ -582,31 +646,33 @@ flowchart LR
 
 ---
 
-## F-025 — Non-authoritative planes
+## F-025 — Non-authoritative planes, caches & multi-tier storage
 
-Source: [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), [architecture.md](architecture.md) §7.17. Absorbed F-028, F-032.
+Source: [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), [architecture.md](architecture.md) §7.17, `src/infrastructure/cache/`, `src/pipeline/maintenance.py`. Absorbed F-028, F-032, F-041.
 
 ```mermaid
 flowchart TD
     subgraph Config["Three config trees — do not unify"]
-        ScanCfg["ValidatedPipelineConfig JSON"]
-        DashCfg["DashboardConfig DASHBOARD_*"]
-        QueueCfg["QueueConfig QUEUE_*"]
-        ScanCfg -.-> NoGod["no kernel / God-container"]
+        ScanCfg["ValidatedPipelineConfig JSON"]:::impl
+        DashCfg["DashboardConfig DASHBOARD_*"]:::impl
+        QueueCfg["QueueConfig QUEUE_*"]:::impl
+        ScanCfg -.-> NoGod["no kernel / God-container"]:::forbidden
         DashCfg -.-> NoGod
         QueueCfg -.-> NoGod
     end
-    Call["cache get"] --> SF["single-flight"]
-    SF --> Mem["LRU"]
-    Mem -->|miss| Persist["SQLite or Redis"]
-    Persist -->|miss| Origin["compute"]
-    Origin --> Write["write-through"]
-    Done["Completed run"] --> Hot["hot NVMe"]
-    Hot --> Arch["gzip archive"]
-    Hot --> Prune{"older than 14d?"}
-    Prune -->|yes| Drop["prune_hot_tier"]
-    Arch --> Index["index_runs"]
-    Hot --> Index
+
+    subgraph MultiTierCache["Multi-Tier Cache & Storage Hierarchy (F-041)"]
+        Call["Cache Read Request"]:::impl --> SF["Single-Flight In-Memory LRU (L1)"]:::impl
+        SF -->|Hit| Return["Return Cached Output"]:::impl
+        SF -->|Miss| Persist["SQLite cache_layer.db / Redis (L2)"]:::impl
+        Persist -->|Miss| Origin["Stage Execution (Compute)"]:::impl
+        Origin --> Write["Write-Through to L1 & L2"]:::impl
+        Done["Completed Scan Run"]:::impl --> Hot["Hot NVMe Storage (output/run_id/)"]:::impl
+        Hot --> Index["index_runs Metadata"]:::impl
+        Hot --> PruneCheck{"Older than 14 Days?"}:::impl
+        PruneCheck -->|Yes| Arch["Gzip Compressed Archive Tier"]:::impl
+        Arch --> PruneJob["cstp system cleanup (Pruning)"]:::impl
+    end
 ```
 
 ---
@@ -706,214 +772,44 @@ flowchart TD
 
 ---
 
-## F-034 — Plane boundary & object ownership
-
-Source: `src/core/frontier/replicated_log.py`, `src/core/frontier/state.py`.
-
-```mermaid
-flowchart TD
-    subgraph PartitionPlane["Partition Plane (Raft / PartitionWAL L0–L3) — AUTHORITATIVE FOR GOVERNANCE"]
-        P_Cmd["Commands & Policy Promotions"]:::impl
-        P_Budget["GlobalBudgetAggregate (P-0000)"]:::impl
-        P_Lease["AuthorityLeases & Placement"]:::impl
-        P_Outbox["DurableOutboxLedger"]:::impl
-        P_Cmd --> P_Budget & P_Lease --> P_Outbox
-    end
-    subgraph FrontierPlane["Frontier Plane (FrontierWAL / CRDT) — AUTHORITATIVE FOR SCAN DISCOVERY"]
-        F_Targets["Target Subdomains & URLs"]:::impl
-        F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
-        F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
-        F_Tombstones["Compaction Tombstones (1h TTL)"]:::impl
-        F_Targets --> F_Findings & F_Candidates --> F_Tombstones
-    end
-    P_Outbox -->|"HMAC Receipt"| Bridge["SettlementCoordinator Bridge"]:::impl
-    Bridge --> F_Findings
-```
-
----
-
-## F-035 — Plugin lifecycle & runtime DAG builder
-
-Source: `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `docs/dynamic-plugins.md`.
-
-```mermaid
-flowchart LR
-    Static["_constants.STAGE_GRAPH (Base 16 Nodes)"]:::impl --> Discover["Plugin Registry Discovery"]:::impl
-    Discover --> Validate["Schema & Contract Validation"]:::impl
-    Validate --> Inject["_join_finding_producers Dynamic Injection"]:::impl
-    Inject --> RuntimeDAG["Runtime Pipeline STAGE_GRAPH"]:::impl
-```
-
----
-
-## F-036 — Scope, targets & continuous egress enforcement (TOCTOU)
-
-Source: `src/decision/authorization.py`, `src/sandbox/process_sandbox.py`.
-
-```mermaid
-flowchart TD
-    Input["Target URL / CIDR Definition"]:::impl --> Scope["ScopeToken Issuance (Signed Hash)"]:::impl
-    Scope --> PreFlight["Stage Admit Pre-Flight Egress Check"]:::impl
-    PreFlight --> Exec["Subprocess Launch"]:::impl
-    Exec --> Connect["Socket Connect / DNS Resolution"]:::impl
-    Connect --> Guard{"In-Scope IP Check"}:::impl
-    Guard -->|In Scope| OK["Allow Traffic"]:::impl
-    Guard -->|Out of Scope / Rebinding| Drop["EgressViolationError --> Kill Process"]:::forbidden
-```
-
----
-
-## F-037 — Cryptographic key hierarchy & secret management
-
-Source: `src/core/frontier/receipt_crypto.py`, `src/infrastructure/security/`.
-
-```mermaid
-flowchart TD
-    Master["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC-SHA256 Key Derivation"]:::impl
-    Derive --> ReceiptKey["CommandReceipt Signing Key"]:::impl
-    Derive --> MeshKey["MESH_SECRET (Gossip AES-256-GCM 96-bit Nonce)"]:::impl
-    Derive --> JWTKey["JWT Session Signing Key"]:::impl
-    Master -.->|Missing in Env| Fallback["Process-Local Random Key (Verify Fails on Restart)"]:::vacuous
-```
-
----
-
-## F-038 — Time, monotonic clocks & lease expiry model
-
-Source: `src/core/frontier/lease_status.py`, `src/decision/hunt_budget.py`.
-
-```mermaid
-flowchart LR
-    HLC["Hybrid Logical Clock (HLC)"]:::impl --> EventOrder["Scan Journal Ordering I23"]:::impl
-    Mono["time.monotonic()"]:::impl --> LeaseTTL["Sublease & Fence Expiration (Zero Skew Drift)"]:::impl
-    Wall["time.time() (UTC)"]:::impl --> AuditTime["Audit Logs & SIEM Export (I22 < 1000ms Bound)"]:::impl
-```
-
----
-
-## F-039 — Concurrency, mutual exclusion & run locking
-
-Source: `src/infrastructure/task_pool/run_lock.py`, `src/pipeline/services/pipeline_orchestrator/orchestrator.py`.
-
-```mermaid
-flowchart TD
-    ScanReq["cstp scan run target"]:::impl --> Acquire{"Acquire RunLock (Target Name)"}:::impl
-    Acquire -->|Acquired| Run["Execute Scan Pipeline"]:::impl
-    Acquire -->|Collision| Reject["Exit 1 (Lock Collision Error)"]:::forbidden
-    Run --> Release["Release RunLock on Completion / Exit"]:::impl
-```
-
----
-
-## F-040 — Deployment topology & process architecture
-
-Source: `docs/deployment.md`, `src/cli/launcher.py`.
-
-```mermaid
-flowchart TD
-    Browser["React 19 Operator Console (:5173 / :8000)"]:::impl <-->|"REST & WebSocket"| FastAPIServer["FastAPI Dashboard Server (:8000)"]:::impl
-    FastAPIServer <-->|"Redis Job Queue & Streams"| Worker["Pipeline Background Worker Daemon"]:::impl
-    Worker <-->|"Local Sandbox"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
-    Worker <-->|"Prometheus /metrics (:9090)"| MetricsSink["Prometheus / Grafana"]:::impl
-```
-
----
-
-## F-041 — Multi-tier persistence & retention lifecycle
-
-Source: `src/infrastructure/cache/`, `src/pipeline/maintenance.py`.
-
-```mermaid
-flowchart TD
-    StageRes["Stage Results & Findings"]:::impl --> L1["L1: Single-Flight In-Memory LRU"]:::impl
-    L1 -->|Miss / Spill| L2["L2: SQLite cache_layer.db / Redis"]:::impl
-    L2 -->|Scan Done| Hot["Hot Storage (output/run_id/)"]:::impl
-    Hot -->|"14 Days Elapsed"| Arch["Gzip Compressed Archive"]:::impl
-    Arch --> Prune["cstp system cleanup Pruning"]:::impl
-```
-
----
-
-## F-042 — Finding deduplication & CRDT merge pipeline
-
-Source: `src/analysis/dedup/`, `src/core/frontier/state.py`.
-
-```mermaid
-flowchart LR
-    RawFinding["Raw Tool Output Finding"]:::impl --> Fingerprint["SHA256(tool|target|type|endpoint)"]:::impl
-    Fingerprint --> CRDT["NeuralState.findings OR-Set Bag"]:::impl
-    CRDT --> DedupStage["dedup_stage Similarity Clustering"]:::impl
-    DedupStage --> FinalReport["Canonical Report Output"]:::impl
-```
-
----
-
-## F-043 — Multi-tenant isolation & partitioning
-
-Source: `src/decision/authorization.py`, `src/dashboard/fastapi/middleware.py`.
-
-```mermaid
-flowchart TD
-    Inbound["Inbound API Request"]:::impl --> Header["X-Tenant-ID Header Extraction"]:::impl
-    Header --> AuthCheck["Verify Tenant API Key / Session"]:::impl
-    AuthCheck --> Ticket["Scope Ticket Signed with tenant_id"]:::impl
-    Ticket --> IsolatedState["Partitioned Storage & Budget Allocation"]:::impl
-```
-
----
-
-## F-044 — Schema upcasting & state evolution
-
-Source: `src/core/contracts/schema_upcaster.py`, `src/core/frontier/marshaller.py`.
-
-```mermaid
-flowchart LR
-    OldPayload["Legacy Payload (v1 / v2)"]:::impl --> Detector["Detect Schema Version"]:::impl
-    Detector --> Upcaster["SchemaUpcaster Pipeline (v1 → v2 → v3)"]:::impl
-    Upcaster --> Canon["Canonical Envelope Format"]:::impl
-```
-
----
-
-## F-045 — CI/CD quality contract & policy gates
-
-Source: `docs/ci-cd-integration.md`, `src/jobs/run_outcome.py`.
-
-```mermaid
-flowchart TD
-    ScanComplete["Scan Outcome Evaluation"]:::impl --> PolicyGate{"evaluate_policy"}:::impl
-    PolicyGate -->|Critical >= Max Allowed| Fail["Exit 2 (Policy Violation / Block PR)"]:::forbidden
-    PolicyGate -->|Within Thresholds| Pass["Exit 0 (CI Pass / Export SARIF)"]:::impl
-```
-
----
-
 ## Retired Chart Registry
 
 In accordance with §0 (Maintenance Contract), retired IDs are preserved as stable pointers below:
 
 | Retired ID | Original Scope | Survivor Section |
 |---|---|---|
-| `F-005` | Live Scan Stage Path | → [F-004](#f-004--live-scan-path--execution-dag) |
-| `F-008` | Finding Lifecycle States | → [F-007](#f-007--application-state-machines--coupling) |
-| `F-010` | Tool Execution Subprocess | → [F-004](#f-004--live-scan-path--execution-dag) |
-| `F-011` | Budget State Machine | → [F-006](#f-006--leases-and-global-budget) |
-| `F-012` | Network Raft Transport | → [F-003](#f-003--authority-plane--raft-l0l5) |
-| `F-013` | Checkpoint & FSM Rebuild | → [F-004](#f-004--live-scan-path--execution-dag) |
-| `F-014` | Zero I/O FSM Determinism | → [F-003](#f-003--authority-plane--raft-l0l5) |
-| `F-015` | Process Sandbox Enforcement | → [F-004](#f-004--live-scan-path--execution-dag) |
-| `F-016` | Durable Outbox Delivery | → [F-003](#f-003--authority-plane--raft-l0l5) |
-| `F-017` | Event Delivery Semantics | → [F-004](#f-004--live-scan-path--execution-dag) |
-| `F-021` | Multi-Region Gossip Protocol | → [F-002](#f-002--system-topology-and-regions) |
-| `F-023` | Frontend WebSocket Feeds | → [F-019](#f-019--operator-surface) |
-| `F-024` | Circuit Breaker Shedding | → [F-009](#f-009--resilience-breaker-qos-pid--flow-control) |
-| `F-026` | Telemetry Event Normalizer | → [F-019](#f-019--operator-surface) |
-| `F-027` | Job Status CAS Machine | → [F-007](#f-007--application-state-machines--coupling) |
-| `F-028` | Multi-Tier Cache Layer | → [F-025](#f-025--non-authoritative-planes) |
-| `F-029` | Recon Validation Stage | → [F-004](#f-004--live-scan-path--execution-dag) |
-| `F-030` | Priority QoS Admission | → [F-009](#f-009--resilience-breaker-qos-pid--flow-control) |
-| `F-031` | Telemetry Dispatch Normalizer | → [F-019](#f-019--operator-surface) |
-| `F-032` | Storage Tiering & Archival | → [F-025](#f-025--non-authoritative-planes) |
+| `F-005` | Live Scan Stage Path | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-008` | Finding Lifecycle States | → [F-007](#f-007--application-state-machines--lifecycle-coupling) |
+| `F-010` | Tool Execution Subprocess | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-011` | Budget State Machine | → [F-006](#f-006--leases-time--global-budget) |
+| `F-012` | Network Raft Transport | → [F-003](#f-003--authority-plane-raft-l0l5--security-keys) |
+| `F-013` | Checkpoint & FSM Rebuild | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-014` | Zero I/O FSM Determinism | → [F-003](#f-003--authority-plane-raft-l0l5--security-keys) |
+| `F-015` | Process Sandbox Enforcement | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-016` | Durable Outbox Delivery | → [F-003](#f-003--authority-plane-raft-l0l5--security-keys) |
+| `F-017` | Event Delivery Semantics | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-021` | Multi-Region Gossip Protocol | → [F-002](#f-002--system-topology-regions--deployment) |
+| `F-023` | Frontend WebSocket Feeds | → [F-019](#f-019--operator-surface-multi-tenancy--telemetry) |
+| `F-024` | Circuit Breaker Shedding | → [F-009](#f-009--resilience-breaker-qos-pid--bulkhead) |
+| `F-026` | Telemetry Event Normalizer | → [F-019](#f-019--operator-surface-multi-tenancy--telemetry) |
+| `F-027` | Job Status CAS Machine | → [F-007](#f-007--application-state-machines--lifecycle-coupling) |
+| `F-028` | Multi-Tier Cache Layer | → [F-025](#f-025--non-authoritative-planes-caches--multi-tier-storage) |
+| `F-029` | Recon Validation Stage | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-030` | Priority QoS Admission | → [F-009](#f-009--resilience-breaker-qos-pid--bulkhead) |
+| `F-031` | Telemetry Dispatch Normalizer | → [F-019](#f-019--operator-surface-multi-tenancy--telemetry) |
+| `F-032` | Storage Tiering & Archival | → [F-025](#f-025--non-authoritative-planes-caches--multi-tier-storage) |
+| `F-034` | Plane Boundary & Ownership | → [F-003](#f-003--authority-plane-raft-l0l5--security-keys) |
+| `F-035` | Plugin Load & Runtime DAG | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-036` | Scope & Continuous Egress | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-037` | Cryptographic Key Hierarchy | → [F-003](#f-003--authority-plane-raft-l0l5--security-keys) |
+| `F-038` | Monotonic Clocks & Leases | → [F-006](#f-006--leases-time--global-budget) |
+| `F-039` | Concurrency & Run Locking | → [F-018](#f-018--failure-decision-tree-concurrency--i35-recovery) |
+| `F-040` | Deployment Topology Model | → [F-002](#f-002--system-topology-regions--deployment) |
+| `F-041` | Persistence Tiering & Retention | → [F-025](#f-025--non-authoritative-planes-caches--multi-tier-storage) |
+| `F-042` | Finding Deduplication CRDT | → [F-004](#f-004--live-scan-path-execution-dag--egress-sandbox) |
+| `F-043` | Multi-Tenant Partitioning | → [F-019](#f-019--operator-surface-multi-tenancy--telemetry) |
+| `F-044` | Schema Upcasting Evolution | → [F-003](#f-003--authority-plane-raft-l0l5--security-keys) |
+| `F-045` | CI/CD Quality Policy Gates | → [F-020](#f-020--tests-ci-shards--quality-policy-gates) |
 
 ---
 
@@ -936,11 +832,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 
 | Date | Milestone / Change Description | Kind |
 |---|---|---|
-| 2026-08-25 | Initial Atlas baseline (F-001–F-032 created) | add |
-| 2026-08-25 | Architecture survivor consolidation (merged overlapping flows into survivor charts) | merge |
-| 2026-08-25 | Added F-033: fail-closed I30 ledger + I33 causal identity chain + I34 failure model | add |
-| 2026-08-26 | Formal invariant grounding: I35 dual-plane recovery protocol, I36 single-writer regions, I37 authority transfer fence | edit |
-| 2026-08-26 | Comprehensive Atlas audit hardening: resolved A1–A9, F-001–F-033 defects, added full I1–I37 Invariant Registry, and appended specialized architecture charts F-034–F-045 | harden |
-| 2026-08-26 | Atlas compression: merged dual diagrams, moved retired headings to end registry, and compacted milestone changelog | compress |
+| 2026-08-26 | Unified Architecture Specification (consolidated 13 core survivor charts F-001–F-033, merged F-034–F-045, grounded formal I1–I37 invariant registry) | active |
 
 Append a row for every later edit. Do not delete this table.
