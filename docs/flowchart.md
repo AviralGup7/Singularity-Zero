@@ -208,7 +208,10 @@ flowchart TD
         F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
         F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
         F_Tombstones["Compaction Tombstones (1h TTL)"]:::impl
-        F_Targets --> F_Findings & F_Candidates --> F_Tombstones
+        F_Targets --> F_Findings
+        F_Targets --> F_Candidates
+        F_Findings --> F_Tombstones
+        F_Candidates --> F_Tombstones
     end
     
     Outbox -->|"HMAC Receipt"| Bridge["SettlementCoordinator Bridge"]:::impl
@@ -220,7 +223,7 @@ flowchart TD
 
 Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_pipeline_authority` is `src/pipeline/authority_bootstrap.py`.
 
-
+---
 
 ## F-004 — Live scan path, execution DAG & egress sandbox
 
@@ -241,12 +244,12 @@ flowchart TD
         BaseDAG["Base STAGE_GRAPH (16 nodes)"]:::impl --> PluginReg["Dynamic Plugin Discovery"]:::impl
         PluginReg --> PluginVal["Plugin Schema Validation"]:::impl
         PluginVal --> Inject["_join_finding_producers Dynamic Injection"]:::impl
-        Inject --> DAG
+        Inject --> Sub["subdomains"]:::impl
     end
 
-    Stamp --> DAG
+    Stamp --> Sub
     subgraph DAG["Runtime STAGE_GRAPH (graph_builder.py)"]
-        Sub["subdomains"]:::impl --> Takeover["subdomain_takeover"]:::impl
+        Sub --> Takeover["subdomain_takeover"]:::impl
         Sub --> LiveH["live_hosts"]:::impl
         LiveH --> WAF["waf"]:::impl
         LiveH --> Urls["urls"]:::impl
@@ -357,9 +360,9 @@ Universal Conservation Equation: $$\text{TotalBudget} \equiv \text{Consumed} + \
 | `RESERVED` $\rightarrow$ `COMPENSATED` | $0$ | $-\text{units}$ | $+\text{units}$ | Pre-dispatch cancellation or authorization rejection |
 | *Late Settle after EXPIRED* | $0$ | $0$ | $0$ | **Refused**: requires prior compensation check |
 
+---
 
-
-## F-007 — Application state machines & coupling
+## F-007 — Application state machines & lifecycle coupling
 
 Source: `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `src/jobs/run_outcome.py`. Absorbed F-008, F-027.
 
@@ -406,8 +409,9 @@ flowchart TD
         FV --> FF
         FR -->|"Analyst Triage"| FF
     end
-    Stage & Finding --> Coupling["derive_job_and_exit (Total Mapping Lattice)"]:::impl
-    Coupling --> Job
+    SC & SDG & SF & SSD & SSF --> Coupling["derive_job_and_exit (Total Mapping Lattice)"]:::impl
+    FR & FF --> Coupling
+    Coupling --> JP
 ```
 
 ### Finding Tri-Axial State Model
@@ -418,7 +422,7 @@ flowchart TD
 
 ---
 
-## F-009 — Resilience: breaker, QoS, PID & flow control
+## F-009 — Resilience: breaker, QoS, PID & bulkhead
 
 Source: [architecture.md](architecture.md), [performance.md](performance.md), `src/infrastructure/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`. Absorbed F-024, F-030.
 
@@ -428,7 +432,7 @@ flowchart TD
     PID --> Conc["Dynamic Concurrency Window"]:::impl
     Load --> Bulk["BulkheadPool (Per-Host Host Isolation)"]:::impl
     Load --> Bloom["NeuralBloomFilter (Fast Evasion Deduplication)"]:::impl
-    Fail["Consecutive Probe Failures (>= 5)"]:::impl --> CB
+    Fail["Consecutive Probe Failures (>= 5)"]:::impl --> CLOSED
     subgraph CB["Circuit Breaker (Per-Target)"]
         CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold"| OPEN["OPEN (Tripped / Shedding)"]:::forbidden
         OPEN -->|"Cooldown Elapsed (20s)"| HALF_OPEN["HALF_OPEN (Trial Generation N)"]:::impl
@@ -450,6 +454,7 @@ flowchart TD
 |---|---|---|---|---|---|
 | **Normal (< 85% Disk, < 80% RAM)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | `Admit` |
 | **Moderate (>= 85% Disk / CPU > 90%)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | **`DROP`** |
+| **Severe (>= 92% Disk / RAM > 90%)** | `Admit` (Spool) | `Admit` | **`COALESCE`** | **`DROP`** | **`DROP`** |
 | **Spool Saturated (> 1000 P0 items)** | `Backpressure` (Block caller) | `Drop` | `Drop` | `Drop` | `Drop` |
 
 ---
@@ -707,13 +712,13 @@ Source: `src/core/frontier/invariant_graph.py`, `src/core/frontier/global_invari
 | **I20** | Idempotent terminal lease compensation | F-006 | `lease_status.py` | `test_lease_status.py` | `impl` |
 | **I21** | Forbidden direct `ACTIVE` $\rightarrow$ `COMPENSATED` transition | F-006 | `lease_status.py` | `test_lease_status.py` | `impl` |
 | **I22** | Max 1000ms clock skew admission gate | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
-| **I23** | Monotonic logical timestamp ordering | F-034 | `state.py` | `test_state_crdt.py` | `impl` |
-| **I24** | Bounded tombstone retention compaction | F-041 | `state.py` | `test_state_crdt.py` | `impl` |
-| **I25** | CRDT convergence under commutative merge | F-034 | `state.py` | `test_state_crdt.py` | `impl` |
+| **I23** | Monotonic logical timestamp ordering | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
+| **I24** | Bounded tombstone retention compaction | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
+| **I25** | CRDT convergence under commutative merge | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
 | **I26** | Multi-Raft quota slab conservation | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
 | **I27** | Bounded per-host bulkhead concurrency | F-009 | `infrastructure/` | `test_resilience.py` | `impl` |
 | **I28** | Settle-only budget commit & integer conservation | F-006 | `hunt_budget.py` | `test_global_invariants.py` | `impl` |
-| **I29** | Pre-flight & continuous egress scope enforcement | F-036 | `process_sandbox.py` | `test_sandbox.py` | `impl` |
+| **I29** | Pre-flight & continuous egress scope enforcement | F-004 | `process_sandbox.py` | `test_sandbox.py` | `impl` |
 | **I30** | Cryptographic quartet ticket binding | F-033 | `authorization.py` | `test_global_invariants.py` | `impl` |
 | **I31** | Settlement-gated `FINDING_CREATED` emission | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
 | **I32** | Non-authoritative EventBus outbox decoupling | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
