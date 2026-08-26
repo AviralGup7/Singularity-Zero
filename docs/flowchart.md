@@ -53,7 +53,7 @@ Live charts only. Retired ids are one-line headings after the last live chart (n
 | F-020 | Tests and CI shards | [testing.md](testing.md) |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) |
 | F-025 | Non-authoritative planes | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md) |
-| F-033 | Global invariants I30–I33 | `global_invariants.py`, `causal_identity.py`, `event_delivery.py` (I34–I35 → F-018, I36–I37 → F-002) |
+| F-033 | Global invariants I30–I37 proof graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` (I34–I35 → F-018, I36–I37 → F-002) |
 
 ---
 
@@ -418,11 +418,12 @@ flowchart TD
     ReplayD --> Inv["VERIFY_INVARIANTS"]
     Inv -->|"compensation crash: valid lease"| Comp["idempotent I28 replay"]
     Inv -->|"compensation crash: uncompensatable"| Closed
+    Inv -->|"prerequisite invariant failed I30/I31/I32/I33"| Closed
     Comp --> Ready["READY"]
     Inv --> Ready
 ```
 
-PartitionWAL is never reconstructed. Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
+PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered tickets/settlements violate I30–I33 (`invariant_graph.py`). Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
 
 `RecoveryManager._execute_verdict` runs rebuild_outbox. FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for job + exit.
 
@@ -551,13 +552,15 @@ flowchart TD
 
 ## F-032 — RETIRED → F-025
 
-## F-033 — Global invariants I30–I33
+## F-033 — Global invariants I30–I37 proof graph
 
-Source: `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`. I34–I35 live on F-018. I36–I37 live on F-002.
+Source: `src/core/frontier/invariant_graph.py`, `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`. I34–I35 live on F-018. I36–I37 live on F-002.
 
-EventBus is an **in-process notification dispatcher**, not a durable log and not a source of truth. Authoritative Event → Durable Outbox → Delivery Dispatcher → EventBus → consumers. `EventBus.emit(FINDING_CREATED)` without `wal_id` + `authoritative=True` is refused.
+EventBus is an **in-process notification dispatcher**, not a durable log and not a source of truth. Authoritative Event → Durable Outbox → Delivery Dispatcher → EventBus → consumers. `EventBus.emit(FINDING_CREATED)` without `wal_id` + HMAC settlement receipt is refused.
 
 I33 makes replay/retry/dedup proveable: child ids are derived from parents; a FAILED attempt does not close the execution; EventBus DeliveryId is skipped on crash-replay.
+
+I35 VERIFY_INVARIANTS consults the proof graph: recovered tickets must satisfy I30, recovered settlements I31, identities I33, and bus-without-outbox fails I32. I37 activate refuses to resurrect an I30-invalid ticket.
 
 ```mermaid
 flowchart TD
@@ -597,6 +600,25 @@ flowchart TD
     end
 ```
 
+```mermaid
+flowchart TD
+    I22["I22 clock admission"] --> I30g["I30 authorization causality"]
+    I30g --> I33g["I33 causal IDs"]
+    I30g --> I28g["I28 budget / lease"]
+    I33g --> I31g["I31 settlement"]
+    I28g --> I31g
+    I31g --> I32g["I32 durable outbox"]
+    I32g --> I34g["I34 failure semantics"]
+    I28g --> I34g
+    I34g --> I35g["I35 recovery"]
+    I32g --> I35g
+    I35g --> I36g["I36 region"]
+    I36g --> I37g["I37 transfer fence"]
+    I30g --> I37g
+    I35g -.->|"recovered ticket fails I30"| NoReady["FAIL_CLOSED not READY"]
+    I37g -.->|"I30-invalid ticket"| NoMint["activate refuses; cannot mint I30"]
+```
+
 ## Changelog
 
 | Date | Change | Kind |
@@ -618,5 +640,6 @@ flowchart TD
 | 2026-08-26 | F-002/F-018/F-033: honest live path for I35 observation and I36 relay refuse | edit |
 | 2026-08-26 | F-002: I37 OWNED→FENCED→OWNED transfer fence | edit |
 | 2026-08-26 | F-004 per-stage ticket+FAILED settle+report join; F-007 CAS fail-closed + ticket axis; F-009 qos_admit; F-018 I35 execute + lattice; F-033 HMAC receipt | edit |
+| 2026-08-26 | F-033 proof graph I22→I37; F-018 VERIFY_INVARIANTS fail-closes on I30/I31 | edit |
 
 Append a row for every later edit. Do not delete this table.

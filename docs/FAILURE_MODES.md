@@ -21,7 +21,7 @@ Why WAL compensate is **No**: I15 never applied the corrupt record, so there is 
 
 ## I35 Recovery Protocol
 
-I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. `RecoveryManager` on scan resume supplies a FrontierWAL observation only; PartitionWAL outbox rebuild is `ReplicatedPartitionLog._recover_from_wal`. Exotic multi-node repair is still not implemented; the outcome is still named.
+I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. The invariant dependency graph is `src/core/frontier/invariant_graph.py`: I35 `VERIFY_INVARIANTS` fail-closes if recovered tickets fail I30, recovered settlements fail I31, identities fail I33, or EventBus emitted without the outbox (I32). `RecoveryManager` on scan resume supplies a FrontierWAL observation only; PartitionWAL outbox rebuild is `ReplicatedPartitionLog._recover_from_wal`. Exotic multi-node repair is still not implemented; the outcome is still named.
 
 Recovery is a state machine, not another table:
 
@@ -51,6 +51,7 @@ Recovery is a state machine, not another table:
 | Delivery ahead of outbox | Discard extra DeliveryIds | Discard extra DeliveryIds |
 | Outbox appended, delivery missing | Replay dispatch (I32) | Replay dispatch |
 | Crash during compensation | Idempotent replay of I28 | Idempotent replay of I28 |
+| Prerequisite invariant failed (I30/I31/I32/I33) | Fail-closed | Fail-closed |
 
 ---
 
