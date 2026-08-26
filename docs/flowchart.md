@@ -39,11 +39,17 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 
 Every graph in this atlas adheres to a standardized visual taxonomy:
 
-### Edge Semantics
-- `A --> B` : **Authoritative transition / synchronous flow** — verified data or control handoff.
-- `A ==> B` : **Primary / hot path execution** — default DAG execution or fast-path route.
-- `A -.-> B` : **Constraint / Non-Effect / Invariant assertion** (e.g. `L5 -.-> L0` forbidden, `FC -.-> FV` refinement).
-- `PORT_F006[["PORT: F-006 RESERVED"]]` : **Explicit cross-chart interface port** connecting partitioned diagrams.
+### Edge Semantics & Grammar (G2 Resolved)
+
+Every edge in this atlas uses typed syntax and explicit labels to prevent semantic overloading:
+- `A ==> B` : **Execution / Hot Path** — synchronous control flow, DAG scheduling dispatch, or hot pipeline execution.
+- `A -->|data| B` : **Dataflow & Ingestion** — transfer of findings, URLs, payloads, or context artifacts between components.
+- `A -->|replicate| B` : **Distributed Replication** — network journal sync or cross-region peer relay.
+- `A -->|state| B` : **Lifecycle State Transition** — deterministic CAS machine progression (e.g. `PENDING` $\rightarrow$ `RUNNING`).
+- `A -->|durable| B` : **Durable Side Effect** — synchronous WAL commit, Outbox append, or fsync flush.
+- `A -.->|when: cond| B` : **Conditional Scheduling Gate** — runtime predicate evaluation (e.g. `OutputNonEmpty`).
+- `A -.->|refuse/guard| B` : **Constraint & Invariant Refusal** — fail-closed security boundary, egress guard, or illegal flow prohibition.
+- `PORT_FNNN[["PORT: F-NNN ..."]]` : **Explicit Cross-Chart Interface Port** — typed boundary connector between partitioned charts.
 
 ### Node Status Classes (`classDef`)
 - `:::impl` : **Fully Implemented** — live production code in `src/`.
@@ -132,49 +138,54 @@ Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGE
 
 Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37), `src/cli/launcher.py`. Absorbed F-021, F-040.
 
-A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap; fenced placement also refuses `settle_stage_output`). If a transfer stalls or times out, `abort_transfer` reverts to `OWNED` on the original home with an incremented epoch. The relay is journal-only (`reconcile_with_peer` drops settlement/command rows). Live CLI is single-home `local` — the two-region mermaid is the I36/I37 spec, not a running mesh.
+A region is a placement/replica boundary, not a second authority. Only the current leader home admits commands. Home moves only as I37 `OWNED → FENCED → OWNED` (nobody writes in the gap; fenced placement also refuses `settle_stage_output`). If a transfer stalls or times out, `abort_transfer` reverts to `OWNED` on the original home with an incremented epoch. The relay is journal-only (`reconcile_with_peer` drops settlement/command rows). Live CLI is single-home `local` — the multi-region topology is the I36/I37 specification.
+
+### 1. Spatial Deployment & Multi-Region Topology
 
 ```mermaid
 flowchart TD
     subgraph Deployment["Deployment Process Topology (launcher.py)"]
         Browser["React 19 Dashboard (:5173 / :8000)"]:::impl <-->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
         API <-->|"Redis Job Queue & Streams"| Worker["Pipeline Background Worker Daemon"]:::impl
-        Worker <-->|"Local Sandbox"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
-        Worker <-->|"Prometheus /metrics (:9090)"| PromSink["Prometheus / Grafana"]:::impl
+        Worker ==>|"subproc spawn"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
+        Worker -->|"metrics push"| PromSink["Prometheus / Grafana (:9090)"]:::impl
     end
     
-    Worker --> Orch["Pipeline Orchestrator"]:::impl
-    Orch --> Engines["Recon / Analysis / Fuzz / Exploit"]:::impl
-    Orch --> State["WAL / CRDT / Cache / Mesh"]:::impl
-    Engines --> Sinks["Learning + Reporting"]:::impl
-    State --> Sinks
+    Worker ==> Orch["Pipeline Orchestrator"]:::impl
+    Orch ==> Engines["Recon / Analysis / Fuzz / Exploit"]:::impl
+    Orch -->|data| State["WAL / CRDT / Cache / Mesh"]:::impl
+    Engines -->|data| Sinks["Learning + Reporting"]:::impl
+    State -->|data| Sinks
     
-    subgraph RegionA["Region A (Leader Home)"]
+    subgraph RegionA["Region A (Leader Home — I36 Single Writer)"]
         GA["Gossip Node A1"]:::impl
         OA["P-0000 Leader + Partition Log"]:::impl
         JA["FrontierWAL Journal"]:::impl
         RA["Redis Stream Journal"]:::impl
-        OA --> JA --> RA
+        OA -->|durable| JA -->|stream| RA
     end
-    subgraph RegionB["Region B (Read Replica)"]
+    subgraph RegionB["Region B (Read Replica — Fail-Closed)"]
         GB["Gossip Node B1"]:::singleNode
-        OB["Fail-Closed for Mutations"]:::forbidden
+        OB["Refuse Foreign Writer"]:::forbidden
         JB["FrontierWAL Replica (Monotonic Read)"]:::specOnly
         RB["Redis Stream Replica"]:::specOnly
-        JB --> RB
+        JB -->|stream| RB
     end
-    State --> OA
-    GA <-->|"SWIM UDP AES-256-GCM"| GB
-    RA -->|"WALReplicationRelay (Scan Journal Only I36)"| RB
-    OB -.->|"must not commit settlements"| Forbidden["I36 / I37 Refuse Foreign Writer"]:::forbidden
-    
-    subgraph I37_Transfer["I37 Authority Transfer Lifecycle"]
-        OwnedA["Region A: OWNED (Writes Active)"]:::impl --> Fence["initiate_transfer: FENCED (Zero-Writer Gap)"]:::impl
-        Fence --> OwnedB["activate_ownership: Region B OWNED"]:::impl
-        Fence -->|"abort / timeout"| AbortA["abort_transfer: Region A OWNED (Epoch Bumped)"]:::impl
-        Fence -.->|"A stale attempt"| RejectA["Refuse: Stale Epoch / Token"]:::forbidden
-        Fence -.->|"B early mutation"| RejectB["Refuse: Partition FENCED"]:::forbidden
-    end
+    State -->|durable| OA
+    GA <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit)"| GB
+    RA -->|"replicate (Scan Journal Only I36)"| RB
+    OB -.->|"refuse mutations"| Forbidden["I36 / I37 Refuse Foreign Writer"]:::forbidden
+```
+
+### 2. Temporal Authority Transfer State Machine (I37 Zero-Dual-Writer Fence)
+
+```mermaid
+flowchart TD
+    OwnedA["Region A: OWNED (Active Writer)"]:::impl -->|"state: initiate_transfer (Epoch E)"| Fence["FENCED (Zero-Writer Gap)"]:::impl
+    Fence -->|"state: activate_ownership (Epoch E+1)"| OwnedB["Region B: OWNED (Active Writer)"]:::impl
+    Fence -->|"state: abort_transfer (Timeout / Error)"| AbortA["Region A: OWNED (Epoch E+1 Bumped)"]:::impl
+    Fence -.->|"refuse: stale epoch attempt"| RejectA["Refuse: Stale Epoch / Token"]:::forbidden
+    Fence -.->|"refuse: early mutation on target"| RejectB["Refuse: Partition FENCED"]:::forbidden
 ```
 
 ---
@@ -186,7 +197,7 @@ Source: [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FO
 ```mermaid
 flowchart TD
     subgraph Upcasting["Schema Upcasting & Key Hierarchy (F-044, F-037)"]
-        OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl --> Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
+        OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
         Upcaster --> Envelope["Canonical Envelope"]:::impl
         MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
         Derive --> ReceiptKey["CommandReceipt Key"]:::impl
@@ -195,13 +206,13 @@ flowchart TD
         MasterKey -.->|Missing Env| Fallback["Process-Local Random Key"]:::vacuous
     end
 
-    subgraph PartitionPlane["Partition Plane (Raft / PartitionWAL L0–L3) — AUTHORITATIVE FOR GOVERNANCE"]
+    subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
         Promo --> Envelope
         Envelope --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
-        subgraph Raft["L0: Raft Distributed Commit"]
+        subgraph L0_Consensus["L0: Raft Distributed Consensus"]
             Leader["Leader PartitionWAL L0"]:::impl
             F1["Follower PartitionWAL"]:::library
             Leader -->|"AppendEntries"| F1
@@ -209,34 +220,37 @@ flowchart TD
             Leader --> Commit["Advance commitIndex"]:::impl
         end
         Log --> Leader
-        Commit --> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
+        Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
         Apply --> StateHash["Deterministic State Hash (SHA-256)"]:::impl
         StateHash --> Receipt["HMAC-SHA256 CommandReceipt (Signed by ReceiptKey)"]:::impl
-        Apply --> Outbox["L2: DurableOutboxLedger"]:::impl
+        Apply -->|durable| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
     end
     
-    subgraph FrontierPlane["Frontier Plane (FrontierWAL / CRDT) — AUTHORITATIVE FOR SCAN DISCOVERY"]
+    subgraph FrontierPlane["FRONTIER PLANE: Scan Discovery (CRDT / Ephemeral)"]
         F_Targets["Target Subdomains & URLs"]:::impl
         F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
         F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
         F_Tombstones["Compaction Tombstones (1h TTL)"]:::impl
-        F_Targets --> F_Findings
-        F_Targets --> F_Candidates
-        F_Findings --> F_Tombstones
-        F_Candidates --> F_Tombstones
+        F_Targets -->|data| F_Findings
+        F_Targets -->|data| F_Candidates
+        F_Findings -->|compact| F_Tombstones
+        F_Candidates -->|compact| F_Tombstones
     end
     
     Outbox -->|"HMAC Receipt"| Bridge["SettlementCoordinator Bridge"]:::impl
-    Bridge --> F_Findings
+    Bridge -->|data| F_Findings
     Bridge --> PORT_F004_CRDT[["PORT: F-004 Findings CRDT Bag"]]
     Outbox --> PORT_F019_BUS[["PORT: F-019 DurableOutbox EventBus Dispatch"]]
-    Proj --> Cache["L4: Caches & Telemetry"]:::impl
-    Cache --> UI["L5: Presentation & Dashboard"]:::impl
-    UI -.->|"must never author L0–L3"| Forbidden["Forbidden as Truth Source"]:::forbidden
+    
+    subgraph ReadProjections["READ PROJECTIONS: Strictly Non-Authoritative Strata (L4–L5)"]
+        Proj -->|materialize| Cache["L4: Caches & Telemetry (Prometheus :9090)"]:::impl
+        Cache ==>|render| UI["L5: Presentation & Dashboard UI"]:::impl
+        UI -.->|"FORBIDDEN: cannot author L0–L3"| Forbidden["Forbidden as Truth Source"]:::forbidden
+    end
 ```
 
-Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_pipeline_authority` is `src/pipeline/authority_bootstrap.py`.
+Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_pipeline_authority` is `src/pipeline/authority_bootstrap.py`. L0–L3 constitute the authoritative state strata (durable WAL, deterministic FSM, and outbox). L4–L5 are ephemeral read projections and UI consumers that must never author state.
 
 ---
 
@@ -246,15 +260,16 @@ Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [command
 
 ```mermaid
 flowchart TD
-    subgraph PluginLifecycle["Dynamic Plugin Graph Lifecycle (F-035 Immutability Boundary)"]
-        Discover["1. DISCOVER: Scan Plugin Registry & Manifest"]:::impl --> Validate["2. VALIDATE: Schema & Runner Contracts"]:::impl
-        Validate --> Compose["3. COMPOSE: Merge _BASE_NODES + Plugins + _join_finding_producers"]:::impl
-        Compose --> VerifyDAG["4. VERIFY: Cycle Check & Condition Trees"]:::impl
-        VerifyDAG --> Freeze["5. FREEZE: Immutable Graph Sealed"]:::impl
-        Freeze --> Execute["6. EXECUTE: ActorScheduler Dispatch"]:::impl
+    subgraph GraphBuilderPipeline["Graph Construction & Conditioning Pipeline (graph_builder.py)"]
+        BaseNodes["1. _BASE_NODES (16 Static Nodes)"]:::impl --> MergePlugins["2. Merge Plugins from StageRegistry"]:::impl
+        MergePlugins --> ProfileOverride["3. Apply Capability Profile Manifest"]:::impl
+        ProfileOverride --> PruneTools["4. Prune Unavailable Tools (nuclei/semgrep binary check)"]:::impl
+        PruneTools --> DynamicJoin["5. _join_finding_producers (Bind all finding producers to reporting)"]:::impl
+        DynamicJoin --> CycleCheck["6. Acyclic Verification (graph.is_acyclic)"]:::impl
+        CycleCheck ==> Freeze["7. FREEZE: Immutable Graph(nodes=tuple)"]:::impl
     end
 
-    subgraph Init["CLI Launch & Process Initialization"]
+    subgraph Init["Process Bootstrap & Authority Attachment"]
         CSTP["cstp CLI"]:::impl --> Launch["launch: Dashboard + Background Worker"]:::impl
         CSTP --> Scan["scan run: Runtime Pipeline"]:::impl
         CSTP --> Sys["system doctor / status / setup / cleanup"]:::impl
@@ -266,31 +281,42 @@ flowchart TD
         Auth --> Stamp["ctx.budget_enforcer + authorizer"]:::impl
     end
 
-    Execute --> DAG
+    Freeze ==> Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl
     Stamp --> Sub["subdomains"]:::impl
+    Scheduler ==> DAG
 
-    subgraph DAG["Runtime STAGE_GRAPH (Immutable After FREEZE)"]
-        Sub --> Takeover["subdomain_takeover"]:::impl
-        Sub --> LiveH["live_hosts"]:::impl
-        LiveH --> WAF["waf"]:::impl
-        LiveH --> Urls["urls"]:::impl
-        Urls --> ReconVal["recon_validation"]:::impl
-        Urls --> GitDiff["git_diff_crawl"]:::impl
-        Urls --> Params["parameters"]:::impl
-        Urls & Params & WAF --> Rank["ranking"]:::impl
-        Rank & LiveH & Urls --> Passive["passive_scan"]:::impl
-        Passive --> Active["active_scan"]:::impl
-        Passive --> Semgrep["semgrep"]:::impl
-        Passive --> Nuclei["nuclei"]:::impl
-        Rank & Passive --> Access["access_control"]:::impl
-        Passive & Active --> Val["validation"]:::impl
-        Passive & Active & Nuclei & Val --> Intel["intelligence"]:::impl
-        Intel --> Threat["threat_modeling"]:::impl
-        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover --> Report["reporting"]:::impl
-        Report --> Sarif["sarif_export"]:::impl
-        Report --> CiExp["ci_export"]:::impl
-        Report --> Dedup["dedup_stage"]:::impl
-        Sca["sca_scan / container_scan / iac_scan / git_secret_scan"]:::impl -.->|"runtime _join_finding_producers"| Report
+    subgraph DAG["Runtime Executable STAGE_GRAPH (ActorScheduler Readiness & Gates)"]
+        Sub ==> Takeover["subdomain_takeover (needs: subdomains)"]:::impl
+        Sub ==> LiveH["live_hosts (critical: True, needs: subdomains)"]:::impl
+        LiveH ==> WAF["waf (needs: live_hosts)"]:::impl
+        LiveH ==> Urls["urls (needs: live_hosts)"]:::impl
+        Urls ==> ReconVal["recon_validation (needs: urls)"]:::impl
+        Urls ==> GitDiff["git_diff_crawl (needs: urls)"]:::impl
+        Urls ==> Params["parameters (needs: urls)"]:::impl
+        Urls & Params & WAF ==> Rank["ranking (needs: urls, params, waf)"]:::impl
+        Rank & LiveH & Urls ==> Passive["passive_scan (needs: ranking, live_hosts, urls)"]:::impl
+        
+        Passive ==> Active["active_scan"]:::impl
+        Passive ==> Semgrep["semgrep"]:::impl
+        Passive ==> Nuclei["nuclei"]:::impl
+        Rank & Passive ==> Access["access_control"]:::impl
+        
+        LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Active
+        LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Semgrep
+        LiveH -.->|"when: OutputNonEmpty('live_hosts') & FlagSet('nuclei_available')"| Nuclei
+        LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Access
+        
+        Passive & Active ==> Val["validation (needs: passive_scan, active_scan)"]:::impl
+        Passive & Active & Nuclei & Val ==> Intel["intelligence (needs: passive, active, nuclei, val)"]:::impl
+        Intel ==> Threat["threat_modeling (needs: intelligence)"]:::impl
+        
+        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting (CAS-Aware Join Sink)"]:::impl
+        
+        DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl -.->|"_join_finding_producers"| Report
+        
+        Report ==> Sarif["sarif_export (needs: reporting)"]:::impl
+        Report ==> CiExp["ci_export (needs: reporting)"]:::impl
+        Report ==> Dedup["dedup_stage (needs: reporting)"]:::impl
     end
 
     DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]:::impl
@@ -826,20 +852,56 @@ flowchart TD
         Outbox -->|Append Fail| NoBus["No Bus Notification; Replay Later"]:::vacuous
     end
     
-    subgraph ProofGraph["Invariant Dependency & Proof Graph"]
-        I22["I22 Clock Admission"]:::impl --> I30g["I30 Ticket Binding"]:::impl
-        I30g -->|"Every authorized execution gets causal IDs"| I33g["I33 Causal Identity"]:::impl
-        I30g --> I28g["I28 Settle-Only Budget"]:::impl
-        I33g --> I31g["I31 Settlement"]:::impl
-        I28g -->|"Settle cannot consume outside reservation"| I31g
-        I31g -->|"Only COMMITTED WAL may emit"| I32g["I32 Durable Outbox"]:::impl
-        I32g --> I34g["I34 Failure Semantics"]:::impl
-        I28g --> I34g
-        I34g --> I35g["I35 Recovery Protocol"]:::impl
-        I32g -->|"Recovery rebuilds delivery from durable state"| I35g
-        I35g -->|"READY before regional ownership"| I36g["I36 Single-Writer Region"]:::impl
-        I36g -->|"Transfer only via fence"| I37g["I37 Transfer Fence"]:::impl
-        I30g --> I37g
+    subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I37)"]
+        subgraph Tier1["Tier 1: Placement, Consensus & Multi-Raft (I1–I4, I7, I17, I18, I36, I37)"]
+            I1g["I1: Partition Placement (H mod 1024)"]:::impl --> I2g["I2: Single Leader (Lp <= 1)"]:::impl
+            I2g --> I3g["I3: Monotonic Lease Terms (Tk+1 > Tk)"]:::impl
+            I3g --> I7g["I7: Single Global Authority (P-0000)"]:::impl
+            I7g --> I17g["I17: Leader-Home Placement"]:::impl
+            I17g --> I36g["I36: Single-Writer Region & Journal Relay"]:::impl
+            I36g --> I37g["I37: Zero Dual-Writer Transfer Fence"]:::impl
+            I2g --> I4g["I4: Raft Quorum Commitment (N/2 + 1)"]:::impl
+            I18g["I18: Journal Filter"]:::impl --> I36g
+        end
+
+        subgraph Tier2["Tier 2: Durability, Clock Admission & Zero-I/O FSM (I8–I16, I22)"]
+            I22g["I22: Clock Skew Gate (< 1000ms)"]:::impl --> I4g
+            I4g --> I11g["I11: PartitionWAL Total Order"]:::impl
+            I11g --> I12g["I12: CRC-64 Verification on Read"]:::impl
+            I12g --> I15g["I15: Crash-Safe Disk Flush (fsync)"]:::impl
+            I15g --> I8g["I8: FSM Determinism on Replay"]:::impl
+            I8g --> I9g["I9: Zero I/O Inside FSM.Apply"]:::impl
+            I9g --> I10g["I10: Monotonic Applied Index"]:::impl
+            I9g --> I13g["I13: HMAC Command Receipt Signing"]:::impl
+            I9g --> I14g["I14: Durable Outbox Append"]:::impl
+            I8g --> I16g["I16: FSM Snapshot Consistency"]:::impl
+        end
+
+        subgraph Tier3["Tier 3: Quota Slabs, Budget Conservation & Leases (I5, I6, I19–I21, I26, I28)"]
+            I26g["I26: Quota Slab Conservation"]:::impl --> I5g["I5: Universal Budget Conservation"]:::impl
+            I5g --> I6g["I6: Integer Non-Negative Allocation"]:::impl
+            I6g --> I19g["I19: Strict Lease Lifecycle"]:::impl
+            I19g --> I21g["I21: Forbidden Direct Compensation"]:::impl
+            I19g --> I20g["I20: Idempotent Compensation"]:::impl
+            I19g --> I28g["I28: Settle-Only Budget Commit"]:::impl
+        end
+
+        subgraph Tier4["Tier 4: CRDT State, Bulkheads, Sandboxing & Causality (I23–I25, I27, I29, I30, I33)"]
+            I23g["I23: Monotonic HLC Ordering"]:::impl --> I25g["I25: CRDT Convergence"]:::impl
+            I25g --> I24g["I24: Bounded Tombstones (1h TTL)"]:::impl
+            I27g["I27: Bulkhead Concurrency"]:::impl --> I29g["I29: Continuous Egress Scope Guard"]:::impl
+            I29g --> I30g["I30: Cryptographic Quartet Ticket"]:::impl
+            I22g --> I30g
+            I30g --> I33g["I33: Causal Identity Chain"]:::impl
+        end
+
+        subgraph Tier5["Tier 5: Settlement, Outbox Decoupling & Recovery (I31, I32, I34, I35)"]
+            I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission"]:::impl
+            I31g --> I32g["I32: Durable Outbox Decoupling"]:::impl
+            I28g & I32g --> I34g["I34: Failure Recovery Boundaries (11 Domains)"]:::impl
+            I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol"]:::impl
+            I35g --> I36g
+        end
     end
 ```
 
