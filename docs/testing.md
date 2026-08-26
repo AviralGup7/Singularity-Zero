@@ -115,6 +115,36 @@ Boundary assertions in `tests/architecture/` strictly enforce dependency hierarc
 
 ---
 
+## GitHub Actions (workflow id `276806682`)
+
+`.github/workflows/ci.yml` on `main`:
+
+| Job | What |
+|---|---|
+| `lint` | ruff + format + Bandit HIGH (no continue-on-error) + detect-secrets |
+| `mypy` | `mypy .` |
+| `typescript` | `tsc --noEmit` (root `files: []` is empty on purpose) |
+| `frontend` | eslint + production build / gzip budgets |
+| `test / ${shard}` | `unit-infra`, `unit-core`, `unit-pipeline`, `unit-recon`, `unit-analysis`, `unit-dashboard`, `unit-exploit`, `unit-app`, `suites` |
+| `coverage` | combine shards; `[tool.coverage.report] fail_under = 45` (hard). Per-shard `--cov-fail-under=0` |
+| `security-audit` | dependency / advisory audit |
+| `security-scan` | Semgrep `config: p/ci` (no `auditOn: push`) |
+| `hardening` | repo hardening checks |
+| `iac-scan` | Checkov 3.2.266, `framework: yaml`, `soft_fail: false` |
+| `CI passed` | needs every job above; `fail-fast: false` on the test matrix |
+
+Per-test timeout: `pytest-timeout>=2.4.0`; CI `PYTEST_ADDOPTS --timeout=20 --timeout-method=signal`. `[tool.pytest.ini_options] timeout = 20`, `timeout_method = "thread"`. Job-level 12 minutes.
+
+**Local agents:** only the smallest relevant slice, ≤ ~50 seconds. Full suite belongs remotely. Fail-fast recon tests stay skipped. Do not CI-fail on `REPLACE_WITH_*` in `deploy/kubernetes/secrets.yaml`. Do not flip coverage/Bandit/Semgrep/Checkov back to soft-fail.
+
+I30–I37 and live-path suites (run a slice, not the world):
+
+```bash
+pytest tests/unit/core/test_global_invariants.py tests/unit/core/test_invariant_graph.py \
+       tests/unit/core/test_atlas_holes.py tests/unit/jobs/test_status.py \
+       tests/unit/core/test_authority_transfer.py tests/unit/core/test_recovery_protocol.py
+```
+
 ## 🛡️ Automated CI/CD Quality Gates (`scripts/`)
 
 The repository enforces automated quality gates in CI/CD pipelines to prevent supply-chain drift, secret leakage, and schema regressions:

@@ -1,6 +1,19 @@
 # Observability Catalog
 
-Cyber Security Test Pipeline — Metrics, Alerts, Dashboards, and Cardinality Audit
+Operator live channels (not abbreviated):
+
+| Channel | Path |
+|---|---|
+| REST job | `GET /api/jobs/{id}` |
+| SSE progress | `GET /api/jobs/{id}/progress/stream` |
+| Log WebSocket | `/ws/logs/{job_id}` |
+| Triage WebSocket | `/ws/triage/{run_id}` |
+| Findings timeline | `GET /api/findings/timeline` — prefix limit 60/min (security on) or 180/min (off) |
+| Metrics | `/metrics` when `OBSERVABILITY_METRICS_ENABLED` |
+
+`MetricsRegistry` keys counters/gauges by **name only**, not name+labels (leftover). EventBus is in-process notify after the durable outbox (I32); delivery failure does not uncommit.
+
+Metrics, alerts, dashboards, and cardinality audit:
 
 ---
 

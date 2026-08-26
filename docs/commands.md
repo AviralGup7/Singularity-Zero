@@ -102,6 +102,22 @@ python -m src.pipeline.runtime \
 | `--max-duration SEC`| Wall-clock budget in seconds before graceful termination | `None` |
 | `--dry-run` | Validate DAG and contracts without issuing external probes | `False` |
 | `--legacy-exit-codes` | Normalize granular exit codes (2/3/4) to standard 1 | `False` |
+| `--fresh` | Ignore prior checkpoints (CLI). Dashboard jobs pass `--force-fresh-run` unless `force_fresh=False` | `False` |
+
+### Exit codes
+
+Named lattice: `src/jobs/run_outcome.py` `derive_job_and_exit`.
+
+| Code | JobStatus | Meaning |
+|---|---|---|
+| 0 | COMPLETED | Clean / under policy |
+| 2 | COMPLETED | Findings exceeded policy |
+| 4 | COMPLETED + degraded | DEGRADED / SKIPPED_FAILED |
+| 3 | FAILED | Infra, fatal recon, **attach fail-closed** |
+| 1 | FAILED | Unclassified / lock collision (lattice bypass) |
+| 7 / 130 | STOPPED | Suspend / interrupt (lattice bypass) |
+
+Attach (`attach_pipeline_authority`) failure is fail-closed **exit 3**. After attach, `apply_authority_recovery` runs.
 
 ---
 

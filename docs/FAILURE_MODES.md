@@ -21,7 +21,7 @@ Why WAL compensate is **No**: I15 never applied the corrupt record, so there is 
 
 ## I35 Recovery Protocol
 
-I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. The invariant dependency graph is `src/core/frontier/invariant_graph.py`: I35 `VERIFY_INVARIANTS` fail-closes if recovered tickets fail I30, recovered settlements fail I31, identities fail I33, or EventBus emitted without the outbox (I32). `RecoveryManager` on scan resume supplies a FrontierWAL observation only; PartitionWAL outbox rebuild is `ReplicatedPartitionLog._recover_from_wal`. Exotic multi-node repair is still not implemented; the outcome is still named.
+I34 answers "what may this *failure class* do?". I35 answers the crash questions for every *persistent object*. The machine-readable protocol is `src/core/frontier/recovery_protocol.py`. The invariant dependency graph is `src/core/frontier/invariant_graph.py`: I35 `VERIFY_INVARIANTS` fail-closes if recovered tickets fail I30, recovered settlements fail I31, identities fail I33, or EventBus emitted without the outbox (I32). Empty recovered sets are a **no-op** — checkpoint JSON typically has no `tickets` / `settlements` / `identities` keys, so live recover often skips the proof-graph gate. `delivered_event_ids` on the scan `ObservedDurableState` are empty by design (DeliveryLedger stores DeliveryIds; converting them false-triggers DELIVERY_AHEAD). `replay_delivery` is a log line. `RecoveryManager` on scan resume supplies a FrontierWAL observation; after `attach_pipeline_authority`, `apply_authority_recovery` walks the PARTITION plane. Attach failure is CLI **exit 3**. PartitionWAL outbox rebuild is `ReplicatedPartitionLog._recover_from_wal`. Exotic multi-node repair is still not implemented; the outcome is still named.
 
 Recovery is a state machine, not another table:
 
@@ -59,12 +59,18 @@ Recovery is a state machine, not another table:
 
 In automated security testing, distinguishing between a secure target and a degraded scan where tools failed silently is critical:
 
-| Stage Status | Finding Count | Exit Code | Diagnostic Signature | Interpretation |
+| Stage Status | Finding Count | Exit Code | JobStatus | Interpretation |
 |---|---|---|---|---|
-| **COMPLETED** | `0` | `0` | No degraded probes or unhandled errors | **Genuine Clean Target**: Target scanned successfully; no vulnerabilities detected. |
-| **FAILED** | `0` | `3` | Fatal recon failure or target unreachable | **Infrastructure Failure**: Target offline or network path blocked. |
-| **COMPLETED** | `0` | `4` | `degraded_probes` or `warnings` present | **Degraded Run**: Specific probes timed out or were blocked by target WAF. |
-| **POLICY_VIOLATION** | `> 0` | `2` | Findings exceed `policy.toml` thresholds | **Vulnerabilities Found**: Exploits or vulnerabilities confirmed. |
+| **COMPLETED** | under policy | `0` | COMPLETED | Genuine clean / under-policy. |
+| **POLICY_VIOLATION** | over policy | `2` | COMPLETED | Findings exceeded `policy.toml`. Not a job failure. |
+| **DEGRADED / SKIPPED_FAILED** | any | `4` | COMPLETED + `degraded=True` | Partial run. |
+| **fatal FAILED** | `0` | `3` | FAILED | Infra / target down / attach fail-closed. |
+| unclassified / lock | — | `1` | FAILED | Scheduler OOM or run-lock collision (lattice bypass). |
+| cancel / suspend | — | `130` / `7` | STOPPED | Interrupt or hot-reload suspend (lattice bypass). |
+
+`derive_job_and_exit` (`src/jobs/run_outcome.py`) is the named lattice. It is **not total**: scheduler 1/7/130, lock collision 1, and fatal recon 3 still return before it. Dashboard reap uses the lattice when a `stage_map` is supplied; infra 1/3 cannot be hidden by a thin stage map.
+
+A failed stage still writes a `SettlementIntent`. The settle **status** name is `REJECTED` (wal_id present; no `FINDING_CREATED`).
 
 ---
 
@@ -113,4 +119,4 @@ In automated security testing, distinguishing between a secure target and a degr
 ### 9. HMAC Command Receipt Verification Failure (Invariant I13)
 - **Symptom**: `verify_receipt_signature()` returns `False` or receipt validation fails during audit.
 - **Root Cause**: Mismatched `AUTHORITY_SIGNING_KEY` / `APP_SECRET_KEY` between cluster nodes, or tampered receipt payload attributes.
-- **Remediation**: Ensure all cluster nodes share the identical `AUTHORITY_SIGNING_KEY` and `AUTHORITY_SIGNING_KEY_ID` environment variables.
+- **Remediation**: Set `AUTHORITY_SIGNING_KEY` (else `APP_SECRET_KEY`) on every process. If neither is set, HMAC uses a **process-local** random key — in-process verify works, **verify dies across restart**. There is no published fallback string (`singularity-zero-dev-receipt-key` / `cstp-scope-authorizer-v1` are gone).

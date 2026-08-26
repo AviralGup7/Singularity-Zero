@@ -15,7 +15,7 @@ Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I37** (see 
 | **P2P Mesh, Ghost Actors & Task Auction** | **LIVE** with Redis; else single-node — SWIM Gossip protocol engine, heartbeat failure detection, Ghost Actor VFS, Bloom mesh target synchronization, and distributed task auction bidding (`bidder.py`, `balancer.py`) | `src/infrastructure/mesh/`, `src/infrastructure/frontier/` |
 | **Reporting, Bounty Platforms & Compliance** | **LIVE** reporting stage; platform HTTP clients **LIBRARY** — 12+ bug bounty platform clients (H1, Bugcrowd, Intigriti, Synack, YesWeHack, Google VRP, etc.) and evidence-backed compliance mapping for SOC 2, ISO 27001, PCI-DSS v4.0, and NIST 800-53 | `src/reporting/` |
 | **Job Lifecycle, Watchdog & Notifications** | **LIVE** job SM; JobWatchdog **LIBRARY** (MemoryJobStore) — Job state machine transitions, deadlock/hang detection (`Watchdog`), scan dry-run simulation, and central event-driven notification bridge with snooze, digest aggregation, and escalation policies | `src/jobs/`, `src/notifications/` |
-| **Authoritative State Authority & Settlement** | **LIVE** (`PipelineAuthorityRuntime` + stage `commit_stage_output`; 5-stage `settle_claim` for worker claims) — Single authoritative WAL commit point, 5-stage untrusted claim validation, epoch fencing, and independent projection engines (`StateProjection`, `BudgetProjection`, `LeaseProjection`, `FindingsProjection`) | `src/core/frontier/state_authority.py` |
+| **Authoritative State Authority & Settlement** | **LIVE** scan path: `settle_stage_output` on FrontierWAL (FAILED attempt status `REJECTED`). 5-stage `settle_claim` is the worker-claim / Raft path. Attach fail-closed exit 3; `apply_authority_recovery` after attach. | `src/core/frontier/state_authority.py`, `src/pipeline/authority_bootstrap.py` |
 | **Command Envelopes & Event Upcasters** | **LIVE** envelopes + upcast on load; typed constructors **LIBRARY** — Strongly-typed `CommandEnvelope`, `EventEnvelope`, causation/correlation ID tracking, aggregate versioning, and `SchemaUpcasterRegistry` for backward-compatible replay | `src/core/contracts/command_envelope.py` |
 | **Raft Consensus, Transport & Durable WAL** | **LIVE** single-node quorum-1; `NetworkRaftTransport` **LIBRARY** (no default cluster) — `RaftTransportProtocol`, RPC envelopes (`AppendEntries`, `RequestVote`), majority quorum ($N // 2 + 1$), election failover, crash-safe `PartitionWAL` with CRC-64 + fsync, deterministic `PartitionFSM`, and durable `DurableOutboxLedger` | `src/core/frontier/raft_transport.py`, `src/core/frontier/replicated_log.py`, `src/core/frontier/outbox.py` |
 | **Global Coordination & Cross-Partition Sagas** | **LIVE** GlobalBudget via HuntBudget adapter; sagas **LIBRARY** — P-0000 `GlobalBudgetAggregate` (strict integer conservation: $\text{Total} = \text{Consumed} + \text{Outstanding} + \text{Available}$, `expire_sublease` orphaned budget reclamation), `PlacementAuthority`, and `DurableRunSagaEngine` | `src/core/frontier/global_coordination.py`, `src/core/frontier/run_saga.py` |
@@ -141,7 +141,7 @@ graph TD
 16. **I16 (Replay State Invariance)**: $\text{Replay}(\text{WAL}[0 \dots N]) \equiv \text{State}_N$.
 17. **I17 (Authority Uniqueness)**: No non-authoritative subsystem (worker, mesh, auction) may mutate authoritative state.
 18. **I18 (Stale Command Rejection)**: Outdated lease epoch / stale placement version commands are rejected.
-19. **I19 (Lease Terminal Linearization)**: Sublease transitions from `RESERVED` to exactly one terminal state (`CONSUMED`, `EXPIRED`, or `COMPENSATED` per I28).
+19. **I19 (Lease Terminal Linearization)**: Sublease transitions from `RESERVED` to exactly one terminal state (`CONSUMED` or `COMPENSATED` per I28). `EXPIRED` is **not** terminal — `EXPIRED → COMPENSATED` remains legal.
 20. **I20 (Policy Version Fencing)**: Policy mutation requires `expected_policy_version == current_policy_version`.
 21. **I21 (Projection Recovery Invariance)**: Sequential outbox replay from checkpoint recovers identical projection state.
 22. **I22' (Temporal Invariant & Admission Skew Gating)**: Clock-skew validation ($\pm 10\text{s}$ future drift, $-5\text{s}$ backward regression) occurs at command admission; `PartitionFSM` remains 100% clock-free and monotonically non-decreasing.
@@ -183,11 +183,12 @@ graph TD
 ### 7.3 Canonical Target Identity & Scope Authorization
 - Normalizes URLs (Punycode, query sort, matrix stripping, traversal collapsing).
 - Pins DNS resolution to eliminate TOCTOU / DNS rebinding SSRF attacks.
-- Issues HMAC-SHA256 signed `AuthorizedExecutionTicket` with single-use nonce consumption and policy generation binding.
+- Issues HMAC-SHA256 signed `AuthorizedExecutionTicket` (I30 bindings + `partition_id="P-0000"`). `consume_ticket` is single-use and commits I28 `commit_requests(1)`. HMAC key: `AUTHORITY_SIGNING_KEY` / `APP_SECRET_KEY` / process-local random (no published fallback).
 
 ### 7.4 Sandboxing & External Execution
-- External tools run inside `ProcessSandbox` with `SandboxClass.NATIVE` (256MB / 30s) or `SandboxClass.DOM` (2048MB / 120s), Linux Seccomp BPF syscall filters, and scope-derived network egress filters (Invariant I29).
-- WASM plugins run in `wasmtime` runtime when `FEATURE_WASM_PLUGINS=true` is enabled.
+- Live admit path (`stage_admit.admit_stage`): authorize → consume (I28 `commit_requests`) → `ProcessSandbox.check_egress`. Default filter is `NetworkEgressFilter.metadata_guard()` (I29). `ProcessSandbox.run` and `generate_egress_allowlist` are **unused** on the scan admit path. Nuclei still shells out separately (`run_nuclei_adaptive`).
+- Classes `SandboxClass.NATIVE` (256MB / 30s) and `SandboxClass.DOM` (2048MB / 120s) plus seccomp when libseccomp is present remain available for callers that wrap a subprocess.
+- WASM plugins run in `wasmtime` when `FEATURE_WASM_PLUGINS=true`; default is `_MockWasmtime`.
 
 ### 7.5 Enterprise Integrations & AI Explainability
 - Native platform adapters for Jira (REST API v3 ADF / v2), ServiceNow (Table API), and DefectDojo (v2 REST API).
@@ -217,7 +218,7 @@ graph TD
             → RECONCILE_OUTBOX → RECONCILE_DELIVERY → VERIFY_INVARIANTS
             → READY | FAIL_CLOSED | FRESH
     ```
-    PartitionWAL is the L0 source and is not reconstructed. PartitionFSM, GlobalBudget, policy, and outbox rebuild from committed entries (`EventId` dedupe). Checkpoint snapshots and the DeliveryLedger are caches. Schema newer than the reader is unreadable. Crash between WAL commit and outbox append rebuilds the outbox; crash between outbox and delivery replays dispatch (I32). Compensation crash replays `compensate_sublease` (I28 idempotent). `VERIFY_INVARIANTS` consults `src/core/frontier/invariant_graph.py`: I35 cannot READY while recovered tickets fail I30 or recovered settlements fail I31.
+    PartitionWAL is the L0 source and is not reconstructed. PartitionFSM, GlobalBudget, policy, and outbox rebuild from committed entries (`EventId` dedupe). Checkpoint snapshots and the DeliveryLedger are caches. Schema newer than the reader is unreadable. Crash between WAL commit and outbox append rebuilds the outbox; crash between outbox and delivery replays dispatch (I32). Compensation crash replays `compensate_sublease` (I28 idempotent). `VERIFY_INVARIANTS` consults `src/core/frontier/invariant_graph.py`: I35 cannot READY while recovered tickets fail I30 or recovered settlements fail I31. Empty recovered ticket/settlement/identity sets are a **no-op** (checkpoint payloads typically have no those keys). `delivered_event_ids` on the scan observation are empty by design (DeliveryLedger stores DeliveryIds). After attach, `apply_authority_recovery` walks the PARTITION plane. Attach failure is CLI exit 3.
 
 ### 7.7 Real-Time QoS Telemetry, Durable P0 Spooling & Disk Backpressure
 - **P0 Control Stream Durability**:
@@ -228,13 +229,14 @@ graph TD
   - W3C Distributed Tracing: Propagates standard `traceparent` headers across all broker envelopes.
 
 ### 7.8 Executable Invariant Verification Suite
-The architecture is formally validated by 46 automated invariant, chaos, and adversarial assertions:
-1. `tests/unit/test_formal_invariants.py` (17 tests): Invariants $\mathbf{I1}$–$\mathbf{I29}$ (`INVARIANT-001` through `INVARIANT-009`, $\mathbf{I22'}, \mathbf{I23}, \mathbf{I24}, \mathbf{I25'}, \mathbf{I25b}, \mathbf{I26}, \mathbf{I27}, \mathbf{I28}, \mathbf{I29}$).
-2. `tests/unit/test_hardened_authority_invariants.py` (6 tests): P0 disk spool rehydration, saturation backpressure, Raft policy promotion/rollback, FSM sublease expiry, fail-closed authorizer.
-3. `tests/unit/test_distributed_invariants.py` (4 tests): Dual-snapshot consistency, crash-recovery invariance, state hash convergence.
-4. `tests/integration/test_target_architecture_invariants.py` (6 tests): Multi-replica FSM consensus, receipts, 5-stage migration, replay.
-5. `tests/integration/test_end_to_end_architecture_invariants.py` (9 tests): End-to-end multi-partition scan execution with settlement returns.
-6. `tests/integration/test_chaos_fault_injection.py` (4 tests): Clock-skew injection, Byzantine Merkle root tampering, mesh replay flooding, SSRF cloud metadata probes.
+I1–I29 plus cross-subsystem I30–I37. Representative suites:
+1. `tests/unit/test_formal_invariants.py`: Invariants $\mathbf{I1}$–$\mathbf{I29}$.
+2. `tests/unit/test_hardened_authority_invariants.py`: P0 spool, Raft policy, fail-closed authorizer.
+3. `tests/unit/test_distributed_invariants.py`: Dual-snapshot, crash-recovery, state hash.
+4. `tests/integration/test_target_architecture_invariants.py`: Multi-replica FSM, receipts, 5-stage migration.
+5. `tests/integration/test_end_to_end_architecture_invariants.py`: Multi-partition settlement chain.
+6. `tests/integration/test_chaos_fault_injection.py`: Clock-skew, Merkle tamper, mesh replay, SSRF metadata.
+7. I30–I32: `tests/unit/core/test_global_invariants.py`. I33: `test_causal_identity.py`. I34: `test_failure_model.py`. I35: `test_recovery_protocol.py` / `test_recovery_manager.py`. I36: `test_region_model.py`. I37: `test_authority_transfer.py`. Proof graph: `test_invariant_graph.py`. Live-path holes: `test_atlas_holes.py`.
 
 ### 7.9 Coverage-Guided Protocol Fuzzing & Native Fork Server (`src/fuzzing/`)
 - **Corpus Evolution & Feedback Loop**:
@@ -315,7 +317,7 @@ The architecture is formally validated by 46 automated invariant, chaos, and adv
 - **Deserialization & Polyglot Upload Engines (`deserialization.py`, `file_upload.py`)**: Probes Java Ysoserial, Python pickle, and PHP object injection vulnerabilities; generates polyglot upload bypasses.
 - **DNS Rebinding Exploiter (`dns_rebind.py`)**: Probes internal intranet / cloud metadata services via $\text{TTL} = 0$ DNS rebinding attacks.
 
-### 7.17 Leaked API Key Verification Harness & Storage Tiering (`src/api_tests/`, `src/output/`)
+### 7.17 Leaked API Key Verification Harness & Storage Tiering (`src/api_tests/`, `src/pipeline/`)
 - **Leaked API Key Validation Harness (`src/api_tests/apitester/`)**: Standalone verification engine validating candidate credentials against 50+ SaaS APIs (AWS STS, Stripe, GitHub, Twilio, SendGrid, Slack, OpenAI, Anthropic, Datadog) to verify token validity, account IDs, and privilege levels.
 - **Storage Tiering & Pruning Lifecycle (`src/pipeline/storage_tiering.py`, `src/pipeline/output_history.py`)**: Automated retention management moving historical scans from NVMe cache to compressed long-term archive storage and reconstructing search indices.
 

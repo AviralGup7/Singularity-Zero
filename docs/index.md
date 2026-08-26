@@ -1,55 +1,57 @@
 # Documentation Index
 
-Welcome to the Cyber Security Test Pipeline documentation portal. This hub indexes all architectural blueprints, developer guides, operations references, and API specifications.
+Welcome to the Cyber Security Test Pipeline documentation portal. Charts live in [flowchart.md](flowchart.md) (incremental edits only). When docs and code disagree, **code wins** unless the doc is the named contract and the code is the bug.
+
+Live scan path is **FrontierWAL + SettlementCoordinator + scan EventBus** (F-004). Raft **PartitionWAL + FSM.Apply + DurableOutbox** is the authority plane (F-003), single-node quorum-1 on CLI. Do not unify the two logs.
 
 ---
 
-## 🚀 Core Getting Started & Architecture
+## Core architecture
 
-- **[🚀 Getting Started Guide](getting-started.md)**: Environment setup, dependency installation, scope configuration, and running your first scan.
-- **[📂 Codebase Map](codebase.md)**: Exhaustive structural map covering all 35 modules in `src/`, plus `frontend/src/`, `tests/`, `configs/`, `deploy/`, and `scripts/`.
-- **[🏛️ System Architecture Specification & Engineering Contract](architecture.md)**: Unified master blueprint containing the 10 Non-Negotiable System Axioms, 6-Level Authority Hierarchy, I1–I29 plus cross-subsystem I30–I37, Raft consensus protocol, and operational lifecycles.
-- **[📋 Formal Command & State Transition Specification](FORMAL_COMMAND_SPECIFICATION.md)**: Complete transition matrix, schemas, preconditions, budget equations, and recovery semantics for all system commands.
-- **[🏗️ Architecture Overview](architecture-overview.md)**: Engineering-focused map of subsystems, data flows, and design patterns.
-- **[🔀 Flowchart Atlas](flowchart.md)**: One mermaid file. Overlapping or nested flows are merged into survivor charts; retired ids stay as pointers. Incremental edits only — no full rewrite.
-- **[🔍 Architecture Gap Analysis](GAP_ANALYSIS.md)**: Technical audit of open gaps, in-memory simulations, and roadmap alignment.
-- **[📄 ExecutionRequest Contract of Intent](architecture/execution-request-contract.md)**: Formal handoff protocol (`Decision` → `Authorization` → `Scheduling` → `Worker`), scope token verification, and stateless execution.
-- **[⚡ Cache Unification Design](architecture/cache-unification.md)**: Single-flight coalesced multi-tiered caching architecture.
-
----
-
-## 💻 Operations, CLI & Deployment
-
-- **[📜 Commands Reference](commands.md)**: Comprehensive CLI reference for `cstp` (`scan`, `start`, `launch`, `system`, `plugin`), scripts, and Make targets.
-- **[🌍 Environment Variables Reference](environment-variables.md)**: Exhaustive catalog of all environment variables across backend and frontend subsystems.
-- **[🚢 Deployment & Infrastructure](deployment.md)**: Docker Compose, Kubernetes, and Terraform deployment patterns.
-- **[🌐 Multi-Region Topology](multi-region.md)**: Cross-region sharding, latency mitigation, and Zero-Trust networks.
-- **[🚀 CI/CD Integration Guide](ci-cd-integration.md)**: Automated security scanning in GitHub Actions/GitLab CI, exit codes, and SARIF 2.1.0 report generation.
+- **[Getting Started](getting-started.md)**: Install, first scan, exit codes, config trees.
+- **[Codebase Map](codebase.md)**: `src/`, `frontend/src/`, `tests/`, `configs/`, `deploy/`, `scripts/`.
+- **[System Architecture Specification](architecture.md)**: 10 axioms, 6-level hierarchy, I1–I29 plus I30–I37, dual-log honesty, operational lifecycles.
+- **[Formal Command & State Transition Specification](FORMAL_COMMAND_SPECIFICATION.md)**: Command matrix, I28 lease FSM (`EXPIRED` is not terminal), I35–I37 recovery.
+- **[Architecture Overview](architecture-overview.md)**: Subsystems and single source of authority.
+- **[Flowchart Atlas](flowchart.md)**: Survivor charts F-001–F-033. No full rewrite.
+- **[Architecture Gap Analysis](GAP_ANALYSIS.md)**: What is LIVE vs LIBRARY vs open.
+- **[ExecutionRequest Contract](architecture/execution-request-contract.md)**: Decision → authorize → consume → sandbox → settle.
+- **[Cache Unification](architecture/cache-unification.md)**: Single-flight multi-tier cache (non-authoritative).
 
 ---
 
-## 🔍 Security, Analysis & Verification
+## Operations, CLI & deployment
 
-- **[⚡ Performance Models & Benchmarks](performance.md)**: Vectorized SIMD processing, probabilistic Bloom filters, and resource budgets.
-- **[🔌 Dynamic Plugin SDK](dynamic-plugins.md)**: Writing, testing, and sandboxing custom Python/WASM security check plugins.
-- **[🧪 Testing & Quality Assurance](testing.md)**: Guide to pytest suites (unit, integration, architecture, regression) and frontend testing.
-- **[🛠️ Troubleshooting & Decision Tree](troubleshooting.md)**: Diagnostic flowchart and error remediation procedures.
-- **[⚠️ Failure Modes & Degraded Scans](FAILURE_MODES.md)**: Detailed taxonomy of scan failures, circuit breaker trips, and interpreting zero-finding results.
-- **[📊 Observability & Metrics Catalog](OBSERVABILITY_CATALOG.md)**: Prometheus metrics, OpenTelemetry spans, structured JSON logging, and Grafana dashboard provisioning.
-- **[📚 Glossary](glossary.md)**: Terminology definitions, stage enums, and scan profiles.
+- **[Commands Reference](commands.md)**: `cstp` scan / launch / start / system / plugin.
+- **[Environment Variables](environment-variables.md)**: `DASHBOARD_*`, `QUEUE_*`, signing keys, feature flags.
+- **[Deployment](deployment.md)**: Compose, Kubernetes templates, signing-key restart rule.
+- **[Multi-Region Topology](multi-region.md)**: I36 single-writer, I37 fence. Live CLI is `local`.
+- **[CI/CD Integration](ci-cd-integration.md)**: Workflow `276806682`, shards, coverage 45%, exit codes.
 
 ---
 
-## 🎨 Frontend & UI Operations
+## Security, analysis & verification
 
-- **[🎨 Frontend Handbook](frontend.md)**: React 19 architecture, Tailwind CSS 4, Zustand stores, WebSocket telemetry, and 3D Cockpit.
-- **[📑 Frontend Pages Overview](frontend_pages_overview.md)**: Detailed screen-by-screen breakdown of all operator console views and routes.
+- **[Performance Models](performance.md)**: `qos_admit`, Bloom, budgets. Mesh times are models, not a running cluster.
+- **[Dynamic Plugin SDK](dynamic-plugins.md)**: `cstp plugin new`; two PluginRegistry copies stay.
+- **[Testing & QA](testing.md)**: Shards, 20s per-test timeout, local ≤50s rule.
+- **[Troubleshooting](troubleshooting.md)**: Short index into FAILURE_MODES.
+- **[Failure Modes](FAILURE_MODES.md)**: I34 table, I35 protocol, exit lattice.
+- **[Observability Catalog](OBSERVABILITY_CATALOG.md)**: Prometheus series, alerts, Grafana.
+- **[Glossary](glossary.md)**: I30–I37, leases, finding surface, dual WAL.
 
 ---
 
-## 🏛️ Standards & History
+## Frontend
 
-- **[🤝 Contributing Guidelines](../CONTRIBUTING.md)**: Code style, linting rules, and PR workflows.
-- **[🔒 Security Policy](../SECURITY.md)**: Vulnerability disclosure policy and secret rotation practices.
-- **[⏱️ Benchmark Records](../BENCHMARK.md)**: Performance benchmarks and SIMD execution timings.
-- **[📜 Changelog](../CHANGES.md)**: Historical changelog of features, fixes, and refactoring waves.
+- **[Frontend Handbook](frontend.md)**: React 19, Zustand, normalizer, real SSE/WS paths.
+- **[Frontend Pages Overview](frontend_pages_overview.md)**: Routes from `RouteConfig.tsx` only.
+- **[API Reference](api-reference.md)**: Generated OpenAPI dump.
+
+---
+
+## Standards
+
+- **[Security Policy](../SECURITY.md)**: Vulnerability disclosure.
+
+`CONTRIBUTING.md`, `BENCHMARK.md`, and `CHANGES.md` are not in this repository. Do not link them.

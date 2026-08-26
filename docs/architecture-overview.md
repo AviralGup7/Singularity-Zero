@@ -2,6 +2,8 @@
 
 This document provides a **non-marketing, engineering-focused** map of the Cyber Security Test Pipeline. It details the structural design patterns, data flow mechanisms, and modules that implement them across the codebase.
 
+**Dual log:** live `cstp scan` / `src.pipeline.runtime` settles on **FrontierWAL** (F-004). Raft **PartitionWAL** is the authority plane (F-003), single-node quorum-1. `attach_pipeline_authority` is fail-closed (exit 3). Do not unify the logs or invent a multi-host cluster.
+
 ---
 
 ## High-Level Topology
@@ -53,7 +55,7 @@ This document provides a **non-marketing, engineering-focused** map of the Cyber
 | **Job Lifecycle, Watchdog & Notifications** | `src/jobs/`, `src/notifications/` | Job state machine transitions, deadlock/hang detection (`Watchdog`), scan dry-run simulation, and central event-driven notification bridge with snooze, digest aggregation, and escalation policies. |
 | **Partitioned Raft FSM & Replicated Log** | `src/core/frontier/raft_fsm.py`, `src/core/frontier/replicated_log.py` | Partitioned in-memory Raft FSM engine ($L_0$ Replicated Log $\rightarrow$ $L_1$ Deterministic Pure FSM) with multi-replica identical application, zero external I/O, deterministic `CommandResult`, emitted event envelopes, and leader-signed certified receipts (`CommandReceipt`). |
 | **Global Coordination (`P-0000`) & Run Sagas** | `src/core/frontier/global_coordination.py`, `src/core/frontier/run_saga.py` | `GlobalBudgetAggregate` (exact integer conservation: $\text{Total} = \text{Consumed} + \text{Outstanding} + \text{Available}$, linearized lease termination, `expire_sublease` timeout reclaim), `PlacementAuthority` (5-stage fenced migration), and `DurableRunSagaEngine`. |
-| **Authoritative State & Settlement** | `src/core/frontier/state_authority.py`, `src/core/checkpoint/` | `SettlementCoordinator` (5-stage claim validation and command proposer), single authoritative WAL/FSM commit boundary, Level 3 `CheckpointState` projection validation (`verify_checkpoint_against_fsm`), and independent projection engines. |
+| **Authoritative State & Settlement** | `src/core/frontier/state_authority.py`, `src/pipeline/authority_bootstrap.py` | **Dual log:** live scan settles `SettlementIntent` on **FrontierWAL** via `settle_stage_output` (FAILED attempt status `REJECTED`). Raft `PartitionWAL` + 5-stage `settle_claim` is the authority plane (CLI quorum-1). Attach is fail-closed exit 3; `apply_authority_recovery` runs after attach. Checkpoints are L3 caches (`verify_checkpoint_against_fsm` warns). |
 | **Command Envelopes & Event Upcasting** | `src/core/contracts/command_envelope.py` | Strongly-typed `CommandEnvelope`, Model B `CommittedEntry` carrying deterministic event envelopes ($\text{event\_id} = \text{SHA256}(\text{partition} \mathbin{\Vert} \text{index} \mathbin{\Vert} \text{seq})$), and `SchemaUpcasterRegistry`. |
 | **Canonical Target & State Encoding** | `src/core/contracts/canonical_target.py` | Deterministic target identity separation (`CanonicalHostIdentity`, `CanonicalNetworkEndpoint`, `CanonicalUrl`, `AuthorizationTarget`), IDNA normalization, port preservation/elision, and DNS snapshot pinning. |
 | **Projection Vector Watermarks & Cold Rebuild** | `src/core/frontier/projection_stream.py` | Level 3 materialized read models with `ProjectionCheckpointVector` tracking `(partition, term, index, hash)`, gap detection ($K > \text{last} + 1 \Rightarrow \text{GAP\_DETECTED}$), and parallel cold rebuild from offset 0. |

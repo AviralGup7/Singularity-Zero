@@ -49,7 +49,7 @@ graph TD
 
 ### I37 Authority Transfer Fence
 
-`src/core/frontier/authority_transfer.py` is the contract. Bindings on every mutation:
+`src/core/frontier/authority_transfer.py` is the contract. `initiate_transfer` is **tests-only** today — no production scan-path caller. Ghost migration is a different, non-authoritative in-process/gossip path. Bindings on every mutation:
 
 | Field | Role |
 |---|---|

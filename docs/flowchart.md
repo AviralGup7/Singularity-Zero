@@ -79,12 +79,18 @@ flowchart TD
     Index --> Perf["performance.md"]
     Index --> Gloss["glossary.md"]
     Index --> ApiDoc["api-reference.md"]
-    Index --> Guides["Ops: getting-started / deployment / ci-cd / dynamic-plugins / troubleshooting"]
+    Index --> Start["getting-started.md"]
+    Index --> Deploy["deployment.md"]
+    Index --> CICD["ci-cd-integration.md"]
+    Index --> Plugins["dynamic-plugins.md"]
+    Index --> Trouble["troubleshooting.md"]
     Index --> PagesOver["frontend_pages_overview.md"]
-    Index --> Standards["Standards: CONTRIBUTING / SECURITY / BENCHMARK / CHANGES"]
+    Index --> Sec["../SECURITY.md"]
     Arch --> ExecReq["architecture/execution-request-contract.md"]
     Arch --> CacheDoc["architecture/cache-unification.md"]
 ```
+
+Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGES.md` are not in the repo.
 
 ---
 
@@ -197,6 +203,9 @@ flowchart TD
         Intel --> Threat["threat_modeling"]
         Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover --> Report["reporting"]
         Report --> Sarif["sarif_export"]
+        Report --> CiExp["ci_export"]
+        Report --> Dedup["dedup_stage"]
+        Sca["sca_scan / container_scan / iac_scan / git_secret_scan"] -.->|"runtime _join_finding_producers"| Report
     end
     DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]
     Req --> Budget{"HuntBudget reserve"}
@@ -212,11 +221,13 @@ flowchart TD
     WAL -->|COMMITTED + wal_id I31| Outbox["DurableOutbox FINDING_CREATED"]
     Outbox -->|HMAC receipt| Emit["EventBus notify I32"]
     Outbox -->|append fail| NoBus["no bus notify; replay later"]
-    WAL -->|FAILED attempt still has wal_id| FailedId["I33 identity; no FINDING_CREATED"]
+    WAL -->|FAILED attempt still has wal_id| FailedId["settle status REJECTED; I33 identity; no FINDING_CREATED"]
     WAL -->|REJECTED / DEDUPLICATED / no wal_id| Silent["no FINDING_CREATED"]
 ```
 
-Per-stage admit is `stage_admit.admit_stage`: authorize → **consume (I28 `commit_requests`)** → ProcessSandbox metadata-guard → run. Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`. `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). `attach_pipeline_authority` is the only writer.
+Per-stage admit is `stage_admit.admit_stage`: authorize → **consume (I28 `commit_requests`)** → `ProcessSandbox.check_egress` (metadata-guard) → run. `ProcessSandbox.run` is unused. Tickets use partition `P-0000`. Attach failure is fail-closed exit 3; `apply_authority_recovery` runs after attach. FAILED stages still `settle_stage_output`; the settle **status** name is `REJECTED` (wal_id present). `reporting.needs` includes every finding producer (`_join_finding_producers`, including `sca_scan` / `git_secret_scan`). `attach_pipeline_authority` is the only writer.
+
+Import-time `STAGE_GRAPH` in `_constants.py` ≠ runtime `build_pipeline_graph` after plugins. Planner prefers the runtime Graph; some resume filters still walk import-time `STAGE_ORDER`. `STAGE_TIMEOUTS` omits `recon_validation`, `threat_modeling`, `subdomain_takeover`, sca/container/iac/git_secret, `ci_export`, `dedup_stage`. Nuclei/validation/active_scan/`_tool_runner` may still `authorize()` again (double reserve). HMAC has **no** published fallback string; missing env key → process-local random (verify dies across restart).
 
 
 
@@ -289,6 +300,7 @@ flowchart TD
         SF --> SR
         SF --> SC
         SF --> SDG
+        SF --> SSF
         SC --> STerm["terminal"]
         SDG --> STerm
         SSD --> STerm
@@ -305,7 +317,7 @@ flowchart TD
     end
 ```
 
-Illegal stage CAS **raises** (`IllegalStageTransitionError`): COMPLETED→FAILED, COMPLETED→SKIPPED*, SKIPPED*→COMPLETED. FAILED→COMPLETED is legal (I33 retry). PENDING↛STOPPING (cancel-before-start is PENDING→STOPPED).
+Illegal stage CAS **raises** (`IllegalStageTransitionError`): COMPLETED→FAILED, COMPLETED→SKIPPED*, SKIPPED*→COMPLETED. FAILED→COMPLETED and FAILED→SKIPPED_FAILED are legal (I33 retry). PENDING↛STOPPING (cancel-before-start is PENDING→STOPPED).
 
 Finding surface is CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE. `"open"` is **not** a lifecycle alias — dashboard `open/closed` is `ticket_status`. PDF filters `surface == REPORTABLE` (`filter_report_surface`). `derive_job_and_exit` maps stages × findings × policy → (JobStatus, exit).
 
@@ -431,7 +443,7 @@ flowchart TD
 
 PartitionWAL is never reconstructed. VERIFY_INVARIANTS fail-closes if recovered tickets/settlements violate I30–I33 (`invariant_graph.py`). Checkpoint and DeliveryLedger are caches. Crash between WAL commit and outbox append is the rebuild path; crash during compensation is I28 idempotent.
 
-`RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op). FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the single lattice for CLI exit and dashboard reap. A non-fatal FAILED producer unblocks reporting; only `fatal_stages` are exit 3. Scheduler may still emit 1 (OOM) and 7 (suspend).
+`RecoveryManager._execute_verdict` runs rebuild_outbox. Checkpoint/WAL tickets and settlements are collected into I35 `VERIFY_INVARIANTS` (empty sets are a no-op — live checkpoints usually have no `tickets`/`settlements` keys). `delivered_event_ids` on the scan observation are empty by design; `replay_delivery` is a log line. FAIL_CLOSED sets `execute_stages=False` and CLI returns exit 3 (not a dry-run 0). After attach, `apply_authority_recovery` walks the PARTITION plane. `derive_job_and_exit` is the named lattice for CLI exit and dashboard reap; it is **not total** — scheduler 1/7/130, lock collision 1, and fatal recon 3 still bypass it. A non-fatal FAILED producer unblocks reporting; only `fatal_stages` are exit 3.
 
 ---
 
@@ -449,8 +461,9 @@ flowchart TD
     CSRF -->|yes| Dispatch
     Dispatch --> Hook["useJobMonitor"]
     Hook --> REST["REST /api/jobs/:id"]
-    Hook --> SSE["SSE /progress/stream"]
-    Hook --> WS["WebSocket /ws/logs"]
+    Hook --> SSE["SSE /api/jobs/:id/progress/stream"]
+    Hook --> WS["WebSocket /ws/logs/:id"]
+    Hook --> Triage["WebSocket /ws/triage/:run_id"]
     REST --> Norm["telemetry/normalizer.ts"]
     SSE --> Norm
     WS --> Norm
@@ -467,17 +480,23 @@ flowchart TD
     Prom --> Graf["Grafana"]
 ```
 
+SSE is `GET /api/jobs/{id}/progress/stream` (not `/progress/stream`). Logs WS is `/ws/logs/{job_id}`. Triage WS `/ws/triage/{run_id}` is live and uncharted before this row. Origin validation runs before the `DASHBOARD_AUTH_DISABLED` admin bypass.
+
 ## F-020 — Tests and CI shards
 
 Source: [testing.md](testing.md)
 
 ```mermaid
 flowchart TD
-    Push["Push to main"] --> Lint["ruff + format + Bandit"]
+    Push["Push to main"] --> Lint["ruff + format + Bandit HIGH"]
     Push --> Mypy["mypy"]
-    Push --> TS["typescript"]
+    Push --> TS["typescript tsc --noEmit"]
     Push --> FE["frontend"]
-    Push --> Shards["pytest shards (test matrix)"]
+    Push --> Shards["pytest shards (test matrix, fail-fast false)"]
+    Push --> Audit["security-audit"]
+    Push --> Scan["security-scan Semgrep p/ci"]
+    Push --> Hard["hardening"]
+    Push --> Iac["iac-scan Checkov yaml"]
     Shards --> Infra["unit-infra"]
     Shards --> Core["unit-core"]
     Shards --> Pipe["unit-pipeline"]
@@ -489,8 +508,11 @@ flowchart TD
     Shards --> Suites["suites: integration + architecture + regression + infrastructure"]
     Shards --> Combine["coverage combine job (needs: test)"]
     Combine --> Cov["coverage fail_under 45"]
+    Lint & Mypy & TS & FE & Combine & Audit & Scan & Hard & Iac --> Ok["CI passed"]
     Local["Local agents"] --> Small["only smallest relevant slice less than or equal 50s"]
 ```
+
+Per-test timeout 20s (`pytest-timeout`). Do not CI-fail on k8s `REPLACE_WITH_*`. Fail-fast recon tests stay skipped.
 
 ---
 
@@ -654,5 +676,6 @@ Each edge is bidirectional in `invariant_graph.py`: a forward statement and the 
 | 2026-08-26 | F-007 JX is STOPPING; reporting join not large-debt starved | edit |
 | 2026-08-26 | F-004 consume commits I28 budget, P-0000, attach fail-closed + I35 PARTITION recovery | edit |
 | 2026-08-26 | F-033 bidirectional edges + reverse assumptions | edit |
+| 2026-08-26 | Sync atlas with live code: F-001 existing portal files only; F-004 runtime join producers + FAILED settle named REJECTED + HMAC/process-local key + double-reserve honesty; F-007 FAILED→SKIPPED_FAILED; F-018 lattice not total + empty I35 recovered sets; F-019 real SSE/WS paths; F-020 security-audit/scan/hardening/iac-scan/CI passed; F-022 Ghost in-process/gossip | edit |
 
 Append a row for every later edit. Do not delete this table.

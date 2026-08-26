@@ -288,8 +288,8 @@ EXPIRED ──compensate──► COMPENSATED
 ```
 
 - **Outstanding States**: `RESERVED`, `ACTIVE`
-- **Terminal States**: `CONSUMED`, `EXPIRED`, `COMPENSATED`
-- **Compensation Rules**: `COMPENSATED` is legal *only* from `RESERVED` or `EXPIRED`. Attempting to compensate an already terminal lease is an idempotent no-op.
+- **Terminal States**: `CONSUMED`, `COMPENSATED` only. `EXPIRED` is **not** in `TERMINAL` (`src/core/frontier/lease_status.py`) because `EXPIRED → COMPENSATED` is a legal ledger mutation.
+- **Compensation Rules**: `COMPENSATED` is legal *only* from `RESERVED` or `EXPIRED`. Attempting to compensate an already terminal lease is an idempotent no-op. `RESERVED → CONSUMED` without `ACTIVE` is legal (F-006).
 - **Legacy Aliases**: Automatically normalized on read (`ISSUED` $\rightarrow$ `RESERVED`, `CLOSED` $\rightarrow$ `CONSUMED`, `SETTLEMENT_PENDING` $\rightarrow$ `ACTIVE`, `REQUESTED` $\rightarrow$ `RESERVED`).
 
 ---
@@ -310,7 +310,9 @@ Single-node CLI and dashboard executions instantiate `PipelineAuthorityRuntime`,
 - **Budget Enforcer**: `HuntBudgetEnforcer` attached to `GlobalBudgetAggregate`.
 - **Policy Gate**: `PolicyGovernanceGate` attached to authoritative replicated log.
 - **QoS & Flow Control**: `PrioritizedRealtimeBroker` (P0–P4 lanes) + `AdaptivePIDController` + `BayesianParameterBandit`.
-- **Factory / Binding**: `attach_pipeline_authority(orchestrator, run_id, config)` lives in `src/pipeline/authority_bootstrap.py` (core stays stage-pure). It constructs HuntBudget/bandit/authorizer and calls `PipelineAuthorityRuntime.attach_to(orchestrator)`.
+- **Factory / Binding**: `attach_pipeline_authority(orchestrator, run_id, config)` lives in `src/pipeline/authority_bootstrap.py` (core stays stage-pure). It constructs HuntBudget/bandit/authorizer and calls `PipelineAuthorityRuntime.attach_to(orchestrator)`. **Attach failure is fail-closed CLI exit 3.** After attach, `apply_authority_recovery` walks the PARTITION plane.
+- **HMAC**: `receipt_crypto.py` prefers `AUTHORITY_SIGNING_KEY`, then `APP_SECRET_KEY`, else process-local random. No published fallback string. Tickets use the same rule.
+- **HuntBudget**: fenced placement → no reserve; `_reserve_gate` (breaker OPEN) → no reserve. `consume_ticket` calls `commit_requests(1)`.
 
 ### 1.14 Additional FSM result codes (implemented, not exhaustive)
 

@@ -159,13 +159,13 @@ class ExecutionResult:
 The `ExecutionAuthorizer` checks all inbound `ExecutionRequest` instances against:
 1. **Wall-clock deadline**: Rejects expired requests before wasting network or compute resources.
 2. **Resource sanity**: Ensures positive timeouts and valid memory ceilings.
-3. **Atomic Budget Reservation**: Invokes `HuntBudgetEnforcer.reserve_requests()` to guarantee budget capacity before emitting a ticket.
+3. **Atomic Budget Reservation**: `HuntBudgetEnforcer.reserve_with_identity()` (I30 binds `command_id` + reservation). `reserve_requests()` remains a boolean wrapper. Fenced placement (`is_fenced`) or breaker OPEN (`set_reserve_gate`) → `None`. Tickets default `partition_id="P-0000"`.
 4. **Adversarial URL & Path Normalization**:
    - Strips matrix parameters (`/..;/`), unquotes percent-encodings (`/%61dmin`), collapses redundant slashes (`//admin`), and normalizes POSIX directory traversals (`posixpath.normpath`).
    - Rejects domain suffix evasion (`example.com.evil.com`) and userinfo spoofing (`example.com@evil.com`).
 5. **Single-Use Nonce & Replay Resistance**:
    - Generates a signed `AuthorizedExecutionTicket` with HMAC-SHA256 signature and unique `nonce`.
-   - `consume_ticket()` atomically validates signature and invalidates the ticket against replay attacks.
+   - `consume_ticket()` verifies I30 bindings, I37 live revision, then **`commit_requests(1)`** (I28). Live stages consume once in `admit_stage` (authorize → consume → sandbox) and must not consume again. Nuclei/validation/active_scan/`_tool_runner` may still `authorize()` a second ticket (double reserve — leftover).
 
 ---
 

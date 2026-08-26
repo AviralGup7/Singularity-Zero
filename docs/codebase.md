@@ -89,8 +89,17 @@ src/
 │   │   ├── replicated_log.py # Per-partition Raft log, PartitionWAL (CRC-64 + fsync), quorum validation, leader receipts
 │   │   ├── replay_engine.py  # Deterministic WAL replay & schema upcaster runner
 │   │   ├── run_saga.py       # DurableRunSagaEngine multi-partition workflow coordinator
-│   │   ├── state_authority.py # Authoritative state and settlement coordinator
-│   │   ├── state.py          # NeuralState & CRDT LWW-set representations
+│   │   ├── state_authority.py # Authoritative state and settlement coordinator (`settle_stage_output`)
+│   │   ├── state.py          # NeuralState & CRDT LWW-set representations (`findings` + `candidates`)
+│   │   ├── invariant_graph.py # I22/I28/I30–I37 proof graph (bidirectional edges)
+│   │   ├── global_invariants.py # I30–I32 assertions
+│   │   ├── causal_identity.py # I33 CommandId→DeliveryId
+│   │   ├── event_delivery.py # Outbox-before-bus FINDING_CREATED
+│   │   ├── settlement_receipt.py # HMAC receipt stamp/verify (no self-attested authoritative)
+│   │   ├── failure_model.py  # I34 recovery table
+│   │   ├── recovery_protocol.py # I35 state machine
+│   │   ├── region_model.py   # I36 single-writer regions
+│   │   ├── authority_transfer.py # I37 OWNED→FENCED→OWNED
 │   │   └── wal_errors.py     # Fail-closed WALCorruptionError definition
 │   ├── models/           # Shared domain entities (Job, Finding, Target, Evidence)
 │   ├── security/         # Cryptographic primitives, Ed25519 signatures, AES-GCM vault, canonical Merkle roots
@@ -202,6 +211,8 @@ src/
 │   ├── history.py        # Historic scan execution retrieval and filtering
 │   ├── simulator.py      # Scan dry-run and pipeline flow simulator
 │   ├── stage_machine.py  # Strict stage lifecycle state machine
+│   ├── status.py         # JobStatus SM — only `_transition` writes; lowercase values
+│   ├── run_outcome.py    # `derive_job_and_exit` lattice (0/2/4/3/1/7/130)
 │   └── watchdog.py       # Probe deadlock and execution hang watchdog
 │
 ├── learning/             # 🎓 Closed-loop feedback, threshold auto-tuning, and policy calibration
@@ -233,6 +244,10 @@ src/
 │   ├── self_healing/     # Dynamic failure recovery, stage skipping, and re-routing
 │   ├── services/         # Orchestrator core services:
 │   │   └── pipeline_orchestrator/ # DAG builder, actor scheduler, stage executors
+│   │       ├── stage_admit.py     # authorize → consume (I28) → sandbox
+│   │       ├── graph_builder.py   # `_BASE_NODES` + `_join_finding_producers`
+│   │       └── _constants.py      # import-time STAGE_GRAPH / STAGE_TIMEOUTS (subset of runtime graph)
+│   ├── authority_bootstrap.py # `attach_pipeline_authority` (fail-closed); HuntBudget/bandit/authorizer live here
 │   ├── storage_tiering.py# Artifact retention: hot NVMe cache → gzip compressed archive & pruning
 │   ├── output_history.py # Historical and active scan run search indexer
 │   └── unified_cache/    # Integrated cross-stage result caching
@@ -353,3 +368,5 @@ tests/
    - All critical internal interfaces are type-annotated and verified by `pyright` / `mypy`.
 3. **Resilience by Default**:
    - External network calls must be wrapped with `CircuitBreaker` and dynamic `RetryAfter` backoff.
+4. **`src/output/` is gitignored**. Storage tiering and run history live under `src/pipeline/` (`storage_tiering.py`, `output_history.py`). Do not recreate a kernel / God-container. Keep `ValidatedPipelineConfig`, `DashboardConfig`, and `QueueConfig` separate.
+5. **Do not merge** the duplicate `PluginRegistry` (`framework.py` vs `registry.py`) or the unused third EventBus (`src/core/events/bus.py`).

@@ -1,50 +1,57 @@
 # Glossary
 
-Key terms and concepts used in the Singularity-Zero Cyber Security Test Pipeline.
+Key terms for Singularity-Zero. Architecture contract: [architecture.md](architecture.md). Charts: [flowchart.md](flowchart.md).
 
-## A
-- **Active Learning**: A continuous machine learning paradigm that harvests analyst triage signals (True/False positives) from SQLite telemetry to retrain classification estimators in the background. See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis) for active learning details.
-- **Actor-Mesh**: A distributed computing paradigm where tasks are encapsulated in stateful, location-transparent, native `asyncio`-based objects (Actors) running on isolated threads. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh) for mesh implementation.
-- **Attack Chain**: A multi-hop exploitation path predicted by the lateral graph, mapping how low-severity issues can be chained to compromise critical assets. See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis).
+## Dual log (do not unify)
 
-## C
-- **Circuit Breaker**: An architectural resilience pattern that wraps Redis connection streams. If failures occur, it transitions to `OPEN` and redirects operations to SQLite/AOF storage with zero thread blockage. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
-- **CRDT (Conflict-free Replicated Data Type)**: A lock-free data structure (such as our HLC-based LWW-Sets) ensuring eventual state consistency across mesh nodes. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
-- **CSI (Composite Severity Index)**: The pipeline's proprietary 0.0 to 10.0 risk score, dynamically calculated based on CVSS, confidence, exploitability, and mesh consensus. See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis).
+- **FrontierWAL**: Live **scan journal** (F-004). `settle_stage_output` writes `SettlementIntent` here. CRC skip-unless-high-corruption is intentional for this journal.
+- **PartitionWAL**: Raft **authority plane** (F-003). Fail-closed on CRC (`WALCorruptionError`). CLI is quorum-1. `NetworkRaftTransport` is LIBRARY.
+- **EventBus**: In-process notification dispatcher after the durable outbox (I32). Not a log. `src/core/events/bus.py` is UNUSED (perfection suite).
 
-## D
-- **Differential Logic Prober**: An active scanning engine that compares application responses across different authentication contexts to detect authorization bypasses (IDOR/BAC). See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis).
+## Authority & tickets
 
-## G
-- **Ghost-Actor**: A task actor capable of serializing its entire execution state (and logic function) and migrating dynamically across mesh nodes mid-execution. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
-- **Ghost-VFS**: An anti-forensic, memory-only Virtual File System encrypted with AES-256-GCM that prevents sensitive scan artifacts from touching physical storage. See [Architecture - Stealth & Anti-Forensics](architecture.md#3-stealth-anti-forensics).
-- **Gossip Protocol**: An authenticated SWIM-based peer-to-peer protocol used by mesh nodes to share load metrics and monitor cluster health. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
+- **P-0000**: Global coordination partition for budget, placement, policy watermark. Ticket `partition_id` default is `"P-0000"` (not `"P0"`).
+- **AuthorizedExecutionTicket (I30)**: Binds scope_token_hash, budget_reservation_id, authority_revision, command_id. `authorize` requires `reserve_with_identity`. `consume_ticket` checks the reservation, I37 live revision, then `commit_requests(1)`.
+- **SettlementIntent (I31)**: Durable claim. `FINDING_CREATED` only after COMMITTED + nonempty `wal_id` + HMAC receipt. A failed stage still settles; settle **status** is `REJECTED` (wal_id present; no finding event).
+- **I33 identity chain**: `CommandId → ExecutionId → AttemptId → SettlementId → WalId → EventId → DeliveryId`. FAILED attempt does not close `execution_id`.
+- **I35 recovery protocol**: State machine in `recovery_protocol.py`. Empty recovered ticket/settlement sets are a no-op. `delivered_event_ids` on the scan observation are empty by design.
+- **I36 region**: Placement/replica boundary, not a second authority. `assert_lease_settle_colocated`. Live CLI home is `local`.
+- **I37 fence**: `OWNED → FENCED → OWNED`. `initiate_transfer` is tests-only on the scan path. Fenced placement refuses reserve and `settle_stage_output`.
+- **Proof graph**: `src/core/frontier/invariant_graph.py`. Bidirectional edges + reverse assumptions. I35 VERIFY consults it.
 
-## H
-- **Hybrid Logical Clock (HLC)**: A logical clock combining physical physical time and logical sequence counters to order events causally in constant $O(1)$ space. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
+## Leases (I28)
 
-## N
-- **Neural-Mesh**: The collective term for the pipeline's self-organizing P2P distributed intelligence layer. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
+- States: RESERVED, ACTIVE, CONSUMED, EXPIRED, COMPENSATED.
+- **TERMINAL** = CONSUMED | COMPENSATED. **EXPIRED is not terminal** (`EXPIRED → COMPENSATED` is legal).
+- `RESERVED → CONSUMED` without ACTIVE is legal (F-006 mermaid).
+- `SETTLEMENT_PENDING` is a legacy alias of ACTIVE.
 
-## P
-- **Polymorphic Chameleon**: An evasion subsystem leveraging a Hidden Markov Model (HMM) to dynamically mutate request headers, JA3 TLS fingerprints, and inject timing delays to bypass WAF heuristic profiling. See [Architecture - Stealth & Anti-Forensics](architecture.md#3-stealth-anti-forensics).
+## Jobs & stages
 
-## S
-- **Semantic Deduplication**: A technique that groups functionally identical vulnerability findings using vector-space Cosine Similarity, bypassing rigid signature limitations. See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis).
-- **state_delta**: An incremental state dictionary emitted by a stage runner and merged by the orchestrator using CRDT Hybrid Logical Clocks (HLC). See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
+- **JobStatus** (`src/jobs/status.py`): lowercase. `_transition` is the only writer. PENDING↛STOPPING. Terminal COMPLETED/FAILED/STOPPED cannot leave.
+- **derive_job_and_exit**: 0/2 COMPLETED, 4 COMPLETED+degraded, 1/3 FAILED, 130/7 STOPPED. Not total: scheduler 1/7/130, lock 1, fatal recon 3 bypass it.
+- **Stage CAS** (`stage_status.py`): illegal COMPLETED→FAILED / COMPLETED→SKIPPED* / SKIPPED*→COMPLETED **raises**. FAILED→COMPLETED and FAILED→SKIPPED_FAILED are legal (I33 retry).
+- **force_fresh**: dashboard default True — UI never resumes unless false.
 
-## W
-- **WAL (Write-Ahead Log)**: A durable transactional log of state transitions committed concurrently to both a Redis Stream and a local AOF ledger. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
+## Findings
 
-## X
-- **XGBoost Severity Pipeline**: A machine learning pipeline predicting true-positive finding probabilities from validated Pydantic feature schemas, equipped with a pure-NumPy fallback engine. See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis).
+- Surface: CANDIDATE | REPORTABLE | FALSE_POSITIVE. `detected` aliases CANDIDATE.
+- **`"open"` is not a lifecycle alias** — it is `FindingTicketStatus` / `ticket_status`.
+- PDF uses `filter_report_surface` (`surface == REPORTABLE`).
+- CRDT: `findings` vs `candidates` LWW-sets. Identity key is `event_id` (else `settlement_id:seq`). Do not mutate dicts to inject `id`.
 
----
+## Other
 
-## 🔢 3D Visualization & Control Layer
+- **Circuit breaker**: CLOSED → OPEN → HALF_OPEN. One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN. OPEN stops new HuntBudget reserves (`set_reserve_gate`).
+- **qos_admit(event, disk_pct)**: admit | coalesce | drop. ≥85 DROP P4; ≥92 DROP P3/P4, COALESCE P1/P2.
+- **CRDT / HLC**: LWW-Sets keyed by Hybrid Logical Clocks. `tick()` / `update(remote)` must not mix `time.time()` into monotonic.
+- **Ghost-Actor / Ghost-VFS**: In-process + gossip handoff, not a running multi-host migrator. Encrypted RAM isolation is Python `bytearray` ([architecture.md](architecture.md) §7.13, [GAP_ANALYSIS.md](GAP_ANALYSIS.md)).
+- **CSI**: Composite Severity Index 0–10 ([architecture.md](architecture.md) §7.11).
+- **WAL trim**: never drop ids newer than `last_wal_id`.
+- **HMAC key**: `AUTHORITY_SIGNING_KEY` then `APP_SECRET_KEY` then process-local random. No published fallback.
 
-- **3D Attack-Chain Cockpit**: A real-time, interactive visual interface mapping target hierarchies and threat lateral movement directly from Kuzu graph DB queries. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
-- **Pipeline Control Deck**: A floating glassmorphic controller integrated into the 3D Cockpit to configure scans, view SSE active-stage telemetry, and execute restart-safe control actions. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
-- **Dynamic Level-of-Detail (LOD)**: A visual performance optimization that scales down geometric complexity of node meshes based on active network graph size to ensure 60 FPS rendering. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
-- **Frustum Culling**: A rendering optimization that excludes calculations and GPU draw calls for objects located outside the camera's current viewing volume. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
+## Frontend
 
+- Default theme: dark / `night-city`.
+- SSE: `/api/jobs/{id}/progress/stream`. WS: `/ws/logs/{job_id}`, `/ws/triage/{run_id}`.
+- 3D cockpit: [architecture.md](architecture.md) §7.18, [frontend.md](frontend.md).

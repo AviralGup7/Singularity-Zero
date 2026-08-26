@@ -47,7 +47,8 @@ vfs_overhead: 1.25 # Multiplier when Ghost-VFS anti-forensics is ACTIVE
 
 ## ⚡ Bottleneck Detection & Mesh Auto-Scaling
 
-- **Metric**: `mesh_cpu_avg` > 90% -> **Action**: Nodes lower their task bids and shed P4 telemetry lanes to preserve critical pipeline throughput.
+- **Metric**: disk percent via `qos_admit(event, disk_pct)` (`src/realtime/qos_admit.py`) → admit / coalesce / drop. ≥85 DROP P4; ≥92 DROP P3/P4 and COALESCE P1/P2. Breaker OPEN stops new HuntBudget reserves (`set_reserve_gate`).
+- **Metric**: `mesh_cpu_avg` > 90% -> **Action**: Nodes lower their task bids and shed P4 telemetry lanes to preserve critical pipeline throughput. (Mesh times in the table above are models, not a running multi-host cluster. Live CLI is quorum-1.)
 - **Metric**: `url_filter_time` > 5s -> **Action**: Automatically scale up NumPy vectorization chunk sizes in the Bloom frontier.
 - **Metric**: `waf_block_rate` > 2% -> **Action**: Polymorphic Chameleon feeds WAF block/rate-limit signals into the Hidden Markov Model (HMM), triggering transitions to `STATE_BLOCKED` or `STATE_EVADING`. This automatically increases timing delays (using exponential distributions up to 3.0s), mutates TLS JA3 fingerprints (Fisher-Yates shuffling of browser profiles), and doubles request timeouts.
 - **Metric**: `bloom_false_positive_probability` > 0.1% -> **Action**: Increase Bloom capacity or lower `BLOOM_ERROR_RATE`.

@@ -69,8 +69,9 @@ The operator dashboard maintains high-fidelity real-time synchronization through
 │  (frontend/src/hooks/useJobMonitor.ts)                      │
 └──────────────┬──────────────────┬──────────────────┬────────┘
                │                  │                  │
-      REST Polling (2s)        SSE Stream        WebSocket Stream
-      /api/jobs/:id            /progress/stream   /ws/logs/:id
+      REST Polling (2s)        SSE Stream                         WebSocket
+      /api/jobs/:id            /api/jobs/:id/progress/stream      /ws/logs/:id
+                                                                  /ws/triage/:run_id
                │                  │                  │
                ▼                  ▼                  ▼
      ┌────────────────────────────────────────────────────────┐
@@ -95,6 +96,8 @@ Global UI state is cleanly partitioned across dedicated Zustand stores:
 - **`useEventLogStore`** (`stores/eventLogStore.ts`): Centralized event journal and real-time audit notifications.
 
 ---
+
+Routed pages are listed in [frontend_pages_overview.md](frontend_pages_overview.md) (`frontend/src/RouteConfig.tsx`). Findings timeline GETs are prefix-limited (`/api/findings/` 60/min with security, 180/min without).
 
 ## 5. 3D Threat Visualization Cockpit
 

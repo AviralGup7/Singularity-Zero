@@ -82,18 +82,19 @@ cstp system setup
 
 ## 📚 Documentation Index
 
-- [Documentation Index](docs/index.md) — Master portal to all technical and architectural guides.
-- [Getting Started](docs/getting-started.md) — Step-by-step local setup, scoping, and scan execution.
-- [Codebase Map](docs/codebase.md) — Comprehensive guide to all 35 packages in `src/`, `frontend/`, `tests/`, and `configs/`.
-- [Architecture Overview](docs/architecture-overview.md) — Subsystem map and engineering design patterns.
-- [Architecture Deep Dive](docs/architecture.md) — Distributed DAG engine, actor mesh, and CRDT state engine.
-- [Commands Reference](docs/commands.md) — CLI flags, subcommands, and runtime arguments.
-- [Environment Variables](docs/environment-variables.md) — Catalog of configuration parameters.
-- [Testing & CI Guide](docs/testing.md) — Unit, integration, and architecture test suites.
-- [Frontend Handbook](docs/frontend.md) — React 19, Zustand stores, Tailwind 4, and 3D Cockpit.
-- [Observability Catalog](docs/OBSERVABILITY_CATALOG.md) — Prometheus metrics, tracing spans, and Grafana dashboards.
-- [Failure Modes & Diagnostics](docs/FAILURE_MODES.md) — Stage failure taxonomy and zero-finding troubleshooting.
-- [CI/CD Integration](docs/ci-cd-integration.md) — SARIF reports, GitHub Actions, and policy gates.
+- [Documentation Index](docs/index.md) — Portal. Charts: [flowchart.md](docs/flowchart.md).
+- [Getting Started](docs/getting-started.md) — Install, first scan, exit codes.
+- [Codebase Map](docs/codebase.md) — `src/`, `frontend/`, `tests/`, `configs/`, `deploy/`.
+- [Architecture Overview](docs/architecture-overview.md) — Subsystems. Live scan is FrontierWAL; Raft is the authority plane (quorum-1).
+- [Architecture Deep Dive](docs/architecture.md) — I1–I37, dual-log honesty, settlement.
+- [Commands Reference](docs/commands.md) — `cstp` flags.
+- [Environment Variables](docs/environment-variables.md) — `DASHBOARD_*` / `QUEUE_*` / signing keys.
+- [Testing & CI Guide](docs/testing.md) — Shards, 20s timeout, coverage 45%.
+- [Frontend Handbook](docs/frontend.md) — React 19, real SSE/WS paths.
+- [Observability Catalog](docs/OBSERVABILITY_CATALOG.md) — Prometheus / Grafana.
+- [Failure Modes](docs/FAILURE_MODES.md) — I34/I35 and the exit lattice.
+- [CI/CD Integration](docs/ci-cd-integration.md) — Workflow `276806682`.
+- [Security Policy](SECURITY.md) — Disclosure.
 
 ---
 
