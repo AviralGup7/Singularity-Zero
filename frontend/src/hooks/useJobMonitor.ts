@@ -11,7 +11,6 @@ import { useWebSocket } from './useWebSocket';
 import { useSSEProgress } from './useSSEProgress';
 import type { SseEvent } from './useSSEProgress';
 import { processJobMonitorSseEvent } from './useJobMonitorSse';
-import type { Job } from '../types/api';
 import { normalizeJob, normalizeTelemetryPayload } from '../telemetry/normalizer';
 import {
   mergeStageProgressLists,

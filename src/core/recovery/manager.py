@@ -496,7 +496,8 @@ class RecoveryManager:
                 continue
             try:
                 values = getter() if callable(getter) else getter
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("WAL known_ids getter %s failed: %s", attr, exc)
                 continue
             if values:
                 return frozenset(str(item) for item in values if item)

@@ -231,6 +231,15 @@ def apply_lifecycle(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         inferred = infer_lifecycle_state(item)
         stamped = transition_state(current, inferred)
+        # Legacy wire value: unstamped CANDIDATE surface was historically
+        # emitted as "detected". Keep that token for contract tests / older
+        # consumers; surface_lifecycle_state still collapses it to CANDIDATE.
+        if (
+            current is None
+            and stamped == FindingLifecycleState.CANDIDATE.value
+            and inferred == FindingLifecycleState.CANDIDATE.value
+        ):
+            stamped = FindingLifecycleState.DETECTED.value
         item["lifecycle_state"] = stamped
         item["lifecycle_surface"] = surface_lifecycle_state(stamped).value
         ticket_raw = item.get("ticket_status") or (

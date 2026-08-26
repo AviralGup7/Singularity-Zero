@@ -74,6 +74,7 @@ class PipelineAuthorityRuntime:
         self.pid = AdaptivePIDController()
         self.bandit = bandit
         self.authorizer = authorizer
+        self.circuit_breaker: Any | None = None
 
     def attach_to(self, orchestrator: Any) -> None:
         orchestrator._authority_runtime = self

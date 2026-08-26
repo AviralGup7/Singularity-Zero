@@ -48,6 +48,10 @@ def _get_default_resource_guard() -> Any:
 
 # Required for honest exit codes / report emission. Planner must not
 # drop these because of low predicted value or a tight RAM estimate.
+_REPORT_SINK_STAGES = frozenset(
+    {"reporting", "sarif_export", "ci_export", "dedup_stage"}
+)
+
 _NEVER_SKIP_STAGES = frozenset(
     {
         "reporting",
@@ -267,9 +271,11 @@ class StagePlanner:
                     )
                     final_stages.append(s)
                     continue
-                # Don't skip stages that have downstream dependents in the current plan
+                # Don't skip stages that have non-sink dependents in the current
+                # plan. Report sinks tolerate SKIPPED/FAILED producers (join),
+                # so they alone must not pin a low-value optional stage.
                 has_dependents = any(
-                    s in node.needs
+                    s in node.needs and node.name not in _REPORT_SINK_STAGES
                     for node in _get_graph_nodes(self.graph)
                     if node.name in adjusted_stages
                 )

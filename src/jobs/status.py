@@ -172,7 +172,11 @@ def apply_pipeline_exit_status(
             cancel=False,
             policy_violated=policy_violated or returncode == 2,
         ).job_status
-        if dest is JobStatus.COMPLETED and returncode in (1, 3):
+        # Empty/placeholder stage maps must not mask a process that exited 0
+        # with no stdout/stderr — that is pipeline_no_output (FAILED).
+        if dest is JobStatus.COMPLETED and returncode == 0 and no_pipeline_output:
+            dest = JobStatus.FAILED
+        elif dest is JobStatus.COMPLETED and returncode in (1, 3):
             dest = JobStatus.FAILED
         elif dest is JobStatus.COMPLETED and returncode == 4:
             job["degraded"] = True

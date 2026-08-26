@@ -490,11 +490,20 @@ class HuntBudgetEnforcer:
         return self.reserve_with_identity(count) is not None
 
     def commit_requests(self, count: int = 1) -> None:
-        """Commit reserved requests upon ExecutionResult ingestion."""
+        """Commit reserved requests upon ExecutionResult ingestion.
+
+        Idempotent with I30 ``consume_ticket``: if the reservation was already
+        committed at consume time, reserved==0 and this is a no-op so settle
+        cannot double-count I28 consumption.
+        """
         if count <= 0:
             return
         with self._lock:
-            remaining = int(count)
+            available = int(self._requests_reserved)
+            if available <= 0:
+                return
+            take_total = min(int(count), available)
+            remaining = take_total
             if self._global_budget is not None:
                 from src.core.frontier.commands import settlement_return
 
@@ -508,8 +517,8 @@ class HuntBudgetEnforcer:
                     ).to_envelope()
                     self._global_budget.apply_command(env)
                     remaining -= take
-            self._requests_reserved = max(0, self._requests_reserved - int(count))
-            self._requests_consumed += int(count)
+            self._requests_reserved = max(0, self._requests_reserved - take_total)
+            self._requests_consumed += take_total
             self._requests_emitted = self._requests_consumed
 
     def release_requests(self, count: int = 1) -> None:

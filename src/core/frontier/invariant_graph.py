@@ -677,11 +677,15 @@ def assert_graph_sound() -> None:
         ):
             raise ProofGraphError(f"{PROOF_GRAPH_ID}: {inv.value} claim is missing fields")
 
-    declared = {(pred, inv) for inv in InvariantId for pred in prerequisites_of(inv)}
-    edged = {(edge.src, edge.dst) for edge in INVARIANT_EDGES}
+    declared: set[tuple[InvariantId, InvariantId]] = {
+        (pred, inv) for inv in InvariantId for pred in prerequisites_of(inv)
+    }
+    edged: set[tuple[InvariantId, InvariantId]] = {
+        (edge.src, edge.dst) for edge in INVARIANT_EDGES
+    }
     if declared != edged:
-        missing = declared - edged
-        extra = edged - declared
+        missing: set[tuple[InvariantId, InvariantId]] = declared - edged
+        extra: set[tuple[InvariantId, InvariantId]] = edged - declared
         raise ProofGraphError(
             f"{PROOF_GRAPH_ID}: edge catalog mismatch missing={sorted(missing)} extra={sorted(extra)}"
         )

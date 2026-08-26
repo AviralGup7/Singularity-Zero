@@ -499,10 +499,13 @@ class NeuralState:
                         self.urls.add(url, ts, self.hlc, vclock)
 
         if "findings" in delta:
+            # Canonical findings bag is reportable surface. Unstamped rows stay
+            # reportable (F-007 / filter_report_surface). Evidence bags below
+            # (active_scan_findings / vulnerabilities) cannot bypass that.
             findings = delta["findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self._ingest_finding(finding, ts, vclock)
+                    self._ingest_finding(finding, ts, vclock, prefer_reportable=True)
 
         if "reportable_findings" in delta:
             findings = delta["reportable_findings"]
@@ -636,6 +639,7 @@ class NeuralState:
         self.subdomains.merge(other.subdomains)
         self.urls.merge(other.urls)
         self.findings.merge(other.findings)
+        self.candidates.merge(other.candidates)
         self.metadata = _merge_metadata(self.metadata, other.metadata)
         self.applied_wal_ids.update(other.applied_wal_ids)
         self.hlc = self.hlc.update(other.hlc)

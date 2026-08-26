@@ -258,9 +258,19 @@ def test_resolve_priority_limit_accepts_mappingproxy_priority_config() -> None:
 
 
 @pytest.mark.unit
-def test_orchestrator_merges_stage_output_delta_into_context() -> None:
+def test_orchestrator_merges_stage_output_delta_into_context(tmp_path) -> None:
     ctx = PipelineContext(output_store=_DummyOutputStore())
     orchestrator = PipelineOrchestrator()
+    # I31: settle requires attach_pipeline_authority (fail-closed without it).
+    from src.pipeline.authority_bootstrap import attach_pipeline_authority
+
+    class _Cfg:
+        output_dir = str(tmp_path)
+        global_budget_units = 1000
+
+    attach_pipeline_authority(orchestrator, run_id="merge-test", config=_Cfg())
+    ctx.run_id = "merge-test"
+    ctx.authority_runtime = getattr(orchestrator, "_authority_runtime", None)
 
     output = StageOutput(
         stage_name="parameters",
