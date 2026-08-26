@@ -261,7 +261,19 @@ def is_report_surface(finding: dict[str, Any]) -> bool:
 
 
 def filter_report_surface(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [item for item in apply_lifecycle(findings) if is_report_surface(item)]
+    """Keep REPORTABLE surface items. Unstamped reportable-bucket rows stay in."""
+    kept: list[dict[str, Any]] = []
+    for finding in findings:
+        unstamped = not finding.get("lifecycle_state") and not finding.get("lifecycle_surface")
+        stamped = apply_lifecycle([dict(finding)])[0]
+        if unstamped:
+            stamped["lifecycle_state"] = FindingLifecycleState.REPORTABLE.value
+            stamped["lifecycle_surface"] = FindingLifecycleState.REPORTABLE.value
+            kept.append(stamped)
+            continue
+        if is_report_surface(stamped):
+            kept.append(stamped)
+    return kept
 
 
 __all__ = [

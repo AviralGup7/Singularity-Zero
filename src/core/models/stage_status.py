@@ -137,7 +137,16 @@ _ALLOWED: dict[StageStatus, frozenset[StageStatus]] = {
     ),
     StageStatus.DEGRADED: frozenset(),
     StageStatus.COMPLETED: frozenset(),
-    StageStatus.FAILED: frozenset(),
+    # I33: a FAILED attempt does not close the stage. A later attempt may
+    # run again and complete. COMPLETED → FAILED remains illegal.
+    StageStatus.FAILED: frozenset(
+        {
+            StageStatus.RUNNING,
+            StageStatus.COMPLETED,
+            StageStatus.DEGRADED,
+            StageStatus.SKIPPED_FAILED,
+        }
+    ),
     StageStatus.SKIPPED: frozenset(),
     StageStatus.SKIPPED_DISABLED: frozenset(),
     StageStatus.SKIPPED_FAILED: frozenset(),

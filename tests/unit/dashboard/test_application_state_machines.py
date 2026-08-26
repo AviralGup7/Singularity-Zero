@@ -141,8 +141,7 @@ def test_stage_cas_rejects_completed_to_failed_or_skipped() -> None:
         transition_stage_status("COMPLETED", "FAILED")
     with pytest.raises(IllegalStageTransitionError):
         transition_stage_status("COMPLETED", "SKIPPED")
-    with pytest.raises(IllegalStageTransitionError):
-        transition_stage_status("FAILED", "COMPLETED")
+    assert transition_stage_status("FAILED", "COMPLETED") == "COMPLETED"
     with pytest.raises(IllegalStageTransitionError):
         transition_stage_status("SKIPPED_DISABLED", "COMPLETED")
     assert transition_stage_status("COMPLETED", "FAILED", soft=True) == "COMPLETED"
