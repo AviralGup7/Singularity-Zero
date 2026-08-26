@@ -71,7 +71,7 @@ def test_i37_fence_has_no_writer_then_only_new_home() -> None:
     new.install_authority(placement.lease_for("P-0001"))
     new.propose_and_commit(_cmd("cmd_after"))
 
-    with pytest.raises(AuthorityFenceError, match="stale"):
+    with pytest.raises(AuthorityFenceError, match=I37_AUTHORITY_TRANSFER):
         old.propose_and_commit(_cmd("cmd_old_after"))
 
 
