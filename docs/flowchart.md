@@ -551,8 +551,8 @@ flowchart TD
     end
 ```
 
-$$\text{Single-Partition Conservation Equation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$$
-$$\text{Multi-Raft Quota Slab Conservation (I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$$
+$$\text{Single-Partition Conservation Equation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available} \quad \text{[Verified in Recovery VERIFY_INVARIANTS]}$$
+$$\text{Multi-Raft Quota Slab Conservation (I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available} \quad \text{[Verified in Recovery VERIFY_INVARIANTS]}$$
 
 ---
 

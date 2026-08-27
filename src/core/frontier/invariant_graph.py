@@ -828,6 +828,39 @@ def verify_recovery_prerequisites(observed: Any) -> None:
             invariant=InvariantId.I32.value,
         )
 
+    # I5 & I26: Budget conservation verification
+    budget_state = getattr(observed, "recovered_budget_state", None) or getattr(observed, "budget_state", None)
+    if budget_state is not None and isinstance(budget_state, dict):
+        total = int(budget_state.get("total", 0))
+        consumed = int(budget_state.get("consumed", 0))
+        outstanding = int(budget_state.get("outstanding", 0))
+        available = int(budget_state.get("available", 0))
+        slab_reserved = int(budget_state.get("slab_reserved", 0))
+
+        if total > 0 or consumed > 0 or outstanding > 0 or available > 0:
+            if slab_reserved > 0:
+                # I26 Multi-Raft Quota Slab Conservation
+                expected_sum = consumed + outstanding + slab_reserved + available
+                if expected_sum != total:
+                    raise ProofGraphError(
+                        f"{InvariantId.I35.value}: Recovered Multi-Raft budget state violates "
+                        f"I26 slab conservation: consumed({consumed}) + "
+                        f"outstanding({outstanding}) + slab_reserved({slab_reserved}) + "
+                        f"available({available}) = {expected_sum} != total({total})",
+                        invariant="I26",
+                    )
+            else:
+                # I5 Single-Partition Budget Conservation
+                expected_sum = consumed + outstanding + available
+                if expected_sum != total:
+                    raise ProofGraphError(
+                        f"{InvariantId.I35.value}: Recovered budget state violates "
+                        f"I5 conservation: consumed({consumed}) + "
+                        f"outstanding({outstanding}) + available({available}) = "
+                        f"{expected_sum} != total({total})",
+                        invariant="I5",
+                    )
+
     verify_upstream_assumptions(observed)
 
 
