@@ -2885,6 +2885,9 @@ components:
       in: header
       name: X-API-Key
       type: apiKey
+    HTTPBearer:
+      scheme: bearer
+      type: http
 info:
   description: Unified security orchestration and vulnerability analysis dashboard.
   title: Cyber Security Test Pipeline Dashboard

@@ -103,7 +103,7 @@ python -m src.pipeline.runtime \
 | `--max-duration SEC`| Wall-clock budget in seconds before graceful termination (exits 3) | `None` |
 | `--dry-run` | Validate DAG and contracts without issuing external probes | `False` |
 | `--legacy-exit-codes` | Normalize granular exit codes (2/3/4) to standard 1 | `False` |
-| `--force-fresh-run` | Ignore prior checkpoints (CLI). Dashboard jobs pass this unless `force_fresh=False` | `False` |
+| `--force-fresh-run`, `--fresh` | Ignore prior checkpoints (CLI `cstp scan run --fresh`). Dashboard jobs pass this unless `force_fresh=False` | `False` |
 | `--skip-crtsh` | Skip passive crt.sh certificate transparency log collection | `False` |
 | `--refresh-cache` | Force-bypass cached subdomain and URL sets | `False` |
 | `--replay ARCHIVE` | Path to a `.tar.gz` artifact pack to replay and verify parity | `None` |

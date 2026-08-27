@@ -12,7 +12,7 @@ Routes are declared in `frontend/src/RouteConfig.tsx`. Default theme: `mode: 'da
 | `/jobs` | `JobsPage` | Job list |
 | `/jobs/:id` | `JobDetailPage` | Stage theater + logs |
 | `/findings` | `features/findings/FindingsPage` | Triage table |
-| `/findings-timeline` | `FindingsTimelinePage` | Rate-limited GET `/api/findings/` |
+| `/findings-timeline` | `FindingsTimelinePage` | Rate-limited GET `/api/findings/timeline` |
 | `/bug-bounty` | `BugBountyDashboardPage` | Platform drafts |
 | `/pipeline` | `PipelineOverviewPage` | DAG view |
 | `/settings` | `SettingsPage` | Keys / sinks |

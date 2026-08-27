@@ -97,7 +97,7 @@ Global UI state is cleanly partitioned across dedicated Zustand stores:
 
 ---
 
-Routed pages are listed in [frontend_pages_overview.md](frontend_pages_overview.md) (`frontend/src/RouteConfig.tsx`). Findings timeline GETs are prefix-limited (`/api/findings/` 60/min with security, 180/min without).
+Routed pages are listed in [frontend_pages_overview.md](frontend_pages_overview.md) (`frontend/src/RouteConfig.tsx`). Findings timeline GETs hit `/api/findings/timeline` (rate-limited at 60/min with security, 180/min without).
 
 ## 5. 3D Threat Visualization Cockpit
 
