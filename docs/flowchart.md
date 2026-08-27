@@ -634,9 +634,9 @@ flowchart TD
 flowchart TD
     U["UNINITIALIZED"]:::impl --> LS["LOAD_SNAPSHOT"]:::impl
     U --> LW["LOAD_WAL"]:::impl
-    U --> Fresh["FRESH"]:::impl
+    U --> Fresh["FRESH<br/>(Clean Run Bootstrap)"]:::impl
     LS --> VS["VERIFY_SNAPSHOT"]:::impl
-    VS -->|"partition plane unread schema"| Closed["FAIL_CLOSED"]:::forbidden
+    VS -->|"partition plane unread schema"| Closed["FAIL_CLOSED (Exit 3)"]:::forbidden
     VS -->|"frontier snapshot unread schema"| Fresh
     VS --> LW
     LW --> Rec["RECONCILE_SNAPSHOT_WAL"]:::impl
@@ -655,8 +655,9 @@ flowchart TD
     Inv -->|"compensation crash: valid lease"| Comp["Idempotent I28 Replay"]:::impl
     Inv -->|"compensation crash: uncompensatable"| Closed
     Inv -->|"prerequisite invariant failed"| Closed
-    Inv -->|"invariants verified"| Ready["READY"]:::impl
+    Inv -->|"invariants verified"| Ready["READY (DAG Execution Resume)"]:::impl
     Comp --> Ready
+    Fresh -->|"initialize empty state"| Ready
 ```
 
 ---
