@@ -96,39 +96,32 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 
 ```mermaid
 flowchart TD
-    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
-    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
-    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
-    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
-    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
-    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
-
-    Index["docs/index.md"]:::impl --> Arch["architecture.md"]:::impl
-    Index --> Overview["architecture-overview.md"]:::impl
-    Index --> Formal["FORMAL_COMMAND_SPECIFICATION.md"]:::impl
-    Index --> Gaps["GAP_ANALYSIS.md"]:::impl
-    Index --> Atlas["flowchart.md THIS FILE"]:::impl
-    Index --> Code["codebase.md"]:::impl
-    Index --> Cmds["commands.md"]:::impl
-    Index --> Env["environment-variables.md"]:::impl
-    Index --> Fail["FAILURE_MODES.md"]:::impl
-    Index --> Obs["OBSERVABILITY_CATALOG.md"]:::impl
-    Index --> Test["testing.md"]:::impl
-    Index --> Front["frontend.md"]:::impl
-    Index --> Multi["multi-region.md"]:::impl
-    Index --> Perf["performance.md"]:::impl
-    Index --> Gloss["glossary.md"]:::impl
-    Index --> ApiDoc["api-reference.md"]:::impl
-    Index --> Start["getting-started.md"]:::impl
-    Index --> Deploy["deployment.md"]:::impl
-    Index --> CICD["ci-cd-integration.md"]:::impl
-    Index --> Plugins["dynamic-plugins.md"]:::impl
-    Index --> Trouble["troubleshooting.md"]:::impl
-    Index --> PagesOver["frontend_pages_overview.md"]:::impl
-    Index --> Sec["../SECURITY.md"]:::impl
-    Arch --> ExecReq["architecture/execution-request-contract.md"]:::impl
-    Arch --> CacheDoc["architecture/cache-unification.md"]:::impl
-    Arch --> Consolidation["architecture/code-consolidation.md"]:::impl
+    Index["docs/index.md"] --> Arch["architecture.md"]
+    Index --> Overview["architecture-overview.md"]
+    Index --> Formal["FORMAL_COMMAND_SPECIFICATION.md"]
+    Index --> Gaps["GAP_ANALYSIS.md"]
+    Index --> Atlas["flowchart.md THIS FILE"]
+    Index --> Code["codebase.md"]
+    Index --> Cmds["commands.md"]
+    Index --> Env["environment-variables.md"]
+    Index --> Fail["FAILURE_MODES.md"]
+    Index --> Obs["OBSERVABILITY_CATALOG.md"]
+    Index --> Test["testing.md"]
+    Index --> Front["frontend.md"]
+    Index --> Multi["multi-region.md"]
+    Index --> Perf["performance.md"]
+    Index --> Gloss["glossary.md"]
+    Index --> ApiDoc["api-reference.md"]
+    Index --> Start["getting-started.md"]
+    Index --> Deploy["deployment.md"]
+    Index --> CICD["ci-cd-integration.md"]
+    Index --> Plugins["dynamic-plugins.md"]
+    Index --> Trouble["troubleshooting.md"]
+    Index --> PagesOver["frontend_pages_overview.md"]
+    Index --> Sec["../SECURITY.md"]
+    Arch --> ExecReq["architecture/execution-request-contract.md"]
+    Arch --> CacheDoc["architecture/cache-unification.md"]
+    Arch --> Consolidation["architecture/code-consolidation.md"]
 ```
 
 ---
@@ -212,7 +205,7 @@ flowchart TD
         
         subgraph L0_Consensus["L0: Raft Distributed Consensus (Single-Node Quorum-1 Live; Peer ACK specOnly)"]
             Leader["Leader PartitionWAL L0"]:::impl
-            F1["Follower PartitionWAL Replica"]:::library
+            F1["Follower PartitionWAL Replica"]:::specOnly
             Leader -->|"AppendEntries (Cluster Mode)"| F1
             F1 -->|"Peer ACK (Multi-Node Spec)"| Leader
             Leader --> Commit["Self-Commit / Advance commitIndex"]:::impl
@@ -549,11 +542,10 @@ flowchart TD
         SP["PENDING"]:::impl --> SR["RUNNING"]:::impl
         SP --> SSD["SKIPPED_DISABLED (Terminal)"]:::impl
         SP --> SSF["SKIPPED_FAILED (Terminal)"]:::impl
-        SP --> SF["FAILED"]:::impl
         
         SR --> SC["COMPLETED (Terminal)"]:::impl
         SR --> SDG["DEGRADED (Terminal)"]:::impl
-        SR --> SF
+        SR --> SF["FAILED"]:::impl
         SR --> SSD
         SR --> SSF
         
@@ -565,7 +557,7 @@ flowchart TD
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
         subgraph SurfaceAxis["Axis 1: Surface Lifecycle"]
             FC["CANDIDATE"]:::impl --> FR["REPORTABLE"]:::impl
-            FC --> FF["FALSE_POSITIVE (Terminal)"]:::impl
+            FC --> FF["FALSE_POSITIVE (Terminal: Immutable non-repudiation)"]:::impl
             FR -->|"Analyst Triage"| FF
         end
         subgraph ConfidenceAxis["Axis 2: Confidence & Exploitability"]
@@ -580,27 +572,25 @@ flowchart TD
     end
 
     subgraph DerivationLattice["Total Precedence Derivation Lattice (derive_job_and_exit)"]
-        Sig["SIGINT / Cancel"]:::impl --> J_STOP["Job STOPPED"]:::impl
-        Sig --> Exit130["Exit 130: CANCEL"]:::impl
-        
-        SF -->|"fatal error / unrecoverable"| J_FAIL["Job FAILED"]:::impl
-        J_FAIL --> Exit3["Exit 3: INFRA_FAILURE"]:::impl
-        
-        ConfigSuspend["Hot-Reload Suspend"]:::impl --> J_STOP
-        ConfigSuspend --> Exit7["Exit 7: SUSPEND"]:::impl
-        
-        FR -->|"policy violations >= 1"| J_COMP["Job COMPLETED"]:::impl
-        J_COMP --> Exit2["Exit 2: POLICY_GATE"]:::impl
-        
-        SDG & SSF -->|"degraded / non-fatal skips"| J_COMP
-        J_COMP --> Exit4["Exit 4: PARTIAL_RUN"]:::impl
-        
-        Unhandled["Unhandled Runtime Exception / OOM"]:::impl --> J_FAIL
-        J_FAIL --> Exit1["Exit 1: RUNTIME_ERROR"]:::impl
-        
-        SC & SSD -->|"clean (0 violations, clean stages)"| J_COMP
-        FF --> J_COMP
-        J_COMP --> Exit0["Exit 0: CLEAN_RUN"]:::impl
+        Sig["SIGINT / Cancel"]:::impl --> PrecedenceDecision{"Precedence Evaluation<br/>derive_job_and_exit"}:::impl
+        SF -->|"fatal infra error"| PrecedenceDecision
+        ConfigSuspend["Hot-Reload Suspend"]:::impl --> PrecedenceDecision
+        FR -->|"policy evaluated"| PrecedenceDecision
+        SDG & SSF -->|"degraded skips"| PrecedenceDecision
+        Unhandled["Unhandled Runtime Exception"]:::impl --> PrecedenceDecision
+        SC & SSD & FF -->|"clean outputs"| PrecedenceDecision
+
+        PrecedenceDecision -->|"1. cancel"| Exit130["Exit 130: CANCEL"]:::impl
+        PrecedenceDecision -->|"2. fatal/infra"| Exit3["Exit 3: INFRA_FAILURE"]:::impl
+        PrecedenceDecision -->|"3. suspend"| Exit7["Exit 7: SUSPEND"]:::impl
+        PrecedenceDecision -->|"4. policy violation >= 1"| Exit2["Exit 2: POLICY_GATE"]:::impl
+        PrecedenceDecision -->|"5. partial / degraded"| Exit4["Exit 4: PARTIAL_RUN"]:::impl
+        PrecedenceDecision -->|"6. runtime error"| Exit1["Exit 1: RUNTIME_ERROR"]:::impl
+        PrecedenceDecision -->|"7. clean (0 violations)"| Exit0["Exit 0: CLEAN_RUN"]:::impl
+
+        Exit130 & Exit7 --> J_STOP["Job STOPPED"]:::impl
+        Exit3 & Exit1 --> J_FAIL["Job FAILED"]:::impl
+        Exit2 & Exit4 & Exit0 --> J_COMP["Job COMPLETED"]:::impl
         
         Exit130 -.->|"precedence: suppresses"| Exit3
         Exit3 -.->|"precedence: suppresses"| Exit7
@@ -798,9 +788,8 @@ flowchart TD
     
     subgraph OutboxNotify["Outbox & Telemetry Pipeline"]
         Settle["Settlement COMMITTED"]:::impl ==>|"AUTHORITY"| Outbox["L2 DurableOutbox"]:::impl
-        Outbox --> LiveBus["event_bus.EventBus (In-Process Dispatch)"]:::impl
+        Outbox -->|"durable dispatch"| LiveBus["event_bus.EventBus (In-Process Dispatch)<br/><small>Decoupled: Bus fail never uncommits WAL (I32)</small>"]:::impl
         LiveBus --> Fan["Fan-Out (Cap 5)"]:::impl
-        LiveBus -.->|"decoupled: Delivery Failure does not uncommit WAL (I32)"| Outbox
         App["Pipeline + Dashboard"]:::impl --> Prom["Prometheus Metrics (:9090)"]:::impl
         App --> Logs["JSON Logs + HMAC Audit"]:::impl
         Prom --> Graf["Grafana Dashboard"]:::impl
@@ -864,13 +853,13 @@ flowchart LR
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    Raft["Raft transport"]:::impl --> Impl["Implemented single-node"]:::singleNode
-    Tickets["Jira ServiceNow DefectDojo"]:::impl --> Impl
-    Policy["Policy via Raft commands"]:::impl --> Impl
-    Ghost["Multi-host Ghost migration"]:::impl --> Open["Open / single-node"]:::specOnly
-    WASM["WASM AEVE"]:::impl --> Flag["Feature Flagged"]:::specOnly
-    PPO["PPO / DRL"]:::impl --> Heur["Heuristic stub"]:::specOnly
-    GNN["GNN attack graph"]:::impl --> Dijk["Dijkstra LIBRARY"]:::library
+    Raft["Raft transport"] --> Impl["Implemented single-node"]:::singleNode
+    Tickets["Jira ServiceNow DefectDojo"] --> Impl
+    Policy["Policy via Raft commands"] --> Impl
+    Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]:::specOnly
+    WASM["WASM AEVE"] --> Flag["Feature Flagged"]:::specOnly
+    PPO["PPO / DRL"] --> Heur["Heuristic stub"]:::specOnly
+    GNN["GNN attack graph"] --> Dijk["Dijkstra LIBRARY"]:::library
 ```
 
 ---
