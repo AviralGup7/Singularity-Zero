@@ -534,9 +534,9 @@ flowchart TD
         Wall["time.time() (UTC)"]:::impl -->|"clock"| AuditTime["Audit Logs & SIEM Export (I22 Admission Gate)"]:::impl
     end
 
-    subgraph LeaseFSM["Lease State Machine & Accounting Deltas (I5, I19, I28)"]
-        Reserve["ReserveGlobalBudget"]:::impl -->|"dispatch<br/>ΔO=+u, ΔA=-u"| RESERVED["RESERVED<br/>(Outstanding)"]:::impl
-        RESERVED -->|"allocate / in-flight<br/>ΔO=0, ΔA=0"| ACTIVE["ACTIVE<br/>(Outstanding)"]:::impl
+    subgraph LeaseFSM["Lease State Machine & Accounting Deltas (I5, I19, I28, Batched Sublease Pool)"]
+        Reserve["ReserveGlobalBudget (Batched Sublease Buffer)"]:::impl -->|"dispatch<br/>ΔO=+u, ΔA=-u"| RESERVED["RESERVED<br/>(Outstanding)"]:::impl
+        RESERVED -->|"allocate / local sublease consume<br/>ΔO=0, ΔA=0"| ACTIVE["ACTIVE<br/>(Outstanding)"]:::impl
         RESERVED -->|"settle findings<br/>ΔC=+u, ΔO=-u"| CONSUMED["CONSUMED<br/>(Committed)"]:::impl
         ACTIVE -->|"settle findings<br/>ΔC=+u, ΔO=-u"| CONSUMED
         

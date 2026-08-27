@@ -308,6 +308,7 @@ class HuntBudgetEnforcer:
         partition_id: str = "P-0000",
         run_id: str = "hunt",
         placement: Any | None = None,
+        batch_reservation_size: int = 1,
     ) -> None:
         self._budget = budget or HuntBudget()
         if label is not None:
@@ -316,11 +317,15 @@ class HuntBudgetEnforcer:
         self._partition_id = partition_id
         self._run_id = run_id
         self._placement = placement
+        self._batch_reservation_size = max(1, batch_reservation_size)
         self._reserve_gate: Callable[[], bool] | None = None
         self._sublease_seq = 0
         self._authority_revision = 0
         self._issued_identities: dict[str, dict[str, str]] = {}
         self._open_subleases: list[tuple[str, int]] = []
+        self._local_sublease_pool_available: int = 0
+        self._active_batched_sl_id: str = ""
+        self._active_batched_cmd_id: str = ""
         self._start = time.monotonic()
         self._requests_emitted = 0
         self._requests_reserved = 0
@@ -428,6 +433,30 @@ class HuntBudgetEnforcer:
                     self._requests_reserved + self._requests_consumed + count
                 ) > self._budget.max_requests:
                     return None
+
+            # 1. Fast Path: Consume from already allocated local sublease pool buffer
+            if self._local_sublease_pool_available >= count and self._active_batched_sl_id:
+                self._local_sublease_pool_available -= count
+                self._requests_reserved += int(count)
+                self._authority_revision += 1
+                revision = self.live_authority_revision()
+                sl_id = f"{self._active_batched_sl_id}_{self._requests_reserved}"
+                identity = {
+                    "reservation_id": sl_id,
+                    "command_id": self._active_batched_cmd_id,
+                    "authority_revision": revision,
+                }
+                self._issued_identities[sl_id] = dict(identity)
+                return identity
+
+            # 2. Slow Path: Allocate batched reservation from GlobalBudget FSM
+            batch_to_reserve = max(count, self._batch_reservation_size)
+            if self._budget.max_requests is not None:
+                remaining_total = self._budget.max_requests - (
+                    self._requests_reserved + self._requests_consumed
+                )
+                batch_to_reserve = min(batch_to_reserve, remaining_total)
+
             command_id = ""
             sl_id = ""
             if self._global_budget is not None:
@@ -438,20 +467,27 @@ class HuntBudgetEnforcer:
                 env = reserve_global_budget(
                     run_id=self._run_id,
                     partition_id=self._partition_id,
-                    units=int(count),
+                    units=int(batch_to_reserve),
                     sublease_id=sl_id,
                 ).to_envelope()
                 ok, _msg = self._global_budget.apply_command(env)
                 if not ok:
                     return None
-                self._open_subleases.append((sl_id, int(count)))
+                self._open_subleases.append((sl_id, int(batch_to_reserve)))
                 command_id = str(getattr(env, "command_id", "") or "")
                 if not command_id:
                     return None
+                self._active_batched_sl_id = sl_id
+                self._active_batched_cmd_id = command_id
+                self._local_sublease_pool_available = batch_to_reserve - count
             else:
                 self._sublease_seq += 1
                 sl_id = f"hunt_{self._budget.label}_{self._sublease_seq}"
                 command_id = f"cmd_{sl_id}"
+                self._active_batched_sl_id = sl_id
+                self._active_batched_cmd_id = command_id
+                self._local_sublease_pool_available = batch_to_reserve - count
+
             self._requests_reserved += int(count)
             self._authority_revision += 1
             revision = self.live_authority_revision()
