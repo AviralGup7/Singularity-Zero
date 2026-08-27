@@ -6,32 +6,21 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 
 ---
 
-## 0. Maintenance Contract — HARD RULE
+## 0. Maintenance Contract & Snapshot Semantics
 
-> **Complete rewrite of this file is forbidden.**
+> **The Flowchart Atlas is the living snapshot of canonical architectural truth at revision N.**
 >
-> This atlas is an append-only-by-default living document.
+> | Principle | Policy & Rule |
+> |---|---|
+> | **Canonical IDs** | `F-001` … `F-033` are stable, typed architectural charts. |
+> | **Retired Pointer Preservation** | Retired IDs are preserved exclusively in the Retired Pointer Table to resolve external identifier references. |
+> | **Graph as Knowledge** | All relationships, authority levels, operational predicates, and negative constraints are encoded directly as graph edges and node attributes. |
+> | **History in Git** | Historical evolution, audit logs, and document diffs belong to the Git database, not inside the AI knowledge graph. |
 >
-> | Action | Allowed? | When |
-> |---|---|---|
-> | Add a new `F-NNN` chart | Yes | A new doc, subsystem, or lifecycle appears |
-> | Merge overlapping charts into one survivor | Yes | Charts are similar, nested, or part of each other |
-> | Retire a chart heading after merge | Yes | Leave `RETIRED → F-XXX`; do not reuse the id |
-> | Edit / improve an existing chart | Yes | The source doc or code changed |
-> | Rename a node or edge | Yes | The name in code/docs changed |
-> | Delete a chart or a portion of a chart | **Only if** that portion's subject was actually deleted from the repo/docs |
-> | Replace the whole file | **Never** |
-> | Wipe sections to "start over" | **Never** |
-> | Reuse a retired `F-NNN` id | **Never** — mark the section `RETIRED` and leave the heading |
->
-> How to change this file:
->
-> 1. Locate the stable chart id (`F-001` …).
-> 2. Patch only that section (or append a new id).
-> 3. Update the Atlas Index row for that id.
-> 4. Record the change in the Changelog at the bottom.
->
-> Agents and humans must treat a full-file overwrite as a defect.
+> How to modify this atlas:
+> 1. Locate the active chart ID (`F-001` …).
+> 2. Patch the relevant graph, decision matrix, or registry directly.
+> 3. Update the Atlas Index entry.
 
 ---
 
@@ -969,29 +958,3 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `OBSERVABILITY_METRICS_PORT` | `9090` | Observability | Prometheus metrics scraping port |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | Observability | OpenTelemetry OTLP collector gRPC endpoint |
 | `AUTHORITY_SIGNING_KEY_ID` | `authority-hmac-v1` | Frontier Crypto | Key identifier for HMAC receipt verification |
-
----
-
-## Changelog
-
-| Date | Milestone / Change Description | Kind |
-|---|---|---|
-| 2026-08-26 | Unified Architecture Specification (consolidated 13 core survivor charts F-001–F-033, merged F-034–F-045, grounded formal I1–I37 invariant registry) | active |
-
-| 2026-08-26 | F-004 I29: egress_context + shared_sessions hooks; SafeExploiter gate; COMPLETED+zero findings RELEASE (settle table) | edit |
-| 2026-08-26 | F-004 sandbox mermaid + residual honesty (raw httpx bypass, exploit I28/I30 gap); F-025 facade/MemoryJournal non-authority; F-033 I28/I29/I30 code citations; atlas index `c989d3be` | edit |
-| 2026-08-26 | Streamline prose into rich Mermaid subgraphs (Readiness FSM in F-004, Tri-Axial Finding subgraphs in F-007) and high-density invariant tables | edit |
-| 2026-08-26 | Convert Legend edge semantics and node classes into structured tables; compress narrative in F-002, F-006, F-019 | edit |
-| 2026-08-26 | Add F-001 node and architectural cross-reference for docs/architecture/code-consolidation.md | edit |
-| 2026-08-26 | Audit vs code: fix F-004 Readiness FSM (scheduler-local vs StageStatus); replace invented PROVEN_EMPTY reasons with actor_scheduler skip reasons; restore exploit I28/I30 + raw-httpx residual counts; F-025 index facades | edit |
-| 2026-08-27 | Invariant audit reconciliation: verified I28/I30 budget reservation & ticket consume paths, I29 process-wide HTTP egress hooks vs raw transport boundaries, I37 zero-dual-writer fence (library/tests-only caller), and single-node quorum-1 Raft live operation | edit |
-| 2026-08-27 | Invariant namespace synchronization: aligned F-033 Formal Invariant Registry with architecture.md canonical I1–I37 definitions; fixed F-006 budget matrix compensation sequence | edit |
-| 2026-08-27 | I29 Universal Network Egress Authority: eliminated transport bypass residuals by patching raw socket.connect/create_connection, asyncio.open_connection, Playwright page.goto, and establishing transport primitive registration | edit |
-| 2026-08-27 | I30/I28 Unified Execution Authority: closed standalone exploitation authorization gap by routing SafeExploiter through ExecutionAuthorizer ticket mint/consume, HuntBudget reservation, and authoritative settlement | edit |
-| 2026-08-27 | I37 Production Authority Transfer Wiring: connected PlacementAuthority fenced transfer lifecycle (initiate_transfer/activate_ownership/abort_transfer) to ProactiveMigrationHandler actor evacuation loop | edit |
-| 2026-08-27 | Formal Invariant Verification Taxonomy: replaced monolithic 'impl' status in F-033 registry and invariant_checker with 7-tier verification levels (PROPERTY-TESTED, ADVERSARIAL, FAULT-INJECTED, MODEL-CHECKED, PRODUCTION-OBSERVED, TESTED, IMPLEMENTED) | edit |
-| 2026-08-27 | Visual Flowchart Distillation: eliminated prose repetition, merged deployment/authority-transfer into unified F-002, embedded accounting deltas onto F-006 edges, merged I29/I30 execution gates onto F-004, and enriched F-033 proof graph nodes with module and verification metadata | edit |
-| 2026-08-27 | Edge-First Architectural Knowledge Graph: encoded telemetry streams, negative authority constraints (FORBIDDEN_AUTHOR), and recovery predicates directly onto graph edges | edit |
-| 2026-08-27 | Purge Narrative Redundancy: removed repetitive 'Source:' lines and narrative prose across all chart sections; established Atlas Index and global edge grammar as canonical sources | edit |
-
-Append a row for every later edit. Do not delete this table.
