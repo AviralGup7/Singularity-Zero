@@ -662,10 +662,10 @@ flowchart TD
 
     Load["Target Probe Latency & Error Stream"]:::impl --> PID["AdaptivePIDController (Concurrency Tuning)"]:::impl
     PID --> Conc["Dynamic Concurrency Window"]:::impl
-    Load --> Bulk["BulkheadPool (Per-Host Host Isolation)"]:::impl
+    Load --> Bulk["BulkheadPool (Unified Endpoint Isolation (scheme,host,port))"]:::impl
     Load --> Bloom["NeuralBloomFilter (Fast Evasion Deduplication)"]:::impl
     Load --> CB
-    subgraph CB["Circuit Breaker (Per-Target Fail-Closed Gate)"]
+    subgraph CB["Circuit Breaker (Unified Canonical Endpoint Gate)"]
         CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold (5 consecutive)"| OPEN["OPEN (Tripped / Shedding)"]:::impl
         OPEN -->|"Cooldown Elapsed (20s)"| HALF_OPEN["HALF_OPEN (Trial Generation N)"]:::impl
         HALF_OPEN -->|"Trial Probe OK"| CLOSED
