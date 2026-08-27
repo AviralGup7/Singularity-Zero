@@ -297,16 +297,19 @@ class CommandReceipt:
 
 
 UpcasterFn = Callable[[dict[str, Any]], dict[str, Any]]
+DowncasterFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
-class SchemaUpcasterRegistry:
-    """Registry of event schema upcasters ensuring deterministic replay across versions."""
+class SchemaMigrationRegistry:
+    """Registry of event/command schema upcasters and downcasters ensuring bidirectional compatibility."""
 
     def __init__(self) -> None:
-        # Key: (event_type, from_version) -> (to_version, UpcasterFn)
+        # Key: (type, from_version) -> (to_version, UpcasterFn)
         self._upcasters: dict[tuple[str, int], tuple[int, UpcasterFn]] = {}
+        # Key: (type, from_version) -> (to_version, DowncasterFn)
+        self._downcasters: dict[tuple[str, int], tuple[int, DowncasterFn]] = {}
 
-    def register(
+    def register_upcaster(
         self,
         event_type: str,
         from_version: int,
@@ -315,21 +318,40 @@ class SchemaUpcasterRegistry:
     ) -> None:
         self._upcasters[(event_type, from_version)] = (to_version, fn)
 
+    def register_downcaster(
+        self,
+        event_type: str,
+        from_version: int,
+        to_version: int,
+        fn: DowncasterFn,
+    ) -> None:
+        self._downcasters[(event_type, from_version)] = (to_version, fn)
+
+    def register(
+        self,
+        event_type: str,
+        from_version: int,
+        to_version: int,
+        fn: UpcasterFn,
+    ) -> None:
+        """Alias for register_upcaster for backward compatibility."""
+        self.register_upcaster(event_type, from_version, to_version, fn)
+
     def upcast(
         self, event_dict: dict[str, Any], target_version: int | None = None
     ) -> dict[str, Any]:
-        """Progressively upcast an event dictionary until the target version is reached."""
+        """Progressively upcast an event dictionary until target version is reached."""
         current = dict(event_dict)
-        event_type = current.get("event_type", "")
+        event_type = str(current.get("event_type", current.get("command_type", "")))
         current_ver = int(current.get("schema_version", 1))
 
         while True:
+            if target_version is not None and current_ver >= target_version:
+                break
             key = (event_type, current_ver)
             if key not in self._upcasters:
                 break
             next_ver, fn = self._upcasters[key]
-            if target_version is not None and current_ver >= target_version:
-                break
             payload = fn(dict(current.get("payload", {})))
             current["payload"] = payload
             current["schema_version"] = next_ver
@@ -337,5 +359,36 @@ class SchemaUpcasterRegistry:
 
         return current
 
+    def downcast(
+        self, event_dict: dict[str, Any], target_version: int
+    ) -> dict[str, Any]:
+        """Progressively downcast a newer schema version into an older target version with unknown field preservation."""
+        current = dict(event_dict)
+        event_type = str(current.get("event_type", current.get("command_type", "")))
+        current_ver = int(current.get("schema_version", 1))
 
-GLOBAL_UPCASTER_REGISTRY = SchemaUpcasterRegistry()
+        if current_ver <= target_version:
+            return current
+
+        while current_ver > target_version:
+            key = (event_type, current_ver)
+            if key in self._downcasters:
+                prev_ver, fn = self._downcasters[key]
+                payload = fn(dict(current.get("payload", {})))
+                current["payload"] = payload
+                current["schema_version"] = prev_ver
+                current_ver = prev_ver
+            else:
+                # Default Protobuf-style fallback: preserve unknown fields in _unknown_fields bag
+                payload = dict(current.get("payload", {}))
+                unknowns = current.get("_unknown_fields", {})
+                current["_unknown_fields"] = {**unknowns, f"v{current_ver}": payload}
+                current["schema_version"] = target_version
+                break
+
+        return current
+
+
+SchemaUpcasterRegistry = SchemaMigrationRegistry
+GLOBAL_UPCASTER_REGISTRY = SchemaMigrationRegistry()
+GLOBAL_SCHEMA_REGISTRY = GLOBAL_UPCASTER_REGISTRY

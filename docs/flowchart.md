@@ -207,15 +207,18 @@ flowchart TD
 
 ## F-003 — Authority plane, Raft L0–L5 & security keys
 
-### Schema Upcasting & Key Hierarchy (F-044, F-037)
+### Bidirectional Schema Evolution & Key Hierarchy (F-044, F-037)
 
 ```mermaid
 flowchart TD
     classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
-    Upcaster --> Envelope["Output: Canonical Envelope (v3)"]:::impl
+    OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast (forward-compat)| Registry["SchemaMigrationRegistry (v1 ↔ v2 ↔ v3)"]:::impl
+    NewPayload["Future / v3+ Payload"]:::impl -->|downcast (reverse-compat)| Registry
+    Registry -->|target new| Envelope["Output: Canonical Envelope (v3)"]:::impl
+    Registry -->|target legacy / rolling upgrade| DowngradedEnvelope["Output: Downgraded Envelope + _unknown_fields bag"]:::impl
     MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
     Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
     Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
