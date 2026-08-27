@@ -113,6 +113,10 @@ def test_api_key_security(
                     "location": location["name"],
                     "headers": _public_secret_map(location_headers, api_key),
                     "params": _public_secret_map(location_params, api_key),
+                    "insecure_query_transport": bool(location_params and any(
+                        r.get("ok") and int(r.get("status_code", 0) or 0) < 400
+                        for r in endpoint_results
+                    )),
                     "results": endpoint_results,
                 }
             )

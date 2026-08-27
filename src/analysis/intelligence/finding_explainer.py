@@ -35,6 +35,56 @@ def generate_finding_explanations(finding: dict[str, Any]) -> dict[str, Any]:
         f"Remediation should be prioritized according to SLA targets."
     )
 
+    cat_lower = category.lower()
+    if "sql" in cat_lower or "injection" in cat_lower:
+        snippet = (
+            f"# Parameterized query remediation for {category}\n"
+            "def query_database(cursor, user_id, input_param):\n"
+            "    # Enforce parameterized query boundaries to prevent SQL injection\n"
+            "    cursor.execute('SELECT * FROM records WHERE user_id = %s AND key = %s', (user_id, input_param))\n"
+            "    return cursor.fetchall()"
+        )
+    elif "xss" in cat_lower:
+        snippet = (
+            f"# Context-aware output encoding for {category}\n"
+            "from html import escape\n\n"
+            "def render_template(user_input: str) -> str:\n"
+            "    # Sanitize and encode user input before reflecting in HTML/DOM context\n"
+            "    safe_content = escape(user_input, quote=True)\n"
+            "    return f'<div>{safe_content}</div>'"
+        )
+    elif "ssrf" in cat_lower:
+        snippet = (
+            f"# Strict egress allowlist enforcement for {category}\n"
+            "import ipaddress, urllib.parse\n\n"
+            "def fetch_remote_url(target_url: str, allowed_hosts: set[str]):\n"
+            "    parsed = urllib.parse.urlparse(target_url)\n"
+            "    if parsed.hostname not in allowed_hosts:\n"
+            "        raise PermissionError('Target host not in allowed egress boundaries')\n"
+            "    # Deny link-local, loopback, and cloud metadata IPs\n"
+            "    ip = ipaddress.ip_address(parsed.hostname)\n"
+            "    if ip.is_private or ip.is_loopback or str(ip) == '169.254.169.254':\n"
+            "        raise PermissionError('Egress to private/metadata IP denied')\n"
+            "    return perform_safe_request(target_url)"
+        )
+    elif "idor" in cat_lower or "auth" in cat_lower or "access" in cat_lower:
+        snippet = (
+            f"# Authorization check for {category}\n"
+            "def access_resource(session_user, resource_id: str):\n"
+            "    resource = get_resource_by_id(resource_id)\n"
+            "    if resource.tenant_id != session_user.tenant_id or resource.owner_id != session_user.user_id:\n"
+            "        raise PermissionError('Unauthorized access to tenant resource')\n"
+            "    return resource"
+        )
+    else:
+        snippet = (
+            f"# Ensure strict validation and authorization for {category}\n"
+            "def secure_handler(request):\n"
+            "    validate_input(request.data)\n"
+            "    check_permissions(request.user)\n"
+            "    return process(request)"
+        )
+
     return {
         "finding_id": finding.get("id"),
         "title": title,
@@ -44,7 +94,7 @@ def generate_finding_explanations(finding: dict[str, Any]) -> dict[str, Any]:
             "auditor": auditor_explanation,
             "executive": executive_explanation,
         },
-        "remediation_snippet": f"# Ensure strict validation for {category}\ndef secure_handler(request):\n    validate_input(request.data)\n    check_permissions(request.user)\n    return process(request)",
+        "remediation_snippet": snippet,
     }
 
 

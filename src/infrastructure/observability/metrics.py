@@ -375,6 +375,13 @@ class MetricsRegistry:
         """
         return f"{self._prefix}_{name}"
 
+    @staticmethod
+    def _metric_key(full_name: str, labels: dict[str, str] | None) -> str:
+        if not labels:
+            return full_name
+        label_sig = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
+        return f"{full_name}{{{label_sig}}}"
+
     def counter(
         self, name: str, description: str = "", labels: dict[str, str] | None = None
     ) -> CounterMetric:
@@ -389,14 +396,15 @@ class MetricsRegistry:
             The CounterMetric instance.
         """
         full_name = self._full_name(name)
+        key = self._metric_key(full_name, labels)
         with self._lock:
-            if full_name not in self._counters:
-                self._counters[full_name] = CounterMetric(
+            if key not in self._counters:
+                self._counters[key] = CounterMetric(
                     name=full_name,
                     description=description or f"Counter for {name}",
-                    labels=labels or {},
+                    labels=dict(labels or {}),
                 )
-            return self._counters[full_name]
+            return self._counters[key]
 
     def gauge(
         self, name: str, description: str = "", labels: dict[str, str] | None = None
@@ -412,14 +420,15 @@ class MetricsRegistry:
             The GaugeMetric instance.
         """
         full_name = self._full_name(name)
+        key = self._metric_key(full_name, labels)
         with self._lock:
-            if full_name not in self._gauges:
-                self._gauges[full_name] = GaugeMetric(
+            if key not in self._gauges:
+                self._gauges[key] = GaugeMetric(
                     name=full_name,
                     description=description or f"Gauge for {name}",
-                    labels=labels or {},
+                    labels=dict(labels or {}),
                 )
-            return self._gauges[full_name]
+            return self._gauges[key]
 
     def histogram(
         self,
@@ -440,16 +449,17 @@ class MetricsRegistry:
             The HistogramMetric instance.
         """
         full_name = self._full_name(name)
+        key = self._metric_key(full_name, labels)
         with self._lock:
-            if full_name not in self._histograms:
+            if key not in self._histograms:
                 bucket_list = buckets or self._config.histogram_buckets
-                self._histograms[full_name] = HistogramMetric(
+                self._histograms[key] = HistogramMetric(
                     name=full_name,
                     description=description or f"Histogram for {name}",
-                    labels=labels or {},
+                    labels=dict(labels or {}),
                     buckets=bucket_list,
                 )
-            return self._histograms[full_name]
+            return self._histograms[key]
 
     def summary(
         self, name: str, description: str = "", labels: dict[str, str] | None = None
@@ -465,14 +475,15 @@ class MetricsRegistry:
             The SummaryMetric instance.
         """
         full_name = self._full_name(name)
+        key = self._metric_key(full_name, labels)
         with self._lock:
-            if full_name not in self._summaries:
-                self._summaries[full_name] = SummaryMetric(
+            if key not in self._summaries:
+                self._summaries[key] = SummaryMetric(
                     name=full_name,
                     description=description or f"Summary for {name}",
-                    labels=labels or {},
+                    labels=dict(labels or {}),
                 )
-            return self._summaries[full_name]
+            return self._summaries[key]
 
     def expose_prometheus(self) -> str:
         """Generate Prometheus text exposition format.
