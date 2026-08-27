@@ -165,7 +165,14 @@ graph TD
 **Invariant dependency / proof graph** (`src/core/frontier/invariant_graph.py`): I22 → I30 → (I33, I28) → I31 → I32 → I34 → I35 → I36 → I37, with I37 also depending on I30. Each node names requires / guarantees / invalidates plus recovery, concurrency, and authority dependencies. Each edge is bidirectional: a forward statement (e.g. I31→I32 “only durably committed settlements may create authoritative events”) and the reverse assumption (what the downstream invariant assumes about the upstream). I35 `VERIFY_INVARIANTS` fail-closes if recovered tickets/settlements/identities violate I30/I31/I32/I33, or if I31 is locally COMMITTED but its I28 reservation is not on the ledger. Satisfying the I35 phase machine is not enough.
 
 > [!NOTE]
-> **Precision of Correctness Claims**: The system invariants ($I_1$–$I_{29}$) are verified through rigorous property-based, adversarial stateful model and invariant test suites (`tests/unit/test_formal_invariants.py`, `tests/unit/test_hardened_authority_invariants.py`, `tests/integration/test_chaos_fault_injection.py`). Cryptographic properties (e.g. $I_{11}, I_{27}$) hold under standard computational collision resistance assumptions.
+> **Formal Invariant Verification Taxonomy**: Rather than treating all guarantees as flatly "implemented", the system enforces a 7-tier precision classification (`InvariantVerificationLevel` in `src/core/frontier/invariant_checker.py`):
+> 1. `PROPERTY-TESTED`: Parametric & algebraic property tests (e.g. $I_1, I_2, I_5, I_6, I_9, I_{11}, I_{16}, I_{22}, I_{23}, I_{26}, I_{27}, I_{33}$).
+> 2. `MODEL-CHECKED`: Formal state-machine exploration & dependency proof graphs ($I_7, I_{17}, I_{19}, I_{28}, I_{30}, I_{31}, I_{35}, I_{36}$).
+> 3. `FAULT-INJECTED`: Chaos, crash-recovery, corruption, and partition simulation ($I_3, I_{10}, I_{12}, I_{14}, I_{15}, I_{20}, I_{21}, I_{24}, I_{32}, I_{34}$).
+> 4. `ADVERSARIAL`: Active exploit evasion, SSRF, and bypass probes ($I_{18}, I_{29}$).
+> 5. `PRODUCTION-OBSERVED`: Live telemetry & runtime enforcer observation ($I_8, I_{37}$).
+> 6. `TESTED`: Concrete integration & deterministic unit assertions ($I_4, I_{13}, I_{25}$).
+> 7. `IMPLEMENTED`: Verified production codebase attachment.
 
 ---
 
