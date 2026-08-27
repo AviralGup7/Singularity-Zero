@@ -126,11 +126,14 @@ async def test_xxe_vulnerabilities(
     xml_urls = _filter_xml_endpoints(urls)
     findings: list[dict[str, Any]] = []
 
+    from src.core.utils.shared_sessions import _i29_async_request_hook
+
     async with httpx.AsyncClient(
         timeout=timeout,
         follow_redirects=False,
         verify=True,
         headers={"User-Agent": "cyber-pipeline/1.0"},
+        event_hooks={"request": [_i29_async_request_hook]},
     ) as client:
         for url in xml_urls[:max_urls]:
             findings.extend(await _test_url(client, url, oob_callback_url))

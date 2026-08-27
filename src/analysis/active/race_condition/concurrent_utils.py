@@ -492,7 +492,13 @@ async def _execute_race(
             max_connections=_RACE_MAX_CONNECTIONS,
             max_keepalive_connections=_RACE_MAX_KEEPALIVE,
         )
-        async with httpx.AsyncClient(limits=limits, timeout=30.0) as client:
+        from src.core.utils.shared_sessions import _i29_async_request_hook
+
+        async with httpx.AsyncClient(
+            limits=limits,
+            timeout=30.0,
+            event_hooks={"request": [_i29_async_request_hook]},
+        ) as client:
             bound_tasks = [
                 _race_single_request_async(client, url, i, method, request_headers, body)
                 for i in range(count)

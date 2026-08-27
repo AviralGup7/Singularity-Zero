@@ -50,7 +50,7 @@ frontend/src/
 ├── context/              # Context providers (Auth, Theme, Sound, Keybindings)
 ├── hooks/                # Custom React hooks (useJobMonitor, useJobMonitorSse, useWebSocket)
 ├── pages/                # Top-level route pages (Dashboard, Jobs, Findings, Cockpit, etc.)
-├── stores/               # Zustand state stores (jobStore, authStore, displayStore, scopeStore, themeStore)
+├── stores/               # Zustand state stores (authStore, displayStore, eventLogStore, jobStore, scopeStore, settingsStore, themeStore)
 ├── styles/               # Global CSS, theme definitions, and Tailwind 4 directives
 ├── telemetry/            # Telemetry normalization pipeline (normalizer.ts)
 ├── types/                # Shared TypeScript contracts and schema interfaces

@@ -42,7 +42,8 @@ Set these in the real environment, not in git:
 
 - `APP_SECRET_KEY`
 - `AUTHORITY_SIGNING_KEY` (and optional `AUTHORITY_SIGNING_KEY_ID`)
-- `DASHBOARD_API_KEY` / `DASHBOARD_AUTH_DISABLED=false` in production
+- `DASHBOARD_API_KEY` / `DASHBOARD_ADMIN_KEYS` / `DASHBOARD_AUTH_DISABLED=false` in production
+- `DASHBOARD_MTLS_ENABLED=true` (if mutual TLS client certificate verification is enforced)
 - `MESH_SECRET` if gossip is enabled
 - `REDIS_URL` / `DATABASE_URL`
 

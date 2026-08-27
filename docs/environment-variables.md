@@ -19,10 +19,18 @@ This document serves as the authoritative single source of truth for all environ
 | `AUTHORITY_SIGNING_KEY` | string | (None) | HMAC-SHA256 key for command receipts (I13) and settlement/ticket HMAC. Falls back to `APP_SECRET_KEY`. If **neither** is set, a process-local random key is used — in-process verify works; **verify dies across restart**. No published fallback string. |
 | `AUTHORITY_SIGNING_KEY_ID` | string | `authority-hmac-v1` | Key identifier string bound into certified command receipts. |
 | `PIPELINE_GLOBAL_BUDGET_UNITS` | integer | `10000` | Total units allocated to `GlobalBudgetAggregate` (P-0000) for sub-lease distribution. |
+| `PIPELINE_STATE_MODE` | string | (empty) | Explicit state mode selector (`memory`, `hybrid`, `disk`). |
 | `FEATURE_WASM_PLUGINS` | boolean | `false` | Enable wasmtime AEVE sandbox. Default is `_MockWasmtime`. |
 | `FEATURE_PPO` | boolean | `false` | Enable PPO evasion (`src/learning/rl.py`). Off = stub. |
 | `ENABLE_THRESHOLD_TUNING` | boolean | unset | Opt-in threshold tuner. `true\|1\|yes` enables; `false\|0\|no` overrides config `enabled=True`. Default config `enabled=False`. |
 | `STAGE_CAS_SOFT` | boolean | unset | Test hook: stage CAS keep-and-log instead of raising `IllegalStageTransitionError`. |
+| `AUDIT_LOG_FILE` | string | (None) | Destination file path for structured JSON audit events. |
+| `AUDIT_LOG_STDOUT` | boolean | `true` | Stream structured audit log entries to stdout. |
+| `BLOOM_CHUNK_SIZE` | integer | (None) | Chunk size override for vectorized NumPy Bloom operations. |
+| `NUCLEI_SIGNATURE_PUBLIC_KEY`| string | (None) | Ed25519 public key hex string for verifying signed Nuclei templates. |
+| `APP_SECURITY_PERMISSIVE` | boolean | `false` | Permissive security override for local dev (bypasses signature and secret checks). |
+| `EXTRA_SECRET_ENV_VARS` | string | (empty) | Comma-separated extra environment variable names to validate as secrets. |
+| `CYBER_HTTP_PROFILING` | boolean | `false` | Enable microsecond HTTP profiling and flame-graph logging. |
 
 ---
 
@@ -38,6 +46,7 @@ All FastAPI server settings accept the `DASHBOARD_` environment variable prefix:
 | `DASHBOARD_DEBUG` | boolean | `false` | Enable debug logging and stack traces in API errors. |
 | `DASHBOARD_ALLOWED_ORIGINS` | string | (empty) | Comma-separated list of allowed CORS origins. |
 | `DASHBOARD_API_KEY` | string | (None) | Master API key for administrative API authentication. |
+| `DASHBOARD_ADMIN_KEYS` | string | (empty) | Comma-separated list of additional administrative API keys. |
 | `DASHBOARD_GUEST_ACCESS_ENABLED` | boolean | `false` | Allow unauthenticated read-only guest access. Local `create_app` setdefaults `true` when `APP_ENV` is not production/staging. |
 | `DASHBOARD_AUTH_DISABLED` | boolean | `false` | Disable dashboard auth (grants admin). Local demo setdefaults `true` if unset. Origin validation still runs **before** this bypass. Guest-token tests must `monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "false")`. |
 | `DASHBOARD_RATE_LIMIT_DEFAULT` | integer | `60` | Default rate limit (requests per minute per IP). |
@@ -46,6 +55,8 @@ All FastAPI server settings accept the `DASHBOARD_` environment variable prefix:
 | `DASHBOARD_RATE_LIMIT_REMEDIATION` | integer | `5` | Rate limit for remediation trigger endpoints. |
 | `DASHBOARD_REDIS_URL` | string | (None) | Optional Redis URL for distributed dashboard session/state caching. |
 | `DASHBOARD_MTLS_ENABLED` | boolean | `false` | Enable mutual TLS verification for incoming REST connections. |
+| `ENABLE_HTTP_METRICS` | boolean | `false` | Enable Prometheus HTTP middleware metrics on dashboard routes. |
+| `BUILD_SHA` | string | `dev` | Git commit SHA embedded into dashboard system info and health responses. |
 
 ---
 
@@ -79,16 +90,25 @@ All FastAPI server settings accept the `DASHBOARD_` environment variable prefix:
 
 ---
 
-## 📊 Observability, Metrics & Tracing (`src/infrastructure/observability/`)
+## 📊 Observability, Metrics & Tracing (`src/infrastructure/observability/`, `src/core/frontier/`)
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `OBSERVABILITY_METRICS_ENABLED` | boolean | `true` | Enables Prometheus metrics collection and `/metrics` endpoint. |
 | `OBSERVABILITY_METRICS_PORT` | integer | `9090` | Dedicated metrics port when running in standalone sidecar mode. |
 | `OBSERVABILITY_TRACING_ENABLED` | boolean | `true` | Enables OpenTelemetry distributed tracing spans. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | string | `http://localhost:4317` | OpenTelemetry OTLP collector gRPC endpoint. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | string | `http://localhost:4317` | OpenTelemetry OTLP collector gRPC/HTTP endpoint. |
+| `OTEL_LOCAL_SPAN_DB` | string | (None) | Path to local SQLite file for caching spans offline when OTLP collector is unreachable. |
 | `OBSERVABILITY_LOG_LEVEL` | string | `INFO` | Structured logging minimum level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `OBSERVABILITY_LOG_FORMAT` | string | `json` | Log output format (`json` for machine ingestion or `console` for human readability). |
+
+---
+
+## ⚙️ Analysis Engines & Workflows (`src/analysis/`)
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `ANALYZER_POOL_SIZE` | integer | `4` | Number of worker processes allocated to the active analysis execution pool. |
 
 ---
 
@@ -110,7 +130,7 @@ Live HTTP clients live in `src/intelligence/feeds/`. `src/intel/` is an offline 
 
 ---
 
-## 🎯 Bug Bounty Platform Integrations (`src/analysis/bug_bounty/`, `src/reporting/platforms/`)
+## 🎯 Bug Bounty & Issue Tracker Platform Integrations (`src/analysis/automation/`, `src/reporting/platforms/`)
 
 | Variable | Type | Description |
 |---|---|---|
@@ -119,6 +139,8 @@ Live HTTP clients live in `src/intelligence/feeds/`. `src/intel/` is an offline 
 | `BUGCROWD_API_TOKEN` | string | Bugcrowd API token for program scope sync. |
 | `INTIGRITI_API_TOKEN` | string | Intigriti API token for scope synchronization. |
 | `YESWEHACK_API_TOKEN` | string | YesWeHack API token for scope retrieval and finding submission. |
+| `JIRA_EMAIL` | string | Service account email for Jira issue generation. |
+| `JIRA_API_TOKEN` | string | API token / personal access token for Jira issue generation. |
 
 ---
 

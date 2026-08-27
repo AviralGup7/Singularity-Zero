@@ -27,7 +27,10 @@ from typing import Any, cast
 from urllib.parse import urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None  # type: ignore[assignment]
 
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics
@@ -91,6 +94,14 @@ def _candidate_to_absolute_url(candidate: str, base_url: str) -> str | None:
 
 def _extract_links_from_html(html: str, base_url: str, scope_roots: set[str]) -> set[str]:
     urls: set[str] = set()
+    if BeautifulSoup is None:
+        for match in re.finditer(r'(?:href|src)=["\']([^"\']+)["\']', html or "", re.IGNORECASE):
+            raw = match.group(1).strip()
+            absolute = _candidate_to_absolute_url(raw, base_url)
+            if absolute and _is_in_scope_url(absolute, scope_roots):
+                urls.add(absolute)
+        return urls
+
     try:
         soup = BeautifulSoup(html or "", "html.parser")
     except Exception:

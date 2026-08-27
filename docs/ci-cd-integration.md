@@ -11,7 +11,7 @@ python -m src.pipeline.runtime \
   --policy policy.toml
 ```
 
-Optional: `--dry-run`, `--fresh` / `--resume-from`, `--legacy-exit-codes` (collapses 2/3/4 → 1).
+Optional flags: `--dry-run`, `--force-fresh-run` (or `--fresh` via `cstp scan`), `--resume-from <id>`, `--ci-fail-on-severity <critical|high|medium|low|info>`, `--legacy-exit-codes` (collapses 2/3/4 → 1).
 
 SARIF is produced by the `sarif_export` stage (`src/reporting/sarif_exporter.py`) when the DAG reaches it. `reporting` is a join sink: it waits until every finding producer is **terminal**.
 

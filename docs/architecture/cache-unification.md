@@ -60,3 +60,17 @@ record = await wrapper.get_or_compute(
 ```
 
 When multiple parallel stage workers request the same target concurrently, subsequent tasks await the first task's lock, eliminating redundant probes and upstream rate-limit penalties.
+
+---
+
+## TTL Modes & Key Normalization
+
+### 1. TTL Evaluation Modes (`TTLMode`)
+- `TTLMode.EXACT`: Strict expiration timestamp. Key expires precisely at `now + ttl_seconds`.
+- `TTLMode.JITTERED`: Applies uniform random jitter (±10%) to the baseline TTL to prevent cache stampedes and synchronized backend expirations.
+- `TTLMode.SLIDING`: Resets the TTL clock on every read hit, keeping frequently accessed working sets alive indefinitely.
+
+### 2. Cache Key Normalization (`CacheKeyNormalizer`)
+- Lowercases namespace, target, and protocol components.
+- Strips trailing slashes, default ports (`:80`, `:443`), and uninformative tracking parameters (`utm_*`, `fbclid`).
+- Deterministically hashes long identifiers (> 64 chars) with SHA-256 to ensure bounded SQLite key index size.

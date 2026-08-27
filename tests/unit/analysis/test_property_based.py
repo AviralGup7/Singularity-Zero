@@ -1,4 +1,6 @@
-"""Property-based tests for security analysis detectors using Hypothesis."""
+import pytest
+
+pytest.importorskip("hypothesis")
 
 import ipaddress
 import re

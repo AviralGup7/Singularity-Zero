@@ -5,6 +5,10 @@ exposure detectors with both positive (should detect) and negative
 (should not false-positive) property tests.
 """
 
+import pytest
+
+pytest.importorskip("hypothesis")
+
 import ipaddress
 import string
 from typing import Any

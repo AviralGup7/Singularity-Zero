@@ -144,6 +144,31 @@ Source: `src/websocket_server/metrics.py` via `get_metrics()` (`cyber_pipeline_`
 
 Source: `src/recon/collectors/metrics.py` via `get_metrics()`.
 
+### 1.9 Pipeline Lifecycle Events (`src/core/events/event_bus.py`)
+
+The pipeline emits 18 typed domain events during scan orchestration:
+
+| Event Type Enum | Event String Value | Payload Characteristics | Description |
+|---|---|---|---|
+| `EventType.PIPELINE_STARTED` | `pipeline_started` | `target`, `config_path`, `scope_count` | Root pipeline execution startup |
+| `EventType.STAGE_STARTED` | `stage_started` | `stage_name`, `timeout`, `inputs_count` | Stage worker dispatch initiation |
+| `EventType.STAGE_PROGRESS` | `stage_progress` | `stage_name`, `completed_units`, `total` | Intermediate incremental progress update |
+| `EventType.STAGE_RETRY` | `stage_retry` | `stage_name`, `attempt`, `backoff_sec` | Stage execution retry attempt |
+| `EventType.STAGE_COMPLETED` | `stage_completed` | `stage_name`, `output_count`, `latency` | Successful stage completion |
+| `EventType.STAGE_SKIPPED` | `stage_skipped` | `stage_name`, `reason`, `gate_condition` | Gated skip condition satisfied |
+| `EventType.STAGE_TELEMETRY` | `stage_telemetry` | `stage_name`, `latency_sec`, `memory_mb` | Resource footprint telemetry metric |
+| `EventType.FINDING_CREATED` | `finding_created` | `finding_id`, `wal_id`, `receipt_hmac` | Certified finding settlement creation |
+| `EventType.FINDING_DISCOVERED` | `finding_discovered` | `finding_id`, `url`, `severity`, `confidence` | Raw discovery event before settlement |
+| `EventType.STAGE_FAILED` | `stage_failed` | `stage_name`, `error_type`, `stack_trace` | Stage execution exception or timeout |
+| `EventType.PIPELINE_COMPLETE` | `pipeline_complete` | `total_findings`, `duration_sec`, `exit_code` | Pipeline termination with clean/policy exit |
+| `EventType.PIPELINE_ERROR` | `pipeline_error` | `fatal_error`, `stage_map`, `exit_code` | Fatal pipeline termination (exit 3/1) |
+| `EventType.PIPELINE_CANCELLED` | `pipeline_cancelled` | `reason`, `interrupted_stages` | User or timeout-initiated cancellation |
+| `EventType.GHOST_ACTOR_MIGRATED` | `ghost_actor_migrated` | `actor_id`, `from_node`, `to_node` | Dynamic workload migration event |
+| `EventType.GHOST_ACTOR_EVACUATED` | `ghost_actor_evacuated` | `actor_id`, `source_node` | Evacuation on node drain |
+| `EventType.INGRESS_POLICY_RESULT` | `ingress_policy_result` | `policy_name`, `action`, `rule_id` | Ingress filtering policy decision |
+| `EventType.HEALTH_METRIC_EMITTED` | `health_metric_emitted` | `component`, `status`, `health_score` | Subsystem heartbeat and health metric |
+| `EventType.RECON_DEGRADED` | `recon_degraded` | `degraded_sources`, `discovered_urls` | Passive recon degradation warning |
+
 ---
 
 ## 2. Alert Catalog

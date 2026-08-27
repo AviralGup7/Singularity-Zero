@@ -3,6 +3,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+pytest.importorskip("multipart")
+
 
 class DummyUpload:
     def __init__(self, content: bytes):

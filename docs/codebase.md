@@ -62,7 +62,7 @@ src/
 ├── checkpoint/           # 💾 Distributed scan state snapshot and recovery interfaces
 │
 ├── cli/                  # 💻 Modern CLI terminal command center
-│   ├── commands/         # Subcommand definitions (scan, orchestrate, mesh, worker, replay, export)
+│   ├── commands/         # Subcommand definitions (scan, start, system, plugin)
 │   ├── types.py          # CLI type definitions and argument parsing models
 │   └── ui.py             # Rich terminal rendering, spinners, and formatted tables
 │

@@ -1,3 +1,7 @@
+import pytest
+
+pytest.importorskip("bs4")
+
 from src.recon.collectors import crawler
 
 

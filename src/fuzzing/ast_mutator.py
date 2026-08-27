@@ -14,7 +14,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
-import defusedxml.ElementTree as ET  # noqa: N817
+try:
+    import defusedxml.ElementTree as ET  # noqa: N817
+except ImportError:
+    ET = None  # type: ignore[assignment]
 
 # Maximum time allowed for a single regex operation (seconds).
 _REGEX_TIMEOUT: float = 2.0
@@ -233,7 +236,9 @@ class XMLASTMutator(BaseASTMutator):
         return result
 
     @staticmethod
-    def _safe_parse(xml_str: str) -> ET.Element | None:
+    def _safe_parse(xml_str: str) -> Any:
+        if ET is None:
+            return None
         try:
             return ET.fromstring(xml_str)
         except (ET.ParseError, Exception):

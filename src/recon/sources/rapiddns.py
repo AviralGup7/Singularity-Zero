@@ -8,7 +8,10 @@ import logging
 import re
 
 import httpx
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None  # type: ignore[assignment]
 
 from src.recon.domain_validation import normalize_domain as _normalize_domain
 
@@ -38,18 +41,21 @@ async def query_rapiddns(
     try:
         url = f"https://rapiddns.io/subdomain/{domain}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; cyber-pipeline/1.0)",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            follow_redirects=False,
-            headers=headers,
-        ) as client:
-            resp = await client.get(url)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
             if resp.status_code != 200:
                 logger.debug("RapidDNS returned HTTP %d", resp.status_code)
                 return set()
+
+            if BeautifulSoup is None:
+                for cell in re.findall(r'<td[^>]*class=["\']hostname["\'][^>]*>(.*?)</td>', resp.text, re.DOTALL | re.IGNORECASE):
+                    text = re.sub(r'<[^>]+>', ' ', cell).strip().lower()
+                    if text and pattern.match(text):
+                        subdomains.add(text)
+                return subdomains
 
             soup = BeautifulSoup(resp.text, "html.parser")
             table = soup.find("table", id="table")

@@ -232,7 +232,13 @@ async def discover_websocket_endpoints(
     advertise a ``Sec-WebSocket-*`` header.
     """
     discovered: list[str] = []
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+    from src.core.utils.shared_sessions import _i29_async_request_hook
+
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        follow_redirects=False,
+        event_hooks={"request": [_i29_async_request_hook]},
+    ) as client:
         for base in base_urls:
             for hint in ("", *DEFAULT_WS_PATH_HINTS):
                 target = base.rstrip("/") + hint

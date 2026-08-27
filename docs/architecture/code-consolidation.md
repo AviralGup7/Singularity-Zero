@@ -184,5 +184,11 @@ TotalBudget ≡ Consumed + Outstanding (Reserved + Active) + Available
    `src/bootstrap/` is the single application composition root, permitted to register cross-layer protocol bindings at startup.
 3. **Facade Immutability**:
    Facade packages (`src/cache/`, `src/checkpoint/`, `src/mesh/`) MUST NOT maintain local state or introduce competing write paths.
+4. **I29 Continuous Egress Hook Enforcement**:
+   All active HTTP probe clients, GraphQL attackers, gRPC fuzzers, race condition actors, and raw connection pools instantiated across `src/analysis/` MUST attach `_i29_async_request_hook` / `_i29_request_hook` (or obtain instances via `get_async_client()` / `get_shared_sync_session()`). Direct unhooked HTTP requests are strictly prohibited to prevent sandbox escapes and unauthorized IMDS access.
+5. **I28 Sublease Balance Conservation**:
+   When consuming or releasing budget subleases in `HuntBudget`, if `units > remaining`, the consumed/returned slice must be settled immediately and the residual balance MUST be preserved in `_open_subleases` to prevent budget leakage or over-consumption.
+6. **Synchronous Telemetry Dispatch**:
+   Stage lifecycle instrumentation callbacks must dispatch telemetry via `publish_sync()` rather than unawaited coroutine `publish()` methods to guarantee delivery without event loop stalls or dropped telemetry frames.
 
 ---

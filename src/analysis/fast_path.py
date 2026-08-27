@@ -290,11 +290,14 @@ class FastPathDispatcher:
                 max_connections=self._max_connections,
                 max_keepalive_connections=self._max_keepalive,
             )
+            from src.core.utils.shared_sessions import _i29_async_request_hook
+
             self._client_pool = httpx.AsyncClient(
                 limits=limits,
                 timeout=httpx.Timeout(self._timeout),
                 http2=self._http2,
                 follow_redirects=False,  # We handle redirects ourselves
+                event_hooks={"request": [_i29_async_request_hook]},
             )
         return self._client_pool
 
@@ -408,10 +411,13 @@ class FastPathDispatcher:
 
             # Retry with reduced settings (no http2, single connection)
             try:
+                from src.core.utils.shared_sessions import _i29_async_request_hook
+
                 async with httpx.AsyncClient(
                     timeout=httpx.Timeout(self._timeout * 1.5),
                     follow_redirects=True,
                     limits=httpx.Limits(max_connections=1, max_keepalive_connections=0),
+                    event_hooks={"request": [_i29_async_request_hook]},
                 ) as fallback_client:
                     fallback_request = fallback_client.build_request(
                         method=method, url=url, headers=req_headers

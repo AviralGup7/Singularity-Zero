@@ -112,6 +112,8 @@ Boundary assertions in `tests/architecture/` strictly enforce dependency hierarc
 - **Subprocess Mocking**: External CLI tools (`subfinder`, `httpx`, `nuclei`, `katana`) must never be invoked directly during unit tests. Use `monkeypatch.setattr(subprocess, "run", fake_run)` or adapter mocking fixtures.
 - **Network Call Isolation**: Use `httpx_mock` or `responses` fixtures to intercept outbound HTTP calls and provide deterministic test fixtures.
 - **Filesystem Isolation**: Use `tmp_path` fixture for all tests that read or write file artifacts.
+- **Optional Dependency Skipping**: Test modules exercising non-core optional dependencies (`hypothesis`, `aiohttp`, `bs4`, `python-multipart`, `defusedxml`) must guard execution with `pytest.importorskip("<pkg>")` to ensure clean test suite execution across lightweight local agent and container environments.
+- **Static AST vs Dynamic Security Hardening**: Static AST tests (e.g. `test_security_hardening.py`) verify the absolute exclusion of insecure standard library parsers (such as raw `xml.etree.ElementTree`) from production code. Dynamic tests verify active mitigation behavior and skip if the test double parser is absent.
 
 ---
 

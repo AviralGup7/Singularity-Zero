@@ -155,16 +155,26 @@ components:
       - form_defaults
       title: ApiDefaults
       type: object
-    Body_import_semgrep_api_imports_semgrep_post:
+    AssignRequest:
       properties:
-        file:
-          anyOf:
-          - contentMediaType: application/octet-stream
-            type: string
-          - type: 'null'
-          description: Semgrep JSON file (multipart/form-data)
-          title: File
-      title: Body_import_semgrep_api_imports_semgrep_post
+        assigned_by:
+          default: ''
+          title: Assigned By
+          type: string
+        assigned_to:
+          title: Assigned To
+          type: string
+        finding_id:
+          title: Finding Id
+          type: string
+        notes:
+          default: ''
+          title: Notes
+          type: string
+      required:
+      - finding_id
+      - assigned_to
+      title: AssignRequest
       type: object
     CSPReportResponse:
       description: Persisted CSP report.
@@ -452,12 +462,21 @@ components:
         failed_jobs:
           title: Failed Jobs
           type: integer
+        findings_summary:
+          additionalProperties: true
+          title: Findings Summary
+          type: object
         pipeline_health_label:
           title: Pipeline Health Label
           type: string
         pipeline_health_score:
           title: Pipeline Health Score
           type: integer
+        scan_trend:
+          items:
+            type: integer
+          title: Scan Trend
+          type: array
         severity_counts:
           additionalProperties:
             type: integer
@@ -474,6 +493,15 @@ components:
         total_targets:
           title: Total Targets
           type: integer
+        trend_data:
+          items:
+            type: integer
+          title: Trend Data
+          type: array
+        trend_source:
+          default: empty
+          title: Trend Source
+          type: string
       required:
       - active_jobs
       - completed_jobs
@@ -593,6 +621,7 @@ components:
       description: Body for creating an evidence record.
       properties:
         data:
+          maxLength: 1048576
           title: Data
           type: string
         finding_id:
@@ -964,7 +993,7 @@ components:
           - type: 'null'
           title: Uptime Seconds
         version:
-          default: 2.0.0
+          default: 3.0.0
           title: Version
           type: string
       required:
@@ -1041,6 +1070,14 @@ components:
           - type: 'null'
           description: Selected module names
           title: Modules
+        project_id:
+          anyOf:
+          - maxLength: 64
+            pattern: ^[A-Za-z0-9_-]+$
+            type: string
+          - type: 'null'
+          description: Pre-configured project preset ID
+          title: Project Id
         runtime_overrides:
           additionalProperties:
             type: string
@@ -1063,11 +1100,27 @@ components:
     JobListResponse:
       description: List of jobs response.
       properties:
+        has_next:
+          default: false
+          title: Has Next
+          type: boolean
+        has_prev:
+          default: false
+          title: Has Prev
+          type: boolean
         jobs:
           items:
             $ref: '#/components/schemas/JobResponse'
           title: Jobs
           type: array
+        page:
+          default: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 100
+          title: Page Size
+          type: integer
         total:
           default: 0
           title: Total
@@ -1133,9 +1186,11 @@ components:
           title: Enabled Modules
           type: array
         error:
+          anyOf:
+          - type: string
+          - type: 'null'
           default: ''
           title: Error
-          type: string
         eta_label:
           anyOf:
           - type: string
@@ -1167,6 +1222,10 @@ components:
           - type: string
           - type: 'null'
           title: Finished At Label
+        force_fresh:
+          default: true
+          title: Force Fresh
+          type: boolean
         has_eta:
           default: false
           title: Has Eta
@@ -1195,11 +1254,20 @@ components:
           type: integer
         progress_telemetry:
           $ref: '#/components/schemas/ProgressTelemetry'
+        resume_supported:
+          default: false
+          title: Resume Supported
+          type: boolean
         returncode:
           anyOf:
           - type: integer
           - type: 'null'
           title: Returncode
+        running_stages:
+          items:
+            type: string
+          title: Running Stages
+          type: array
         scope_entries:
           items:
             type: string
@@ -1211,6 +1279,10 @@ components:
         stage:
           title: Stage
           type: string
+        stage_graph:
+          additionalProperties: true
+          title: Stage Graph
+          type: object
         stage_label:
           title: Stage Label
           type: string
@@ -1512,8 +1584,7 @@ components:
           type: integer
         notifications:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/NotificationResponse'
           title: Notifications
           type: array
         offset:
@@ -1532,6 +1603,68 @@ components:
       - limit
       - offset
       title: NotificationListResponse
+      type: object
+    NotificationResponse:
+      additionalProperties: true
+      properties:
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        created_at:
+          title: Created At
+          type: string
+        entity_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Id
+        entity_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entity Type
+        event:
+          title: Event
+          type: string
+        href:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Href
+        id:
+          title: Id
+          type: string
+        message:
+          title: Message
+          type: string
+        metadata:
+          title: Metadata
+          type: string
+        priority:
+          title: Priority
+          type: string
+        read:
+          title: Read
+          type: boolean
+        source:
+          title: Source
+          type: string
+        title:
+          title: Title
+          type: string
+      required:
+      - id
+      - event
+      - priority
+      - title
+      - message
+      - metadata
+      - source
+      - read
+      - created_at
+      title: NotificationResponse
       type: object
     PipelineTelemetryEvent:
       description: Replayable structured event emitted by the pipeline.
@@ -2755,7 +2888,7 @@ components:
 info:
   description: Unified security orchestration and vulnerability analysis dashboard.
   title: Cyber Security Test Pipeline Dashboard
-  version: 2.0.0
+  version: 3.1.0
   x-ai-metadata:
     agent_roles:
     - orchestrator
@@ -2936,6 +3069,146 @@ paths:
       tags:
       - Access Logs
       - Access Logs
+  /api/assignments:
+    post:
+      operationId: assign_finding_api_assignments_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Assign Finding Api Assignments Post
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyHeader: []
+      summary: Assign Finding
+      tags:
+      - Assignments
+      - Assignments
+  /api/assignments/{finding_id}:
+    get:
+      operationId: get_assignment_api_assignments__finding_id__get
+      parameters:
+      - in: path
+        name: finding_id
+        required: true
+        schema:
+          title: Finding Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - additionalProperties: true
+                  type: object
+                - type: 'null'
+                title: Response Get Assignment Api Assignments  Finding Id  Get
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyHeader: []
+      summary: Get Assignment
+      tags:
+      - Assignments
+      - Assignments
+  /api/assignments/{finding_id}/lock:
+    post:
+      operationId: lock_finding_api_assignments__finding_id__lock_post
+      parameters:
+      - in: path
+        name: finding_id
+        required: true
+        schema:
+          title: Finding Id
+          type: string
+      - in: query
+        name: user_id
+        required: false
+        schema:
+          default: anonymous
+          title: User Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Lock Finding Api Assignments  Finding Id  Lock Post
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyHeader: []
+      summary: Lock Finding
+      tags:
+      - Assignments
+      - Assignments
+  /api/assignments/{finding_id}/unlock:
+    post:
+      operationId: unlock_finding_api_assignments__finding_id__unlock_post
+      parameters:
+      - in: path
+        name: finding_id
+        required: true
+        schema:
+          title: Finding Id
+          type: string
+      - in: query
+        name: user_id
+        required: false
+        schema:
+          default: anonymous
+          title: User Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Unlock Finding Api Assignments  Finding Id  Unlock
+                  Post
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyHeader: []
+      summary: Unlock Finding
+      tags:
+      - Assignments
+      - Assignments
   /api/audit/entries:
     get:
       description: Return audit log entries with filtering and pagination.
@@ -3048,6 +3321,30 @@ paths:
       tags:
       - Audit
       - Audit
+  /api/auth/me:
+    get:
+      operationId: get_current_user_info_api_auth_me_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Get Current User Info Api Auth Me Get
+                type: object
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
+      summary: Get current authenticated user info
+      tags:
+      - Security
+      - Security
   /api/auth/token:
     post:
       operationId: create_dashboard_token_api_auth_token_post
@@ -3075,7 +3372,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          description: Unprocessable Entity
+          description: Unprocessable Content
       summary: Exchange an API key for a short-lived dashboard token
       tags:
       - Security
@@ -3093,6 +3390,8 @@ paths:
                 title: Response Bloom Health Api Bloom Health Get
                 type: object
           description: Successful Response
+      security:
+      - APIKeyHeader: []
       summary: Bloom Health
       tags:
       - Bloom
@@ -3396,6 +3695,76 @@ paths:
       tags:
       - Cache
       - Cache
+  /api/cockpit/edges:
+    get:
+      description: Return only the edge list from the same graph as ``/graph``.
+      operationId: get_cockpit_edges_api_cockpit_edges_get
+      parameters:
+      - in: query
+        name: target
+        required: true
+        schema:
+          minLength: 1
+          title: Target
+          type: string
+      - in: query
+        name: run
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+      - in: query
+        name: max_nodes
+        required: false
+        schema:
+          default: 2000
+          maximum: 10000
+          minimum: 1
+          title: Max Nodes
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Get Cockpit Edges Api Cockpit Edges Get
+                type: object
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyHeader: []
+      summary: Get cockpit graph edges for a run
+      tags:
+      - Cockpit
+      - Cockpit
   /api/cockpit/events:
     get:
       description: Return a timeline of cockpit-relevant events.
@@ -3912,7 +4281,7 @@ paths:
           description: Validation Error
       security:
       - APIKeyHeader: []
-      summary: List compliance access log entries
+      summary: List compliance access logs
       tags:
       - Compliance
       - Compliance
@@ -4146,6 +4515,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/DashboardStatsResponse'
           description: Successful Response
+      security:
+      - APIKeyHeader: []
       summary: Get Dashboard Stats
       tags:
       - Analytics
@@ -4339,7 +4710,7 @@ paths:
       - Evidence Custody
   /api/evidence-custody/{evidence_id}:
     delete:
-      description: Remove an evidence record.
+      description: Remove an evidence record after recording a custody entry.
       operationId: delete_evidence_api_evidence_custody__evidence_id__delete
       parameters:
       - in: path
@@ -4348,6 +4719,12 @@ paths:
         schema:
           title: Evidence Id
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceAccessRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5137,7 +5514,8 @@ paths:
           description: Validation Error
       security:
       - APIKeyHeader: []
-      summary: Get AI persona-tailored (Developer/Auditor) explanations for a finding
+      summary: Get AI persona-tailored (Developer/Auditor/Executive) explanations
+        for a finding
       tags:
       - Findings
       - Findings
@@ -5181,7 +5559,7 @@ paths:
           description: Validation Error
       security:
       - APIKeyHeader: []
-      summary: Get ML explainability analysis (SHAP) for a finding
+      summary: Get ML explainability analysis for a finding
       tags:
       - Findings
       - Findings
@@ -5559,9 +5937,7 @@ paths:
       description: 'Return a serializable snapshot of every per-tool circuit breaker.
 
 
-        The response is sourced from the bound
-
-        :class:`~src.pipeline.services.tool_execution.ToolExecutionService` (or
+        The response is sourced from the bound tool execution service (or
 
         the module-level default if the controller has none wired).'
       operationId: list_circuit_breakers_api_health_self_healing_circuit_breakers_get
@@ -5748,100 +6124,6 @@ paths:
       tags:
       - Self-Healing
       - Self-Healing
-  /api/imports/semgrep:
-    post:
-      operationId: import_semgrep_api_imports_semgrep_post
-      parameters:
-      - description: Target name for the imported results
-        in: query
-        name: target_name
-        required: true
-        schema:
-          description: Target name for the imported results
-          title: Target Name
-          type: string
-      - description: Optional run name (will be created if omitted)
-        in: query
-        name: run
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Optional run name (will be created if omitted)
-          title: Run
-      - description: Overwrite existing semgrep.json if present
-        in: query
-        name: overwrite
-        required: false
-        schema:
-          default: false
-          description: Overwrite existing semgrep.json if present
-          title: Overwrite
-          type: boolean
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Body_import_semgrep_api_imports_semgrep_post'
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties:
-                  type: string
-                title: Response Import Semgrep Api Imports Semgrep Post
-                type: object
-          description: Successful Response
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Bad Request
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '409':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Conflict
-        '413':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Request Entity Too Large
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unsupported Media Type
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - APIKeyHeader: []
-      summary: Import Semgrep JSON for a target
-      tags:
-      - Imports
-      - Imports
   /api/jobs:
     get:
       description: List all scan jobs with sorting, filtering and pagination.
@@ -5862,9 +6144,9 @@ paths:
         name: page_size
         required: false
         schema:
-          default: 20
+          default: 100
           description: Items per page
-          maximum: 100
+          maximum: 200
           minimum: 1
           title: Page Size
           type: integer
@@ -5878,6 +6160,16 @@ paths:
           - type: 'null'
           description: Filter by status
           title: Status
+      - description: Search URL, mode, stage, or reason
+        in: query
+        name: search
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Search URL, mode, stage, or reason
+          title: Search
       - description: Sort field
         in: query
         name: sort_by
@@ -5887,16 +6179,26 @@ paths:
           description: Sort field
           title: Sort By
           type: string
-      - description: Sort order
+      - description: Sort order (asc|desc)
         in: query
         name: sort_order
         required: false
         schema:
-          default: desc
-          description: Sort order
-          pattern: ^(asc|desc)$
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Sort order (asc|desc)
           title: Sort Order
-          type: string
+      - description: Alias for sort_order used by the console
+        in: query
+        name: sort_dir
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Alias for sort_order used by the console
+          title: Sort Dir
       responses:
         '200':
           content:
@@ -5929,7 +6231,12 @@ paths:
 
         Creates a job record, writes config/scope files, and launches
 
-        the pipeline subprocess in a background thread.'
+        the pipeline subprocess in a background thread.
+
+
+        Bug #38: Attaches a config fingerprint to the job metadata so
+
+        resume logic can detect if the config changed between runs.'
       operationId: start_job_api_jobs_post
       requestBody:
         content:
@@ -6021,7 +6328,12 @@ paths:
 
         Creates a job record, writes config/scope files, and launches
 
-        the pipeline subprocess in a background thread.'
+        the pipeline subprocess in a background thread.
+
+
+        Bug #38: Attaches a config fingerprint to the job metadata so
+
+        resume logic can detect if the config changed between runs.'
       operationId: start_job_api_jobs_start_post
       requestBody:
         content:
@@ -6723,6 +7035,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
         '422':
           content:
             application/json:
@@ -6770,6 +7088,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
         '422':
           content:
             application/json:
@@ -6824,6 +7148,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
         '404':
           content:
             application/json:
@@ -6912,6 +7242,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/DeleteResponse'
           description: Successful Response
+      security:
+      - APIKeyHeader: []
       summary: Delete All Notifications
       tags:
       - Notifications
@@ -6957,6 +7289,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - APIKeyHeader: []
       summary: List Notifications
       tags:
       - Notifications
@@ -6972,6 +7306,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/MarkReadResponse'
           description: Successful Response
+      security:
+      - APIKeyHeader: []
       summary: Mark All Read
       tags:
       - Notifications
@@ -6987,6 +7323,8 @@ paths:
               schema:
                 title: Response Notification Stream Api Notifications Stream Get
           description: Successful Response
+      security:
+      - APIKeyHeader: []
       summary: Notification Stream
       tags:
       - Notifications
@@ -7002,6 +7340,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/UnreadCountResponse'
           description: Successful Response
+      security:
+      - APIKeyHeader: []
       summary: Unread Count
       tags:
       - Notifications
@@ -7030,6 +7370,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - APIKeyHeader: []
       summary: Delete Notification
       tags:
       - Notifications
@@ -7058,10 +7400,83 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - APIKeyHeader: []
       summary: Mark Notification Read
       tags:
       - Notifications
       - Notifications
+  /api/projects:
+    get:
+      description: Return all available project presets from configs/ directory.
+      operationId: list_projects_api_projects_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  additionalProperties: true
+                  type: object
+                title: Response List Projects Api Projects Get
+                type: array
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+      security:
+      - APIKeyHeader: []
+      summary: List project presets
+      tags:
+      - Projects
+      - Projects
+  /api/projects/{project_id}:
+    get:
+      description: Return full project preset including config and scope.
+      operationId: get_project_api_projects__project_id__get
+      parameters:
+      - in: path
+        name: project_id
+        required: true
+        schema:
+          title: Project Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Get Project Api Projects  Project Id  Get
+                type: object
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - APIKeyHeader: []
+      summary: Get project preset details
+      tags:
+      - Projects
+      - Projects
   /api/registry:
     get:
       description: Return all registry data (modules, analysis, modes) in a single
@@ -7372,7 +7787,8 @@ paths:
       - Replay
   /api/reports/ai-summary:
     get:
-      operationId: get_ai_executive_summary_api_reports_ai_summary_get
+      description: Return executive AI summary and risk posture for a scan run.
+      operationId: get_ai_report_summary_api_reports_ai_summary_get
       parameters:
       - in: query
         name: target
@@ -7380,42 +7796,36 @@ paths:
         schema:
           title: Target
           type: string
+      - in: query
+        name: run_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
       responses:
         '200':
           content:
             application/json:
               schema:
                 additionalProperties: true
-                title: Response Get Ai Executive Summary Api Reports Ai Summary Get
+                title: Response Get Ai Report Summary Api Reports Ai Summary Get
                 type: object
           description: Successful Response
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Forbidden
+        '401':
+          description: Unauthorized
         '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
+          description: No findings found for the given target and run
         '422':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Internal Server Error
       security:
       - APIKeyHeader: []
-      summary: Get AI executive security posture summary for a target
+      summary: Get AI executive summary for a scan run
       tags:
       - Reports
   /api/reports/compliance/pdf:
@@ -8478,7 +8888,7 @@ paths:
         name: page_size
         required: false
         schema:
-          default: 50
+          default: 100
           description: Items per page
           maximum: 1000
           minimum: 1
@@ -8494,6 +8904,16 @@ paths:
           - type: 'null'
           description: Filter by severity
           title: Severity
+      - description: Search title, type, CVE, host, or URL
+        in: query
+        name: search
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Search title, type, CVE, host, or URL
+          title: Search
       - description: Filter by target name
         in: query
         name: target
@@ -8823,6 +9243,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - APIKeyHeader: []
       summary: Report Frontend Telemetry
       tags:
       - Analytics
@@ -9216,6 +9638,23 @@ paths:
       tags:
       - Webhooks
       - Webhooks
+  /health:
+    get:
+      description: Alias for /api/health/live to support standard load balancer and
+        Docker health checks.
+      operationId: health_alias_health_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Health Alias Health Get
+                type: object
+          description: Successful Response
+      summary: Health Alias
+      tags:
+      - System
   /metrics:
     get:
       operationId: get_metrics_metrics_get

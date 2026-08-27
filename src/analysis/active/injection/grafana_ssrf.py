@@ -39,7 +39,14 @@ async def detect_grafana(
     timeout: float = 10.0,
 ) -> dict[str, Any]:
     """Detect if a URL is running Grafana."""
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, verify=True) as client:
+    from src.core.utils.shared_sessions import _i29_async_request_hook
+
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        follow_redirects=True,
+        verify=True,
+        event_hooks={"request": [_i29_async_request_hook]},
+    ) as client:
         for path in GRAFANA_HEALTH_PATHS:
             try:
                 resp = await client.get(f"{base_url}{path}")
@@ -175,9 +182,15 @@ async def test_alert_notification_ssrf(
 
     headers = {"Content-Type": "application/json", "x-grafana-org-id": "1"}
     cookies = {"grafana_session": session_cookie} if session_cookie else {}
+    from src.core.utils.shared_sessions import _i29_async_request_hook
 
     async with httpx.AsyncClient(
-        timeout=timeout, follow_redirects=True, verify=True, headers=headers, cookies=cookies
+        timeout=timeout,
+        follow_redirects=True,
+        verify=True,
+        headers=headers,
+        cookies=cookies,
+        event_hooks={"request": [_i29_async_request_hook]},
     ) as client:
         payload = {
             "name": f"SSRF-WEBHOOK-{ssrf_url.split('//')[-1][:20]}",

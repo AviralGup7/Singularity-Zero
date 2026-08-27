@@ -37,7 +37,10 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 from urllib.parse import quote, urlencode
 
-import aiohttp
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -404,7 +407,9 @@ async def scan_azure_accounts(
     result = AzureReconResult()
     accounts = azure_account_candidates(target)
     result.account_candidates = list(accounts)
-    if not accounts:
+    if aiohttp is None or not accounts:
+        if aiohttp is None:
+            logger.warning("aiohttp not installed; skipping live Azure SAS checks")
         return result
 
     sem = asyncio.Semaphore(max(1, max_workers))

@@ -543,25 +543,35 @@ class VulnCorrelationEngine:
         # "auth.foo.example.com" share "foo.example.com").
         return self._share_parent_domain(host1, host2)
 
-    @staticmethod
-    def _share_parent_domain(host1: str, host2: str) -> bool:
-        """Check if two hosts share a parent domain.
+    _MULTI_PART_TLDS: frozenset[str] = frozenset(
+        {
+            "co.uk", "ac.uk", "gov.uk", "org.uk", "net.uk", "me.uk",
+            "com.au", "net.au", "org.au", "edu.au", "gov.au",
+            "co.jp", "ne.jp", "or.jp", "go.jp", "ac.jp",
+            "co.in", "net.in", "org.in", "gen.in", "firm.in", "ind.in", "ac.in", "edu.in", "res.in", "gov.in",
+            "com.br", "net.br", "org.br", "gov.br",
+            "co.nz", "net.nz", "org.nz", "govt.nz",
+            "com.sg", "net.sg", "org.sg", "gov.sg",
+            "com.mx", "org.mx", "gob.mx",
+        }
+    )
 
-        NOTE: This uses a simple heuristic comparing the last two labels.
-        For multi-part TLDs like '.ac.uk', '.co.uk', '.com.au', this may
-        incorrectly match unrelated domains (e.g., 'example.ac.uk' and
-        'internal.ac.uk' would match). For production use, consider using
-        the `tldextract` library for accurate registrable domain extraction.
-        """
-        parts1 = host1.split(".")
-        parts2 = host2.split(".")
+    @classmethod
+    def _share_parent_domain(cls, host1: str, host2: str) -> bool:
+        """Check if two hosts share a parent registrable domain."""
+        parts1 = [p.lower() for p in host1.strip().split(".") if p]
+        parts2 = [p.lower() for p in host2.strip().split(".") if p]
         if len(parts1) < 2 or len(parts2) < 2:
             return False
-        # Compare the last two labels - cheap "same registrable
-        # domain" check. Sufficient for our graph purposes.
-        # TODO: For multi-part TLDs (ac.uk, co.uk, com.au, etc.),
-        # this may produce false positives. Consider using tldextract
-        # library if available, or maintain a list of known multi-part TLDs.
+
+        tld1 = ".".join(parts1[-2:])
+        tld2 = ".".join(parts2[-2:])
+
+        if tld1 in cls._MULTI_PART_TLDS and tld2 in cls._MULTI_PART_TLDS:
+            if len(parts1) >= 3 and len(parts2) >= 3:
+                return parts1[-3:] == parts2[-3:]
+            return False
+
         return parts1[-2:] == parts2[-2:]
 
     def _deduplicate_chains(self, chains: list[AttackChain]) -> list[AttackChain]:

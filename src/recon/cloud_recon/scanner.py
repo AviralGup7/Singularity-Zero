@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any, cast
-from urllib.parse import urlparse
-
-import aiohttp
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None  # type: ignore[assignment]
 
 from src.recon.cloud_recon.candidates import (
     build_cloud_run_1st_gen_candidates,

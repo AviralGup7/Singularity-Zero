@@ -97,12 +97,28 @@ python -m src.pipeline.runtime \
 | `--policy PATH` | Path to `policy.toml` compliance policy gate | `None` |
 | `--incremental` | Re-scan only URLs and routes modified since `--base-ref` | `False` |
 | `--base-ref REF` | Git branch/commit ref used for incremental diffing | `None` |
+| `--branch NAME` | Branch name override for `[on_findings] branch_glob` | `None` |
 | `--resume-from ID` | Resume execution from a previously persisted checkpoint ID | `None` |
 | `--wal-replay MODE`| Journal recovery mode: `verify`, `replay`, `dry-run` | `replay` |
-| `--max-duration SEC`| Wall-clock budget in seconds before graceful termination | `None` |
+| `--max-duration SEC`| Wall-clock budget in seconds before graceful termination (exits 3) | `None` |
 | `--dry-run` | Validate DAG and contracts without issuing external probes | `False` |
 | `--legacy-exit-codes` | Normalize granular exit codes (2/3/4) to standard 1 | `False` |
-| `--fresh` | Ignore prior checkpoints (CLI). Dashboard jobs pass `--force-fresh-run` unless `force_fresh=False` | `False` |
+| `--force-fresh-run` | Ignore prior checkpoints (CLI). Dashboard jobs pass this unless `force_fresh=False` | `False` |
+| `--skip-crtsh` | Skip passive crt.sh certificate transparency log collection | `False` |
+| `--refresh-cache` | Force-bypass cached subdomain and URL sets | `False` |
+| `--replay ARCHIVE` | Path to a `.tar.gz` artifact pack to replay and verify parity | `None` |
+| `--validate-config` | Validate configuration syntax and schema without executing | `False` |
+| `--replay-stage STAGE` | Re-execute only a single stage from a captured run (requires `--run-id`) | `None` |
+| `--run-id ID` | Target run ID to source stage trace from | `None` |
+| `--replay-traces ID` | Load and replay all stages from a traced run ID | `None` |
+| `--trace-dir DIR` | Directory containing stage trace JSONL files | `.ai/traces` |
+| `--ci-fail-on-severity LVL` | Exit non-zero when findings at/above severity (`critical`..`info`) exist | `None` |
+| `--continuous` | Enable continuous monitoring loop mode | `False` |
+| `--monitor-interval SEC` | Cycle duration in seconds for continuous monitoring | `3600` |
+| `--asset-diff-only` | Only scan new/changed assets since the last checkpoint | `False` |
+| `--import-burp-issues PATH` | Ingest Burp Suite `issues.xml` export | `None` |
+| `--import-burp-sitemap PATH` | Ingest Burp Suite SiteMap JSON export | `None` |
+| `--burp-collaborator-url URL` | Burp Collaborator server URL for out-of-band AST polling | `None` |
 
 ### Exit codes
 

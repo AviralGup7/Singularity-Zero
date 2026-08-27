@@ -62,7 +62,9 @@ def _safe_request(
             "error": "URL failed safety check",
         }
     try:
-        resp = requests.request(
+        from src.core.utils.shared_sessions import get_shared_sync_session
+
+        resp = get_shared_sync_session().request(
             method, url, headers=req_headers, data=body, timeout=timeout, verify=True
         )
         resp_body = resp.text or ""

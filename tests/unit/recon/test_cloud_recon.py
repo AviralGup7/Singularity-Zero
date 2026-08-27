@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, Mock
-
 import pytest
+
+pytest.importorskip("aiohttp")
+
+from unittest.mock import AsyncMock, Mock
 
 from src.recon.cloud_recon import CloudBucketScanner
 

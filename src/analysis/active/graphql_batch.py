@@ -135,10 +135,13 @@ class GraphQLBatchAttack:
 
     def __post_init__(self) -> None:
         if self.client is None:
+            from src.core.utils.shared_sessions import _i29_request_hook
+
             self.client = httpx.Client(
                 timeout=self.timeout,
                 verify=self.verify_ssl,
                 headers=dict(self.headers or {}),
+                event_hooks={"request": [_i29_request_hook]},
             )
             self._owns_client = True
 

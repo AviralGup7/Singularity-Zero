@@ -8,7 +8,7 @@ Scaffolding exists. WASM is feature-flagged. This is not a second plugin registr
 cstp plugin new --name custom_header_audit --category recon
 ```
 
-Implemented in `src/cli/__init__.py` (`handle_plugin_new`). Categories follow existing stage families (`recon`, `analysis`, …).
+Implemented in `src/cli/__init__.py` (`handle_plugin_new`). Valid categories are `--category recon`, `--category exploit`, and `--category reporting`.
 
 ## Registries (do not merge)
 

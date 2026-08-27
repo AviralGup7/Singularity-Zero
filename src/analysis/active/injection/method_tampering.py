@@ -52,11 +52,14 @@ async def test_method_tampering(
     unique_urls = _deduplicate_urls(urls)
     findings: list[dict[str, Any]] = []
 
+    from src.core.utils.shared_sessions import _i29_async_request_hook
+
     async with httpx.AsyncClient(
         timeout=timeout,
         follow_redirects=False,
         verify=verify_tls,
         headers={"User-Agent": "cyber-pipeline/1.0"},
+        event_hooks={"request": [_i29_async_request_hook]},
     ) as client:
         tested = 0
         for url in unique_urls[:max_urls]:

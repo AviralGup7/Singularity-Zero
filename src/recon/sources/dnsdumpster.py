@@ -19,7 +19,10 @@ import logging
 import re
 
 import httpx
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None  # type: ignore[assignment]
 
 from src.recon.domain_validation import normalize_domain as _normalize_domain
 
@@ -107,6 +110,14 @@ def _parse_subdomains(html: str, domain: str, pattern: re.Pattern[str]) -> set[s
     after lowercasing; wildcard entries are stripped.
     """
     found: set[str] = set()
+    if BeautifulSoup is None:
+        for cell in re.findall(r'<td[^>]*>(.*?)</td>', html, re.DOTALL | re.IGNORECASE):
+            text = re.sub(r'<[^>]+>', ' ', cell).strip().lower()
+            for line in text.split():
+                candidate = line.lstrip("*.").strip()
+                if candidate and pattern.match(candidate):
+                    found.add(candidate)
+        return found
     soup = BeautifulSoup(html, "html.parser")
     for table in soup.find_all("table"):
         for td in table.find_all("td"):

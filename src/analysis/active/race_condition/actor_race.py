@@ -84,11 +84,14 @@ class ActorRaceTester:
         for key, value in credential.items():
             if "cookie" in key.lower():
                 cookie_map[str(key)] = str(value)
+        from src.core.utils.shared_sessions import _i29_request_hook
+
         return httpx.Client(
             headers=headers if headers else None,
             cookies=cookie_map if cookie_map else None,
             follow_redirects=False,
             timeout=httpx.Timeout(connect=10.0, read=15.0, write=10.0, pool=5.0),
+            event_hooks={"request": [_i29_request_hook]},
         )
 
     def race_action(

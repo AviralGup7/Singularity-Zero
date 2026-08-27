@@ -180,7 +180,9 @@ class CredentialVault:
             payload["client_id"] = credential.name
             payload["client_secret"] = ""
         try:
-            resp = requests.post(
+            from src.core.utils.shared_sessions import get_shared_sync_session
+
+            resp = get_shared_sync_session().post(
                 refresh_url, data=payload, headers={"Accept": "application/json"}, timeout=10
             )
         except (requests.TooManyRedirects, requests.RequestException):

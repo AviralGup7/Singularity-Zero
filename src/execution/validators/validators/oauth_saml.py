@@ -18,7 +18,10 @@ from datetime import UTC
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import defusedxml.ElementTree as ET  # noqa: N817
+try:
+    import defusedxml.ElementTree as ET  # noqa: N817
+except ImportError:
+    ET = None  # type: ignore[assignment]
 
 from src.execution.validators.config.scoring_config import (
     DEFAULT_SCORING_CONFIG,
@@ -106,7 +109,7 @@ def _check_redirect_uri_bypass(authorization_endpoint: str, redirect_uri: str) -
 
 
 def _looks_like_xml_signature_bypass(body: str) -> bool:
-    if not body:
+    if not body or ET is None:
         return False
     try:
         root = ET.fromstring(body)
@@ -123,7 +126,7 @@ def _looks_like_xml_signature_bypass(body: str) -> bool:
 
 
 def _looks_like_saml_replay(body: str) -> bool:
-    if not body:
+    if not body or ET is None:
         return False
     try:
         root = ET.fromstring(body)

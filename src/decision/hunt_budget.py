@@ -506,14 +506,23 @@ class HuntBudgetEnforcer:
 
                 while remaining > 0 and self._open_subleases:
                     sl_id, units = self._open_subleases.pop(0)
-                    take = min(units, remaining)
-                    env = settlement_return(
-                        sublease_id=sl_id,
-                        units_consumed=take,
-                        units_returned=units - take,
-                    ).to_envelope()
-                    self._global_budget.apply_command(env)
-                    remaining -= take
+                    if units > remaining:
+                        env = settlement_return(
+                            sublease_id=sl_id,
+                            units_consumed=remaining,
+                            units_returned=0,
+                        ).to_envelope()
+                        self._global_budget.apply_command(env)
+                        self._open_subleases.insert(0, (sl_id, units - remaining))
+                        remaining = 0
+                    else:
+                        env = settlement_return(
+                            sublease_id=sl_id,
+                            units_consumed=units,
+                            units_returned=0,
+                        ).to_envelope()
+                        self._global_budget.apply_command(env)
+                        remaining -= units
             reserved_take = min(int(count), int(self._requests_reserved))
             self._requests_reserved = max(0, self._requests_reserved - reserved_take)
             self._requests_consumed += int(count)
@@ -530,14 +539,23 @@ class HuntBudgetEnforcer:
 
                 while remaining > 0 and self._open_subleases:
                     sl_id, units = self._open_subleases.pop(0)
-                    take = min(units, remaining)
-                    env = settlement_return(
-                        sublease_id=sl_id,
-                        units_consumed=0,
-                        units_returned=units,
-                    ).to_envelope()
-                    self._global_budget.apply_command(env)
-                    remaining -= take
+                    if units > remaining:
+                        env = settlement_return(
+                            sublease_id=sl_id,
+                            units_consumed=0,
+                            units_returned=remaining,
+                        ).to_envelope()
+                        self._global_budget.apply_command(env)
+                        self._open_subleases.insert(0, (sl_id, units - remaining))
+                        remaining = 0
+                    else:
+                        env = settlement_return(
+                            sublease_id=sl_id,
+                            units_consumed=0,
+                            units_returned=units,
+                        ).to_envelope()
+                        self._global_budget.apply_command(env)
+                        remaining -= units
             self._requests_reserved = max(0, self._requests_reserved - int(count))
 
     def record_request(self, count: int = 1) -> None:

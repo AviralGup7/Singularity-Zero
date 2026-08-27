@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any
 
-from pydantic import EmailStr, Field
+from pydantic import Field
 
 from src.infrastructure.notifications.base import (
     BaseNotifier,
@@ -26,9 +26,9 @@ class EmailConfig(NotificationConfig):
     smtp_user: str = Field(default="")
     smtp_password: str = Field(default="")
     use_tls: bool = Field(default=True)
-    from_address: EmailStr
-    to_addresses: list[EmailStr] = Field(min_length=1)
-    cc_addresses: list[EmailStr] = Field(default_factory=list)
+    from_address: str
+    to_addresses: list[str] = Field(min_length=1)
+    cc_addresses: list[str] = Field(default_factory=list)
     subject_prefix: str = Field(default="[Cyber Security Pipeline]")
     smtp_timeout_seconds: float = Field(default=30.0, gt=0)
     max_attachment_bytes: int = Field(default=25 * 1024 * 1024, gt=0)

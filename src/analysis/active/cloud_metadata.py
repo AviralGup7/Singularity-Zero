@@ -40,6 +40,11 @@ def probe_cloud_metadata(url: str, session: Any) -> dict[str, Any]:
     Returns:
         Dict with findings about accessible metadata endpoints.
     """
+    if session is None:
+        from src.core.utils.shared_sessions import get_shared_sync_session
+
+        session = get_shared_sync_session()
+
     findings: list[dict[str, Any]] = []
     base_url = _get_base_url(url)
 
@@ -141,6 +146,11 @@ def probe_cloud_storage_exposure(url: str, session: Any) -> dict[str, Any]:
     Returns:
         Dict with findings about exposed cloud storage interfaces.
     """
+    if session is None:
+        from src.core.utils.shared_sessions import get_shared_sync_session
+
+        session = get_shared_sync_session()
+
     findings: list[dict[str, Any]] = []
     base_url = _get_base_url(url)
 
@@ -239,6 +249,11 @@ def probe_infrastructure_services(url: str, session: Any) -> dict[str, Any]:
     Returns:
         Dict with findings about exposed infrastructure services.
     """
+    if session is None:
+        from src.core.utils.shared_sessions import get_shared_sync_session
+
+        session = get_shared_sync_session()
+
     findings: list[dict[str, Any]] = []
     base_url = _get_base_url(url)
 

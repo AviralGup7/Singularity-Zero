@@ -50,7 +50,7 @@ class _StageEventBus:
                 "details": event.details,
             },
         )
-        self._core_bus.publish(pipeline_event)
+        self._core_bus.publish_sync(pipeline_event)
 
     def subscribe(self, listener: Callable[[StageEvent], None]) -> int:
         """Subscribe to stage telemetry events. Returns a subscription ID for later unsubscribe."""
