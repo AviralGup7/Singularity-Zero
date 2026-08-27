@@ -26,7 +26,45 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 
 ## Legend & Status Vocabulary
 
-Every graph in this atlas adheres to a standardized visual taxonomy:
+Every graph in this atlas adheres to a standardized, machine-verifiable visual taxonomy. Node colors and border strokes are not decorative—they encode the runtime maturity, deployment reality, and safety boundaries of every component.
+
+### Color Architecture & Meaning
+
+```
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │ 🟢 Emerald Green (#10b981) │ Live, fully implemented production code  │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ 🔵 Cyan / Blue (#0ea5e9)   │ Single-node / in-process mode (Quorum-1) │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ ⚪ Slate Gray (#64748b)    │ Imported utility / library / test mock   │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ 🟣 Indigo (#818cf8)         │ Formal specification plane / target arch │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ 🔘 Zinc Muted (#71717a)     │ Vacuous / rehydration pass (empty run)   │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ 🔴 Crimson Red (#ef4444)    │ Fail-closed boundary / forbidden action  │
+  └─────────────────────────────┴──────────────────────────────────────────┘
+```
+
+* **Live Execution Plane (🟢 Emerald / `:::impl`)**: Indicates active runtime modules in `src/`. These components are covered by unit/integration tests and run in active CLI scans and daemon workers.
+* **In-Process Quorum-1 Plane (🔵 Cyan / `:::singleNode`)**: Denotes distributed protocols (such as Raft consensus and mesh state) currently running in local single-node mode without active cross-host clustering.
+* **Utility & Shared Layer (⚪ Slate / `:::library`)**: Represents pure functions, algorithms, in-memory test mocks (`MemoryJournal`), or imported helper packages rather than long-running daemons.
+* **Specification Target Plane (🟣 Indigo / `:::specOnly`)**: Represents formal multi-node distributed designs (e.g. cross-region replication relays, multi-host ghost migrations) defined in contracts but not yet instantiated as active daemons.
+* **Vacuous Pass Plane (🔘 Zinc / `:::vacuous`)**: Identifies intermediate state recovery checks or replay steps that are structurally required by the FSM but evaluate to zero mutations during normal clean runs.
+* **Safety & Security Boundary (🔴 Crimson / `:::forbidden`)**: Explicitly marks illegal state transitions, network egress violations, and fail-closed gates that trigger aborts or budget compensation.
+
+---
+
+### Node Status Classes (`classDef`)
+
+| ClassDef | Name | Color | Border Stroke | Definition & Runtime Scope |
+|---|---|---|---|---|
+| `:::impl` | **Fully Implemented** | Dark Slate (`#1f2937`) | **Emerald Green** (`#10b981`, 2px solid) | Live production code in `src/` |
+| `:::singleNode` | **Single-Node Quorum-1** | Dark Blue (`#1e293b`) | **Sky Blue** (`#0ea5e9`, 1px dashed) | Operating in-process or local cluster mode |
+| `:::library` | **Library Component** | Slate (`#334155`) | **Slate Gray** (`#64748b`, 1px solid) | Imported as utility or test mock |
+| `:::specOnly` | **Specification Plane** | Indigo Dark (`#1e1b4b`) | **Indigo Accent** (`#818cf8`, 1px dashed) | Formal target architecture |
+| `:::vacuous` | **Vacuous State** | Zinc Dark (`#27272a`) | **Zinc Gray** (`#71717a`, 1px solid) | Normal empty check / rehydration pass |
+| `:::forbidden` | **Forbidden / Fail-Closed** | Crimson Dark (`#450a0a`) | **Bright Red** (`#ef4444`, 2px solid) | Explicitly illegal flow rejected by gates |
 
 ### Edge Semantics & Grammar
 
@@ -41,17 +79,6 @@ Every graph in this atlas adheres to a standardized visual taxonomy:
 | `A -.->&#124;when: cond&#124; B` | **Scheduling Gate** | Runtime predicate evaluation (e.g. `OutputNonEmpty`) |
 | `A -.->&#124;refuse/guard&#124; B` | **Invariant Refusal** | Fail-closed security boundary, egress guard, illegal flow rejection |
 | `PORT_FNNN[["..."]]` | **Interface Port** | Typed boundary connector between partitioned charts |
-
-### Node Status Classes (`classDef`)
-
-| ClassDef | Name | Visual Styling | Definition & Runtime Scope |
-|---|---|---|---|
-| `:::impl` | **Fully Implemented** | `fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff` | Live production code in `src/` |
-| `:::singleNode` | **Single-Node Quorum-1** | `fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff` | Operating in-process or local cluster mode |
-| `:::library` | **Library Component** | `fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff` | Imported as utility, not a stand-alone daemon |
-| `:::specOnly` | **Specification Plane** | `fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff` | Formalized target architecture not yet active in live CLI |
-| `:::vacuous` | **Vacuous State** | `fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa` | Rehydration or check step that is empty by design in normal runs |
-| `:::forbidden` | **Forbidden / Fail-Closed** | `fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5` | Explicitly illegal transition rejected by runtime gates |
 
 ### Typed Authority Taxonomy
 
