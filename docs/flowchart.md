@@ -254,37 +254,37 @@ flowchart TD
     Scheduler ==> DAG
 
     subgraph DAG["Runtime Executable STAGE_GRAPH (ActorScheduler Readiness & Gates)"]
-        Sub ==> Takeover["subdomain_takeover (needs: subdomains)"]:::impl
-        Sub ==> LiveH["live_hosts (critical: True, needs: subdomains)"]:::impl
-        LiveH ==> WAF["waf (needs: live_hosts)"]:::impl
-        LiveH ==> Urls["urls (needs: live_hosts)"]:::impl
-        Urls ==> ReconVal["recon_validation (needs: urls)"]:::impl
-        Urls ==> GitDiff["git_diff_crawl (needs: urls)"]:::impl
-        Urls ==> Params["parameters (needs: urls)"]:::impl
-        Urls & Params & WAF ==> Rank["ranking (needs: urls, params, waf)"]:::impl
-        Rank & LiveH & Urls ==> Passive["passive_scan (needs: ranking, live_hosts, urls)"]:::impl
+        Sub ==> Takeover["subdomain_takeover"]:::impl
+        Sub ==> LiveH["live_hosts<br/>critical=true"]:::impl
+        LiveH ==> WAF["waf"]:::impl
+        LiveH ==> Urls["urls"]:::impl
+        Urls ==> ReconVal["recon_validation"]:::impl
+        Urls ==> GitDiff["git_diff_crawl"]:::impl
+        Urls ==> Params["parameters"]:::impl
+        Urls & Params & WAF ==> Rank["ranking"]:::impl
+        Rank & LiveH & Urls ==> Passive["passive_scan"]:::impl
         
-        Passive ==> Active["active_scan (needs: passive_scan)"]:::impl
-        Passive ==> Semgrep["semgrep (needs: passive_scan)"]:::impl
-        Passive ==> Nuclei["nuclei (needs: passive_scan)"]:::impl
-        Rank & Passive ==> Access["access_control (needs: ranking, passive_scan)"]:::impl
+        Passive ==> Active["active_scan"]:::impl
+        Passive ==> Semgrep["semgrep"]:::impl
+        Passive ==> Nuclei["nuclei"]:::impl
+        Rank & Passive ==> Access["access_control"]:::impl
         
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Active
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Semgrep
         LiveH -.->|"when: OutputNonEmpty('live_hosts') & FlagSet('nuclei_available')"| Nuclei
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Access
         
-        Passive & Active ==> Val["validation (needs: passive_scan, active_scan)"]:::impl
-        Passive & Active & Nuclei & Val ==> Intel["intelligence (needs: passive, active, nuclei, val)"]:::impl
-        Intel ==> Threat["threat_modeling (needs: intelligence)"]:::impl
+        Passive & Active ==> Val["validation"]:::impl
+        Passive & Active & Nuclei & Val ==> Intel["intelligence"]:::impl
+        Intel ==> Threat["threat_modeling"]:::impl
         
-        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting (CAS-Aware Join Sink)"]:::impl
+        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting<br/>join_sink=true"]:::impl
         
         DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl -.->|"_join_finding_producers"| Report
         
-        Report ==> Sarif["sarif_export (needs: reporting)"]:::impl
-        Report ==> CiExp["ci_export (needs: reporting)"]:::impl
-        Report ==> Dedup["dedup_stage (needs: reporting)"]:::impl
+        Report ==> Sarif["sarif_export"]:::impl
+        Report ==> CiExp["ci_export"]:::impl
+        Report ==> Dedup["dedup_stage"]:::impl
     end
 
     subgraph ReadinessFSM["Scheduler readiness (ActorScheduler) vs persisted StageStatus"]
@@ -331,16 +331,24 @@ flowchart TD
         Coord --> Fingerprint["SHA256 Fingerprint (tool|target|type|endpoint)"]:::impl
         Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
         Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
-        WAL -->|COMMITTED + wal_id I31| CommitB["I28 Budget COMMIT --> Outbox FINDING_CREATED"]:::impl
-        CommitB --> PORT_F006_COM[["PORT: F-006 Settle Consumed"]]
-        CommitB --> DedupStage["dedup_stage Clustering"]:::impl
+        
+        WAL -->|COMMITTED + wal_id I31| BudgetCommit["I28 Budget COMMIT"]:::impl
+        BudgetCommit --> FindingCreated["Outbox FINDING_CREATED"]:::impl
+        FindingCreated --> PORT_F006_COM[["PORT: F-006 Settle Consumed"]]
+        FindingCreated --> DedupStage["dedup_stage Clustering"]:::impl
         DedupStage --> FinalReport["Canonical Report Output"]:::impl
-        CommitB -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
+        FindingCreated -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
         Emit --> PORT_F019_BUS[["PORT: F-019 EventBus Dispatch"]]
-        CommitB -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
-        WAL -->|FAILED Attempt with wal_id| FailedId["Settle REJECTED --> I28 Budget RELEASE (No FINDING_CREATED)"]:::impl
-        WAL -->|REJECTED / DEDUPLICATED / No wal_id| Silent["Silent Settle Drop --> I28 Budget RELEASE"]:::impl
-        FailedId & Silent & Viol --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
+        FindingCreated -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
+        
+        WAL -->|FAILED Attempt with wal_id| SettleRej["Settle REJECTED"]:::impl
+        SettleRej --> SettleRel["I28 Budget RELEASE"]:::impl
+        SettleRej -.->|forbid| FindingCreated
+        
+        WAL -->|REJECTED / DEDUPLICATED / No wal_id| SilentDrop["Silent Settle Drop"]:::impl
+        SilentDrop --> SettleRel
+        
+        SettleRel & Viol --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
     end
 ```
 
@@ -510,9 +518,22 @@ flowchart TD
         end
         C_VAL & C_EXP -.->|"Confidence Refinement"| FR
     end
-    SC & SDG & SF & SSD & SSF --> Coupling["derive_job_and_exit (Total Mapping Lattice)"]:::impl
-    FR & FF --> Coupling
-    Coupling --> JP
+
+    subgraph DerivationLattice["Job & Exit Code Derivation Mapping (derive_job_and_exit)"]
+        SC & SDG -->|"success / non-fatal"| J_COMP["Job COMPLETED"]:::impl
+        SF -->|"fatal error"| J_FAIL["Job FAILED"]:::impl
+        SSD & SSF -->|"skip path"| J_COMP
+        
+        FR -->|"reportable findings"| J_COMP
+        FF -->|"false positive"| J_COMP
+        
+        J_COMP -->|"clean (0 policy violations)"| Exit0["Exit 0: CLEAN_RUN"]:::impl
+        J_COMP -->|"policy violations >= 1"| Exit2["Exit 2: POLICY_GATE"]:::impl
+        J_COMP -->|"contains DEGRADED stages"| Exit4["Exit 4: PARTIAL_RUN"]:::impl
+        J_FAIL -->|"infra / unrecoverable"| Exit3["Exit 3: INFRA_FAILURE"]:::impl
+        
+        J_COMP & J_FAIL --> JP
+    end
 ```
 
 ---
