@@ -142,58 +142,37 @@ Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGE
 
 ## F-002 — System topology, regions & deployment
 
-Source: [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `src/core/frontier/region_model.py` (I36), `src/core/frontier/authority_transfer.py` (I37), `src/cli/launcher.py`. Absorbed F-021, F-040.
-
-### 1. Spatial Deployment & Multi-Region Topology
-
 ```mermaid
 flowchart TD
-    subgraph Deployment["Deployment Process Topology (launcher.py)"]
+    subgraph Topology["Spatial Deployment & Multi-Region Topology (launcher.py, multi-region.md)"]
         Browser["React 19 Dashboard (:5173 / :8000)"]:::impl <-->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
         API <-->|"Redis Job Queue & Streams"| Worker["Pipeline Background Worker Daemon"]:::impl
         Worker ==>|"subproc spawn"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
         Worker -->|"metrics push"| PromSink["Prometheus / Grafana (:9090)"]:::impl
+        
+        Worker ==> Orch["Pipeline Orchestrator"]:::impl
+        Orch ==> Engines["Recon / Analysis / Fuzz / Exploit"]:::impl
+        Orch -->|data| State["WAL / CRDT / Cache / Mesh"]:::impl
+        Engines -->|data| Sinks["Learning + Reporting"]:::impl
+        State -->|data| Sinks
     end
-    
-    Worker ==> Orch["Pipeline Orchestrator"]:::impl
-    Orch ==> Engines["Recon / Analysis / Fuzz / Exploit"]:::impl
-    Orch -->|data| State["WAL / CRDT / Cache / Mesh"]:::impl
-    Engines -->|data| Sinks["Learning + Reporting"]:::impl
-    State -->|data| Sinks
-    
-    subgraph RegionA["Region A (Leader Home — I36 Single Writer)"]
-        GA["Gossip Node A1"]:::impl
-        OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
-        JA["FrontierWAL Journal (Scan Discovery Events)"]:::impl
-        RA["Redis Stream Journal"]:::impl
-        JA -->|stream| RA
+
+    subgraph MultiRegionAuthority["Multi-Region Single-Writer & I37 Authority Transfer (I36, I37)"]
+        A["Region A<br/>OWNED (Active Writer)"]:::impl -->|"initiate_transfer(Epoch E)"| F["FENCED<br/>(Zero-Writer Fail-Closed Gap)"]:::impl
+        F -->|"activate_ownership(Epoch E+1)"| B["Region B<br/>OWNED (Active Writer)"]:::impl
+        F -->|"abort_transfer / timeout"| A_Abort["Region A<br/>OWNED (Epoch E+1 Bumped)"]:::impl
+        
+        F -.->|"refuse: stale epoch/token"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
+        F -.->|"refuse: mutation while fenced"| Rej2["Refuse: Partition FENCED"]:::forbidden
+        
+        A --> OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
+        A --> JA["FrontierWAL Journal (Scan Discovery)"]:::impl
+        JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::specOnly
+        B -.->|"foreign mutation refused"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
+        
+        GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::singleNode
     end
-    subgraph RegionB["Region B (Read Replica — Fail-Closed)"]
-        GB["Gossip Node B1"]:::singleNode
-        OB["Refuse Foreign Writer"]:::forbidden
-        JB["FrontierWAL Replica (Monotonic Read)"]:::specOnly
-        RB["Redis Stream Replica"]:::specOnly
-        RB -->|ingest| JB
-    end
-    State -->|durable append| OA
-    Orch -->|durable append| JA
-    GA <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit)"| GB
-    RA -->|"WALReplicationRelay (Scan Journal Only I36)"| RB
-    OB -.->|"refuse mutations"| Forbidden["I36 / I37 Refuse Foreign Writer"]:::forbidden
 ```
-
-### 2. Temporal Authority Transfer State Machine (I37 Zero-Dual-Writer Fence)
-
-```mermaid
-flowchart TD
-    OwnedA["Region A: OWNED (Active Writer)"]:::impl -->|"state: initiate_transfer (Epoch E)"| Fence["FENCED (Zero-Writer Gap)"]:::impl
-    Fence -->|"state: activate_ownership (Epoch E+1)"| OwnedB["Region B: OWNED (Active Writer)"]:::impl
-    Fence -->|"state: abort_transfer (Timeout / Error)"| AbortA["Region A: OWNED (Epoch E+1 Bumped)"]:::impl
-    Fence -.->|"refuse: stale epoch attempt"| RejectA["Refuse: Stale Epoch / Token"]:::forbidden
-    Fence -.->|"refuse: early mutation on target"| RejectB["Refuse: Partition FENCED"]:::forbidden
-```
-
-**Multi-Region Authority (I36/I37):** Single active writer home per partition (`OWNED → FENCED → OWNED`). Fenced state creates zero-writer gap; journal-only relay syncs discovery events without admitting foreign mutations.
 
 ---
 
@@ -342,26 +321,31 @@ flowchart TD
 
     DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]:::impl
     
-    subgraph Sandbox["Execution Gate & Continuous Egress Sandbox (F-036)"]
+    subgraph Sandbox["Execution Gate & Universal Egress Authority (I29, I30, F-036)"]
         Req --> Budget{"HuntBudget.reserve"}:::impl
-        Budget -->|Exhausted| Rej["ScopeAuthorizationError (Stage Skipped / Degraded)"]:::forbidden
-        Budget -->|OK| Ticket["AuthorizedExecutionTicket I30 (Binds Quartet)"]:::impl
+        Budget -->|Exhausted| Rej["ScopeAuthorizationError (Skipped)"]:::forbidden
+        Budget -->|OK| Ticket["AuthorizedExecutionTicket I30<br/>(ScopeToken + BudgetRes + Rev + CmdID)"]:::impl
         Budget --> PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
-        Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use, Zero Commit)"]:::impl
+        Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use)"]:::impl
         Consume --> InstallFilt["install_filter_from_scope → egress_context ContextVar"]:::impl
-        InstallFilt --> PreCheck["Stage Admit Pre-Flight Egress Check"]:::impl
-        PreCheck --> Exec["Tool Subprocess Execution (Timeouts, Stdio Capture)"]:::impl
-        PreCheck --> InProc["In-process HTTP (shared_sessions + raw client hooks)"]:::impl
-        Exec --> SocketConn["Socket Connect / DNS Resolution"]:::impl
-        SocketConn --> EgressGuard{"ProcessSandbox.check_egress"}:::impl
-        InProc --> HookGuard{"I29 hooks: shared_sessions + ensure_process_http_egress_hooks"}:::impl
-        EgressGuard -->|In Scope| Out["StageOutput / RawExecutionClaim"]:::impl
-        HookGuard -->|In Scope| Out
-        EgressGuard -->|Out of Scope / TOCTOU| Viol["EgressViolationError --> Kill Subprocess + Release Budget"]:::forbidden
-        HookGuard -->|Out of Scope / IMDS| Viol
+        InstallFilt --> Guard["I29 Universal Egress Authority"]:::impl
+        
+        Guard -->|"hook"| HTTPX["httpx.Client"]:::impl
+        Guard -->|"hook"| Requests["requests.Session"]:::impl
+        Guard -->|"hook"| Shared["shared_sessions.py"]:::impl
+        Guard -->|"patch"| Socket["socket.socket.connect / create_connection"]:::impl
+        Guard -->|"patch"| Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
+        Guard -->|"guard"| Browser["runtime_browser.py (page.goto)"]:::impl
+        Guard -->|"sandbox"| Subproc["ProcessSandbox.check_egress"]:::impl
+        
+        HTTPX & Requests & Shared & Socket & Stream & Browser & Subproc --> Out["StageOutput / ExploitClaim"]:::impl
+        
+        Guard -.->|"refuse IMDS / out-of-scope"| Viol["EgressViolationError (Kill & Release Budget)"]:::forbidden
+        
+        Exploit["Standalone SafeExploiter.execute"]:::impl ==>|"I30 Quartet"| Ticket
     end
 
-    subgraph SettlementPipeline["Settlement & Deduplication Pipeline (F-042)"]
+    subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28, I31, I32, F-042)"]
         Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
         Coord --> Fingerprint["SHA256 Fingerprint (tool|target|type|endpoint)"]:::impl
         Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
@@ -444,70 +428,49 @@ Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspen
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
-**I29 In-Process Universal Egress Authority:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; IMDS/metadata unconditionally denied) and calls `ensure_process_network_egress_hooks()`. That idempotent patch intercepts network dispatch across all execution primitives:
-- **HTTP Clients (`httpx`, `requests`)**: Injects I29 request hooks into `httpx.Client` / `httpx.AsyncClient` and wraps `requests.Session.request`.
-- **Raw Network Sockets (`socket.socket.connect`, `socket.create_connection`)**: Validates destination host/port before connect, preserving process-internal loopback IPC.
-- **AsyncIO Network Streams (`asyncio.open_connection`)**: Intercepts socket stream construction for custom HTTP/2, raw WebSocket, and raw TLS transports.
-- **Headless Browser Runtime (`runtime_browser.py`)**: Enforces `assert_url_egress_allowed` before Playwright `page.goto` navigation.
-- **Subprocess Execution (`process_sandbox.py`)**: Enforces `ProcessSandbox.check_egress` on command line URLs/hosts.
-- **Transport Registry (`get_registered_transports`)**: Requires explicit registration of all execution primitives with the I29 Egress Authority.
-
-**I28/I30 Unified Execution Authority & Settlement:** Every execution path — whether entering through `stage_admit` or standalone `SafeExploiter.execute` — routes through `ExecutionAuthorizer`:
-- Binds `ScopeToken` hash, `BudgetReservation`, live `AuthorityRevision`, and `CommandId` into an `AuthorizedExecutionTicket`.
-- Requires successful atomic ticket consumption before network dispatch.
-- Authoritatively settles consumed request quota to `HuntBudgetEnforcer` upon execution completion (or releases reserved quota on dispatch/pre-execution failure).
-
-**Package Path Authority:**
-| Surface | Role | Authority Model |
-|---|---|---|
-| `src/core/frontier/*` | Live authority (StateAuthority, WAL settle, CRDT, Raft) | **Authoritative State Plane** |
-| `src/frontier/*` | Facades + test-only `MemoryJournal` | **Non-authoritative** |
-| `src/cache`, `src/checkpoint` | Facades → `pipeline.unified_cache` / `core.checkpoint` | **Non-authoritative Caches** |
-| `src/intel` vs `src/intelligence` | IOC feed aggregation vs attack chain / risk scoring | **Distinct Domain Modules** (both attach at `intelligence`) |
+```mermaid
+flowchart LR
+    subgraph PackageAuthority["Package Path Authority Model"]
+        Core["core/frontier/*<br/>(StateAuthority, WAL, CRDT, Raft)"]:::impl
+        Facade["frontier/*<br/>(Facades, MemoryJournal)"]:::library
+        Cache["cache/*, checkpoint/*<br/>(UnifiedCache, FileCheckpoint)"]:::library
+        Domain["intel/*, intelligence/*<br/>(IOC Feeds, Attack Chains)"]:::impl
+        
+        Facade -->|"forwarding only"| Core
+        Cache -->|"non-authoritative"| Core
+        Domain -->|"input to scan"| Core
+    end
+```
 
 ---
 
 ## F-006 — Leases, time & global budget
 
-Source: [architecture.md](architecture.md) I19/I28, [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/decision/hunt_budget.py`, `src/core/frontier/lease_status.py`. Absorbed F-011, F-038.
-
 ```mermaid
 flowchart TD
-    subgraph ClockModel["Multi-Clock Model (F-038)"]
-        HLC["Hybrid Logical Clock (HLC)"]:::impl --> EventOrder["Scan Journal Ordering I23"]:::impl
-        Mono["time.monotonic()"]:::impl --> LeaseTTL["Sublease & Fence Expiration (Zero Skew Drift)"]:::impl
-        Wall["time.time() (UTC)"]:::impl --> AuditTime["Audit Logs & SIEM Export (I22 < 1000ms Bound)"]:::impl
+    subgraph ClockModel["Multi-Clock Binding Model (F-038)"]
+        HLC["Hybrid Logical Clock (HLC)"]:::impl -->|"clock"| EventOrder["Scan Journal Ordering (I23)"]:::impl
+        Mono["time.monotonic()"]:::impl -->|"clock"| LeaseTTL["Sublease & Fence Expiration (I19 Zero Skew)"]:::impl
+        Wall["time.time() (UTC)"]:::impl -->|"clock"| AuditTime["Audit Logs & SIEM Export (I22 Admission Gate)"]:::impl
     end
 
-    subgraph LeaseFSM["Lease State Machine & Compensation (I19, I20, I21)"]
-        Reserve["ReserveGlobalBudget"]:::impl --> RESERVED["RESERVED (Outstanding)"]:::impl
-        RESERVED -->|"allocate / dispatch"| ACTIVE["ACTIVE (Outstanding)"]:::impl
-        RESERVED -->|"expire (timeout via Mono)"| EXPIRED["EXPIRED (Available)"]:::impl
-        RESERVED -->|"compensate (abort/failure)"| COMPENSATED["COMPENSATED (Available)"]:::impl
-        RESERVED -->|"settle consumed"| CONSUMED["CONSUMED (Committed)"]:::impl
-        ACTIVE -->|"settle consumed > 0"| CONSUMED
-        ACTIVE -->|"expire (TTL elapsed via Mono)"| EXPIRED
-        EXPIRED -->|"compensate (late reconciliation)"| COMPENSATED
-        CONSUMED -->|"idempotent re-settle"| CONSUMED
-        COMPENSATED -->|"idempotent no-op"| COMPENSATED
+    subgraph LeaseFSM["Lease State Machine & Accounting Deltas (I5, I19, I28)"]
+        Reserve["ReserveGlobalBudget"]:::impl -->|"dispatch<br/>ΔO=+u, ΔA=-u"| RESERVED["RESERVED<br/>(Outstanding)"]:::impl
+        RESERVED -->|"allocate / in-flight<br/>ΔO=0, ΔA=0"| ACTIVE["ACTIVE<br/>(Outstanding)"]:::impl
+        RESERVED -->|"settle findings<br/>ΔC=+u, ΔO=-u"| CONSUMED["CONSUMED<br/>(Committed)"]:::impl
+        ACTIVE -->|"settle findings<br/>ΔC=+u, ΔO=-u"| CONSUMED
+        
+        RESERVED -->|"cancel / reject<br/>ΔO=-u, ΔA=+u"| COMPENSATED["COMPENSATED<br/>(Available)"]:::impl
+        RESERVED -->|"expire timeout<br/>ΔO=-u, ΔA=+u"| EXPIRED["EXPIRED<br/>(Available)"]:::impl
+        ACTIVE -->|"TTL elapsed<br/>ΔO=-u, ΔA=+u"| EXPIRED
+        
+        EXPIRED -->|"late reconciliation<br/>Δ=0"| COMPENSATED
+        CONSUMED -->|"idempotent re-settle<br/>Δ=0"| CONSUMED
+        COMPENSATED -->|"idempotent no-op<br/>Δ=0"| COMPENSATED
     end
 ```
 
-**Budget Conservation & Settle (I5, I28):** Total budget $\equiv \text{Consumed} + \text{Outstanding (Reserved+Active)} + \text{Available}$. Only WAL settle commits budget from `RESERVED` $\rightarrow$ `CONSUMED` / `COMPENSATED`.
-
-### Budget Delta & Accounting Matrix
-
-Universal Conservation Equation: $$\text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$$
-
-| Transition | $\Delta\text{Consumed}$ | $\Delta\text{Outstanding (Reserved+Active)}$ | $\Delta\text{Available}$ | Trigger / Precondition |
-|---|---|---|---|---|
-| `Genesis` $\rightarrow$ `RESERVED` | $0$ | $+\text{units}$ | $-\text{units}$ | `HuntBudget.reserve_with_identity` (ticket issued) |
-| `RESERVED` $\rightarrow$ `ACTIVE` | $0$ | $0$ | $0$ | Subprocess dispatch (in-flight execution) |
-| `RESERVED` / `ACTIVE` $\rightarrow$ `CONSUMED` | $+\text{units}$ | $-\text{units}$ | $0$ | Stage `COMPLETED` committed with findings at WAL |
-| `ACTIVE` $\rightarrow$ `EXPIRED` | $0$ | $-\text{units}$ | $+\text{units}$ | Stage `FAILED` / `SKIPPED` / TTL elapsed via `ExpireSubLeaseCommand` |
-| `RESERVED` $\rightarrow$ `COMPENSATED` | $0$ | $-\text{units}$ | $+\text{units}$ | Pre-dispatch cancellation or authorization rejection |
-| `EXPIRED` $\rightarrow$ `COMPENSATED` | $0$ | $0$ | $0$ | Late compensation / ledger reconciliation (I28) |
-| *Late Settle after EXPIRED* | $0$ | $0$ | $0$ | **Refused**: requires prior compensation check |
+$$\text{Universal Conservation Equation (I5/I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$$
 
 ---
 
@@ -927,53 +890,53 @@ flowchart TD
     end
     
     subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I37)"]
-        subgraph Tier1["Tier 1: Placement, Consensus & Multi-Raft (I1–I4, I7, I17, I18, I36, I37)"]
-            I1g["I1: Partition Placement (H mod 1024)"]:::impl --> I2g["I2: Single Leader (Lp <= 1)"]:::impl
-            I2g --> I3g["I3: Monotonic Lease Terms (Tk+1 > Tk)"]:::impl
-            I3g --> I7g["I7: Single Global Authority (P-0000)"]:::impl
-            I7g --> I17g["I17: Leader-Home Placement"]:::impl
-            I17g --> I36g["I36: Single-Writer Region & Journal Relay"]:::impl
-            I36g --> I37g["I37: Zero Dual-Writer Transfer Fence"]:::impl
-            I2g --> I4g["I4: Raft Quorum Commitment (N/2 + 1)"]:::impl
-            I18g["I18: Journal Filter"]:::impl --> I36g
+        subgraph Tier1["Tier 1: Placement, Consensus & Multi-Raft"]
+            I1g["I1: Hash-Chain Continuity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I2g["I2: Log Monotonicity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl
+            I2g --> I3g["I3: Committed-State Confinement<br/><small>replicated_log.py [FAULT-INJECTED]</small>"]:::impl
+            I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
+            I7g --> I17g["I17: Authority Uniqueness<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
+            I17g --> I36g["I36: Single-Writer Region Relay<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
+            I36g --> I37g["I37: Zero Dual-Writer Transfer Fence<br/><small>authority_transfer.py [PRODUCTION-OBSERVED]</small>"]:::impl
+            I2g --> I4g["I4: Aggregate Monotonicity<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
+            I18g["I18: Stale Command Rejection<br/><small>replicated_log.py [ADVERSARIAL]</small>"]:::impl --> I36g
         end
 
-        subgraph Tier2["Tier 2: Durability, Clock Admission & Zero-I/O FSM (I8–I16, I22)"]
-            I22g["I22: Clock Skew Gate (< 1000ms)"]:::impl --> I4g
-            I4g --> I11g["I11: PartitionWAL Total Order"]:::impl
-            I11g --> I12g["I12: CRC-64 Verification on Read"]:::impl
-            I12g --> I15g["I15: Crash-Safe Disk Flush (fsync)"]:::impl
-            I15g --> I8g["I8: FSM Determinism on Replay"]:::impl
-            I8g --> I9g["I9: Zero I/O Inside FSM.Apply"]:::impl
-            I9g --> I10g["I10: Monotonic Applied Index"]:::impl
-            I9g --> I13g["I13: HMAC Command Receipt Signing"]:::impl
-            I9g --> I14g["I14: Durable Outbox Append"]:::impl
-            I8g --> I16g["I16: FSM Snapshot Consistency"]:::impl
+        subgraph Tier2["Tier 2: Durability, Clock Admission & Zero-I/O FSM"]
+            I22g["I22: Clock Skew Admission Gate<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I4g
+            I4g --> I11g["I11: Cryptographic State Commitment<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
+            I11g --> I12g["I12: Snapshot Integrity<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
+            I12g --> I15g["I15: Fail-Closed Corruption Boundary<br/><small>wal.py [FAULT-INJECTED]</small>"]:::impl
+            I15g --> I9g["I9: Pure FSM Determinism<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
+            I9g --> I10g["I10: Worker Epoch Fencing<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
+            I9g --> I13g["I13: Receipt HMAC Binding<br/><small>receipt_crypto.py [TESTED]</small>"]:::impl
+            I9g --> I14g["I14: Deduplicated Outbox Stream<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
+            I9g --> I16g["I16: Replay State Invariance<br/><small>replay_engine.py [PROPERTY-TESTED]</small>"]:::impl
+            I14g --> I8g["I8: Projection Watermark Bound<br/><small>projection_stream.py [PRODUCTION-OBSERVED]</small>"]:::impl
         end
 
-        subgraph Tier3["Tier 3: Quota Slabs, Budget Conservation & Leases (I5, I6, I19–I21, I26, I28)"]
-            I26g["I26: Quota Slab Conservation"]:::impl --> I5g["I5: Universal Budget Conservation"]:::impl
-            I5g --> I6g["I6: Integer Non-Negative Allocation"]:::impl
-            I6g --> I19g["I19: Strict Lease Lifecycle"]:::impl
-            I19g --> I21g["I21: Forbidden Direct Compensation"]:::impl
-            I19g --> I20g["I20: Idempotent Compensation"]:::impl
-            I19g --> I28g["I28: Settle-Only Budget Commit"]:::impl
+        subgraph Tier3["Tier 3: Quota Slabs, Budget Conservation & Leases"]
+            I26g["I26: Quota Slab Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl --> I5g["I5: Universal Budget Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl
+            I5g --> I6g["I6: Scoped Idempotency<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
+            I6g --> I19g["I19: Lease Terminal Linearization<br/><small>lease_status.py [MODEL-CHECKED]</small>"]:::impl
+            I19g --> I20g["I20: Policy Version Fencing<br/><small>policy_governance.py [FAULT-INJECTED]</small>"]:::impl
+            I19g --> I21g["I21: Projection Recovery Invariance<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
+            I19g --> I28g["I28: Hardened Lease Transitions<br/><small>hunt_budget.py [MODEL-CHECKED]</small>"]:::impl
         end
 
-        subgraph Tier4["Tier 4: CRDT State, Bulkheads, Sandboxing & Causality (I23–I25, I27, I29, I30, I33)"]
-            I23g["I23: Monotonic HLC Ordering"]:::impl --> I25g["I25: CRDT Convergence"]:::impl
-            I25g --> I24g["I24: Bounded Tombstones (1h TTL)"]:::impl
-            I27g["I27: Bulkhead Concurrency"]:::impl --> I29g["I29: Continuous Egress Scope Guard"]:::impl
-            I29g --> I30g["I30: Cryptographic Quartet Ticket"]:::impl
+        subgraph Tier4["Tier 4: CRDT State, Bulkheads, Sandboxing & Causality"]
+            I23g["I23: Partition Budget Isolation<br/><small>state.py [PROPERTY-TESTED]</small>"]:::impl --> I25g["I25: Policy Revocation Watermark<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
+            I25g --> I24g["I24: Mesh BootID Nonce Safety<br/><small>mesh/ [FAULT-INJECTED]</small>"]:::impl
+            I27g["I27: Bounded Claims & CAS Merkle Evidence<br/><small>resilience.py [PROPERTY-TESTED]</small>"]:::impl --> I29g["I29: Universal Network Egress Authority<br/><small>egress_context.py [ADVERSARIAL]</small>"]:::impl
+            I29g --> I30g["I30: Authorization Causality Quartet<br/><small>authorization.py [MODEL-CHECKED]</small>"]:::impl
             I22g --> I30g
-            I30g --> I33g["I33: Causal Identity Chain"]:::impl
+            I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
         end
 
-        subgraph Tier5["Tier 5: Settlement, Outbox Decoupling & Recovery (I31, I32, I34, I35)"]
-            I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission"]:::impl
-            I31g --> I32g["I32: Durable Outbox Decoupling"]:::impl
-            I28g & I32g --> I34g["I34: Failure Recovery Boundaries (11 Domains)"]:::impl
-            I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol"]:::impl
+        subgraph Tier5["Tier 5: Settlement, Outbox Decoupling & Recovery"]
+            I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
+            I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
+            I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
+            I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol<br/><small>recovery_protocol.py [MODEL-CHECKED]</small>"]:::impl
             I35g --> I36g
         end
     end
@@ -1055,5 +1018,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-27 | I30/I28 Unified Execution Authority: closed standalone exploitation authorization gap by routing SafeExploiter through ExecutionAuthorizer ticket mint/consume, HuntBudget reservation, and authoritative settlement | edit |
 | 2026-08-27 | I37 Production Authority Transfer Wiring: connected PlacementAuthority fenced transfer lifecycle (initiate_transfer/activate_ownership/abort_transfer) to ProactiveMigrationHandler actor evacuation loop | edit |
 | 2026-08-27 | Formal Invariant Verification Taxonomy: replaced monolithic 'impl' status in F-033 registry and invariant_checker with 7-tier verification levels (PROPERTY-TESTED, ADVERSARIAL, FAULT-INJECTED, MODEL-CHECKED, PRODUCTION-OBSERVED, TESTED, IMPLEMENTED) | edit |
+| 2026-08-27 | Visual Flowchart Distillation: eliminated prose repetition, merged deployment/authority-transfer into unified F-002, embedded accounting deltas onto F-006 edges, merged I29/I30 execution gates onto F-004, and enriched F-033 proof graph nodes with module and verification metadata | edit |
 
 Append a row for every later edit. Do not delete this table.
