@@ -123,6 +123,13 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     Index["docs/index.md"] --> Arch["architecture.md"]
     Index --> Overview["architecture-overview.md"]
     Index --> Formal["FORMAL_COMMAND_SPECIFICATION.md"]
@@ -532,7 +539,8 @@ flowchart TD
     end
 ```
 
-$$\text{Universal Conservation Equation (I5/I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$$
+$$\text{Single-Partition Conservation Equation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$$
+$$\text{Multi-Raft Quota Slab Conservation (I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$$
 
 ---
 
@@ -573,8 +581,6 @@ flowchart TD
         SR --> SC["COMPLETED (Terminal)"]:::impl
         SR --> SDG["DEGRADED (Terminal)"]:::impl
         SR --> SF["FAILED"]:::impl
-        SR --> SSD
-        SR --> SSF
         
         SF -->|"I33 retry"| SR
         SF -->|"retry succeeded"| SC
@@ -980,7 +986,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py` | `MODEL-CHECKED` |
 | **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `FAULT-INJECTED` |
 | **I33** | Causal Identity Chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `test_causal_identity.py` | `PROPERTY-TESTED` |
-| **I34** | Formal Failure Recovery Boundaries (11 failure classes with declared recovery action) | F-018 | `failure_model.py` | `test_failure_model.py` | `FAULT-INJECTED` |
+| **I34** | Formal Failure Recovery Boundaries (8 failure classes with declared recovery action) | F-018 | `failure_model.py` | `test_failure_model.py` | `FAULT-INJECTED` |
 | **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `test_recovery_protocol.py`, `test_invariant_graph.py` | `MODEL-CHECKED` |
 | **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py` | `test_region_model.py` | `MODEL-CHECKED` |
 | **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py`, `global_coordination.py`, `migration_handler.py` | `test_authority_transfer.py`, `test_formal_invariants.py` | `PRODUCTION-OBSERVED` |
