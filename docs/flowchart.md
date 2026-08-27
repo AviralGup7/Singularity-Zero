@@ -228,7 +228,10 @@ flowchart TD
 ```mermaid
 flowchart TD
     classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
     classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
@@ -606,7 +609,7 @@ flowchart TD
 
     subgraph DerivationLattice["Total Precedence Derivation Lattice (derive_job_and_exit)"]
         Sig["SIGINT / Cancel"]:::impl --> PrecedenceDecision{"Precedence Evaluation<br/>derive_job_and_exit"}:::impl
-        SF -->|"fatal infra error"| PrecedenceDecision
+        SF -->|"fatal infra error / retries exhausted"| PrecedenceDecision
         ConfigSuspend["Hot-Reload Suspend"]:::impl --> PrecedenceDecision
         FR -->|"policy evaluated"| PrecedenceDecision
         SDG & SSF -->|"degraded skips"| PrecedenceDecision
