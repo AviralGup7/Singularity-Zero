@@ -268,6 +268,83 @@ class RunLock:
         self.release()
 
 
+def derive_scope_group(target_or_host: str) -> str:
+    """Extract root registered domain / scope group authority from host/target string.
+
+    Co-locates subdomains under a shared scope lock:
+    - "api.example.com" -> "example.com"
+    - "www.example.com" -> "example.com"
+    - "staging.auth.corp.local" -> "corp.local"
+    - "192.168.1.50" -> "192.168.1.50"
+    """
+    raw = str(target_or_host).strip().lower()
+    if "://" in raw:
+        from urllib.parse import urlparse
+
+        raw = urlparse(raw).hostname or raw
+
+    if ":" in raw and not raw.startswith("["):
+        raw = raw.split(":")[0]
+
+    parts = raw.split(".")
+    if len(parts) >= 2 and not all(p.isdigit() for p in parts):
+        return f"{parts[-2]}.{parts[-1]}"
+    return raw
+
+
+class ScopeGroupLock:
+    """Hierarchical scope-group coordinator locking shared infrastructure across subdomains."""
+
+    def __init__(self, run_lock: RunLock | None = None) -> None:
+        self._target_lock = run_lock or RunLock()
+        self._scope_lock = RunLock()
+        self._acquired_target_lock = False
+        self._acquired_scope_lock = False
+        self._target_id: str | None = None
+        self._scope_group: str | None = None
+        self._lock = threading.Lock()
+
+    def acquire(
+        self,
+        target_id: str,
+        scope_group: str | None = None,
+        ttl_seconds: int = 3600,
+        owner_id: str | None = None,
+    ) -> bool:
+        """Acquire both per-target scan lock and overarching scope-group lock atomically."""
+        effective_scope = scope_group or derive_scope_group(target_id)
+        with self._lock:
+            # 1. Acquire overarching scope group lock first
+            scope_key = f"scope_grp_{effective_scope}"
+            if not self._scope_lock.acquire(scope_key, ttl_seconds=ttl_seconds, owner_id=owner_id):
+                return False
+            self._acquired_scope_lock = True
+            self._scope_group = effective_scope
+
+            # 2. Acquire per-target lock
+            if not self._target_lock.acquire(target_id, ttl_seconds=ttl_seconds, owner_id=owner_id):
+                self._scope_lock.release()
+                self._acquired_scope_lock = False
+                self._scope_group = None
+                return False
+
+            self._acquired_target_lock = True
+            self._target_id = target_id
+            return True
+
+    def release(self) -> None:
+        """Release both held locks."""
+        with self._lock:
+            if self._acquired_target_lock:
+                self._target_lock.release()
+                self._acquired_target_lock = False
+                self._target_id = None
+            if self._acquired_scope_lock:
+                self._scope_lock.release()
+                self._acquired_scope_lock = False
+                self._scope_group = None
+
+
 class MeshShim:
     """Drop-in replacement for the old neural-mesh API surface when running single-node."""
 

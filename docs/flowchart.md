@@ -372,7 +372,7 @@ flowchart TD
         P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL["SKIPPED_FAILED"]:::impl
     end
 
-    DAG -->|"per ready node"| Req["ExecutionRequest + ScopeToken"]:::impl
+    DAG -->|"per ready node"| Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
     
     subgraph Sandbox["Execution Gate & Universal Egress Authority (I29, I30, F-036)"]
         Req --> Budget{"HuntBudget.reserve"}:::impl
