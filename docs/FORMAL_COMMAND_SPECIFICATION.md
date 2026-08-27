@@ -115,8 +115,8 @@ This document defines the **Formal Command & State Transition Contract** for all
 - **Deterministic State Transition**:
   - `unused_refund = max(0, units_reserved - units_consumed)`
   - `subleases[sublease_id].units_consumed += units_consumed`
-  - `subleases[sublease_id].status = CONSUMED` if fully consumed, else `ACTIVE` (`SETTLEMENT_PENDING` is a legacy alias of ACTIVE, not written)
-  - `aggregates[exec-9941].status = "SETTLED"`
+  - `subleases[sublease_id].status = CONSUMED` if fully consumed, else `ACTIVE` (remains active on partition FSM for subsequent execution aggregate reservations, or returns unused quota via `SettlementReturnCommand` on `P-0000`)
+  - `aggregates[exec-9941].status = "SETTLED"` (this specific `ExecutionAggregate` attempt is fully settled; unused units are released back to the sublease/partition pool)
   - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
 - **Emitted Domain Event**: `ExecutionClaimSettledEvent(exec_id, units_consumed, unused_refund, findings_count)`
 - **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="CLAIM_SETTLED_SUCCESS")`

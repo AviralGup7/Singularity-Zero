@@ -23,7 +23,7 @@ Two `PluginRegistry` implementations exist on purpose and are **not** being unif
 
 `STAGE_GRAPH` in `_constants.py` is built at import from `build_pipeline_graph`. After plugin registration the **runtime** graph can grow nodes (for example `sca_scan`, `container_scan`, `iac_scan`, `git_secret_scan` when the registry `produces` contains `"finding"`). `_join_finding_producers` adds those names to `reporting.needs`. Planner prefers the runtime Graph; import-time `STAGE_ORDER` is still used in some resume filters.
 
-`STAGE_TIMEOUTS` in `_constants.py` does **not** list every graph node (`recon_validation`, `threat_modeling`, `subdomain_takeover`, sca/container/iac/git_secret, `ci_export`, `dedup_stage`, `scope`, …). Missing keys fall through to the default timeout.
+`STAGE_TIMEOUTS` in `_constants.py` contains explicit entries for all base and plugin nodes (`recon_validation`, `threat_modeling`, `subdomain_takeover`, `sca_scan`, `container_scan`, `iac_scan`, `git_secret_scan`, `ci_export`, `dedup_stage`, etc.), dynamically populating any missing keys from `node.timeout` (falling back to `DEFAULT_TIMEOUT_SECONDS=3600`).
 
 ## Sandbox
 

@@ -78,7 +78,7 @@ src/
 │   │   ├── authority_runtime.py # In-process PipelineAuthorityRuntime bundle & CLI binding
 │   │   ├── commands.py       # Typed formal commands (reserve_global_budget, allocate_sublease, etc.)
 │   │   ├── global_coordination.py # P-0000 GlobalBudgetAggregate, GlobalRunAggregate, PlacementAuthority
-│   │   ├── invariant_checker.py # 16 Formal System Invariants machine-checkable verification suite
+│   │   ├── invariant_checker.py # Core partition invariants (subset of I1–I29) machine-checkable verification suite
 │   │   ├── lease_status.py   # Canonical LeaseStatus FSM, transition validators & I28 lifecycle
 │   │   ├── outbox.py         # DurableOutboxLedger & CommittedOutboxStream with CRC-64 persistence & deduplication
 │   │   ├── partition_authority.py # Partition router & lease fencing validator

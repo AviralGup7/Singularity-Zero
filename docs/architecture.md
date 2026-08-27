@@ -283,7 +283,7 @@ I1–I29 plus cross-subsystem I30–I37. Representative suites:
 - **Static JavaScript AST Taint Analysis (`js_sink_analyzer.py`)**:
   - Traverses client-side JavaScript Abstract Syntax Trees to track untrusted sources (`location.search`, `document.referrer`, `postMessage`) flowing into dangerous sinks (`eval`, `innerHTML`, `document.write`).
 - **Dynamic Headless Browser Validation (`runtime_browser.py`, `dom_xss_browser.py`)**:
-  - Executes candidate findings in a sandboxed headless Chromium instance, triggering real DOM events to verify exploitable DOM-XSS with zero false positives.
+  - Executes candidate findings in a sandboxed headless Chromium instance, triggering real DOM events to verify exploitable DOM-XSS with high-fidelity execution proof.
 
 ### 7.13 P2P Mesh Network, Ghost Actors & Distributed Task Auction (`src/infrastructure/mesh/`, `src/infrastructure/frontier/`)
 - **SWIM Gossip Engine (`gossip/engine.py`)**:

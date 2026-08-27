@@ -16,7 +16,7 @@ This document serves as the authoritative single source of truth for all environ
 | `REDIS_TLS_CA_CERTS` | string | (None) | Path to CA bundle file for Redis mTLS connections. |
 | `SEC_ENCRYPTION_KEY` | string | (None) | Master 256-bit AES encryption key for securing cached secrets and credentials. |
 | `SEC_API_KEY_PEPPER` | string | (None) | Cryptographic pepper for Argon2id hashing of API keys. |
-| `AUTHORITY_SIGNING_KEY` | string | (None) | HMAC-SHA256 key for command receipts (I13) and settlement/ticket HMAC. Falls back to `APP_SECRET_KEY`. If **neither** is set, a process-local random key is used — in-process verify works; **verify dies across restart**. No published fallback string. |
+| `AUTHORITY_SIGNING_KEY` | string | (None) | HMAC-SHA256 key for command receipts (I13) and settlement/ticket HMAC. Falls back to `APP_SECRET_KEY`. If **neither** is set, a process-local random key is used for single-process local development — in-process verify works; **verify dies across restart**. Production deployments must set this key. |
 | `AUTHORITY_SIGNING_KEY_ID` | string | `authority-hmac-v1` | Key identifier string bound into certified command receipts. |
 | `PIPELINE_GLOBAL_BUDGET_UNITS` | integer | `10000` | Total units allocated to `GlobalBudgetAggregate` (P-0000) for sub-lease distribution. |
 | `PIPELINE_STATE_MODE` | string | (empty) | Explicit state mode selector (`memory`, `hybrid`, `disk`). |

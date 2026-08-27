@@ -850,43 +850,43 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 
 | Invariant | Formal Statement | Owning Chart | Enforcing Module | Primary Test Suite | Status |
 |---|---|---|---|---|---|
-| **I1** | Deterministic virtual partition placement ($H \pmod{1024}$) | F-002 | `global_coordination.py` | `test_region_model.py` | `impl` |
-| **I2** | Single leader per partition ($L_p \le 1$) | F-002 | `consensus.py` | `test_distributed_invariants.py` | `impl` |
-| **I3** | Monotonic lease terms ($T_{k+1} > T_k$) | F-002 | `consensus.py` | `test_distributed_invariants.py` | `impl` |
-| **I4** | Quorum commitment majority ($N/2 + 1$) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `single-node` |
-| **I5** | Universal budget conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$) | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
-| **I6** | Integer non-negative allocations | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
-| **I7** | Single global authority for budget ($P-0000$) | F-002 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
-| **I8** | FSM determinism across sequential replay | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
-| **I9** | Zero I/O inside FSM Apply transition | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
-| **I10** | Monotonically increasing applied index | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
-| **I11** | PartitionWAL total order per partition | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
-| **I12** | CRC-64 verification on WAL record read | F-003 | `wal.py` | `test_wal.py` | `impl` |
-| **I13** | HMAC cryptographic command receipt signing | F-003 | `receipt_crypto.py` | `test_atlas_holes.py` | `impl` |
-| **I14** | Durable outbox append before external dispatch | F-003 | `outbox.py` | `test_eventbus_guarantees.py` | `impl` |
-| **I15** | Crash-safe disk flush before commit acknowledgement | F-003 | `wal.py` | `test_wal.py` | `impl` |
-| **I16** | FSM snapshot point-in-time consistency | F-018 | `recovery/manager.py` | `test_recovery_manager.py` | `impl` |
-| **I17** | Single leader-home authority placement | F-002 | `region_model.py` | `test_region_model.py` | `impl` |
-| **I18** | Replicated journal filter (commands dropped on peer relay) | F-002 | `replication.py` | `test_region_model.py` | `impl` |
-| **I19** | Strict lease lifecycle ($\text{RESERVED} \rightarrow \text{ACTIVE} \rightarrow \text{CONSUMED}$) | F-006 | `lease_status.py` | `test_lease_status.py` | `impl` |
-| **I20** | Idempotent terminal lease compensation | F-006 | `lease_status.py` | `test_lease_status.py` | `impl` |
-| **I21** | Forbidden direct `ACTIVE` $\rightarrow$ `COMPENSATED` transition | F-006 | `lease_status.py` | `test_lease_status.py` | `impl` |
-| **I22** | Max 1000ms clock skew admission gate | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
-| **I23** | Monotonic logical timestamp ordering | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
-| **I24** | Bounded tombstone retention compaction | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
-| **I25** | CRDT convergence under commutative merge | F-003 | `state.py` | `test_state_crdt.py` | `impl` |
-| **I26** | Multi-Raft quota slab conservation | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
-| **I27** | Bounded per-host bulkhead concurrency | F-009 | `infrastructure/` | `test_resilience.py` | `impl` |
-| **I28** | Settle-only budget commit & integer conservation | F-006 | `hunt_budget.py`, `state_authority.py` (COMPLETED+findings → COMMIT; COMPLETED+zero / FAILED/SKIPPED → RELEASE) | `test_global_invariants.py`, `test_state_authority_durability.py`, `test_i29_egress_context.py` | `impl` |
-| **I29** | Pre-flight & continuous egress scope enforcement | F-004 | `process_sandbox.py`, `egress_context.py` (`ensure_process_http_egress_hooks`), `shared_sessions.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (subprocess + shared + raw httpx/requests hooks; non-HTTP residual) |
-| **I30** | Cryptographic quartet ticket binding | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py` | `test_global_invariants.py` | `impl` (stage path; exploit campaign entry residual) |
-| **I31** | Settlement-gated `FINDING_CREATED` emission | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
-| **I32** | Non-authoritative EventBus outbox decoupling | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
-| **I33** | Causal identity chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `test_causal_identity.py` | `impl` |
-| **I34** | Formal failure recovery boundaries (11 domains) | F-018 | `failure_model.py` | `test_failure_model.py` | `impl` |
-| **I35** | Dual-plane deterministic recovery state machine | F-018 | `recovery_protocol.py` | `test_recovery_protocol.py` | `impl` |
-| **I36** | Single-writer regions & journal-only relay | F-002 | `region_model.py` | `test_region_model.py` | `impl` |
-| **I37** | Zero dual-writer fenced authority transfer | F-002 | `authority_transfer.py` | `test_authority_transfer.py` | `impl` |
+| **I1** | Hash-Chain Continuity ($H_n = \text{SHA256}(H_{n-1} \mathbin{\Vert} \text{CanonicalEncode}(E_n))$) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
+| **I2** | Log Monotonicity (Index $K_n > K_{n-1}$, Term $T_n \ge T_{n-1}$) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
+| **I3** | Committed-State Confinement (Transitions on quorum-committed entries only) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `single-node` |
+| **I4** | Aggregate Monotonicity ($\text{version}' = \text{version} + 1$ on `SUCCESS`) | F-003 | `raft_fsm.py` | `test_formal_invariants.py` | `impl` |
+| **I5** | Global Budget Conservation ($\text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$) | F-006 | `global_coordination.py`, `hunt_budget.py` | `test_formal_invariants.py` | `impl` |
+| **I6** | Scoped Idempotency ($\forall \text{ valid } \text{cmd\_id}: \text{Count}(\text{Mutations}) \le 1$) | F-003 | `raft_fsm.py` | `test_formal_invariants.py` | `impl` |
+| **I7** | Singular Partition Ownership (Target aggregate belongs to exactly 1 partition) | F-002 | `global_coordination.py` | `test_region_model.py` | `impl` |
+| **I8** | Projection Watermark Bound ($\text{ProjectionOffset}(P_x) \le \text{commitIndex}(P_x)$) | F-003 | `projection_stream.py` | `test_formal_invariants.py` | `impl` |
+| **I9** | FSM Pure Determinism (`FSM.Apply` zero external I/O, RNG, or clock reads) | F-003 | `raft_fsm.py` | `test_formal_invariants.py` | `impl` |
+| **I10** | Worker Epoch Fencing ($\text{claim.epoch} < \text{active.epoch} \implies \text{REJECT}$) | F-003 | `raft_fsm.py` | `test_formal_invariants.py` | `impl` |
+| **I11** | Cryptographic State Commitment ($\text{State}_A \equiv \text{State}_B \iff \text{StateHash}_A == \text{StateHash}_B$) | F-003 | `raft_fsm.py` | `test_formal_invariants.py` | `impl` |
+| **I12** | Snapshot Integrity (Certified snapshot payload hash == header hash) | F-018 | `raft_fsm.py`, `recovery/manager.py` | `test_wal.py` | `impl` |
+| **I13** | Receipt Cryptographic Binding (Leader receipt HMAC validates state hash) | F-003 | `receipt_crypto.py` | `test_atlas_holes.py` | `impl` |
+| **I14** | Deduplicated Outbox Stream (Domain events deduplicated by `event_id`) | F-003 | `outbox.py` | `test_eventbus_guarantees.py` | `impl` |
+| **I15** | Fail-Closed Boundary (Corrupt records or unverified leases abort with 0 mutations) | F-003 | `wal.py` | `test_wal.py` | `impl` |
+| **I16** | Replay State Invariance ($\text{Replay}(\text{WAL}[0 \dots N]) \equiv \text{State}_N$) | F-018 | `replay_engine.py` | `test_recovery_manager.py` | `impl` |
+| **I17** | Authority Uniqueness (No non-authoritative subsystem mutates state) | F-002 | `region_model.py` | `test_region_model.py` | `impl` |
+| **I18** | Stale Command Rejection (Outdated lease epoch / stale placement version rejected) | F-002 | `replicated_log.py` | `test_region_model.py` | `impl` |
+| **I19** | Lease Terminal Linearization (`RESERVED` $\rightarrow$ `CONSUMED` or `COMPENSATED`; `EXPIRED` non-terminal) | F-006 | `lease_status.py` | `test_lease_status.py` | `impl` |
+| **I20** | Policy Version Fencing ($\text{expected\_policy\_version} == \text{current\_policy\_version}$) | F-003 | `raft_fsm.py`, `policy_governance.py` | `test_lease_status.py` | `impl` |
+| **I21** | Projection Recovery Invariance (Sequential outbox replay recovers projection) | F-003 | `outbox.py`, `projection_stream.py` | `test_lease_status.py` | `impl` |
+| **I22** | Temporal Invariant & Admission Skew Gate ($\pm 10\text{s}$ future, $-5\text{s}$ regression at admission) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `impl` |
+| **I23** | Partition Budget Isolation (Subleases isolated per partition, negative balances rejected) | F-006 | `raft_fsm.py`, `state.py` | `test_state_crdt.py` | `impl` |
+| **I24** | Persisted Mesh BootID + Monotonic Nonce Safety | F-002 | `mesh/` | `test_state_crdt.py` | `impl` |
+| **I25** | Partition Policy Rollback Revocation & Watermark Upper Bound | F-003 | `raft_fsm.py` | `test_state_crdt.py` | `impl` |
+| **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
+| **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `CASStore`, `request_executor.py` | `test_resilience.py` | `impl` |
+| **I28** | Hardened Lease State Transitions (`UNALLOCATED` $\rightarrow$ `RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED`/`EXPIRED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py` | `impl` |
+| **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (subprocess + shared + raw httpx/requests hooks; non-HTTP residual) |
+| **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py` | `test_global_invariants.py` | `impl` (stage path; exploit campaign entry residual) |
+| **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
+| **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
+| **I33** | Causal Identity Chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `test_causal_identity.py` | `impl` |
+| **I34** | Formal Failure Recovery Boundaries (11 failure classes with declared recovery action) | F-018 | `failure_model.py` | `test_failure_model.py` | `impl` |
+| **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `test_recovery_protocol.py` | `impl` |
+| **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py` | `test_region_model.py` | `impl` |
+| **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py` | `test_authority_transfer.py` | `impl` |
 
 ```mermaid
 flowchart TD
@@ -1042,5 +1042,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | Add F-001 node and architectural cross-reference for docs/architecture/code-consolidation.md | edit |
 | 2026-08-26 | Audit vs code: fix F-004 Readiness FSM (scheduler-local vs StageStatus); replace invented PROVEN_EMPTY reasons with actor_scheduler skip reasons; restore exploit I28/I30 + raw-httpx residual counts; F-025 index facades | edit |
 | 2026-08-27 | Invariant audit reconciliation: verified I28/I30 budget reservation & ticket consume paths, I29 process-wide HTTP egress hooks vs raw transport boundaries, I37 zero-dual-writer fence (library/tests-only caller), and single-node quorum-1 Raft live operation | edit |
+| 2026-08-27 | Invariant namespace synchronization: aligned F-033 Formal Invariant Registry with architecture.md canonical I1–I37 definitions; fixed F-006 budget matrix compensation sequence | edit |
 
 Append a row for every later edit. Do not delete this table.
