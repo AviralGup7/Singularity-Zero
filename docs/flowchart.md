@@ -631,13 +631,12 @@ flowchart TD
 ```mermaid
 flowchart TD
     U["UNINITIALIZED"]:::impl --> LS["LOAD_SNAPSHOT"]:::impl
-    U --> LW0["LOAD_WAL"]:::impl
+    U --> LW["LOAD_WAL"]:::impl
     U --> Fresh["FRESH"]:::impl
     LS --> VS["VERIFY_SNAPSHOT"]:::impl
     VS -->|"partition plane unread schema"| Closed["FAIL_CLOSED"]:::forbidden
     VS -->|"frontier snapshot unread schema"| Fresh
-    VS --> LW["LOAD_WAL"]:::impl
-    LW0 --> Rec
+    VS --> LW
     LW --> Rec["RECONCILE_SNAPSHOT_WAL"]:::impl
     Rec -->|"snapshot ahead / truncated partition"| Closed
     Rec -->|"behind or semantically old"| Replay["REPLAY_WAL"]:::impl
