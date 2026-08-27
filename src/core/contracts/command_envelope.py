@@ -234,6 +234,7 @@ class CommandReceipt:
     state_hash_at_commit: str
     signer_key_id: str
     cryptographic_signature: str
+    key_generation: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -252,6 +253,7 @@ class CommandReceipt:
             "state_hash_at_commit": self.state_hash_at_commit,
             "signer_key_id": self.signer_key_id,
             "cryptographic_signature": self.cryptographic_signature,
+            "key_generation": self.key_generation,
         }
 
     @classmethod
@@ -272,6 +274,7 @@ class CommandReceipt:
             state_hash_at_commit=str(data.get("state_hash_at_commit", "")),
             signer_key_id=str(data.get("signer_key_id", "")),
             cryptographic_signature=str(data.get("cryptographic_signature", "")),
+            key_generation=int(data.get("key_generation", 1)),
         )
 
     def bind_payload(self) -> dict[str, Any]:
@@ -287,6 +290,7 @@ class CommandReceipt:
             previous_state_hash=self.previous_state_hash,
             state_hash_at_commit=self.state_hash_at_commit,
             signer_key_id=self.signer_key_id,
+            key_generation=self.key_generation,
         )
 
     def verify_signature(self) -> bool:

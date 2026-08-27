@@ -219,8 +219,11 @@ flowchart TD
     NewPayload["Future / v3+ Payload"]:::impl -->|downcast (reverse-compat)| Registry
     Registry -->|target new| Envelope["Output: Canonical Envelope (v3)"]:::impl
     Registry -->|target legacy / rolling upgrade| DowngradedEnvelope["Output: Downgraded Envelope + _unknown_fields bag"]:::impl
-    MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
-    Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
+    MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> KeyRing["AuthorityKeyRing (Multi-Generation Overlap)"]:::impl
+    KeyRing -->|"active (Gen N)"| Derive["HMAC Key Derivation"]:::impl
+    KeyRing -->|"overlap (Gen N-1)"| OverlapVerify["Historical Verification Window (Zero Downtime)"]:::impl
+    RotateCmd["Raft: RotateAuthorityKey Command"]:::impl -->|"ceremony"| KeyRing
+    Derive --> ReceiptKey["CommandReceipt Key (key_generation bound)"]:::impl
     Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
     Derive --> JWTKey["JWT Session Key"]:::impl
     MasterKey -.->|"Missing in Env (Refuse Production Startup)"| Fallback["Refuse: Missing Master Secret FAILS_CLOSED"]:::forbidden

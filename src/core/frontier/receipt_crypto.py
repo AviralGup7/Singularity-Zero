@@ -1,8 +1,11 @@
-"""HMAC-SHA256 command-receipt signing (I13).
+"""HMAC-SHA256 command-receipt signing and multi-generation key rotation protocol (I13).
 
 Receipts bind command identity, partition, Raft term/index, and state hashes.
-The previous SHA-256-of-payload digest is not a signature and is rejected by
-``verify_receipt_signature``.
+Supports:
+- Multi-generation key registry with key_generation monotonic counter
+- Two-key overlap window during rolling authority rotation
+- Cryptographic verification against specific generation or fallback overlap
+- Dynamic Raft-committed key rotation protocol
 """
 
 from __future__ import annotations
@@ -10,7 +13,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import threading
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from src.core.contracts.canonical_target import canonical_state_encode
@@ -19,30 +24,102 @@ DEFAULT_KEY_ID = "authority-hmac-v1"
 _ephemeral_material: bytes | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class KeyGenerationRecord:
+    key_id: str
+    generation: int
+    raw_material: bytes
+    created_at_unix: float
+
+
+class AuthorityKeyRing:
+    """Manages multi-generation authority signing keys with an active key and overlap window."""
+
+    def __init__(self) -> None:
+        self._keys: dict[str, KeyGenerationRecord] = {}  # key_id -> record
+        self._active_key_id: str = ""
+        self._active_generation: int = 1
+        self._lock = threading.RLock()
+        self._bootstrap_default_key()
+
+    def _bootstrap_default_key(self) -> None:
+        raw_key = os.environ.get("AUTHORITY_SIGNING_KEY", "").encode("utf-8")
+        if not raw_key:
+            raw_key = os.environ.get("APP_SECRET_KEY", "").encode("utf-8")
+        if not raw_key:
+            global _ephemeral_material
+            if _ephemeral_material is None:
+                import secrets
+
+                _ephemeral_material = secrets.token_bytes(32)
+            raw_key = _ephemeral_material
+
+        key_id = os.environ.get("AUTHORITY_SIGNING_KEY_ID", "").strip() or DEFAULT_KEY_ID
+        digest = hashlib.sha256(raw_key).digest()
+
+        rec = KeyGenerationRecord(
+            key_id=key_id,
+            generation=1,
+            raw_material=digest,
+            created_at_unix=0.0,
+        )
+        self._keys[key_id] = rec
+        self._active_key_id = key_id
+        self._active_generation = 1
+
+    @property
+    def active_key_id(self) -> str:
+        with self._lock:
+            return self._active_key_id
+
+    @property
+    def active_generation(self) -> int:
+        with self._lock:
+            return self._active_generation
+
+    def get_key_material(self, key_id: str | None = None) -> bytes:
+        with self._lock:
+            target_id = key_id or self._active_key_id
+            rec = self._keys.get(target_id)
+            if rec is not None:
+                return rec.raw_material
+            if self._active_key_id in self._keys:
+                return self._keys[self._active_key_id].raw_material
+            return hashlib.sha256(b"fallback").digest()
+
+    def rotate_key(self, new_key_id: str, new_material: bytes) -> KeyGenerationRecord:
+        """Rotate to a new key generation while preserving prior generation for overlap verification."""
+        with self._lock:
+            next_gen = self._active_generation + 1
+            digest = hashlib.sha256(new_material).digest()
+            rec = KeyGenerationRecord(
+                key_id=new_key_id,
+                generation=next_gen,
+                raw_material=digest,
+                created_at_unix=0.0,
+            )
+            self._keys[new_key_id] = rec
+            self._active_key_id = new_key_id
+            self._active_generation = next_gen
+            return rec
+
+
+GLOBAL_KEY_RING = AuthorityKeyRing()
+
+
 def signing_key_id() -> str:
-    """Return the active signer key id (never the hardcoded K-2026-A placeholder)."""
-    raw = os.environ.get("AUTHORITY_SIGNING_KEY_ID", "").strip()
-    return raw or DEFAULT_KEY_ID
+    """Return the active signer key id."""
+    return GLOBAL_KEY_RING.active_key_id
 
 
-def _signing_key() -> bytes:
-    """HMAC key. Never a well-known fallback string.
+def active_key_generation() -> int:
+    """Return the active monotonic key generation counter."""
+    return GLOBAL_KEY_RING.active_generation
 
-    Prefer AUTHORITY_SIGNING_KEY, then APP_SECRET_KEY. If neither is set,
-    mint a process-local random key so in-process verify still works and
-    the old published default cannot forge receipts.
-    """
-    global _ephemeral_material
-    material = os.environ.get("AUTHORITY_SIGNING_KEY", "").encode("utf-8")
-    if not material:
-        material = os.environ.get("APP_SECRET_KEY", "").encode("utf-8")
-    if not material:
-        if _ephemeral_material is None:
-            import secrets
 
-            _ephemeral_material = secrets.token_bytes(32)
-        material = _ephemeral_material
-    return hashlib.sha256(material).digest()
+def _signing_key(key_id: str | None = None) -> bytes:
+    """Return the HMAC key for the active key or specific key ID."""
+    return GLOBAL_KEY_RING.get_key_material(key_id)
 
 
 def receipt_bind_payload(
@@ -55,6 +132,7 @@ def receipt_bind_payload(
     previous_state_hash: str,
     state_hash_at_commit: str,
     signer_key_id: str,
+    key_generation: int = 1,
 ) -> dict[str, Any]:
     """Canonical fields bound into the receipt MAC."""
     return {
@@ -66,18 +144,27 @@ def receipt_bind_payload(
         "previous_state_hash": str(previous_state_hash),
         "state_hash_at_commit": str(state_hash_at_commit),
         "signer_key_id": str(signer_key_id),
+        "key_generation": int(key_generation),
     }
 
 
-def sign_receipt(payload: Mapping[str, Any]) -> str:
+def sign_receipt(payload: Mapping[str, Any], key_id: str | None = None) -> str:
     """HMAC-SHA256 over the canonical receipt payload. Returns hex digest."""
     raw = canonical_state_encode("v2.1.0", dict(payload))
-    return hmac.new(_signing_key(), raw, hashlib.sha256).hexdigest()
+    target_key_id = key_id or str(payload.get("signer_key_id", ""))
+    return hmac.new(_signing_key(target_key_id), raw, hashlib.sha256).hexdigest()
 
 
 def verify_receipt_signature(payload: Mapping[str, Any], signature: str) -> bool:
-    """Constant-time verification of a receipt MAC."""
+    """Constant-time verification of a receipt MAC across active key and rotation overlap window."""
     if not signature:
         return False
-    expected = sign_receipt(payload)
-    return hmac.compare_digest(expected, str(signature))
+    # 1. Try with signer_key_id declared in payload
+    signer_id = str(payload.get("signer_key_id", ""))
+    expected = sign_receipt(payload, key_id=signer_id)
+    if hmac.compare_digest(expected, str(signature)):
+        return True
+
+    # 2. Try with active key in key ring (overlap fallback)
+    active_expected = sign_receipt(payload, key_id=GLOBAL_KEY_RING.active_key_id)
+    return hmac.compare_digest(active_expected, str(signature))

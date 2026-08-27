@@ -416,6 +416,9 @@ class ReplicatedPartitionLog:
                     )
 
             # 10. Step H: Issue Certified CommandReceipt (Leader Only)
+            from src.core.frontier.receipt_crypto import active_key_generation
+
+            current_key_gen = active_key_generation()
             receipt_payload = receipt_bind_payload(
                 command_id=cmd.command_id,
                 partition_id=self.partition_id,
@@ -425,6 +428,7 @@ class ReplicatedPartitionLog:
                 previous_state_hash=pre_state_hash,
                 state_hash_at_commit=post_state_hash,
                 signer_key_id=self.signer_key_id,
+                key_generation=current_key_gen,
             )
             cryptographic_signature = sign_receipt(receipt_payload)
 
@@ -447,6 +451,7 @@ class ReplicatedPartitionLog:
                 state_hash_at_commit=post_state_hash,
                 signer_key_id=self.signer_key_id,
                 cryptographic_signature=cryptographic_signature,
+                key_generation=current_key_gen,
             )
 
             return receipt, emitted_events
