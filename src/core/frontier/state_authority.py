@@ -132,9 +132,21 @@ class StateAuthority:
         self.cache = cache
         self.auto_compact_interval = auto_compact_interval
         self._append_count = 0
+        self._last_snapshot_time = time.time()
         self._committed_execution_ids: set[str] = set()
         self._committed_attempt_ids: set[str] = set()
         self._lock = threading.RLock()
+
+    @property
+    def time_since_last_snapshot(self) -> float:
+        """Elapsed time in seconds since the last verified state snapshot."""
+        with self._lock:
+            return time.time() - self._last_snapshot_time
+
+    def record_snapshot_taken(self) -> None:
+        """Mark that a verified state snapshot was committed."""
+        with self._lock:
+            self._last_snapshot_time = time.time()
 
     @property
     def committed_execution_ids(self) -> frozenset[str]:

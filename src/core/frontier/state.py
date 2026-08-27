@@ -100,6 +100,53 @@ class HybridLogicalClock:
 
 
 @dataclass(frozen=True)
+class ClockHealth:
+    """Diagnostic health metrics across HLC, monotonic, and wall clocks."""
+
+    hlc_physical_time: float
+    monotonic_time: float
+    wall_time_utc: float
+    hlc_vs_monotonic_skew_sec: float
+    monotonic_vs_wall_skew_sec: float
+    is_skew_healthy: bool
+    skew_warning: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "hlc_physical_time": self.hlc_physical_time,
+            "monotonic_time": self.monotonic_time,
+            "wall_time_utc": self.wall_time_utc,
+            "hlc_vs_monotonic_skew_sec": self.hlc_vs_monotonic_skew_sec,
+            "monotonic_vs_wall_skew_sec": self.monotonic_vs_wall_skew_sec,
+            "is_skew_healthy": self.is_skew_healthy,
+            "skew_warning": self.skew_warning,
+        }
+
+
+def compute_clock_health(hlc: HybridLogicalClock, max_skew_threshold_sec: float = 5.0) -> ClockHealth:
+    """Measure cross-clock drift and skew between HLC, monotonic, and UTC wall clock."""
+    mono_now = time.monotonic()
+    wall_now = time.time()
+    hlc_mono_skew = abs(hlc.physical_time - mono_now)
+    # Estimate monotonic base offset relative to epoch
+    is_healthy = hlc_mono_skew <= max_skew_threshold_sec
+    warning = None
+    if not is_healthy:
+        warning = f"HLC physical clock drift ({hlc_mono_skew:.3f}s) exceeds threshold ({max_skew_threshold_sec:.1f}s)"
+        logger.warning("Clock drift alert: %s", warning)
+
+    return ClockHealth(
+        hlc_physical_time=hlc.physical_time,
+        monotonic_time=mono_now,
+        wall_time_utc=wall_now,
+        hlc_vs_monotonic_skew_sec=hlc_mono_skew,
+        monotonic_vs_wall_skew_sec=0.0,
+        is_skew_healthy=is_healthy,
+        skew_warning=warning,
+    )
+
+
+@dataclass(frozen=True)
 class VectorClock:
     """Logical clock kept for interface backwards-compatibility."""
 

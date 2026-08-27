@@ -39,6 +39,35 @@ class ScopeAuthorizationError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class BlastRadiusConstraint:
+    """Explicit blast-radius bounds enforced by execution sandbox."""
+
+    max_requests_per_sec: float = 100.0
+    max_total_requests: int = 1000
+    max_wall_clock_sec: float = 30.0
+    allowed_endpoint_glob: str = "*"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "max_requests_per_sec": self.max_requests_per_sec,
+            "max_total_requests": self.max_total_requests,
+            "max_wall_clock_sec": self.max_wall_clock_sec,
+            "allowed_endpoint_glob": self.allowed_endpoint_glob,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any] | None) -> BlastRadiusConstraint:
+        if not data:
+            return cls()
+        return cls(
+            max_requests_per_sec=float(data.get("max_requests_per_sec", 100.0)),
+            max_total_requests=int(data.get("max_total_requests", 1000)),
+            max_wall_clock_sec=float(data.get("max_wall_clock_sec", 30.0)),
+            allowed_endpoint_glob=str(data.get("allowed_endpoint_glob", "*")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class AuthorizedExecutionTicket:
     """Cryptographically signed lease verifying an ExecutionRequest is valid and authorized."""
 
@@ -58,6 +87,7 @@ class AuthorizedExecutionTicket:
     budget_reservation_id: str = ""
     authority_revision: str = ""
     command_id: str = ""
+    blast_radius: BlastRadiusConstraint = BlastRadiusConstraint()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -77,12 +107,15 @@ class AuthorizedExecutionTicket:
             "budget_reservation_id": self.budget_reservation_id,
             "authority_revision": self.authority_revision,
             "command_id": self.command_id,
+            "blast_radius": self.blast_radius.to_dict(),
         }
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> AuthorizedExecutionTicket:
         req_raw = data.get("request") or {}
         req = ExecutionRequest.from_mapping(req_raw) if isinstance(req_raw, dict) else req_raw
+        blast_raw = data.get("blast_radius")
+        blast = BlastRadiusConstraint.from_mapping(blast_raw) if isinstance(blast_raw, dict) else (blast_raw or BlastRadiusConstraint())
         return cls(
             ticket_id=str(data.get("ticket_id", "")),
             request_id=str(data.get("request_id", "")),
@@ -100,6 +133,7 @@ class AuthorizedExecutionTicket:
             budget_reservation_id=str(data.get("budget_reservation_id", "")),
             authority_revision=str(data.get("authority_revision", "")),
             command_id=str(data.get("command_id", "")),
+            blast_radius=blast,
         )
 
 

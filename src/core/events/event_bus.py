@@ -141,6 +141,7 @@ class EventBus:
         self._running = False
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
+        self._tenant_partitions: dict[str, dict[str, list[Subscription]]] = defaultdict(lambda: defaultdict(list))
         self._metrics = {
             "published": 0,
             "delivered": 0,
@@ -148,10 +149,24 @@ class EventBus:
             "dlq_size": 0,
             "dropped_fanout": 0,
             "dropped_unauthoritative": 0,
+            "tenant_dispatches": 0,
         }
         self._depth: contextvars.ContextVar[int] = contextvars.ContextVar(
             "event_bus_depth", default=0
         )
+
+    def subscribe_tenant(self, tenant_id: str, event_type: Any, handler: Callable[..., Any]) -> str:
+        """Register a handler partitioned strictly to a specific tenant."""
+        sub_id = str(uuid.uuid4())
+        et_str = getattr(event_type, "value", str(event_type))
+        sub = Subscription(handler=handler, event_types=[et_str])
+        sub.sub_id = sub_id  # type: ignore[attr-defined]
+        self._tenant_partitions[tenant_id][et_str].append(sub)
+        return sub_id
+
+    def get_tenant_subscriptions(self, tenant_id: str) -> dict[str, list[Subscription]]:
+        """Return registered subscriptions for a given tenant."""
+        return self._tenant_partitions.get(tenant_id, {})
 
     def subscribe(self, arg1: Any, arg2: Any = None) -> None:
         """Register a handler for event types."""
@@ -270,9 +285,20 @@ class EventBus:
             self._depth.reset(token)
 
     def _dispatch_sync(self, event: Any) -> list[Any]:
+        from src.core.tenant_context import TenantContext
+
         results = []
         et_str = self._event_type_value(event)
         subs = list(self._subscriptions.get(et_str, []))
+
+        # Check tenant partitioning
+        data = getattr(event, "data", {}) or {}
+        event_tenant = data.get("tenant_id") or TenantContext.get_current_tenant()
+        if event_tenant and event_tenant in self._tenant_partitions:
+            tenant_subs = self._tenant_partitions[event_tenant].get(et_str, [])
+            subs.extend(tenant_subs)
+            self._metrics["tenant_dispatches"] = int(self._metrics.get("tenant_dispatches", 0)) + len(tenant_subs)
+
         for sub in subs:
             try:
                 if callable(sub.handler):

@@ -12,7 +12,7 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 >
 > | Principle | Policy & Rule |
 > |---|---|
-> | **Canonical IDs** | `F-001` … `F-033` are stable, typed architectural charts. |
+> | **Canonical IDs** | `F-001` … `F-045` are stable architectural identifiers (15 active survivor charts, 31 retired pointers). |
 > | **Retired Pointer Preservation** | Retired IDs are preserved exclusively in the Retired Pointer Table to resolve external identifier references. |
 > | **Graph as Knowledge** | All relationships, authority levels, operational predicates, and negative constraints are encoded directly as graph edges and node attributes. |
 > | **History in Git** | Historical evolution, audit logs, and document diffs belong to the Git database, not inside the AI knowledge graph. |
@@ -173,7 +173,7 @@ flowchart TD
 
     subgraph Topology["Spatial Deployment & Multi-Region Topology (launcher.py, multi-region.md)"]
         Browser["React 19 Dashboard (:5173 / :8000)"]:::impl <-->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
-        API <-->|"Redis Job Queue & Streams"| Worker["Pipeline Background Worker Daemon"]:::impl
+        API <-->|"Redis Job Queue & Streams<br/>(Circuit Breaker + Local SQLite Spool Fallback)"| Worker["Pipeline Background Worker Daemon"]:::impl
         Worker ==>|"subproc spawn"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
         Worker -->|"metrics push"| PromSink["Prometheus / Grafana (:9090)"]:::impl
         
@@ -271,7 +271,7 @@ flowchart TD
         F_Targets["Target Subdomains & URLs"]:::impl
         F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
         F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
-        F_Tombstones["Compaction Tombstones (Adaptive Gossip RTT x 3 Safety Factor TTL)"]:::impl
+        F_Tombstones["Compaction Tombstones (Adaptive Gossip RTT x 3 Safety Factor TTL, Floor=300s)"]:::impl
         F_Targets -->|data| F_Findings
         F_Targets -->|data| F_Candidates
         F_Findings -->|compact| F_Tombstones
@@ -664,7 +664,7 @@ flowchart TD
     Load["Target Probe Latency & Error Stream"]:::impl --> PID["AdaptivePIDController (Anti-Windup Clamping + Back-Calculation)"]:::impl
     PID --> Conc["Dynamic Concurrency Window"]:::impl
     Load --> Bulk["BulkheadPool (Unified Endpoint Isolation (scheme,host,port))"]:::impl
-    Load --> Bloom["GenerationalBloomFilter (Bounded Target FPR 0.001 + Auto-Rotation)"]:::impl
+    Load --> Bloom["GenerationalBloomFilter (Target FPR 0.001, Auto-Rotation at 0.005)"]:::impl
     Load --> RedisBreaker["RedisClient Circuit Breaker (Local SQLite/Disk Spool Fallback + Health Probe)"]:::impl
     Load --> CB
     subgraph CB["Circuit Breaker (Unified Canonical Endpoint Gate)"]
@@ -785,7 +785,7 @@ flowchart TD
     Rebuild & Orphan --> Del["RECONCILE_DELIVERY"]:::vacuous
     Del -->|"delivery ahead"| Drop["Discard Extra DeliveryIds"]:::vacuous
     Del -->|"delivery missing"| ReplayD["Replay Dispatch I32"]:::vacuous
-    Drop & ReplayD --> Inv["VERIFY_INVARIANTS (I30–I33 Check)"]:::impl
+    Drop & ReplayD --> Inv["VERIFY_INVARIANTS (I30–I33 + I5/I26 Budget Conservation Check)"]:::impl
     Inv -->|"compensation crash: valid lease"| Comp["Idempotent I28 Replay"]:::impl
     Inv -->|"compensation crash: uncompensatable"| Closed
     Inv -->|"prerequisite invariant failed"| Closed
@@ -936,6 +936,7 @@ flowchart TD
         SF -->|Miss| Persist["SQLite cache_layer.db / Redis (L2)"]:::impl
         Persist -->|Miss| Origin["Stage Execution (Compute)"]:::impl
         Origin --> Write["Write-Through to L1 & L2"]:::impl
+        OutboxEvt["Outbox Invalidation Events<br/>(FINDING_FALSE_POSITIVE, TARGET_REMOVED, POLICY_UPDATED)"]:::impl -->|"CacheGeneration Epoch Bump & Invalidate Keys"| SF & Persist
         Done["Completed Scan Run"]:::impl --> Hot["Hot NVMe Storage (output/run_id/)"]:::impl
         Hot --> Index["index_runs Metadata"]:::impl
         Hot --> PruneCheck{"Older than 14 Days?"}:::impl
@@ -970,7 +971,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I2** | Log Monotonicity (Index $K_n > K_{n-1}$, Term $T_n \ge T_{n-1}$) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `PROPERTY-TESTED` |
 | **I3** | Committed-State Confinement (Transitions on quorum-committed entries only) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `FAULT-INJECTED` (single-node quorum-1) |
 | **I4** | Aggregate Monotonicity ($\text{version}' = \text{version} + 1$ on `SUCCESS`) | F-003 | `raft_fsm.py` | `test_formal_invariants.py` | `TESTED` |
-| **I5** | Global Budget Conservation ($\text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$) | F-006 | `global_coordination.py`, `hunt_budget.py` | `test_formal_invariants.py`, `test_global_invariants.py` | `PROPERTY-TESTED` |
+| **I5** | Global Budget Conservation ($\text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$) | F-006 | `global_coordination.py`, `hunt_budget.py` | `test_formal_invariants.py`, `test_global_invariants.py`, `test_recovery_budget_conservation.py` | `PROPERTY-TESTED` |
 | **I6** | Scoped Idempotency ($\forall \text{ valid } \text{cmd\_id}: \text{Count}(\text{Mutations}) \le 1$) | F-003 | `raft_fsm.py` | `test_state_crdt.py` | `PROPERTY-TESTED` |
 | **I7** | Singular Partition Ownership (Target aggregate belongs to exactly 1 partition) | F-002 | `global_coordination.py` | `test_formal_invariants.py` | `MODEL-CHECKED` |
 | **I8** | Projection Watermark Bound ($\text{ProjectionOffset}(P_x) \le \text{commitIndex}(P_x)$) | F-003 | `projection_stream.py` | `test_formal_invariants.py` | `PRODUCTION-OBSERVED` |
@@ -978,29 +979,29 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I10** | Worker Epoch Fencing ($\text{claim.epoch} < \text{active.epoch} \implies \text{REJECT}$) | F-003 | `raft_fsm.py` | `test_lease_status.py` | `FAULT-INJECTED` |
 | **I11** | Cryptographic State Commitment ($\text{State}_A \equiv \text{State}_B \iff \text{StateHash}_A == \text{StateHash}_B$) | F-003 | `raft_fsm.py` | `test_crypto_audit.py` | `PROPERTY-TESTED` |
 | **I12** | Snapshot Integrity (Certified snapshot payload hash == header hash) | F-018 | `raft_fsm.py`, `recovery/manager.py` | `test_recovery_protocol.py` | `FAULT-INJECTED` |
-| **I13** | Receipt Cryptographic Binding (Leader receipt HMAC validates state hash) | F-003 | `receipt_crypto.py` | `test_crypto_audit.py` | `TESTED` |
-| **I14** | Deduplicated Outbox Stream (Domain events deduplicated by `event_id`) | F-003 | `outbox.py` | `test_eventbus_guarantees.py` | `FAULT-INJECTED` |
-| **I15** | Fail-Closed Boundary (Corrupt records or unverified leases abort with 0 mutations) | F-003 | `wal.py`, `failure_model.py` | `test_failure_model.py` | `FAULT-INJECTED` |
+| **I13** | Receipt Cryptographic Binding (Leader receipt HMAC validates state hash) | F-003 | `receipt_crypto.py` | `test_crypto_audit.py`, `test_key_rotation.py` | `TESTED` |
+| **I14** | Deduplicated Outbox Stream (Domain events deduplicated by `event_id`) | F-003 | `outbox.py` | `test_eventbus_guarantees.py`, `test_poison_pill_dlq.py` | `FAULT-INJECTED` |
+| **I15** | Fail-Closed Boundary (Corrupt records or unverified leases abort with 0 mutations) | F-003 | `wal.py`, `failure_model.py` | `test_failure_model.py`, `test_wal_group_commit.py` | `FAULT-INJECTED` |
 | **I16** | Replay State Invariance ($\text{Replay}(\text{WAL}[0 \dots N]) \equiv \text{State}_N$) | F-018 | `replay_engine.py` | `test_recovery_protocol.py` | `PROPERTY-TESTED` |
 | **I17** | Authority Uniqueness (No non-authoritative subsystem mutates state) | F-002 | `region_model.py` | `test_region_model.py` | `MODEL-CHECKED` |
 | **I18** | Stale Command Rejection (Outdated lease epoch / stale placement version rejected) | F-002 | `replicated_log.py` | `test_formal_invariants.py` | `ADVERSARIAL` |
-| **I19** | Lease Terminal Linearization (`RESERVED` $\rightarrow$ `CONSUMED` or `COMPENSATED`; `EXPIRED` non-terminal) | F-006 | `lease_status.py` | `test_lease_status.py` | `MODEL-CHECKED` |
+| **I19** | Lease Terminal Linearization (`RESERVED` $\rightarrow$ `CONSUMED` or `COMPENSATED`; `EXPIRED` non-terminal) | F-006 | `lease_status.py` | `test_lease_status.py`, `test_batched_budget_reservations.py` | `MODEL-CHECKED` |
 | **I20** | Policy Version Fencing ($\text{expected\_policy\_version} == \text{current\_policy\_version}$) | F-003 | `raft_fsm.py`, `policy_governance.py` | `test_lease_status.py` | `FAULT-INJECTED` |
-| **I21** | Projection Recovery Invariance (Sequential outbox replay recovers projection) | F-003 | `outbox.py`, `projection_stream.py` | `test_lease_status.py` | `FAULT-INJECTED` |
+| **I21** | Projection Recovery Invariance (Sequential outbox replay recovers projection) | F-003 | `outbox.py`, `projection_stream.py` | `test_lease_status.py`, `test_cache_invalidation_protocol.py` | `FAULT-INJECTED` |
 | **I22** | Temporal Invariant & Admission Skew Gate (+10s future drift, -5s backward regression at admission) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `PROPERTY-TESTED` |
-| **I23** | Partition Budget Isolation (Subleases isolated per partition, negative balances rejected) | F-006 | `raft_fsm.py`, `state.py` | `test_state_crdt.py` | `PROPERTY-TESTED` |
-| **I24** | Persisted Mesh BootID + Monotonic Nonce Safety | F-002 | `mesh/` | `test_state_crdt.py` | `FAULT-INJECTED` |
+| **I23** | Partition Budget Isolation (Subleases isolated per partition, negative balances rejected) | F-006 | `raft_fsm.py`, `state.py` | `test_state_crdt.py`, `test_adaptive_tombstones.py` | `PROPERTY-TESTED` |
+| **I24** | Persisted Mesh BootID + Monotonic Nonce Safety | F-002 | `mesh/` | `test_state_crdt.py`, `test_cross_region_consensus.py` | `FAULT-INJECTED` |
 | **I25** | Partition Policy Rollback Revocation & Watermark Upper Bound | F-003 | `raft_fsm.py` | `test_state_crdt.py` | `TESTED` |
-| **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `PROPERTY-TESTED` |
-| **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `CASStore`, `request_executor.py` | `test_resilience.py` | `PROPERTY-TESTED` |
-| **I28** | Hardened Lease State Transitions (`RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED` / `EXPIRED` / `COMPENSATED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py` | `MODEL-CHECKED` |
-| **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `runtime_browser.py`, `stage_admit.py` | `test_i29_egress_context.py`, `test_sandbox.py` | `ADVERSARIAL` (universal network boundary) |
-| **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py`, `safe_exploiter.py` | `test_global_invariants.py`, `test_formal_invariants.py` | `MODEL-CHECKED` |
-| **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py` | `MODEL-CHECKED` |
-| **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `FAULT-INJECTED` |
+| **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py` | `test_formal_invariants.py`, `test_recovery_budget_conservation.py` | `PROPERTY-TESTED` |
+| **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `CASStore`, `request_executor.py` | `test_resilience.py`, `test_bloom_fpr_bounds.py` | `PROPERTY-TESTED` |
+| **I28** | Hardened Lease State Transitions (`RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED` / `EXPIRED` / `COMPENSATED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py`, `test_batched_budget_reservations.py` | `MODEL-CHECKED` |
+| **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `runtime_browser.py`, `stage_admit.py` | `test_i29_egress_context.py`, `test_sandbox.py`, `test_kernel_egress_isolation.py` | `ADVERSARIAL` (universal network boundary) |
+| **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py`, `safe_exploiter.py` | `test_global_invariants.py`, `test_formal_invariants.py`, `test_scope_group_lock.py` | `MODEL-CHECKED` |
+| **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py`, `test_structural_dedup.py` | `MODEL-CHECKED` |
+| **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `test_eventbus_guarantees.py`, `test_poison_pill_dlq.py` | `FAULT-INJECTED` |
 | **I33** | Causal Identity Chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `test_causal_identity.py` | `PROPERTY-TESTED` |
 | **I34** | Formal Failure Recovery Boundaries (8 failure classes with declared recovery action) | F-018 | `failure_model.py` | `test_failure_model.py` | `FAULT-INJECTED` |
-| **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `test_recovery_protocol.py`, `test_invariant_graph.py` | `MODEL-CHECKED` |
+| **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `test_recovery_protocol.py`, `test_invariant_graph.py`, `test_recovery_budget_conservation.py` | `MODEL-CHECKED` |
 | **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py` | `test_region_model.py` | `MODEL-CHECKED` |
 | **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py`, `global_coordination.py`, `migration_handler.py` | `test_authority_transfer.py`, `test_formal_invariants.py` | `PRODUCTION-OBSERVED` |
 
@@ -1147,5 +1148,9 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `MESH_LEADER_ELECTION_TIMEOUT_SEC` | `10.0` | Mesh Consensus | Raft-lite Redis lease consensus timeout |
 | `MESH_PEER_RATE_LIMIT_PPS` | `200` | Mesh Gossip | Maximum gossip packets per second per peer |
 | `OBSERVABILITY_METRICS_PORT` | `9090` | Observability | Prometheus metrics scraping port |
+| `PROMETHEUS_HOST` | `127.0.0.1` | Observability | Prometheus scrape binding address (localhost default) |
+| `PROMETHEUS_REQUIRE_MTLS` | `false` | Observability | Require mTLS client certificates for Prometheus scrapes |
+| `WAL_GROUP_COMMIT_BATCH_SIZE` | `64` | Partition WAL | Group commit entry batch size before fsync |
+| `WAL_GROUP_COMMIT_WINDOW_MS` | `1.0` | Partition WAL | Group commit maximum window duration in ms |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | Observability | OpenTelemetry OTLP collector gRPC endpoint |
 | `AUTHORITY_SIGNING_KEY_ID` | `authority-hmac-v1` | Frontier Crypto | Key identifier for HMAC receipt verification |
