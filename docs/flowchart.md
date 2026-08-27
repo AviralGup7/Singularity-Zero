@@ -505,7 +505,7 @@ flowchart LR
 
     subgraph PackageAuthority["Package Path Authority Model"]
         Core["core/frontier/*<br/>(StateAuthority, WAL, CRDT, Raft)"]:::impl
-        Facade["frontier/*<br/>(Facades, MemoryJournal)"]:::library
+        Facade["frontier/*, tests/test_support/*<br/>(Facades, MemoryJournal Mock)"]:::library
         Cache["cache/*, checkpoint/*<br/>(UnifiedCache, FileCheckpoint)"]:::library
         Domain["intel/*, intelligence/*<br/>(IOC Feeds, Attack Chains)"]:::impl
         
