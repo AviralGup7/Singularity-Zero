@@ -44,26 +44,27 @@ Every graph in this atlas adheres to a standardized visual taxonomy:
 
 ### Node Status Classes (`classDef`)
 
-| ClassDef | Name | Definition & Runtime Scope |
-|---|---|---|
-| `:::impl` | **Fully Implemented** | Live production code in `src/` |
-| `:::singleNode` | **Single-Node Quorum-1** | Operating in-process or local cluster mode |
-| `:::library` | **Library Component** | Imported as utility, not a stand-alone daemon |
-| `:::specOnly` | **Specification Plane** | Formalized target architecture not yet active in live CLI |
-| `:::vacuous` | **Vacuous State** | Rehydration or check step that is empty by design in normal runs |
-| `:::forbidden` | **Forbidden / Fail-Closed** | Explicitly illegal transition rejected by runtime gates |
+| ClassDef | Name | Visual Styling | Definition & Runtime Scope |
+|---|---|---|---|
+| `:::impl` | **Fully Implemented** | `fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff` | Live production code in `src/` |
+| `:::singleNode` | **Single-Node Quorum-1** | `fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff` | Operating in-process or local cluster mode |
+| `:::library` | **Library Component** | `fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff` | Imported as utility, not a stand-alone daemon |
+| `:::specOnly` | **Specification Plane** | `fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff` | Formalized target architecture not yet active in live CLI |
+| `:::vacuous` | **Vacuous State** | `fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa` | Rehydration or check step that is empty by design in normal runs |
+| `:::forbidden` | **Forbidden / Fail-Closed** | `fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5` | Explicitly illegal transition rejected by runtime gates |
 
 ### Typed Authority Taxonomy
 
-The term "authority" is strictly typed across this specification to avoid semantic overloading:
+The term "authority" is strictly typed across this specification to avoid semantic overloading. All 37 invariants (I1–I37) are exhaustively governed:
 
 | Typed Authority | Scope & Plane | Authoritative Entity | Governed Invariants |
 |---|---|---|---|
-| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate` | I4, I8, I9, I10, I11, I22 |
-| **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I7, I19, I20, I21, I26, I28 |
-| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT / Ephemeral) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`) | I23, I24, I25 |
+| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate`, `RaftFSM` | I1, I2, I3, I4, I8, I9, I10, I11 (Co-Governed), I13, I18, I20, I22, I25 |
+| **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I7, I19, I21, I23, I26, I28 |
+| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT / Ephemeral) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`), `CASStore` | I24, I27 |
 | **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox` | I29, I30, I33 |
-| **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11, I12, I14, I15, I31, I32 |
+| **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11 (Co-Governed), I12, I14, I15, I16, I31, I32 |
+| **`RecoveryAuthority`** | Recovery & Regional Consensus Plane | `RecoveryManager`, `RecoveryProtocol`, `RegionModel`, `AuthorityTransfer` | I17, I34, I35, I36, I37 |
 | **`PresentationAuthority`** | Ephemeral & Read Projections (L4–L5) | FastAPI, Zustand Stores, Telemetry Normalizer | *None* (Forbidden as truth source) |
 
 ---
@@ -74,19 +75,19 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 
 | Id | Chart | Source Specification & Symbols | Absorbed | Verified |
 |---|---|---|---|---|
-| F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | 2026-08-26 (`9cb16b25`) |
-| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | 2026-08-26 (`eb763fe7`) |
-| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | 2026-08-26 (`95ed3b7e`) |
-| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | 2026-08-26 (`c989d3be`) |
-| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py` | F-011, F-038 | 2026-08-26 (`d49bfb05`) |
-| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | 2026-08-26 (`12113b4b`) |
-| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py` | F-024, F-030 | 2026-08-26 (`e7803858`) |
-| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `run_lock.py` | F-039 | 2026-08-26 (`6843c35b`) |
-| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py` | F-023, F-026, F-031, F-043 | 2026-08-26 (`479c106d`) |
-| F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | 2026-08-26 (`479c106d`) |
-| F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | 2026-08-26 (`479c106d`) |
-| F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | 2026-08-26 (`ce16770b`) |
-| F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-26 (`7a2bb407`) |
+| F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | 2026-08-27 (`11c00c7b`) |
+| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | 2026-08-27 (`11c00c7b`) |
+| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | 2026-08-27 (`11c00c7b`) |
+| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | 2026-08-27 (`11c00c7b`) |
+| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py` | F-011, F-038 | 2026-08-27 (`11c00c7b`) |
+| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | 2026-08-27 (`11c00c7b`) |
+| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py` | F-024, F-030 | 2026-08-27 (`11c00c7b`) |
+| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `run_lock.py` | F-039 | 2026-08-27 (`11c00c7b`) |
+| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py` | F-023, F-026, F-031, F-043 | 2026-08-27 (`11c00c7b`) |
+| F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | 2026-08-27 (`11c00c7b`) |
+| F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | 2026-08-27 (`11c00c7b`) |
+| F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | 2026-08-27 (`11c00c7b`) |
+| F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | 2026-08-27 (`11c00c7b`) |
 
 
 ---
@@ -129,6 +130,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph Topology["Spatial Deployment & Multi-Region Topology (launcher.py, multi-region.md)"]
         Browser["React 19 Dashboard (:5173 / :8000)"]:::impl <-->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
         API <-->|"Redis Job Queue & Streams"| Worker["Pipeline Background Worker Daemon"]:::impl
@@ -150,12 +158,14 @@ flowchart TD
         F -.->|"refuse: stale epoch/token"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
         F -.->|"refuse: mutation while fenced"| Rej2["Refuse: Partition FENCED"]:::forbidden
         
+        A_Abort -.->|"delayed activate rejected: token != epoch"| RejDelayed["Refuse: Stale Activation Token"]:::forbidden
+        
         A ==>|"authoritative write"| OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
         A ==>|"authoritative write"| JA["FrontierWAL Journal (Scan Discovery)"]:::impl
         JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::specOnly
         B -.->|"refuse: foreign mutation rejected"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
         
-        GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::singleNode
+        GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::impl
     end
 ```
 
@@ -167,31 +177,38 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
     Upcaster --> Envelope["Output: Canonical Envelope (v3)"]:::impl
     MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
     Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
     Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
     Derive --> JWTKey["JWT Session Key"]:::impl
-    MasterKey -.->|Missing in Env| Fallback["Ephemeral Random Key (secrets.token_bytes) — FAILS_CLOSED"]:::forbidden
+    MasterKey -.->|"Missing in Env (Refuse Production Startup)"| Fallback["Refuse: Missing Master Secret FAILS_CLOSED"]:::forbidden
 ```
 
 ### Partition Plane, Raft Consensus & Non-Authoritative Strata (L0–L5)
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
         Promo --> EnvelopeIn["Canonical Envelope (v3)"]:::impl
         EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
-        subgraph L0_Consensus["L0: Raft Distributed Consensus"]
+        subgraph L0_Consensus["L0: Raft Distributed Consensus (Single-Node Quorum-1 Live; Peer ACK specOnly)"]
             Leader["Leader PartitionWAL L0"]:::impl
-            F1["Follower PartitionWAL"]:::library
-            Leader -->|"AppendEntries"| F1
-            F1 -->|"ACK (Quorum-1 Live)"| Leader
-            Leader --> Commit["Advance commitIndex"]:::impl
+            F1["Follower PartitionWAL Replica"]:::library
+            Leader -->|"AppendEntries (Cluster Mode)"| F1
+            F1 -->|"Peer ACK (Multi-Node Spec)"| Leader
+            Leader --> Commit["Self-Commit / Advance commitIndex"]:::impl
         end
         Log --> Leader
         Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
@@ -201,7 +218,7 @@ flowchart TD
         Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
         
-        Outbox --> PORT_F004_BRIDGE[["PORT: SettlementCoordinator Bridge → F-004 CRDT"]]
+        Outbox --> PORT_CRDT_BRIDGE[["PORT: SettlementCoordinator Bridge → Frontier Plane CRDT"]]
         Outbox --> PORT_F019_BUS[["PORT: F-019 DurableOutbox EventBus Dispatch"]]
     end
     
@@ -231,6 +248,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph GraphBuilderPipeline["Dynamic Plugin & DAG Lifecycle: DISCOVER → VALIDATE → COMPOSE → VERIFY → FREEZE"]
         BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. COMPOSE: Merge Plugins from StageRegistry"]:::impl
         MergePlugins --> ProfileOverride["3. Apply Capability Profile Manifest"]:::impl
@@ -283,7 +307,7 @@ flowchart TD
         
         Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting<br/>join_sink=true"]:::impl
         
-        DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl -.->|"_join_finding_producers"| Report
+        DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl -->|"_join_finding_producers composition"| Report
         
         Report ==> Sarif["sarif_export"]:::impl
         Report ==> CiExp["ci_export"]:::impl
@@ -331,6 +355,9 @@ flowchart TD
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28, I31, I32, F-042)"]
         Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
+        Viol -->|"EGRESS_VIOLATION claim dropped"| DropSettle["Settle DROPPED (No Finding)"]:::forbidden
+        DropSettle --> SettleRel["I28 Budget RELEASE"]:::impl
+        
         Coord --> Fingerprint["SHA256 Fingerprint (tool|target|type|endpoint)"]:::impl
         Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
         Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
@@ -345,28 +372,28 @@ flowchart TD
         FindingCreated -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
         
         WAL -->|FAILED Attempt with wal_id| SettleRej["Settle REJECTED"]:::impl
-        SettleRej --> SettleRel["I28 Budget RELEASE"]:::impl
+        SettleRej --> SettleRel
         SettleRej -.->|forbid| FindingCreated
         
         WAL -->|REJECTED / DEDUPLICATED / No wal_id| SilentDrop["Silent Settle Drop"]:::impl
         SilentDrop --> SettleRel
         
-        SettleRel & Viol --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
+        SettleRel --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
     end
 ```
 
 ### Formal Graph Invariants Table (`FREEZE` Boundary)
 
-| Invariant | Name & Scope | Formal Verification Rule |
-|---|---|---|
-| **`I-GRAPH-01`** | **Topological Need-Edge Equivalence** | $\forall B \in \text{Graph.nodes}, \text{incoming\_edges}(B) \equiv B.\text{needs}$. Only `needs` create Kahn topological ordering; `when` gates are pure runtime predicates. |
-| **`I-GRAPH-02`** | **Conjunctive Dependencies** | Multiple `needs` are strictly conjunctive (AND): $B$ unblocks $\iff \forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$. |
-| **`I-GRAPH-03`** | **Root & Sink Validity** | $\ge 1$ root ($\text{in\_degree}=0$, `subdomains`), $\ge 1$ terminal sink ($\text{out\_degree}=0$, `sarif_export`). All finding producers have directed paths to `reporting`. |
-| **`I-GRAPH-04`** | **Isolated Node Prohibition** | Registered nodes lacking both `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) fail validation unless declared root/sink. |
-| **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). |
-| **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. |
-| **`I-GRAPH-07`** | **Immutable Sink Membership** | At `FREEZE`, $\text{reporting.needs} = \{ n \in \text{Nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$. Pruned tools removed prior to join. |
-| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$. Canonical sorting ensures identity is independent of discovery order. |
+| Invariant | Name & Scope | Formal Verification Rule | Verification Level |
+|---|---|---|---|
+| **`I-GRAPH-01`** | **Topological Need-Edge Equivalence** | $\forall B \in \text{Graph.nodes}, \text{incoming\_edges}(B) \equiv B.\text{needs}$. Only `needs` create Kahn topological ordering; `when` gates are pure runtime predicates. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
+| **`I-GRAPH-02`** | **Conjunctive Dependencies** | Multiple `needs` are strictly conjunctive (AND): $B$ unblocks $\iff \forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$. | `MODEL-CHECKED` (`actor_scheduler.py`) |
+| **`I-GRAPH-03`** | **Root & Sink Validity** | $\ge 1$ root ($\text{in\_degree}=0$, `subdomains`), $\ge 1$ terminal sink ($\text{out\_degree}=0$, `sarif_export`). All finding producers have directed paths to `reporting`. | `PROPERTY-TESTED` (`graph_builder.py`) |
+| **`I-GRAPH-04`** | **Isolated Node Prohibition** | Registered nodes lacking both `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) fail validation unless declared root/sink. | `FAULT-INJECTED` (`test_formal_invariants.py`) |
+| **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). | `TESTED` (`graph_builder.py`) |
+| **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. | `ADVERSARIAL` (`test_formal_invariants.py`) |
+| **`I-GRAPH-07`** | **Immutable Sink Membership** | At `FREEZE`, $\text{reporting.needs} = \{ n \in \text{Nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$. Pruned tools removed prior to join. | `PROPERTY-TESTED` (`graph_builder.py`) |
+| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$. Canonical sorting ensures identity is independent of discovery order. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
 
 ---
 
@@ -454,9 +481,9 @@ flowchart TD
         
         RESERVED -->|"cancel / reject<br/>ΔO=-u, ΔA=+u"| COMPENSATED["COMPENSATED<br/>(Available)"]:::impl
         RESERVED -->|"expire timeout<br/>ΔO=-u, ΔA=+u"| EXPIRED["EXPIRED<br/>(Available)"]:::impl
-        ACTIVE -->|"TTL elapsed<br/>ΔO=-u, ΔA=+u"| EXPIRED
+        ACTIVE -->|"TTL elapsed / egress abort<br/>ΔO=-u, ΔA=+u"| EXPIRED
         
-        EXPIRED -->|"late reconciliation<br/>Δ=0"| COMPENSATED
+        EXPIRED -->|"late reconciliation / compensate<br/>Δ=0"| COMPENSATED
         CONSUMED -->|"idempotent re-settle<br/>Δ=0"| CONSUMED
         COMPENSATED -->|"idempotent no-op<br/>Δ=0"| COMPENSATED
     end
@@ -472,6 +499,13 @@ Source: `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contr
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph Job["JobStatus (src/jobs/status.py)"]
         JP["PENDING"]:::impl --> JS["STARTING"]:::impl
         JP --> JR["RUNNING"]:::impl
@@ -510,7 +544,7 @@ flowchart TD
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
         subgraph SurfaceAxis["Axis 1: Surface Lifecycle"]
             FC["CANDIDATE"]:::impl --> FR["REPORTABLE"]:::impl
-            FC --> FF["FALSE_POSITIVE"]:::impl
+            FC --> FF["FALSE_POSITIVE (Terminal)"]:::impl
             FR -->|"Analyst Triage"| FF
         end
         subgraph ConfidenceAxis["Axis 2: Confidence & Exploitability"]
@@ -524,20 +558,30 @@ flowchart TD
         C_VAL & C_EXP -.->|"Confidence Refinement"| FR
     end
 
-    subgraph DerivationLattice["Job & Exit Code Derivation Mapping (derive_job_and_exit)"]
-        SC & SDG -->|"success / non-fatal"| J_COMP["Job COMPLETED"]:::impl
-        SF -->|"fatal error"| J_FAIL["Job FAILED"]:::impl
-        SSD & SSF -->|"skip path"| J_COMP
+    subgraph DerivationLattice["Total Precedence Derivation Lattice (derive_job_and_exit)"]
+        Sig["SIGINT / Cancel"]:::impl --> J_STOP["Job STOPPED"]:::impl
+        Sig --> Exit130["Exit 130: CANCEL"]:::impl
         
-        FR -->|"reportable findings"| J_COMP
-        FF -->|"false positive"| J_COMP
+        SF -->|"fatal error / unrecoverable"| J_FAIL["Job FAILED"]:::impl
+        J_FAIL --> Exit3["Exit 3: INFRA_FAILURE"]:::impl
         
-        J_COMP -->|"clean (0 policy violations)"| Exit0["Exit 0: CLEAN_RUN"]:::impl
-        J_COMP -->|"policy violations >= 1"| Exit2["Exit 2: POLICY_GATE"]:::impl
-        J_COMP -->|"contains DEGRADED stages"| Exit4["Exit 4: PARTIAL_RUN"]:::impl
-        J_FAIL -->|"infra / unrecoverable"| Exit3["Exit 3: INFRA_FAILURE"]:::impl
+        ConfigSuspend["Hot-Reload Suspend"]:::impl --> J_STOP
+        ConfigSuspend --> Exit7["Exit 7: SUSPEND"]:::impl
         
-        J_COMP & J_FAIL --> JP
+        FR -->|"policy violations >= 1"| J_COMP["Job COMPLETED"]:::impl
+        J_COMP --> Exit2["Exit 2: POLICY_GATE"]:::impl
+        
+        SDG & SSF -->|"degraded / non-fatal skips"| J_COMP
+        J_COMP --> Exit4["Exit 4: PARTIAL_RUN"]:::impl
+        
+        Unhandled["Unhandled Runtime Exception / OOM"]:::impl --> J_FAIL
+        J_FAIL --> Exit1["Exit 1: RUNTIME_ERROR"]:::impl
+        
+        SC & SSD -->|"clean (0 violations, clean stages)"| J_COMP
+        FF --> J_COMP
+        J_COMP --> Exit0["Exit 0: CLEAN_RUN"]:::impl
+        
+        J_COMP & J_FAIL & J_STOP --> JP
     end
 ```
 
@@ -547,6 +591,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     Load["Target Probe Latency & Error Stream"]:::impl --> PID["AdaptivePIDController (Concurrency Tuning)"]:::impl
     PID --> Conc["Dynamic Concurrency Window"]:::impl
     Load --> Bulk["BulkheadPool (Per-Host Host Isolation)"]:::impl
@@ -596,6 +647,13 @@ Strict Priority: $$\text{Cancel (130)} > \text{Infra/Fatal (3)} > \text{Suspend 
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph Concurrency["Concurrency & Run Locking (F-039)"]
         ScanReq["cstp scan run target"]:::impl --> Acquire{"Acquire RunLock (Target Name)"}:::impl
         Acquire -->|Collision| CollisionExit["Exit 1 (Lock Collision Error)"]:::forbidden
@@ -607,8 +665,10 @@ flowchart TD
     Precedence --> PORT_F007_CAS[["PORT: F-007 JobStatus CAS"]]
     Precedence -->|Cancel Signal| Exit130["Exit 130: STOPPED"]:::impl
     Precedence -->|Fatal Stage / No Output / I35 FAIL_CLOSED| Exit3["Exit 3: FAILED (Infra Failure)"]:::impl
+    Precedence -->|Suspend Signal| Exit7["Exit 7: STOPPED (Config Suspend)"]:::impl
     Precedence -->|Policy Violation| Exit2["Exit 2: COMPLETED (Policy Violation)"]:::impl
     Precedence -->|Degraded Probes| Exit4["Exit 4: COMPLETED (Partial Run)"]:::impl
+    Precedence -->|Runtime Error / OOM| Exit1["Exit 1: FAILED (Runtime Error)"]:::impl
     Precedence -->|Clean Run| Exit0["Exit 0: COMPLETED (Clean / Pass)"]:::impl
     
     subgraph ErrorMap["Runtime Failure Mappings"]
@@ -616,7 +676,7 @@ flowchart TD
         WAL_Err["WALCorruptionError I15"]:::forbidden -->|"Unrecoverable"| Exit3
         Pol_Err["Policy Gate (No Log)"]:::forbidden -->|"Fail-Closed"| Exit2
         Egress_Err["EgressViolationError I29"]:::forbidden -->|"Scope Guard"| Exit3
-        CollisionExit --> Exit1["Exit 1: FAILED"]:::impl
+        CollisionExit --> Exit1
     end
 ```
 
@@ -669,14 +729,21 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph MultiTenant["Multi-Tenant Isolation & Auth (F-043)"]
-        HTTP["Inbound HTTP Request"]:::impl --> Tenant["X-Tenant-ID Header Extraction"]:::impl
-        Tenant --> Auth{"Auth Mode Verification"}:::impl
-        Auth -->|"Bearer / API Key"| ScopeSigned["Tenant-Scoped Ticket Signed"]:::impl
-        Auth -->|"Session Cookie (Mutating)"| CSRF{"CSRF Token Valid?"}:::impl
-        CSRF -->|No| R403["403 Forbidden"]:::forbidden
-        CSRF -->|Yes| ScopeSigned
-        ScopeSigned --> TenantStorage["Partitioned Storage & Budget Allocation"]:::impl
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
+    subgraph MultiTenantAuth["Multi-Tenant Boundary & JWT Security Context"]
+        Req["Inbound HTTP / WebSocket Request"]:::impl --> AuthMid["Authentication Middleware"]:::impl
+        AuthMid --> JWT{"Verify JWT & Tenant"}:::impl
+        JWT -->|Valid JWT| Ctx["ContextVar tenant_id & user_id"]:::impl
+        JWT -->|Invalid / Expired| Refuse401["HTTP 401 Unauthorized"]:::forbidden
+        Ctx --> ScopeCheck{"Verify Tenant Scope Token"}:::impl
+        ScopeCheck -->|Mismatch| Refuse403["HTTP 403 Forbidden"]:::forbidden
+        ScopeCheck -->|Authorized| ScopeSigned["Signed Context Attached to Request"]:::impl
         ScopeSigned --> Dispatch["FastAPI Route Handlers"]:::impl
     end
 
@@ -698,7 +765,7 @@ flowchart TD
         Settle["Settlement COMMITTED"]:::impl ==>|"AUTHORITY"| Outbox["L2 DurableOutbox"]:::impl
         Outbox --> LiveBus["event_bus.EventBus (In-Process Dispatch)"]:::impl
         LiveBus --> Fan["Fan-Out (Cap 5)"]:::impl
-        LiveBus -.->|"FORBIDDEN: Delivery Fail ≠ Uncommit I32"| Settle
+        LiveBus -.->|"decoupled: Delivery Failure does not uncommit WAL (I32)"| Outbox
         App["Pipeline + Dashboard"]:::impl --> Prom["Prometheus Metrics (:9090)"]:::impl
         App --> Logs["JSON Logs + HMAC Audit"]:::impl
         Prom --> Graf["Grafana Dashboard"]:::impl
@@ -711,6 +778,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph CI_Pipeline["GitHub Actions CI Pipeline (.github/workflows/ci.yml)"]
         Push["Push to main / PR"]:::impl --> Lint["ruff + format + Bandit HIGH"]:::impl
         Push --> Mypy["mypy typecheck"]:::impl
@@ -763,11 +837,18 @@ flowchart LR
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph Config["Three config trees — do not unify"]
         ScanCfg["ValidatedPipelineConfig JSON"]:::impl
         DashCfg["DashboardConfig DASHBOARD_*"]:::impl
         QueueCfg["QueueConfig QUEUE_*"]:::impl
-        ScanCfg -.-> NoGod["no kernel / God-container"]:::forbidden
+        ScanCfg -.-> NoGod["no kernel / God-container"]:::library
         DashCfg -.-> NoGod
         QueueCfg -.-> NoGod
     end
@@ -848,6 +929,13 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph I30_Causality["I30 Authorization Causality Quartet"]
         Scope["ScopeToken Hash"]:::impl
         Res["BudgetReservation ID"]:::impl
@@ -924,7 +1012,6 @@ flowchart TD
             I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
             I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
             I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol<br/><small>recovery_protocol.py [MODEL-CHECKED]</small>"]:::impl
-            I35g --> I36g
             I37g --> I35g
         end
     end
