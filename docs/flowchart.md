@@ -233,11 +233,11 @@ flowchart TD
     subgraph ReadProjections["READ PROJECTIONS: Strictly Non-Authoritative Strata (L4–L5)"]
         Proj -->|materialize| Cache["L4: Caches & Telemetry (Prometheus :9090)"]:::impl
         Cache ==>|render| UI["L5: Presentation & Dashboard UI"]:::impl
-        UI -.->|"FORBIDDEN: cannot author L0–L3"| Forbidden["Forbidden as Truth Source"]:::forbidden
+        UI -.->|"FORBIDDEN_AUTHOR: cannot mutate L0–L3"| Log
+        UI -.->|"FORBIDDEN_AUTHOR: cannot mutate FSM"| Apply
+        Cache -.->|"FORBIDDEN_AUTHOR: cannot mutate WAL"| Leader
     end
 ```
-
-Live CLI is single-node quorum-1. `NetworkRaftTransport` stays LIBRARY. `attach_pipeline_authority` is `src/pipeline/authority_bootstrap.py`. L0–L3 constitute the authoritative state strata (durable WAL, deterministic FSM, and outbox). L4–L5 are ephemeral read projections and UI consumers that must never author state.
 
 ---
 
@@ -684,27 +684,29 @@ flowchart TD
     end
 
     Dispatch --> Hook["useJobMonitor (React Hook)"]:::impl
-    Hook --> REST["REST /api/jobs/:id"]:::impl
-    Hook --> SSE["SSE /api/jobs/:id/progress/stream"]:::impl
-    Hook --> WS["WebSocket /ws/logs/:id"]:::impl
-    REST & SSE & WS --> Norm["telemetry/normalizer.ts"]:::impl
-    WS -.->|"fallback on disconnect"| REST
-    Triage -.->|"fallback on disconnect"| REST
+    Hook -->|"progress stream"| SSE["SSE /api/jobs/:id/progress/stream"]:::impl
+    Hook -->|"log stream"| WS["WebSocket /ws/logs/:id"]:::impl
+    Hook -->|"triage stream"| Triage["WebSocket /ws/triage/:run_id"]:::impl
+    Hook -->|"polling"| REST["REST /api/jobs/:id"]:::impl
+    
+    WS -.->|"disconnect fallback"| REST
+    Triage -.->|"disconnect fallback"| REST
+    SSE -.->|"disconnect fallback"| REST
+    
+    REST & SSE & WS & Triage --> Norm["telemetry/normalizer.ts"]:::impl
     Norm --> Stores["Zustand Stores"]:::impl
     Stores --> Pages["Jobs / Findings / Cockpit UI"]:::impl
     
     subgraph OutboxNotify["Outbox & Telemetry Pipeline"]
-        Settle["Settlement COMMITTED"]:::impl --> Outbox["L2 DurableOutbox"]:::impl
+        Settle["Settlement COMMITTED"]:::impl ==>|"AUTHORITY"| Outbox["L2 DurableOutbox"]:::impl
         Outbox --> LiveBus["event_bus.EventBus (In-Process Dispatch)"]:::impl
         LiveBus --> Fan["Fan-Out (Cap 5)"]:::impl
-        LiveBus -.->|"Delivery Fail ≠ Uncommit I32"| Settle
+        LiveBus -.->|"FORBIDDEN: Delivery Fail ≠ Uncommit I32"| Settle
         App["Pipeline + Dashboard"]:::impl --> Prom["Prometheus Metrics (:9090)"]:::impl
         App --> Logs["JSON Logs + HMAC Audit"]:::impl
         Prom --> Graf["Grafana Dashboard"]:::impl
     end
 ```
-
-**Telemetry Streaming Paths:** Progress via SSE (`/api/jobs/{id}/progress/stream`); logs via WS (`/ws/logs/{job_id}`); triage via WS (`/ws/triage/{run_id}`) with automatic REST polling fallback. Origin validation precedes admin bypass.
 
 ---
 
@@ -1019,5 +1021,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-27 | I37 Production Authority Transfer Wiring: connected PlacementAuthority fenced transfer lifecycle (initiate_transfer/activate_ownership/abort_transfer) to ProactiveMigrationHandler actor evacuation loop | edit |
 | 2026-08-27 | Formal Invariant Verification Taxonomy: replaced monolithic 'impl' status in F-033 registry and invariant_checker with 7-tier verification levels (PROPERTY-TESTED, ADVERSARIAL, FAULT-INJECTED, MODEL-CHECKED, PRODUCTION-OBSERVED, TESTED, IMPLEMENTED) | edit |
 | 2026-08-27 | Visual Flowchart Distillation: eliminated prose repetition, merged deployment/authority-transfer into unified F-002, embedded accounting deltas onto F-006 edges, merged I29/I30 execution gates onto F-004, and enriched F-033 proof graph nodes with module and verification metadata | edit |
+| 2026-08-27 | Edge-First Architectural Knowledge Graph: encoded telemetry streams, negative authority constraints (FORBIDDEN_AUTHOR), and recovery predicates directly onto graph edges | edit |
 
 Append a row for every later edit. Do not delete this table.
