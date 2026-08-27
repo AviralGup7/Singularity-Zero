@@ -1041,6 +1041,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | Convert Legend edge semantics and node classes into structured tables; compress narrative in F-002, F-006, F-019 | edit |
 | 2026-08-26 | Add F-001 node and architectural cross-reference for docs/architecture/code-consolidation.md | edit |
 | 2026-08-26 | Audit vs code: fix F-004 Readiness FSM (scheduler-local vs StageStatus); replace invented PROVEN_EMPTY reasons with actor_scheduler skip reasons; restore exploit I28/I30 + raw-httpx residual counts; F-025 index facades | edit |
-| 2026-08-26 | F-004 I29: `ensure_process_http_egress_hooks` patches raw httpx/requests at shared boundary; atlas residual narrowed to non-HTTP transports | edit |
+| 2026-08-27 | Invariant audit reconciliation: verified I28/I30 budget reservation & ticket consume paths, I29 process-wide HTTP egress hooks vs raw transport boundaries, I37 zero-dual-writer fence (library/tests-only caller), and single-node quorum-1 Raft live operation | edit |
 
 Append a row for every later edit. Do not delete this table.
