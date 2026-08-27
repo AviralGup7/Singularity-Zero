@@ -96,32 +96,39 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 
 ```mermaid
 flowchart TD
-    Index["docs/index.md"] --> Arch["architecture.md"]
-    Index --> Overview["architecture-overview.md"]
-    Index --> Formal["FORMAL_COMMAND_SPECIFICATION.md"]
-    Index --> Gaps["GAP_ANALYSIS.md"]
-    Index --> Atlas["flowchart.md THIS FILE"]
-    Index --> Code["codebase.md"]
-    Index --> Cmds["commands.md"]
-    Index --> Env["environment-variables.md"]
-    Index --> Fail["FAILURE_MODES.md"]
-    Index --> Obs["OBSERVABILITY_CATALOG.md"]
-    Index --> Test["testing.md"]
-    Index --> Front["frontend.md"]
-    Index --> Multi["multi-region.md"]
-    Index --> Perf["performance.md"]
-    Index --> Gloss["glossary.md"]
-    Index --> ApiDoc["api-reference.md"]
-    Index --> Start["getting-started.md"]
-    Index --> Deploy["deployment.md"]
-    Index --> CICD["ci-cd-integration.md"]
-    Index --> Plugins["dynamic-plugins.md"]
-    Index --> Trouble["troubleshooting.md"]
-    Index --> PagesOver["frontend_pages_overview.md"]
-    Index --> Sec["../SECURITY.md"]
-    Arch --> ExecReq["architecture/execution-request-contract.md"]
-    Arch --> CacheDoc["architecture/cache-unification.md"]
-    Arch --> Consolidation["architecture/code-consolidation.md"]
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
+    Index["docs/index.md"]:::impl --> Arch["architecture.md"]:::impl
+    Index --> Overview["architecture-overview.md"]:::impl
+    Index --> Formal["FORMAL_COMMAND_SPECIFICATION.md"]:::impl
+    Index --> Gaps["GAP_ANALYSIS.md"]:::impl
+    Index --> Atlas["flowchart.md THIS FILE"]:::impl
+    Index --> Code["codebase.md"]:::impl
+    Index --> Cmds["commands.md"]:::impl
+    Index --> Env["environment-variables.md"]:::impl
+    Index --> Fail["FAILURE_MODES.md"]:::impl
+    Index --> Obs["OBSERVABILITY_CATALOG.md"]:::impl
+    Index --> Test["testing.md"]:::impl
+    Index --> Front["frontend.md"]:::impl
+    Index --> Multi["multi-region.md"]:::impl
+    Index --> Perf["performance.md"]:::impl
+    Index --> Gloss["glossary.md"]:::impl
+    Index --> ApiDoc["api-reference.md"]:::impl
+    Index --> Start["getting-started.md"]:::impl
+    Index --> Deploy["deployment.md"]:::impl
+    Index --> CICD["ci-cd-integration.md"]:::impl
+    Index --> Plugins["dynamic-plugins.md"]:::impl
+    Index --> Trouble["troubleshooting.md"]:::impl
+    Index --> PagesOver["frontend_pages_overview.md"]:::impl
+    Index --> Sec["../SECURITY.md"]:::impl
+    Arch --> ExecReq["architecture/execution-request-contract.md"]:::impl
+    Arch --> CacheDoc["architecture/cache-unification.md"]:::impl
+    Arch --> Consolidation["architecture/code-consolidation.md"]:::impl
 ```
 
 ---
@@ -200,7 +207,7 @@ flowchart TD
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
         Promo --> EnvelopeIn["Canonical Envelope (v3)"]:::impl
-        EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
+        EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (+10s / -5s Monotonic Gate)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
         subgraph L0_Consensus["L0: Raft Distributed Consensus (Single-Node Quorum-1 Live; Peer ACK specOnly)"]
@@ -218,7 +225,7 @@ flowchart TD
         Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
         
-        Outbox --> PORT_CRDT_BRIDGE[["PORT: SettlementCoordinator Bridge → Frontier Plane CRDT"]]
+        Outbox --> PORT_CRDT_BRIDGE[["PORT: DurableOutbox Settlement Bridge → F-004 SettlementCoordinator"]]
         Outbox --> PORT_F019_BUS[["PORT: F-019 DurableOutbox EventBus Dispatch"]]
     end
     
@@ -354,7 +361,7 @@ flowchart TD
     end
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28, I31, I32, F-042)"]
-        PORT_CRDT_BRIDGE[["PORT: SettlementCoordinator Bridge → Frontier Plane CRDT (F-003)"]] --> Coord
+        PORT_CRDT_BRIDGE[["PORT: DurableOutbox Settlement Bridge → F-004 SettlementCoordinator (F-003)"]] --> Coord
         Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
         Viol -->|"EGRESS_VIOLATION claim dropped"| DropSettle["Settle DROPPED (No Finding)"]:::forbidden
         DropSettle --> SettleRel["I28 Budget RELEASE"]:::impl
@@ -450,6 +457,13 @@ Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspen
 
 ```mermaid
 flowchart LR
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph PackageAuthority["Package Path Authority Model"]
         Core["core/frontier/*<br/>(StateAuthority, WAL, CRDT, Raft)"]:::impl
         Facade["frontier/*<br/>(Facades, MemoryJournal)"]:::library
@@ -587,6 +601,13 @@ flowchart TD
         SC & SSD -->|"clean (0 violations, clean stages)"| J_COMP
         FF --> J_COMP
         J_COMP --> Exit0["Exit 0: CLEAN_RUN"]:::impl
+        
+        Exit130 -.->|"precedence: suppresses"| Exit3
+        Exit3 -.->|"precedence: suppresses"| Exit7
+        Exit7 -.->|"precedence: suppresses"| Exit2
+        Exit2 -.->|"precedence: suppresses"| Exit4
+        Exit4 -.->|"precedence: suppresses"| Exit1
+        Exit1 -.->|"precedence: suppresses"| Exit0
         
         J_COMP & J_FAIL & J_STOP --> JP
     end
@@ -836,13 +857,20 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Raft["Raft transport"] --> Impl["Implemented single-node"]
-    Tickets["Jira ServiceNow DefectDojo"] --> Impl
-    Policy["Policy via Raft commands"] --> Impl
-    Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]
-    WASM["WASM AEVE"] --> Flag["Feature Flagged"]
-    PPO["PPO / DRL"] --> Heur["Heuristic stub"]
-    GNN["GNN attack graph"] --> Dijk["Dijkstra LIBRARY"]
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
+    Raft["Raft transport"]:::impl --> Impl["Implemented single-node"]:::singleNode
+    Tickets["Jira ServiceNow DefectDojo"]:::impl --> Impl
+    Policy["Policy via Raft commands"]:::impl --> Impl
+    Ghost["Multi-host Ghost migration"]:::impl --> Open["Open / single-node"]:::specOnly
+    WASM["WASM AEVE"]:::impl --> Flag["Feature Flagged"]:::specOnly
+    PPO["PPO / DRL"]:::impl --> Heur["Heuristic stub"]:::specOnly
+    GNN["GNN attack graph"]:::impl --> Dijk["Dijkstra LIBRARY"]:::library
 ```
 
 ---
@@ -924,13 +952,13 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I19** | Lease Terminal Linearization (`RESERVED` $\rightarrow$ `CONSUMED` or `COMPENSATED`; `EXPIRED` non-terminal) | F-006 | `lease_status.py` | `test_lease_status.py` | `MODEL-CHECKED` |
 | **I20** | Policy Version Fencing ($\text{expected\_policy\_version} == \text{current\_policy\_version}$) | F-003 | `raft_fsm.py`, `policy_governance.py` | `test_lease_status.py` | `FAULT-INJECTED` |
 | **I21** | Projection Recovery Invariance (Sequential outbox replay recovers projection) | F-003 | `outbox.py`, `projection_stream.py` | `test_lease_status.py` | `FAULT-INJECTED` |
-| **I22** | Temporal Invariant & Admission Skew Gate ($\pm 10\text{s}$ future, $-5\text{s}$ regression at admission) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `PROPERTY-TESTED` |
+| **I22** | Temporal Invariant & Admission Skew Gate (+10s future drift, -5s backward regression at admission) | F-003 | `replicated_log.py` | `test_formal_invariants.py` | `PROPERTY-TESTED` |
 | **I23** | Partition Budget Isolation (Subleases isolated per partition, negative balances rejected) | F-006 | `raft_fsm.py`, `state.py` | `test_state_crdt.py` | `PROPERTY-TESTED` |
 | **I24** | Persisted Mesh BootID + Monotonic Nonce Safety | F-002 | `mesh/` | `test_state_crdt.py` | `FAULT-INJECTED` |
 | **I25** | Partition Policy Rollback Revocation & Watermark Upper Bound | F-003 | `raft_fsm.py` | `test_state_crdt.py` | `TESTED` |
 | **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `PROPERTY-TESTED` |
 | **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `CASStore`, `request_executor.py` | `test_resilience.py` | `PROPERTY-TESTED` |
-| **I28** | Hardened Lease State Transitions (`UNALLOCATED` $\rightarrow$ `RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED`/`EXPIRED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py` | `MODEL-CHECKED` |
+| **I28** | Hardened Lease State Transitions (`RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED` / `EXPIRED` / `COMPENSATED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py` | `MODEL-CHECKED` |
 | **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `runtime_browser.py`, `stage_admit.py` | `test_i29_egress_context.py`, `test_sandbox.py` | `ADVERSARIAL` (universal network boundary) |
 | **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py`, `safe_exploiter.py` | `test_global_invariants.py`, `test_formal_invariants.py` | `MODEL-CHECKED` |
 | **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py` | `MODEL-CHECKED` |
