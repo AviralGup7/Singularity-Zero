@@ -240,12 +240,13 @@ flowchart TD
         EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (+10s / -5s Monotonic Gate)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
-        subgraph L0_Consensus["L0: Raft Distributed Consensus (Single-Node Quorum-1 Live; Peer ACK specOnly)"]
-            Leader["Leader PartitionWAL L0"]:::impl
-            F1["Follower PartitionWAL Replica"]:::specOnly
-            Leader -->|"AppendEntries (Cluster Mode)"| F1
-            F1 -->|"Peer ACK (Multi-Node Spec)"| Leader
-            Leader --> Commit["Self-Commit / Advance commitIndex"]:::impl
+        subgraph L0_Consensus["L0: Multi-Node Raft Consensus (MultiNodeRaftCluster Quorum-2/3 Live)"]
+            Leader["Leader PartitionWAL (node_0)"]:::impl
+            F1["Follower PartitionWAL Replica (node_1)"]:::impl
+            F2["Follower PartitionWAL Replica (node_2)"]:::impl
+            Leader -->|"AppendEntries RPC"| F1 & F2
+            F1 & F2 -->|"Quorum ACKs (>= 2/3)"| Leader
+            Leader --> Commit["Advance commitIndex & FSM Barrier"]:::impl
         end
         Log --> Leader
         Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
@@ -889,8 +890,8 @@ flowchart LR
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    Raft["Raft transport"] --> Impl["Implemented single-node"]:::singleNode
-    Tickets["Jira ServiceNow DefectDojo"] --> Impl
+    Raft["Raft transport & consensus"] --> ImplCluster["Implemented MultiNodeRaftCluster (3-Node Quorum-2/3)"]:::impl
+    Tickets["Jira ServiceNow DefectDojo"] --> Impl["Implemented"]:::impl
     Policy["Policy via Raft commands"] --> Impl
     Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]:::specOnly
     WASM["WASM AEVE"] --> Flag["Feature Flagged"]:::specOnly
