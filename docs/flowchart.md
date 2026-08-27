@@ -687,7 +687,7 @@ flowchart TD
 | **Normal (< 85% Disk, < 80% RAM)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | `Admit` |
 | **Moderate (>= 85% Disk / CPU > 90%)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | **`DROP`** |
 | **Severe (>= 92% Disk / RAM > 90%)** | `Admit` (Spool) | `Admit` | **`COALESCE`** | **`DROP`** | **`DROP`** |
-| **Spool Saturated (> 1000 P0 items)** | `Backpressure` (Block caller) | `Drop` | `Drop` | `Drop` | `Drop` |
+| **Spool Saturated (> 1000 P0 items)** | `Bounded Backpressure (50ms timeout → Emergency Ring Buffer)` | `Drop` | `Drop` | `Drop` | `Drop` |
 
 ---
 

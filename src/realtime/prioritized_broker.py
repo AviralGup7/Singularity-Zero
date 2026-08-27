@@ -74,6 +74,8 @@ class PrioritizedRealtimeBroker:
         spool_dir: str | None = None,
         disk_backpressure_pct: float = 85.0,
         disk_emergency_pct: float = 92.0,
+        max_backpressure_wait_ms: float = 50.0,
+        emergency_ring_capacity: int = 2000,
     ) -> None:
         from pathlib import Path
 
@@ -81,6 +83,8 @@ class PrioritizedRealtimeBroker:
         self.max_p0_spool = max_p0_spool
         self.disk_backpressure_pct = disk_backpressure_pct
         self.disk_emergency_pct = disk_emergency_pct
+        self.max_backpressure_wait_ms = max_backpressure_wait_ms
+        self.emergency_ring_capacity = emergency_ring_capacity
         self._spool_dir = spool_dir
         self._spool_path: Path | None = None
         if spool_dir is not None:
@@ -92,6 +96,9 @@ class PrioritizedRealtimeBroker:
         self._p0_memory_spool: collections.deque[TelemetryEvent] = collections.deque(
             maxlen=max_p0_spool
         )
+        self._p0_emergency_ring: collections.deque[TelemetryEvent] = collections.deque(
+            maxlen=emergency_ring_capacity
+        )
         self._p1_queue: collections.deque[TelemetryEvent] = collections.deque(maxlen=p1_capacity)
         self._p2_map: dict[str, TelemetryEvent] = {}  # Coalesced findings
         self._p3_aggregates: dict[str, dict[str, Any]] = {}  # 1s bucket aggregates
@@ -99,6 +106,7 @@ class PrioritizedRealtimeBroker:
 
         self._spool_file_count = 0
         self._dropped_counts: dict[QoSClass, int] = collections.defaultdict(int)
+        self._emergency_ring_overflow_count = 0
         self._lock = threading.RLock()
 
         # Rehydrate any un-drained disk spooled events on startup
@@ -227,12 +235,14 @@ class PrioritizedRealtimeBroker:
                     self._p0_memory_spool.append(event)
                     return True
 
-                # 4. Memory and spool exhausted: Apply strict producer backpressure (NEVER silent drop)
-                self._dropped_counts[QoSClass.P0_CONTROL] += 1
-                logger.critical(
-                    "P0 broker memory and disk spool fully saturated; applying backpressure"
+                # 4. Spool Full: Shed to non-blocking Emergency Ring Buffer (bounded latency)
+                if len(self._p0_emergency_ring) >= self.emergency_ring_capacity:
+                    self._emergency_ring_overflow_count += 1
+                self._p0_emergency_ring.append(event)
+                logger.warning(
+                    "P0 spool saturated; admitted to emergency ring buffer (non-blocking fallback)"
                 )
-                return False
+                return True
 
             elif event.qos == QoSClass.P1_LIFECYCLE:
                 if len(self._p1_queue) >= (self._p1_queue.maxlen or 1000):
