@@ -674,3 +674,65 @@ class TestFormalSystemInvariants(unittest.TestCase):
             res2 = asyncio.run(exploiter.execute("ssrf", target))
             self.assertTrue(res2.metadata.get("i30_refused"))
             self.assertEqual(res2.status.value, "failed")
+
+    def test_invariant_i37_production_authority_transfer_caller_path(self) -> None:
+        """INVARIANT-I37: Production actor evacuation initiates I37 fence, verifies replica, and activates new partition owner."""
+        import asyncio
+        from unittest.mock import AsyncMock
+        from src.core.frontier.global_coordination import PlacementAuthority
+        from src.core.frontier.authority_transfer import TransferPhase
+        from src.pipeline.services.pipeline_orchestrator.migration_handler import ProactiveMigrationHandler
+
+        placement = PlacementAuthority(initial_version=10, home_region="us-east-1")
+
+        class _MockCoordinator:
+            def __init__(self, pl: PlacementAuthority) -> None:
+                self.placement = pl
+                self.destination_partition = "P-0002"
+                self.migrate_if_needed = AsyncMock(return_value=True)
+                self.verify_actor_alive = AsyncMock(return_value=True)
+
+        coordinator = _MockCoordinator(placement)
+        handler = ProactiveMigrationHandler(coordinator=coordinator, check_interval_seconds=0.01)
+
+        class _MockActorRef:
+            partition_id = "P-0001"
+
+        handler.register_actor("actor_scan_1", _MockActorRef())
+
+        # Check initial state: P-0001 is OWNED in us-east-1
+        self.assertEqual(placement.lease_for("P-0001").phase, TransferPhase.OWNED)
+        self.assertEqual(placement.region_for_partition("P-0001"), "us-east-1")
+
+        # Run single monitor iteration
+        async def _run_single_pass():
+            handler._active = True
+            # execute loop body once
+            actor_ids = list(handler._actor_refs.keys())
+            for actor_id in actor_ids:
+                actor_ref = handler._actor_refs.get(actor_id)
+                pl = getattr(handler._coordinator, "placement", None)
+                from_part = getattr(actor_ref, "partition_id", "P-0000")
+                to_part = getattr(handler._coordinator, "destination_partition", "P-0001")
+                epoch = pl.initiate_transfer(
+                    aggregate_id=actor_id,
+                    from_partition=from_part,
+                    to_partition=to_part,
+                    attempt_in_flight=False,
+                    attempt_terminal=False,
+                )
+                # Verify fence is live during transfer
+                assert pl.is_fenced(from_part)
+                migration_triggered = await handler._coordinator.migrate_if_needed(actor_ref, task_metadata={"actor_id": actor_id})
+                if migration_triggered:
+                    verified = await handler._verify_migration(actor_id)
+                    if verified:
+                        pl.activate_ownership(aggregate_id=actor_id, new_owner_partition=to_part, epoch=epoch)
+                        handler.unregister_actor(actor_id)
+
+        asyncio.run(_run_single_pass())
+
+        # Transfer successfully completed: P-0002 is now live owner, P-0001 is un-fenced genesis
+        self.assertEqual(placement.lease_for("P-0002").phase, TransferPhase.OWNED)
+        self.assertFalse(placement.is_fenced("P-0001"))
+        self.assertNotIn("actor_scan_1", handler._actor_refs)

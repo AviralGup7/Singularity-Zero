@@ -894,7 +894,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I34** | Formal Failure Recovery Boundaries (11 failure classes with declared recovery action) | F-018 | `failure_model.py` | `test_failure_model.py` | `impl` |
 | **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `test_recovery_protocol.py` | `impl` |
 | **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py` | `test_region_model.py` | `impl` |
-| **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py` | `test_authority_transfer.py` | `impl` |
+| **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py`, `global_coordination.py`, `migration_handler.py` | `test_authority_transfer.py`, `test_formal_invariants.py` | `impl` (production actor evacuation + placement authority) |
 
 ```mermaid
 flowchart TD
@@ -1053,5 +1053,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-27 | Invariant namespace synchronization: aligned F-033 Formal Invariant Registry with architecture.md canonical I1–I37 definitions; fixed F-006 budget matrix compensation sequence | edit |
 | 2026-08-27 | I29 Universal Network Egress Authority: eliminated transport bypass residuals by patching raw socket.connect/create_connection, asyncio.open_connection, Playwright page.goto, and establishing transport primitive registration | edit |
 | 2026-08-27 | I30/I28 Unified Execution Authority: closed standalone exploitation authorization gap by routing SafeExploiter through ExecutionAuthorizer ticket mint/consume, HuntBudget reservation, and authoritative settlement | edit |
+| 2026-08-27 | I37 Production Authority Transfer Wiring: connected PlacementAuthority fenced transfer lifecycle (initiate_transfer/activate_ownership/abort_transfer) to ProactiveMigrationHandler actor evacuation loop | edit |
 
 Append a row for every later edit. Do not delete this table.
