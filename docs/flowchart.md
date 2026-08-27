@@ -279,7 +279,7 @@ flowchart TD
     end
     
     subgraph ReadProjections["READ PROJECTIONS: Strictly Non-Authoritative Strata (L4–L5)"]
-        Proj -->|materialize| Cache["L4: Caches (CacheGeneration + Outbox Stream Invalidation)"]:::impl
+        Proj -->|materialize| Cache["L4: Caches & Telemetry (Prometheus localhost:9090 Default + mTLS Guard)"]:::impl
         Cache ==>|render| UI["L5: Presentation & Dashboard UI"]:::impl
         
         UI -.->|"FORBIDDEN_AUTHOR: mutate"| ForbidL0["Fail-Closed: Non-Authoritative Mutation of L0–L3 Prohibited"]:::forbidden

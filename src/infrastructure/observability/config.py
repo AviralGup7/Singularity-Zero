@@ -109,7 +109,9 @@ class MetricsConfig:
     export_interval_seconds: float = 15.0
     enable_prometheus: bool = True
     prometheus_port: int = 9090
-    prometheus_host: str = "0.0.0.0"  # nosec B104  # noqa: S104 # noqa: S104
+    prometheus_host: str = "127.0.0.1"  # Bound to localhost by default for security
+    prometheus_require_mtls: bool = False
+    prometheus_bearer_token: str | None = None
     enable_histogram: bool = True
     histogram_buckets: tuple[float, ...] = (
         0.005,
@@ -291,6 +293,9 @@ class ObservabilityConfig:
             metrics=MetricsConfig(
                 enabled=os.getenv("OBSERVABILITY_METRICS_ENABLED", "true").lower() == "true",
                 prometheus_port=int(os.getenv("OBSERVABILITY_METRICS_PORT", "9090")),
+                prometheus_host=os.getenv("OBSERVABILITY_METRICS_HOST", "127.0.0.1"),
+                prometheus_require_mtls=os.getenv("OBSERVABILITY_METRICS_MTLS", "false").lower() == "true",
+                prometheus_bearer_token=os.getenv("OBSERVABILITY_METRICS_TOKEN") or None,
             ),
             tracing=TracingConfig(
                 enabled=os.getenv("OBSERVABILITY_TRACING_ENABLED", "true").lower() == "true",
