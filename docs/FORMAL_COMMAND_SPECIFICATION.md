@@ -260,7 +260,50 @@ This document defines the **Formal Command & State Transition Contract** for all
 
 ---
 
-### 1.10 Typed Formal Command Constructors (`src/core/frontier/commands.py`)
+### 1.10 `CancelExecutionCommand`
+- **Authority Partition**: Target Partition ($P_x$)
+- **Input Schema**:
+  ```json
+  {
+    "command_id": "cmd-cancel-01",
+    "aggregate_id": "exec-9941",
+    "payload": {},
+    "expected_aggregate_version": 1
+  }
+  ```
+- **Preconditions**:
+  1. `aggregate_id` exists in `aggregates`.
+- **Deterministic State Transition**:
+  - If `status == "SETTLED"`, returns `NO_OP` with `ALREADY_SETTLED`.
+  - If `status == "CANCELLED"`, returns `NO_OP` with `ALREADY_CANCELLED`.
+  - Otherwise, revokes capability ID in `revocation_registry`, refunds reserved units, sets status `"CANCELLED"`.
+  - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
+- **Emitted Domain Event**: `ExecutionCancelledEvent(aggregate_id, refund_units)`
+- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="EXECUTION_CANCELLED")`
+
+---
+
+### 1.11 `SyncKeyRevocationCommand`
+- **Authority Partition**: Target Partition ($P_x$)
+- **Input Schema**:
+  ```json
+  {
+    "command_id": "cmd-synckey-01",
+    "aggregate_id": "key_revocation",
+    "payload": {
+      "revocation_epoch": 3
+    }
+  }
+  ```
+- **Deterministic State Transition**:
+  - `key_revocation_epoch = max(key_revocation_epoch, revocation_epoch)`
+  - $\text{aggregate\_version}' = \text{aggregate\_version} + 1$
+- **Emitted Domain Event**: `KeyRevocationSyncedEvent(revocation_epoch)`
+- **Idempotency Record**: `CommandResult(status="SUCCESS", result_code="KEY_REVOCATION_SYNCED")`
+
+---
+
+### 1.12 Typed Formal Command Constructors (`src/core/frontier/commands.py`)
 
 To prevent runtime schema divergence and hand-crafted payload dictionaries, typed command constructors wrap `TypedCommand` and export to standard `CommandEnvelope` instances:
 
@@ -268,13 +311,19 @@ To prevent runtime schema divergence and hand-crafted payload dictionaries, type
 |---|---|---|---|---|
 | `reserve_global_budget(...)` | `ReserveGlobalBudgetCommand` | `"global_budget"` | `P-0000` | `run_id`, `partition_id`, `units`, `sublease_id` |
 | `allocate_sublease(...)` | `AllocateSubLeaseCommand` | `sublease_id` | $P_x$ | `sublease_id`, `run_id`, `units_allocated`, `partition_id` |
+| `authorize_execution(...)` | `AuthorizeExecutionCommand` | `aggregate_id` | $P_x$ | `aggregate_id`, `capability_id`, `sublease_id`, `units_requested`, `key_epoch`, `expires_at` |
+| `submit_execution_claim(...)` | `SubmitExecutionClaim` | `aggregate_id` | $P_x$ | `aggregate_id`, `capability_id`, `units_consumed`, `findings` |
 | `settlement_return(...)` | `SettlementReturnCommand` | `"global_budget"` | `P-0000` | `sublease_id`, `units_consumed`, `units_returned` |
+| `cancel_execution(...)` | `CancelExecutionCommand` | `aggregate_id` | $P_x$ | `aggregate_id` |
+| `lease_timeout(...)` | `LeaseTimeoutCommand` | `aggregate_id` | $P_x$ | `aggregate_id`, `observed_at`, `max_skew` |
+| `expire_sublease(...)` | `ExpireSubLeaseCommand` | `"global_budget"` | `P-0000` | `sublease_id`, `units_consumed` |
+| `sync_key_revocation(...)` | `SyncKeyRevocationCommand` | `"key_revocation"` | $P_x$ | `revocation_epoch` |
 | `promote_policy(...)` | `PromotePolicyCommand` | `"policy_active"` | `P-0000` / $P_x$ | `policy_id`, `artifact_hash`, `policy_version`, `parent_policy_id`, `generation` |
 | `rollback_policy(...)` | `RollbackPolicyCommand` | `"policy_active"` | `P-0000` / $P_x$ | `parent_policy_id`, `target_generation` |
 
 ---
 
-### 1.11 Canonical Lease Lifecycle & Invariant I28 (`src/core/frontier/lease_status.py`)
+### 1.13 Canonical Lease Lifecycle & Invariant I28 (`src/core/frontier/lease_status.py`)
 
 All sub-leases follow a finite state machine with strict transition guards:
 
@@ -294,7 +343,7 @@ EXPIRED ──compensate──► COMPENSATED
 
 ---
 
-### 1.12 Schema Versioning & Upcasting Pipeline (`src/core/contracts/command_envelope.py`)
+### 1.14 Schema Versioning & Upcasting Pipeline (`src/core/contracts/command_envelope.py`)
 
 Every `CommandEnvelope` carries a `schema_version: int` (default `1`).
 - Deserialization via `CommandEnvelope.from_dict(raw)` invokes `GLOBAL_UPCASTER_REGISTRY`.
@@ -303,7 +352,7 @@ Every `CommandEnvelope` carries a `schema_version: int` (default `1`).
 
 ---
 
-### 1.13 In-Process Pipeline Authority Runtime (`src/core/frontier/authority_runtime.py`)
+### 1.15 In-Process Pipeline Authority Runtime (`src/core/frontier/authority_runtime.py`)
 
 Single-node CLI and dashboard executions instantiate `PipelineAuthorityRuntime`, which hosts all authority objects within the process:
 - **Partition Log**: Single-node leader Raft instance (`P-0000`, quorum 1).
@@ -314,9 +363,9 @@ Single-node CLI and dashboard executions instantiate `PipelineAuthorityRuntime`,
 - **HMAC**: `receipt_crypto.py` prefers `AUTHORITY_SIGNING_KEY`, then `APP_SECRET_KEY`, else process-local random. No published fallback string. Tickets use the same rule.
 - **HuntBudget**: fenced placement → no reserve; `_reserve_gate` (breaker OPEN) → no reserve. `consume_ticket` calls `commit_requests(1)`.
 
-### 1.14 Additional FSM result codes (implemented, not exhaustive)
+### 1.16 Additional FSM result codes (implemented, not exhaustive)
 
-`PARTITION_MISMATCH`, `NEGATIVE_BUDGET_ALLOCATION`, `POLICY_GENERATION_REVOKED`, `POLICY_GENERATION_EXCEEDS_WATERMARK`, `SUBLEASE_BALANCE_EXCEEDED`, `NOT_YET_EXPIRED`, `POLICY_VERSION_FENCE_FAILED`, `NO_PARENT_POLICY`, `UNKNOWN_COMMAND_TYPE`, `NON_POSITIVE_UNITS`.
+`PARTITION_MISMATCH`, `NEGATIVE_BUDGET_ALLOCATION`, `POLICY_GENERATION_REVOKED`, `POLICY_GENERATION_EXCEEDS_WATERMARK`, `SUBLEASE_BALANCE_EXCEEDED`, `NOT_YET_EXPIRED`, `POLICY_VERSION_FENCE_FAILED`, `NO_PARENT_POLICY`, `UNKNOWN_COMMAND_TYPE`, `NON_POSITIVE_UNITS`, `AGGREGATE_NOT_FOUND`, `ALREADY_SETTLED`, `ALREADY_CANCELLED`, `ALREADY_EXPIRED`, `SUBLEASE_NOT_FOUND`, `KEY_REVOCATION_SYNCED`, `LEASE_EXPIRED_PESSIMISTIC`.
 
 ---
 

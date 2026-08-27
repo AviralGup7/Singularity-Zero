@@ -106,7 +106,73 @@ class AdaptivePIDController:
         return self._current_concurrency, self._current_delay_ms
 
 
+class PIDRateLimiter:
+    """Closed-loop PID controller regulating request pacing based on response latency."""
+
+    def __init__(
+        self,
+        target_latency_seconds: float = 0.200,
+        kp: float = 0.5,
+        ki: float = 0.1,
+        kd: float = 0.05,
+        min_delay_seconds: float = 0.0,
+        max_delay_seconds: float = 5.0,
+        integral_limit: float | None = None,
+    ):
+        self.target_latency = target_latency_seconds
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.min_delay = min_delay_seconds
+        self.max_delay = max_delay_seconds
+        if integral_limit is None:
+            integral_limit = max_delay_seconds / max(ki, 1e-9)
+        self.integral_limit = abs(integral_limit)
+
+        self.current_delay = min_delay_seconds
+        self.integral = 0.0
+        self.last_error = 0.0
+        self.last_time = time.monotonic()
+
+    def update(self, observed_latency_seconds: float, is_blocked: bool = False) -> float:
+        """Update the PID controller state and return the new delay pacing."""
+        now = time.monotonic()
+        dt = now - self.last_time
+        if dt <= 0.0:
+            dt = 0.001
+
+        if is_blocked:
+            self.current_delay = min(self.max_delay, self.current_delay + 1.5)
+            self.integral = 0.0
+            self.last_error = 0.0
+            self.last_time = now
+            return self.current_delay
+
+        error = observed_latency_seconds - self.target_latency
+
+        p_term = self.kp * error
+        self.integral += error * dt
+        self.integral = max(-self.integral_limit, min(self.integral_limit, self.integral))
+        i_term = self.ki * self.integral
+        derivative = (error - self.last_error) / dt
+        d_term = self.kd * derivative
+
+        output = p_term + i_term + d_term
+        unclamped_delay = self.current_delay + output
+        self.current_delay = max(self.min_delay, min(self.max_delay, unclamped_delay))
+        if self.ki > 0 and unclamped_delay != self.current_delay:
+            saturation_excess = (unclamped_delay - self.current_delay) / self.ki
+            self.integral -= saturation_excess
+            self.integral = max(-self.integral_limit, min(self.integral_limit, self.integral))
+
+        self.last_error = error
+        self.last_time = now
+
+        return round(self.current_delay, 3)
+
+
 __all__ = [
     "AdaptivePIDController",
+    "PIDRateLimiter",
     "PIDTuning",
 ]

@@ -6,7 +6,7 @@ import asyncio
 import threading
 from urllib.parse import urlparse
 
-from src.infrastructure.flow_control.circuit_breaker import CircuitBreaker
+from src.resilience.circuit_breaker import CircuitBreaker
 
 
 class BulkheadPartition:

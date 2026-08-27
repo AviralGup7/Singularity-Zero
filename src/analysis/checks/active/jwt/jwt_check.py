@@ -414,3 +414,8 @@ def jwt_security_analyzer(
     )
 
     return findings[:limit]
+
+
+# Alias for backward compatibility with older pipeline probe runner
+jwt_manipulation_probe = jwt_security_analyzer
+

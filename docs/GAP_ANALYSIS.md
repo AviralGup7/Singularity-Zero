@@ -39,7 +39,7 @@ This document provides a realistic, technical audit of gaps between target speci
 |:---|:---|:---|:---|
 | **Advanced GraphQL Attack Scenarios** | Medium | Partial | Basic introspection, schema harvesting, and injection are implemented; alias-stacking and persisted-query hijacking are pending. |
 | **Multi-Role Credential Matrix** | Medium | Open | Cross-role differential probing exists (`differential_prober.py`), but dynamic multi-role credential rotation across automated scan suites is open. |
-| **Secrets Scanner Integration** | Low | In Progress | Passive secrets detection (`src/analysis/checks/passive/secrets_scanner.py`) exists and is being wired into default passive profiles. |
+| **Secrets Scanner Integration** | Low | Implemented | Passive secrets detection (`src/analysis/checks/passive/secrets_scanner.py`) implements multi-pattern secret discovery (AWS, GitHub, Slack, DB strings, JWTs, private keys) with redacted matches and sha256 fingerprint deduplication. |
 
 ---
 

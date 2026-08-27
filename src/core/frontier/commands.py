@@ -19,9 +19,11 @@ COMMAND_TYPES: tuple[str, ...] = (
     "AllocateSubLeaseCommand",
     "AuthorizeExecutionCommand",
     "SubmitExecutionClaim",
+    "CancelExecutionCommand",
     "SettlementReturnCommand",
     "LeaseTimeoutCommand",
     "ExpireSubLeaseCommand",
+    "SyncKeyRevocationCommand",
     "PromotePolicyCommand",
     "RollbackPolicyCommand",
 )
@@ -178,6 +180,124 @@ def rollback_policy(
         command_type="RollbackPolicyCommand",
         aggregate_id="policy_active",
         payload=payload,
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def authorize_execution(
+    *,
+    aggregate_id: str,
+    capability_id: str,
+    sublease_id: str,
+    units_requested: int = 1,
+    key_epoch: int = 0,
+    expires_at: float = 0.0,
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    return TypedCommand(
+        command_type="AuthorizeExecutionCommand",
+        aggregate_id=aggregate_id,
+        payload={
+            "capability_id": capability_id,
+            "sublease_id": sublease_id,
+            "units_requested": int(units_requested),
+            "key_epoch": int(key_epoch),
+            "expires_at": float(expires_at),
+        },
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def submit_execution_claim(
+    *,
+    aggregate_id: str,
+    capability_id: str,
+    units_consumed: int,
+    findings: list[dict[str, Any]] | None = None,
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    return TypedCommand(
+        command_type="SubmitExecutionClaim",
+        aggregate_id=aggregate_id,
+        payload={
+            "capability_id": capability_id,
+            "units_consumed": int(units_consumed),
+            "findings": list(findings or []),
+        },
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def lease_timeout(
+    *,
+    aggregate_id: str,
+    observed_at: float,
+    max_skew: float = 0.5,
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    return TypedCommand(
+        command_type="LeaseTimeoutCommand",
+        aggregate_id=aggregate_id,
+        payload={
+            "observed_at": float(observed_at),
+            "max_skew": float(max_skew),
+        },
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def expire_sublease(
+    *,
+    sublease_id: str,
+    units_consumed: int = 0,
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    return TypedCommand(
+        command_type="ExpireSubLeaseCommand",
+        aggregate_id="global_budget",
+        payload={
+            "sublease_id": sublease_id,
+            "units_consumed": int(units_consumed),
+        },
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def cancel_execution(
+    *,
+    aggregate_id: str,
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    return TypedCommand(
+        command_type="CancelExecutionCommand",
+        aggregate_id=aggregate_id,
+        payload={},
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def sync_key_revocation(
+    *,
+    aggregate_id: str = "key_revocation",
+    revocation_epoch: int = 0,
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    return TypedCommand(
+        command_type="SyncKeyRevocationCommand",
+        aggregate_id=aggregate_id,
+        payload={"revocation_epoch": int(revocation_epoch)},
         command_id=command_id,
         expected_aggregate_version=expected_aggregate_version,
     )

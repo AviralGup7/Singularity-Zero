@@ -30,14 +30,14 @@ The Python backend is organized into domain-specific modules adhering to explici
 src/
 ├── analysis/             # 🧠 Cognitive & automated vulnerability analyzers
 │   ├── active/           # Active scanning modules (SQLi, XSS, SSRF, JWT, CSP bypass, HTTP smuggling)
-│   ├── passive/          # Passive inspection of traffic, headers, and responses
 │   ├── automation/       # Autonomous orchestration of multi-step vulnerability discovery
 │   ├── behavior/         # Application behavioral profiling and baseline modeling
 │   ├── bug_bounty/       # Bug-bounty platform scope integration and report formatting
-│   ├── checks/           # Modular security check definitions
-│   ├── intelligence/     # Lateral graph, IDOR/BAC prober, finding_explainer (AI personas), semantic deduplication, CSI
+│   ├── checks/           # Modular passive and active security check definitions (headers, cookies, CORS, secrets)
+│   ├── intelligence/     # Lateral graph, IDOR/BAC prober, finding_explainer (AI personas), semantic deduplication, CVSS v3.1 scoring, decision engine
 │   ├── json/             # JSON parsing and schema extraction
-│   ├── plugins/          # Third-party and built-in analysis plugins
+│   ├── passive/          # Passive inspection of traffic, headers, and responses
+│   ├── plugins/          # Third-party and built-in analysis plugin registries
 │   ├── plugin_runtime/   # Dynamic plugin executor and lifecycle management
 │   └── response/         # Response classification, diffing, and anomaly scoring
 │
