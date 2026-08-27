@@ -165,7 +165,7 @@ flowchart TD
         JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::specOnly
         B -.->|"refuse: foreign mutation rejected"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
         
-        GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::impl
+        GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::specOnly
     end
 ```
 
@@ -354,6 +354,7 @@ flowchart TD
     end
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28, I31, I32, F-042)"]
+        PORT_CRDT_BRIDGE[["PORT: SettlementCoordinator Bridge → Frontier Plane CRDT (F-003)"]] --> Coord
         Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
         Viol -->|"EGRESS_VIOLATION claim dropped"| DropSettle["Settle DROPPED (No Finding)"]:::forbidden
         DropSettle --> SettleRel["I28 Budget RELEASE"]:::impl
@@ -467,6 +468,13 @@ flowchart LR
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     subgraph ClockModel["Multi-Clock Binding Model (F-038)"]
         HLC["Hybrid Logical Clock (HLC)"]:::impl -->|"clock"| EventOrder["Scan Journal Ordering (I23)"]:::impl
         Mono["time.monotonic()"]:::impl -->|"clock"| LeaseTTL["Sublease & Fence Expiration (I19 Zero Skew)"]:::impl
@@ -480,8 +488,9 @@ flowchart TD
         ACTIVE -->|"settle findings<br/>ΔC=+u, ΔO=-u"| CONSUMED
         
         RESERVED -->|"cancel / reject<br/>ΔO=-u, ΔA=+u"| COMPENSATED["COMPENSATED<br/>(Available)"]:::impl
+        ACTIVE -->|"egress abort / immediate budget release<br/>ΔO=-u, ΔA=+u"| COMPENSATED
         RESERVED -->|"expire timeout<br/>ΔO=-u, ΔA=+u"| EXPIRED["EXPIRED<br/>(Available)"]:::impl
-        ACTIVE -->|"TTL elapsed / egress abort<br/>ΔO=-u, ΔA=+u"| EXPIRED
+        ACTIVE -->|"TTL elapsed<br/>ΔO=-u, ΔA=+u"| EXPIRED
         
         EXPIRED -->|"late reconciliation / compensate<br/>Δ=0"| COMPENSATED
         CONSUMED -->|"idempotent re-settle<br/>Δ=0"| CONSUMED
@@ -526,12 +535,10 @@ flowchart TD
         SP["PENDING"]:::impl --> SR["RUNNING"]:::impl
         SP --> SSD["SKIPPED_DISABLED (Terminal)"]:::impl
         SP --> SSF["SKIPPED_FAILED (Terminal)"]:::impl
-        SP --> SDG["DEGRADED (Terminal)"]:::impl
-        SP --> SC["COMPLETED (Terminal)"]:::impl
         SP --> SF["FAILED"]:::impl
         
-        SR --> SC
-        SR --> SDG
+        SR --> SC["COMPLETED (Terminal)"]:::impl
+        SR --> SDG["DEGRADED (Terminal)"]:::impl
         SR --> SF
         SR --> SSD
         SR --> SSF
@@ -604,7 +611,7 @@ flowchart TD
     Load --> Bloom["NeuralBloomFilter (Fast Evasion Deduplication)"]:::impl
     Load --> CB
     subgraph CB["Circuit Breaker (Per-Target Fail-Closed Gate)"]
-        CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold (5 consecutive)"| OPEN["OPEN (Tripped / Shedding)"]:::forbidden
+        CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold (5 consecutive)"| OPEN["OPEN (Tripped / Shedding)"]:::impl
         OPEN -->|"Cooldown Elapsed (20s)"| HALF_OPEN["HALF_OPEN (Trial Generation N)"]:::impl
         HALF_OPEN -->|"Trial Probe OK"| CLOSED
         HALF_OPEN -->|"Trial Probe Failed"| OPEN
@@ -695,6 +702,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+    classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
+    classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
+    classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
+    classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
+    classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+
     U["UNINITIALIZED"]:::impl --> LS["LOAD_SNAPSHOT"]:::impl
     U --> LW["LOAD_WAL"]:::impl
     U --> Fresh["FRESH<br/>(Clean Run Bootstrap)"]:::impl
@@ -848,7 +862,7 @@ flowchart TD
         ScanCfg["ValidatedPipelineConfig JSON"]:::impl
         DashCfg["DashboardConfig DASHBOARD_*"]:::impl
         QueueCfg["QueueConfig QUEUE_*"]:::impl
-        ScanCfg -.-> NoGod["no kernel / God-container"]:::library
+        ScanCfg -.-> NoGod["no kernel / God-container"]:::specOnly
         DashCfg -.-> NoGod
         QueueCfg -.-> NoGod
     end
@@ -870,7 +884,7 @@ flowchart TD
         CacheFacade["src/cache → pipeline.unified_cache"]:::library
         CkptFacade["src/checkpoint → core.checkpoint"]:::library
         FrontFacade["src/frontier facades → core.frontier / infrastructure WAL"]:::library
-        MemJ["src/frontier.MemoryJournal (unit-test WAL stand-in only)"]:::vacuous
+        MemJ["src/frontier.MemoryJournal (unit-test mock WAL stand-in)"]:::library
         CacheFacade -.->|never truth| MultiTierCache
         CkptFacade -.->|never truth| MultiTierCache
         MemJ -.->|refuse/guard| AuthPlane["StateAuthority / PartitionWAL (F-003)"]:::forbidden
