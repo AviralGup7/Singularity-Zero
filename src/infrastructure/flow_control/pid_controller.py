@@ -66,7 +66,7 @@ class AdaptivePIDController:
         effective_latency = observed_latency_ms * (2.5 if error_occurred else 1.0)
         error = self.tuning.target_latency_ms - effective_latency
 
-        # Saturation freeze (anti-windup): freeze integral accumulation if saturated
+        # Saturation freeze & Back-Calculation Anti-Windup
         is_max_saturated = self._current_concurrency >= self.tuning.max_concurrency and error > 0
         is_min_saturated = self._current_concurrency <= self.tuning.min_concurrency and error < 0
 
@@ -91,10 +91,17 @@ class AdaptivePIDController:
 
         # Scale concurrency: positive control signal -> target fast, increase concurrency
         concurrency_delta = int(control_signal / 50.0)
+        unclamped_concurrency = self._current_concurrency + concurrency_delta
         self._current_concurrency = max(
             self.tuning.min_concurrency,
-            min(self.tuning.max_concurrency, self._current_concurrency + concurrency_delta),
+            min(self.tuning.max_concurrency, unclamped_concurrency),
         )
+
+        # Back-calculation anti-windup: adjust integral when concurrency saturates
+        if self.tuning.ki > 0 and unclamped_concurrency != self._current_concurrency:
+            excess = (unclamped_concurrency - self._current_concurrency) * 50.0 / self.tuning.ki
+            self._integral -= excess * 0.1
+            self._integral = max(-self.tuning.i_max, min(self.tuning.i_max, self._integral))
 
         # Scale inter-request delay inversely to control signal
         delay_delta = -control_signal * 0.2
@@ -104,6 +111,12 @@ class AdaptivePIDController:
         )
 
         return self._current_concurrency, self._current_delay_ms
+
+    def reset_integral(self) -> None:
+        """Explicitly clear accumulated integral error upon circuit breaker recovery or state reset."""
+        self._integral = 0.0
+        self._last_error = 0.0
+        self._filtered_derivative = 0.0
 
 
 class PIDRateLimiter:
