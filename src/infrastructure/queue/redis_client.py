@@ -187,6 +187,21 @@ class RedisClient:
 
             return self._healthy or self._use_fallback
 
+    def get_health_status(self) -> dict[str, Any]:
+        """Expose Redis client availability, circuit breaker state, and fallback metrics."""
+        with self._lock:
+            breaker_state = getattr(self._breaker, "state", "CLOSED")
+            if hasattr(breaker_state, "value"):
+                breaker_state = breaker_state.value
+            return {
+                "healthy": bool(self._healthy),
+                "use_fallback": bool(self._use_fallback),
+                "circuit_breaker_state": str(breaker_state),
+                "fallback_db_path": str(self._db_path),
+                "last_check_unix": float(self._last_check),
+                "fallback_since_unix": float(self._fallback_since),
+            }
+
     @property
     def client(self) -> Any:
         """Get the underlying Redis client instance.

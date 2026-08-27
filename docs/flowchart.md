@@ -665,6 +665,7 @@ flowchart TD
     PID --> Conc["Dynamic Concurrency Window"]:::impl
     Load --> Bulk["BulkheadPool (Unified Endpoint Isolation (scheme,host,port))"]:::impl
     Load --> Bloom["GenerationalBloomFilter (Bounded Target FPR 0.001 + Auto-Rotation)"]:::impl
+    Load --> RedisBreaker["RedisClient Circuit Breaker (Local SQLite/Disk Spool Fallback + Health Probe)"]:::impl
     Load --> CB
     subgraph CB["Circuit Breaker (Unified Canonical Endpoint Gate)"]
         CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold (5 consecutive)"| OPEN["OPEN (Tripped / Shedding)"]:::impl

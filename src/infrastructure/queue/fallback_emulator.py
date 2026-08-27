@@ -58,6 +58,7 @@ class FallbackEmulator:
             "LPUSH": self._handle_lpush,
             "RPOP": self._handle_rpop,
             "LLEN": self._handle_llen,
+            "PING": lambda *args, **kwargs: "PONG",
             "EVALSHA": self._handle_eval,
             "EVAL": self._handle_eval,
             "SCRIPT": self._handle_script,
