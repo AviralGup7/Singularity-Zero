@@ -104,8 +104,6 @@ Live charts only. Retired ids are one-line headings preserved after the live cha
 
 ## F-001 — Documentation portal map
 
-Source: [index.md](index.md)
-
 ```mermaid
 flowchart TD
     Index["docs/index.md"] --> Arch["architecture.md"]
@@ -135,8 +133,6 @@ flowchart TD
     Arch --> CacheDoc["architecture/cache-unification.md"]
     Arch --> Consolidation["architecture/code-consolidation.md"]
 ```
-
-Portal lists only files that exist. `CONTRIBUTING.md` / `BENCHMARK.md` / `CHANGES.md` are not in the repo.
 
 ---
 
@@ -177,8 +173,6 @@ flowchart TD
 ---
 
 ## F-003 — Authority plane, Raft L0–L5 & security keys
-
-Source: [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `src/core/frontier/replicated_log.py`, `src/core/frontier/receipt_crypto.py`, `src/core/contracts/schema_upcaster.py`, `src/core/frontier/state.py`. Absorbed F-012, F-014, F-016, F-034, F-037, F-044.
 
 ```mermaid
 flowchart TD
@@ -242,8 +236,6 @@ flowchart TD
 ---
 
 ## F-004 — Live scan path, execution DAG & egress sandbox
-
-Source: [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), [architecture/execution-request-contract.md](architecture/execution-request-contract.md), `src/pipeline/services/pipeline_orchestrator/graph_builder.py`, `src/pipeline/services/pipeline_orchestrator/actor_scheduler.py`, `src/pipeline/services/pipeline_orchestrator/stage_admit.py`, `src/sandbox/process_sandbox.py`, `src/sandbox/egress_context.py`, `src/core/utils/shared_sessions.py`, `src/analysis/dedup/`. Absorbed F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042.
 
 ```mermaid
 flowchart TD
@@ -534,13 +526,9 @@ flowchart TD
     Coupling --> JP
 ```
 
-**Tri-Axial Lifecycle Coupling:** Surface state (`FindingLifecycleState`), Confidence (`heuristic` $\rightarrow$ `exploitable`), and Operator Ticket (`OPEN` $\rightarrow$ `CLOSED`) operate orthogonally. Stage and finding terminal states couple through `derive_job_and_exit` into the job exit lattice.
-
 ---
 
 ## F-009 — Resilience: breaker, QoS, PID & bulkhead
-
-Source: [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`. Absorbed F-024, F-030.
 
 ```mermaid
 flowchart TD
@@ -576,8 +564,6 @@ flowchart TD
 ---
 
 ## F-018 — Failure decision tree, concurrency & I35 recovery
-
-Source: [FAILURE_MODES.md](FAILURE_MODES.md), `src/core/frontier/failure_model.py` (I34), `src/core/frontier/recovery_protocol.py` (I35), `src/jobs/run_outcome.py`, `src/infrastructure/task_pool/run_lock.py`. Absorbed F-039.
 
 ### Total Exit Code Precedence Table (`derive_job_and_exit`)
 
@@ -662,13 +648,9 @@ flowchart TD
     Comp --> Ready
 ```
 
-**Recovery & Exit Governance (I34/I35):** PartitionWAL is authoritative and never reconstructed; outbox is rebuilt from WAL on restart. Unreadable partition schemas or I30–I33 invariant failures trigger `FAIL_CLOSED` (Exit 3). Total exit priority order: $130 > 3 > 7 > 2 > 4 > 1 > 0$. Non-fatal stage failures yield partial run (Exit 4); only fatal stages trigger Exit 3.
-
 ---
 
 ## F-019 — Operator surface, multi-tenancy & telemetry
-
-Source: [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `src/telemetry/normalizer.ts`, `src/dashboard/fastapi/middleware.py`. Absorbed F-023, F-026, F-031, F-043.
 
 ```mermaid
 flowchart TD
@@ -712,8 +694,6 @@ flowchart TD
 
 ## F-020 — Tests, CI shards & quality policy gates
 
-Source: [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `src/jobs/run_outcome.py`. Absorbed F-045.
-
 ```mermaid
 flowchart TD
     subgraph CI_Pipeline["GitHub Actions CI Pipeline (.github/workflows/ci.yml)"]
@@ -747,13 +727,9 @@ flowchart TD
     end
 ```
 
-Per-test timeout 20s (`pytest-timeout`). Do not CI-fail on k8s `REPLACE_WITH_*`. Fail-fast recon tests stay skipped.
-
 ---
 
 ## F-022 — Gap-analysis status
-
-Source: [GAP_ANALYSIS.md](GAP_ANALYSIS.md)
 
 ```mermaid
 flowchart LR
@@ -769,8 +745,6 @@ flowchart LR
 ---
 
 ## F-025 — Non-authoritative planes, caches & multi-tier storage
-
-Source: [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), [architecture.md](architecture.md) §7.17, `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, `src/pipeline/maintenance.py`, facades `src/cache/`, `src/checkpoint/`. Absorbed F-028, F-032, F-041.
 
 ```mermaid
 flowchart TD
@@ -807,13 +781,9 @@ flowchart TD
     end
 ```
 
-Facade packages re-export live implementations for stable import paths. They must not grow a second settle, budget, or WAL writer. `MemoryJournal` is explicitly test-only and is not attached on the live scan path.
-
 ---
 
 ## F-033 — Global invariants I1–I37 enforcement & dependency graph
-
-Source: `src/core/frontier/invariant_graph.py`, `src/core/frontier/global_invariants.py`, `src/core/frontier/causal_identity.py`, `src/core/frontier/event_delivery.py`.
 
 ### Formal Invariant Dependency & Enforcement Semantics
 
@@ -1022,5 +992,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-27 | Formal Invariant Verification Taxonomy: replaced monolithic 'impl' status in F-033 registry and invariant_checker with 7-tier verification levels (PROPERTY-TESTED, ADVERSARIAL, FAULT-INJECTED, MODEL-CHECKED, PRODUCTION-OBSERVED, TESTED, IMPLEMENTED) | edit |
 | 2026-08-27 | Visual Flowchart Distillation: eliminated prose repetition, merged deployment/authority-transfer into unified F-002, embedded accounting deltas onto F-006 edges, merged I29/I30 execution gates onto F-004, and enriched F-033 proof graph nodes with module and verification metadata | edit |
 | 2026-08-27 | Edge-First Architectural Knowledge Graph: encoded telemetry streams, negative authority constraints (FORBIDDEN_AUTHOR), and recovery predicates directly onto graph edges | edit |
+| 2026-08-27 | Purge Narrative Redundancy: removed repetitive 'Source:' lines and narrative prose across all chart sections; established Atlas Index and global edge grammar as canonical sources | edit |
 
 Append a row for every later edit. Do not delete this table.
