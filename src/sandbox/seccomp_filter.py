@@ -40,6 +40,22 @@ BLOCKED_SYSCALLS = frozenset(
     ]
 )
 
+# Syscalls blocked when network access is completely disabled in sandbox (allow_network=False)
+NETWORK_SYSCALLS = frozenset(
+    [
+        "socket",
+        "connect",
+        "bind",
+        "listen",
+        "accept",
+        "accept4",
+        "sendto",
+        "recvfrom",
+        "sendmsg",
+        "recvmsg",
+    ]
+)
+
 
 @dataclass(frozen=True, slots=True)
 class SeccompPolicy:
@@ -47,11 +63,17 @@ class SeccompPolicy:
 
     default_action: str = "ALLOW"
     blocked_syscalls: tuple[str, ...] = tuple(sorted(BLOCKED_SYSCALLS))
+    block_network_syscalls: bool = False
     audit_mode: bool = False
 
     def is_syscall_allowed(self, syscall_name: str) -> bool:
         """Check if a syscall is permitted under current policy."""
-        return syscall_name.lower() not in self.blocked_syscalls
+        name = syscall_name.lower()
+        if name in self.blocked_syscalls:
+            return False
+        if self.block_network_syscalls and name in NETWORK_SYSCALLS:
+            return False
+        return True
 
     def build_bpf_filter(self) -> Any:
         """Construct native BPF filter if libseccomp is available on Linux."""
@@ -68,6 +90,12 @@ class SeccompPolicy:
                     f.add_rule(action, sc)
                 except Exception as exc:
                     logger.debug("Could not add seccomp rule for %s: %s", sc, exc)
+            if self.block_network_syscalls:
+                for sc in NETWORK_SYSCALLS:
+                    try:
+                        f.add_rule(action, sc)
+                    except Exception as exc:
+                        logger.debug("Could not add seccomp network rule for %s: %s", sc, exc)
             return f
         except ImportError:
             logger.debug(
@@ -76,5 +104,21 @@ class SeccompPolicy:
             return None
 
 
-def get_default_seccomp_policy() -> SeccompPolicy:
-    return SeccompPolicy()
+class KernelEgressNamespace:
+    """Linux Network Namespace (netns) + iptables/nftables kernel egress controller."""
+
+    @staticmethod
+    def is_kernel_isolation_supported() -> bool:
+        """Check if Linux network namespaces and unshare are available."""
+        return sys.platform == "linux" and os.path.exists("/proc/self/ns/net")
+
+    @staticmethod
+    def get_namespace_command_prefix(allow_network: bool = True) -> list[str]:
+        """Wrap command with `unshare -n` for kernel-level network namespace isolation."""
+        if not allow_network and KernelEgressNamespace.is_kernel_isolation_supported():
+            return ["unshare", "--net"]
+        return []
+
+
+def get_default_seccomp_policy(allow_network: bool = True) -> SeccompPolicy:
+    return SeccompPolicy(block_network_syscalls=not allow_network)

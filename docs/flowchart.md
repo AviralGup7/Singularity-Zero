@@ -389,7 +389,7 @@ flowchart TD
         Guard -->|"patch"| Socket["socket.socket.connect / create_connection"]:::impl
         Guard -->|"patch"| Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
         Guard -->|"guard"| Browser["runtime_browser.py (page.goto)"]:::impl
-        Guard -->|"sandbox"| Subproc["ProcessSandbox.check_egress"]:::impl
+        Guard -->|"sandbox (Kernel NetNS unshare -n + Seccomp-BPF socket/connect)"| Subproc["ProcessSandbox (Kernel-Level Enforcement)"]:::impl
         
         HTTPX & Requests & Shared & Socket & Stream & Browser & Subproc --> Out["StageOutput / ExploitClaim"]:::impl
         

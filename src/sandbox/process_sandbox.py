@@ -148,6 +148,14 @@ class ProcessSandbox:
         if destination_host:
             self.check_egress(destination_host, destination_port)
 
+        from src.sandbox.seccomp_filter import KernelEgressNamespace
+
+        # Kernel-level network namespace isolation prefix (e.g. `unshare -n`)
+        ns_prefix = KernelEgressNamespace.get_namespace_command_prefix(
+            allow_network=self.limits.allow_network
+        )
+        effective_command = ns_prefix + list(command)
+
         cmd_tuple = tuple(command)
         env = self.scrub_environment(custom_env)
         start_time = time.time()
@@ -187,7 +195,7 @@ class ProcessSandbox:
         timed_out = False
         try:
             proc = subprocess.Popen(  # noqa: S603
-                list(command),
+                effective_command,
                 stdin=subprocess.PIPE if stdin_bytes else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
