@@ -248,9 +248,9 @@ flowchart TD
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
         subgraph L0_Consensus["L0: Multi-Node Raft Consensus (MultiNodeRaftCluster Quorum-2/3 Live)"]
-            Leader["Leader PartitionWAL (node_0)"]:::impl
-            F1["Follower PartitionWAL Replica (node_1)"]:::impl
-            F2["Follower PartitionWAL Replica (node_2)"]:::impl
+            Leader["Leader PartitionWAL (Group Commit 64 entries / 1ms)"]:::impl
+            F1["Follower PartitionWAL Replica (Group Commit)"]:::impl
+            F2["Follower PartitionWAL Replica (Group Commit)"]:::impl
             Leader -->|"AppendEntries RPC"| F1 & F2
             F1 & F2 -->|"Quorum ACKs (>= 2/3)"| Leader
             Leader --> Commit["Advance commitIndex & FSM Barrier"]:::impl

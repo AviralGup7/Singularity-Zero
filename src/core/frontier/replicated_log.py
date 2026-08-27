@@ -54,11 +54,23 @@ logger = logging.getLogger(__name__)
 
 
 class PartitionWAL:
-    """Crash-safe append-only WAL storage for partition Raft entries."""
+    """Crash-safe append-only WAL storage for partition Raft entries with Group Commit optimization."""
 
-    def __init__(self, partition_id: str, node_id: str, wal_dir: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        partition_id: str,
+        node_id: str,
+        wal_dir: Path | str | None = None,
+        *,
+        group_commit: bool = True,
+        group_commit_batch_size: int = 64,
+        group_commit_window_ms: float = 1.0,
+    ) -> None:
         self.partition_id = partition_id
         self.node_id = node_id
+        self.group_commit = group_commit
+        self.group_commit_batch_size = group_commit_batch_size
+        self.group_commit_window_ms = group_commit_window_ms
         self._wal_path: Path | None = None
         if wal_dir is not None:
             base_dir = Path(wal_dir)
@@ -66,6 +78,8 @@ class PartitionWAL:
             self._wal_path = base_dir / f"raft_wal_{partition_id}_{node_id}.aof"
 
         self._in_memory_records: list[tuple[CommittedEntry, bool]] = []
+        self._pending_buffer: list[bytes] = []
+        self._last_flush_time: float = time.monotonic()
         self._lock = threading.RLock()
 
     @property
@@ -75,7 +89,7 @@ class PartitionWAL:
     def append_entry(
         self, entry: CommittedEntry, committed: bool = False, sync: bool = True
     ) -> None:
-        """Persist a single entry to disk with CRC-64 verification and atomic fsync."""
+        """Persist a single entry to disk with CRC-64 verification and Group Commit batching."""
         with self._lock:
             self._in_memory_records.append((entry, committed))
             if self._wal_path is None:
@@ -92,14 +106,47 @@ class PartitionWAL:
                 "entry": entry_dict,
             }
             line = json.dumps(record, sort_keys=True).encode("utf-8") + b"\n"
+
+            if not self.group_commit or not sync:
+                # Immediate synchronous write and fsync
+                with open(self._wal_path, "ab") as f:
+                    f.write(line)
+                    if sync:
+                        f.flush()
+                        try:
+                            os.fsync(f.fileno())
+                        except OSError:
+                            pass
+                return
+
+            # Group commit fast buffer
+            self._pending_buffer.append(line)
+            now = time.monotonic()
+            elapsed_ms = (now - self._last_flush_time) * 1000.0
+
+            if (
+                len(self._pending_buffer) >= self.group_commit_batch_size
+                or elapsed_ms >= self.group_commit_window_ms
+            ):
+                self.flush_pending()
+
+    def flush_pending(self) -> int:
+        """Atomically flush all buffered group commit records in a single fsync."""
+        with self._lock:
+            if not self._pending_buffer or self._wal_path is None:
+                return 0
+            count = len(self._pending_buffer)
+            payload = b"".join(self._pending_buffer)
             with open(self._wal_path, "ab") as f:
-                f.write(line)
-                if sync:
-                    f.flush()
-                    try:
-                        os.fsync(f.fileno())
-                    except OSError:
-                        pass
+                f.write(payload)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    pass
+            self._pending_buffer.clear()
+            self._last_flush_time = time.monotonic()
+            return count
 
     def load_all_entries(self) -> list[tuple[CommittedEntry, bool]]:
         """Load and validate all entries from the physical WAL (or in-memory cache).
@@ -108,6 +155,7 @@ class PartitionWAL:
         zero state mutations (no partial apply, no skip-and-continue).
         """
         with self._lock:
+            self.flush_pending()
             if self._wal_path is None or not self._wal_path.exists():
                 return list(self._in_memory_records)
 
