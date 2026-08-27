@@ -165,19 +165,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph Upcasting["Schema Upcasting & Key Hierarchy (F-044, F-037)"]
-        OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
-        Upcaster --> Envelope["Canonical Envelope"]:::impl
-        MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
-        Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
-        Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
-        Derive --> JWTKey["JWT Session Key"]:::impl
-        MasterKey -.->|Missing in Env| Fallback["Ephemeral Random Key (secrets.token_bytes) — In-Process Only; Cross-Restart Verification FAILS_CLOSED"]:::forbidden
-    end
-
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
-        Promo --> Envelope
+        Promo --> Envelope["Canonical Envelope (v3)"]:::impl
         Envelope --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
@@ -195,6 +185,16 @@ flowchart TD
         Apply ==> Intent["Pure OutboxIntent Emitted (Zero I/O)"]:::impl
         Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
+    end
+
+    subgraph Upcasting["Schema Upcasting & Key Hierarchy (F-044, F-037)"]
+        OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
+        Upcaster --> Envelope
+        MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
+        Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
+        Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
+        Derive --> JWTKey["JWT Session Key"]:::impl
+        MasterKey -.->|Missing in Env| Fallback["Ephemeral Random Key (secrets.token_bytes) — In-Process Only; Cross-Restart Verification FAILS_CLOSED"]:::forbidden
     end
     
     subgraph FrontierPlane["FRONTIER PLANE: Scan Discovery (CRDT / Ephemeral)"]
@@ -216,9 +216,9 @@ flowchart TD
     subgraph ReadProjections["READ PROJECTIONS: Strictly Non-Authoritative Strata (L4–L5)"]
         Proj -->|materialize| Cache["L4: Caches & Telemetry (Prometheus :9090)"]:::impl
         Cache ==>|render| UI["L5: Presentation & Dashboard UI"]:::impl
-        UI -.->|"FORBIDDEN_AUTHOR: cannot mutate L0–L3"| Log
-        UI -.->|"FORBIDDEN_AUTHOR: cannot mutate FSM"| Apply
-        Cache -.->|"FORBIDDEN_AUTHOR: cannot mutate WAL"| Leader
+        
+        UI -.->|"FORBIDDEN_AUTHOR: mutate"| ForbidL0["Fail-Closed: Non-Authoritative Mutation of L0–L3 Prohibited"]:::forbidden
+        Cache -.->|"FORBIDDEN_AUTHOR: mutate"| ForbidWAL["Fail-Closed: Caches Cannot Mutate WAL / Leader"]:::forbidden
     end
 ```
 
