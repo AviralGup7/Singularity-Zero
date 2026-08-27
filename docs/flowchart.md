@@ -150,10 +150,10 @@ flowchart TD
         F -.->|"refuse: stale epoch/token"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
         F -.->|"refuse: mutation while fenced"| Rej2["Refuse: Partition FENCED"]:::forbidden
         
-        A --> OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
-        A --> JA["FrontierWAL Journal (Scan Discovery)"]:::impl
+        A ==>|"authoritative write"| OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
+        A ==>|"authoritative write"| JA["FrontierWAL Journal (Scan Discovery)"]:::impl
         JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::specOnly
-        B -.->|"foreign mutation refused"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
+        B -.->|"refuse: foreign mutation rejected"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
         
         GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::singleNode
     end
@@ -488,19 +488,21 @@ flowchart TD
     subgraph Stage["Stage CAS (src/core/models/stage_status.py)"]
         SP["PENDING"]:::impl --> SR["RUNNING"]:::impl
         SP --> SSD["SKIPPED_DISABLED (Terminal)"]:::impl
+        SP --> SSF["SKIPPED_FAILED (Terminal)"]:::impl
         SP --> SDG["DEGRADED (Terminal)"]:::impl
         SP --> SC["COMPLETED (Terminal)"]:::impl
-        SP --> SF["FAILED (Terminal)"]:::impl
-        SP --> SSF["SKIPPED_FAILED (Terminal)"]:::impl
+        SP --> SF["FAILED"]:::impl
+        
         SR --> SC
         SR --> SDG
         SR --> SF
         SR --> SSD
         SR --> SSF
-        SF --> SR
-        SF --> SC
-        SF --> SDG
-        SF --> SSF
+        
+        SF -->|"I33 retry"| SR
+        SF -->|"retry succeeded"| SC
+        SF -->|"retry degraded"| SDG
+        SF -->|"retries exhausted"| SSF
     end
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
         subgraph SurfaceAxis["Axis 1: Surface Lifecycle"]
@@ -553,7 +555,7 @@ flowchart TD
         HALF_OPEN -->|"Trial Probe OK"| CLOSED
         HALF_OPEN -->|"Trial Probe Failed"| OPEN
     end
-    OPEN -->|"set_reserve_gate"| NoTicket["HuntBudget Gate: Reserve Blocked"]:::impl
+    OPEN -->|"set_reserve_gate"| NoTicket["HuntBudget Gate: Reserve Blocked"]:::forbidden
     Evt["TelemetryEvent Stream"]:::impl --> Q{"qos_admit"}:::impl
     Q -->|P0: Critical Audit| P0["P0: In-Memory Spool + Disk Journal (p0_capacity=1000)"]:::impl
     Q -->|P1: Stage Lifecycle| P1["P1: Reliable Queue Dispatch"]:::impl
@@ -607,10 +609,10 @@ flowchart TD
     Precedence -->|Clean Run| Exit0["Exit 0: COMPLETED (Clean / Pass)"]:::impl
     
     subgraph ErrorMap["Runtime Failure Mappings"]
-        CB["Circuit Breaker OPEN"]:::forbidden -->|"HTTP 429 / Throttle"| Exit4
-        WAL["WALCorruptionError I15"]:::forbidden -->|"Unrecoverable"| Exit3
-        Pol["Policy Gate (No Log)"]:::forbidden -->|"Fail-Closed"| Exit2
-        Egress["EgressViolationError I29"]:::forbidden -->|"Scope Guard"| Exit3
+        CB_Err["Circuit Breaker OPEN"]:::forbidden -->|"HTTP 429 / Throttle"| Exit4
+        WAL_Err["WALCorruptionError I15"]:::forbidden -->|"Unrecoverable"| Exit3
+        Pol_Err["Policy Gate (No Log)"]:::forbidden -->|"Fail-Closed"| Exit2
+        Egress_Err["EgressViolationError I29"]:::forbidden -->|"Scope Guard"| Exit3
         CollisionExit --> Exit1["Exit 1: FAILED"]:::impl
     end
 ```
@@ -919,6 +921,7 @@ flowchart TD
             I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
             I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol<br/><small>recovery_protocol.py [MODEL-CHECKED]</small>"]:::impl
             I35g --> I36g
+            I37g --> I35g
         end
     end
 ```
