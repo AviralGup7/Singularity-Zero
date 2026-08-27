@@ -200,6 +200,7 @@ flowchart TD
         B -.->|"refuse: foreign mutation rejected"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
         
         GA["Gossip Node A1"]:::impl <-->|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::specOnly
+        Consensus["MeshConsensus (Adaptive RTT Timeout 10x + Pre-Vote Guard)"]:::impl --> GA & GB
     end
 ```
 

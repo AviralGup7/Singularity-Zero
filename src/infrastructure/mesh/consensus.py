@@ -107,16 +107,27 @@ class MeshConsensus:
         election_timeout_sec: float = DEFAULT_ELECTION_TIMEOUT_SEC,
         maintenance_interval_sec: float = DEFAULT_MAINTENANCE_INTERVAL_SEC,
         redis_client: Any = None,
+        region: str | None = None,
+        rtt_multiplier: float = 10.0,
     ) -> None:
         self.gossip = gossip
         self.leader_id: str | None = None
         self.term: int = 0
         self._election_in_progress = False
         self._redis_url = redis_url or os.getenv("REDIS_URL")
+        self.region = region or os.getenv("MESH_REGION", "local")
+        self.rtt_multiplier = max(2.0, float(rtt_multiplier))
+
+        # Per-region base timeout scaling
+        base_timeout = float(election_timeout_sec)
+        if self.region in {"cross-region", "wan", "multi-region"}:
+            base_timeout = max(base_timeout, 30.0)
+
         self._lease_ttl_ms = max(1000, int(lease_ttl_ms))
         self._refresh_interval_sec = max(0.5, float(refresh_interval_sec))
-        self._election_timeout_sec = max(1.0, float(election_timeout_sec))
+        self._base_election_timeout_sec = max(1.0, base_timeout)
         self._maintenance_interval_sec = max(0.5, float(maintenance_interval_sec))
+
         # refresh interval must be well under the TTL to avoid losing the
         # lease due to a single slow tick.
         if self._refresh_interval_sec * 3.0 > (self._lease_ttl_ms / 1000.0):
@@ -126,6 +137,24 @@ class MeshConsensus:
         self._last_redis_error: str | None = None
         self._lease: _LeaderRecord = _LeaderRecord.empty()
         self._stop_event = asyncio.Event()
+
+    @property
+    def election_timeout_sec(self) -> float:
+        """Dynamically compute effective election timeout based on observed peer RTTs."""
+        stats = getattr(self.gossip, "peer_stats", {})
+        rtts = []
+        if isinstance(stats, dict):
+            for p_stat in stats.values():
+                rtt = getattr(p_stat, "round_trip_time", getattr(p_stat, "rtt", 0.0))
+                if rtt and rtt > 0:
+                    rtts.append(rtt)
+        if rtts:
+            import statistics
+
+            med_rtt = statistics.median(rtts)
+            # 10x median RTT with base timeout floor
+            return max(self._base_election_timeout_sec, med_rtt * self.rtt_multiplier)
+        return self._base_election_timeout_sec
 
     # ------------------------------------------------------------------ public
 
@@ -230,17 +259,25 @@ class MeshConsensus:
             )
             ttl_remaining_ms = await self._ttl_ms(client)
             lease_still_fresh = (
-                ttl_remaining_ms is None or ttl_remaining_ms > self._election_timeout_sec * 1000
+                ttl_remaining_ms is None or ttl_remaining_ms > self.election_timeout_sec * 1000
             )
             if holder_alive and lease_still_fresh and current.term >= self.term:
                 self.leader_id = current.node_id
                 self.term = current.term
                 self._lease = current
                 return
+
+            # Pre-Vote Guard: partitioned/isolated nodes must not trigger disruptive term bumps
+            if not self._passes_prevote_check():
+                logger.debug("MeshConsensus: pre-vote failed — skipping takeover attempt to prevent split-brain")
+                return
+
             # Lease is stale: the term must be bumped on takeover so any
             # zombie leader with an old term can be told to step down.
             new_term = max(self.term, current.term) + 1
         else:
+            if not self._passes_prevote_check():
+                return
             new_term = self.term + 1
         record = _LeaderRecord(
             node_id=self.gossip.local_node.id,
@@ -248,6 +285,16 @@ class MeshConsensus:
             acquired_at=time.time(),
         )
         await self._try_acquire(client, record=record)
+
+    def _passes_prevote_check(self) -> bool:
+        """Pre-vote validation: ensure local node is connected to at least minority peers before challenging leader."""
+        peers = getattr(self.gossip, "peers", {})
+        if not peers:
+            return True  # Single-node mode passes
+        alive_peers = sum(1 for p in peers.values() if getattr(p, "status", "alive") in {"alive", "suspect"})
+        total_nodes = len(peers) + 1
+        quorum = (total_nodes // 2) + 1
+        return (alive_peers + 1) >= quorum
 
     async def _try_acquire(
         self,
