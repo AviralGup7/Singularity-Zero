@@ -271,7 +271,7 @@ flowchart TD
         F_Targets["Target Subdomains & URLs"]:::impl
         F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
         F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
-        F_Tombstones["Compaction Tombstones (1h TTL)"]:::impl
+        F_Tombstones["Compaction Tombstones (Adaptive Gossip RTT x 3 Safety Factor TTL)"]:::impl
         F_Targets -->|data| F_Findings
         F_Targets -->|data| F_Candidates
         F_Findings -->|compact| F_Tombstones

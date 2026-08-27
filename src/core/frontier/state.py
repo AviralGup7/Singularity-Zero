@@ -385,6 +385,20 @@ class NeuralState:
         self.applied_wal_ids: set[str] = set()
         self.created_at: float = time.time()
         self.hlc = HybridLogicalClock(node_id="local")
+        self._observed_max_gossip_rtt_sec: float = 10.0
+        self._tombstone_safety_factor: float = 3.0
+        self._min_tombstone_floor_sec: float = 300.0  # 5 min hard floor
+
+    def update_observed_gossip_rtt(self, observed_rtt_sec: float) -> None:
+        """Track observed gossip convergence RTT to autotune tombstone TTL."""
+        self._observed_max_gossip_rtt_sec = max(
+            self._observed_max_gossip_rtt_sec * 0.95, float(observed_rtt_sec)
+        )
+
+    def compute_adaptive_tombstone_ttl(self, default_ttl_sec: float = 3600.0) -> float:
+        """Compute safe tombstone TTL = max(default, observed_max_rtt * safety_factor, min_floor)."""
+        adaptive_ttl = self._observed_max_gossip_rtt_sec * self._tombstone_safety_factor
+        return max(default_ttl_sec, adaptive_ttl, self._min_tombstone_floor_sec)
 
     def _trim_applied_wal_ids(self) -> None:
         if len(self.applied_wal_ids) <= 1000:
@@ -430,13 +444,18 @@ class NeuralState:
             logger.warning("Operation failed in state.py: %s", exc, exc_info=True)  # noqa: BLE001
         return (0.0, wal_id)
 
-    def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
+    def compact(self, max_tombstone_age_seconds: float | None = None) -> dict[str, int]:
+        effective_ttl = (
+            self.compute_adaptive_tombstone_ttl(max_tombstone_age_seconds)
+            if max_tombstone_age_seconds is not None
+            else self.compute_adaptive_tombstone_ttl()
+        )
         self._trim_applied_wal_ids()
         purged = {
-            "subdomains": self.subdomains.compact(max_tombstone_age_seconds),
-            "urls": self.urls.compact(max_tombstone_age_seconds),
-            "findings": self.findings.compact(max_tombstone_age_seconds),
-            "candidates": self.candidates.compact(max_tombstone_age_seconds),
+            "subdomains": self.subdomains.compact(effective_ttl),
+            "urls": self.urls.compact(effective_ttl),
+            "findings": self.findings.compact(effective_ttl),
+            "candidates": self.candidates.compact(effective_ttl),
         }
         total = sum(purged.values())
 
@@ -444,7 +463,10 @@ class NeuralState:
             from src.core.logging.trace_logging import get_pipeline_logger
 
             get_pipeline_logger(__name__).info(
-                "NeuralState: Compacted %d expired tombstones %s", total, purged
+                "NeuralState: Compacted %d expired tombstones (ttl=%.1fs) %s",
+                total,
+                effective_ttl,
+                purged,
             )
         return purged
 
