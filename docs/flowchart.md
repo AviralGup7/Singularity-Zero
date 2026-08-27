@@ -71,11 +71,11 @@ The term "authority" is strictly typed across this specification to avoid semant
 | Typed Authority | Scope & Plane | Authoritative Entity | Governed Invariants |
 |---|---|---|---|
 | **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate` | I4, I8, I9, I10, I11, I22 |
-| **`BudgetAuthority`** | Partition Plane (`P-0000` Materialized L3) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I7, I19, I20, I21, I26, I28 |
-| **`DiscoveryAuthority`** | Frontier Plane (CRDT / Ephemeral) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`) | I23, I24, I25 |
+| **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I7, I19, I20, I21, I26, I28 |
+| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT / Ephemeral) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`) | I23, I24, I25 |
 | **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox` | I29, I30, I33 |
-| **`PersistenceAuthority`** | Storage & Durability Engine | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11, I12, I14, I15, I31, I32 |
-| **`PresentationAuthority`** | Read Projections (L4–L5) | FastAPI, Zustand Stores, Telemetry Normalizer | *None* (Forbidden as truth source) |
+| **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11, I12, I14, I15, I31, I32 |
+| **`PresentationAuthority`** | Ephemeral & Read Projections (L4–L5) | FastAPI, Zustand Stores, Telemetry Normalizer | *None* (Forbidden as truth source) |
 
 ---
 
@@ -496,9 +496,10 @@ Universal Conservation Equation: $$\text{TotalBudget} \equiv \text{Consumed} + \
 |---|---|---|---|---|
 | `Genesis` $\rightarrow$ `RESERVED` | $0$ | $+\text{units}$ | $-\text{units}$ | `HuntBudget.reserve_with_identity` (ticket issued) |
 | `RESERVED` $\rightarrow$ `ACTIVE` | $0$ | $0$ | $0$ | Subprocess dispatch (in-flight execution) |
-| `ACTIVE` $\rightarrow$ `CONSUMED` | $+\text{units}$ | $-\text{units}$ | $0$ | Stage `COMPLETED` committed with findings at WAL |
-| `ACTIVE` $\rightarrow$ `COMPENSATED` / `EXPIRED` | $0$ | $-\text{units}$ | $+\text{units}$ | Stage `FAILED` / `SKIPPED` / TTL expired |
+| `RESERVED` / `ACTIVE` $\rightarrow$ `CONSUMED` | $+\text{units}$ | $-\text{units}$ | $0$ | Stage `COMPLETED` committed with findings at WAL |
+| `ACTIVE` $\rightarrow$ `EXPIRED` | $0$ | $-\text{units}$ | $+\text{units}$ | Stage `FAILED` / `SKIPPED` / TTL elapsed via `ExpireSubLeaseCommand` |
 | `RESERVED` $\rightarrow$ `COMPENSATED` | $0$ | $-\text{units}$ | $+\text{units}$ | Pre-dispatch cancellation or authorization rejection |
+| `EXPIRED` $\rightarrow$ `COMPENSATED` | $0$ | $0$ | $0$ | Late compensation / ledger reconciliation (I28) |
 | *Late Settle after EXPIRED* | $0$ | $0$ | $0$ | **Refused**: requires prior compensation check |
 
 ---

@@ -6,7 +6,7 @@ This document provides the OpenAPI 3.1.0 specification for the Cyber Security Te
 
 ## 🔒 Global Security & Governance Headers
 
-All endpoints in the dashboard API support dynamic tenant-isolation and state-altering anti-CSRF checks:
+All protected endpoints in the dashboard API support dynamic tenant-isolation and state-altering anti-CSRF checks (public operational probes such as `/api/health`, `/api/health/live`, and `/health` are unauthenticated):
 
 ### 1. Multi-Tenant Isolation (`X-Tenant-ID` Header)
 - **Header**: `X-Tenant-ID: <tenant_identifier>` (Optional, defaults to `default`)
@@ -2888,6 +2888,16 @@ components:
     HTTPBearer:
       scheme: bearer
       type: http
+    TenantHeader:
+      in: header
+      name: X-Tenant-ID
+      type: apiKey
+      description: Multi-tenant isolation header (defaults to 'default')
+    CSRFHeader:
+      in: header
+      name: X-CSRF-Token
+      type: apiKey
+      description: State-altering request CSRF verification token
 info:
   description: Unified security orchestration and vulnerability analysis dashboard.
   title: Cyber Security Test Pipeline Dashboard

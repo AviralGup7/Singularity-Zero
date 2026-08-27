@@ -45,7 +45,7 @@ Canonical invariant set is **I1–I29** plus cross-subsystem **I30–I37** (see 
 1. **Axiom 1: The 6-Level Authority Hierarchy**: Level 0 (Replicated Raft Log) $\rightarrow$ Level 1 (Deterministic FSM) $\rightarrow$ Level 2 (Committed Events) $\rightarrow$ Level 3 (Materialized Projections) $\rightarrow$ Level 4 (Ephemeral Caches & Telemetry) $\rightarrow$ Level 5 (Presentation UI). Nothing at Level $N+1$ may ever serve as an authoritative source of truth for Level $N$.
 2. **Axiom 2: Commit Before Mutation & All-Replica Determinism**: No state mutation occurs except through deterministic `FSM.Apply(CommittedEntry)`. Replicas apply committed entries identically. Only active leaders sign `CommandReceipt` receipts.
 3. **Axiom 3: Pure Determinism, Zero External Side Effects & Outbox Stream**: `FSM.Apply()` produces exactly one deterministic `(post_state, domain_events, result)`. It performs zero external I/O and never writes directly to disks or network sockets. Downstream effects and projections are fed strictly through the post-commit deduplicated outbox stream (`DurableOutboxLedger`).
-4. **Axiom 4: Universal Budget Conservation & Multi-Partition Accounting**: At all times, $\text{TotalBudget} = \text{Consumed} + \text{OutstandingReserved} + \text{Available}$ across exact non-negative integer units.
+4. **Axiom 4: Universal Budget Conservation & Multi-Partition Accounting**: At all times, $\text{TotalBudget} = \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$ across exact non-negative integer units (where $\text{Outstanding} = \text{Reserved} + \text{Active}$ in-flight leases, and $\text{SlabReserved}$ accounts for multi-partition quota slab allocations under I26; on unpartitioned single-node allocations, $\text{SlabReserved} = 0$).
 5. **Axiom 5: Complete Reconstructibility of Authoritative State**: All Level 1 FSM states and Level 3 read projections are 100% reconstructible from snapshots and sequential replay of committed log segments.
 6. **Axiom 6: Universal Scoped Idempotency & Unique Identifiers**: Repeated delivery of the same `command_id` or `claim_id` returns the original cached `CommandResult` with zero additional state mutations.
 7. **Axiom 7: Singular Partition Ownership & Fenced Atomic Migration**: Every aggregate belongs to exactly one authoritative partition at a given `placement_version`. Migration transfers ownership under $P\text{-}0000$ via 5-stage fenced coordination.
@@ -194,8 +194,8 @@ graph TD
 - Native platform adapters for Jira (REST API v3 ADF / v2), ServiceNow (Table API), and DefectDojo (v2 REST API).
 - Persona text in `src/analysis/intelligence/finding_explainer.py` is **template copy**, not a model API.
 
-### 7.6 State Authority, Settlement Model & Recovery Architecture
-- **Production Settlement Engine**:
+### 7.6 State Authority, Settlement Model & Dual-Plane Architecture
+- **Frontier Scan Settlement Pipeline**:
   ```text
   CommandId (I30 ticket / derived)
                  ↓
@@ -203,14 +203,17 @@ graph TD
                  ↓
       SettlementCoordinator (5-Stage Validation: Deduplication, Ticket Epoch/Nonce, CAS Merkle Root Verification)
                  ↓
-          SettlementIntent (Append to StateAuthority.wal) → WalId
+          SettlementIntent (Append to FrontierWAL) → WalId
                  ↓
       SettlementProjectionEngine (In-Memory Projections: State, Budget, Lease, Findings)
                  ↓
         DurableOutbox EventId → EventBus DeliveryId (I31/I32/I33)
   ```
+- **Raft Consensus Settlement Plane (Level 0–Level 3)**:
+  - Consensus settlement for multi-node / worker claims dispatches `SubmitExecutionClaim` directly to `PartitionFSM.apply(CommittedEntry)` on `PartitionWAL`, emitting `EventEnvelope` through `DurableOutboxLedger` (Axiom 1–3).
 - **Crash Recovery & Replay**:
-  - On restart, `replay_from_wal()` rehydrates projection state by sequentially reapplying all committed `SettlementIntent` records from the durable WAL.
+  - On scan journal restart, `replay_from_wal()` rehydrates in-memory discovery state by sequentially reapplying committed `SettlementIntent` records from the durable FrontierWAL.
+  - On partition plane restart, `ReplicatedPartitionLog._recover_from_wal()` replays committed entries from `PartitionWAL` into `PartitionFSM` and rebuilds the `DurableOutboxLedger`.
   - **I35 recovery protocol** (`src/core/frontier/recovery_protocol.py`) is the catalog and state machine. `RecoveryManager` on the scan path supplies a **FrontierWAL** observation (schema, snapshot cursor, known journal ids) and does **not** reconstruct `PartitionFSM`. PartitionWAL outbox rebuild runs in `ReplicatedPartitionLog._recover_from_wal`. Full walk:
     ```text
     LOAD_SNAPSHOT → VERIFY_SNAPSHOT → LOAD_WAL
