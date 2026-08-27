@@ -11,7 +11,7 @@ from src.core.frontier.state_authority import (
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import ExecutionResult, Finding
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
-from src.frontier.journal import MemoryJournal
+from tests.test_support.journal import MemoryJournal
 
 
 class TestStateAuthorityDurability(unittest.TestCase):

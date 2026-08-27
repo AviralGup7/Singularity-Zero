@@ -27,7 +27,7 @@ from src.decision.models import (
 )
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
 from src.execution.request_executor import ExecutionRequestWorker
-from src.frontier.journal import MemoryJournal
+from tests.test_support.journal import MemoryJournal
 
 
 class TestEndToEndArchitectureInvariants(unittest.TestCase):

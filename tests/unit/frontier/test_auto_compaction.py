@@ -2,7 +2,7 @@ import unittest
 
 from src.core.frontier.state import NeuralState
 from src.core.frontier.state_authority import SettlementIntent, StateAuthority
-from src.frontier.journal import MemoryJournal
+from tests.test_support.journal import MemoryJournal
 
 
 class TestAutoCompaction(unittest.TestCase):

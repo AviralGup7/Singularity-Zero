@@ -1,25 +1,16 @@
-"""Tiny in-memory WAL stand-in for unit tests.
-
-NOTE: MemoryJournal has been moved to `tests.test_support.journal.MemoryJournal`.
-Importing it from `src.frontier.journal` is deprecated to prevent test mocks in production.
-"""
+"""In-memory WAL mock for unit & integration testing."""
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
-
-warnings.warn(
-    "Importing MemoryJournal from src.frontier.journal is deprecated. Use tests.test_support.journal.MemoryJournal instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
 
 from src.frontier.deltas import apply_many, snapshot_counts
 from src.frontier.verify import replay_gap
 
 
 class MemoryJournal:
+    """Mock WAL implementation strictly intended for test harnesses."""
+
     def __init__(self) -> None:
         self._entries: list[dict[str, Any]] = []
 
@@ -43,3 +34,4 @@ class MemoryJournal:
 
     def __len__(self) -> int:
         return len(self._entries)
+
