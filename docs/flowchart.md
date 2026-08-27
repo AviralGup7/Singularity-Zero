@@ -163,22 +163,27 @@ flowchart TD
 
 ## F-003 — Authority plane, Raft L0–L5 & security keys
 
+### Schema Upcasting & Key Hierarchy (F-044, F-037)
+
 ```mermaid
 flowchart TD
-    subgraph Upcasting["Schema Upcasting & Key Hierarchy (F-044, F-037)"]
-        OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
-        Upcaster --> EnvelopePort["Output: Canonical Envelope (v3)"]:::impl
-        MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
-        Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
-        Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
-        Derive --> JWTKey["JWT Session Key"]:::impl
-        MasterKey -.->|Missing in Env| Fallback["Ephemeral Random Key (secrets.token_bytes) — In-Process Only; Cross-Restart Verification FAILS_CLOSED"]:::forbidden
-    end
+    OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
+    Upcaster --> Envelope["Output: Canonical Envelope (v3)"]:::impl
+    MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
+    Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
+    Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
+    Derive --> JWTKey["JWT Session Key"]:::impl
+    MasterKey -.->|Missing in Env| Fallback["Ephemeral Random Key (secrets.token_bytes) — FAILS_CLOSED"]:::forbidden
+```
 
+### Partition Plane, Raft Consensus & Non-Authoritative Strata (L0–L5)
+
+```mermaid
+flowchart TD
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
-        Promo --> Envelope["Canonical Envelope (v3)"]:::impl
-        Envelope --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
+        Promo --> EnvelopeIn["Canonical Envelope (v3)"]:::impl
+        EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
         subgraph L0_Consensus["L0: Raft Distributed Consensus"]
