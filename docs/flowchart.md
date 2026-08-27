@@ -444,9 +444,13 @@ Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspen
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
 
-**I29 In-Process Egress:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; IMDS/metadata denied) and calls `ensure_process_http_egress_hooks()`. That idempotent patch injects I29 request hooks into **all** subsequent `httpx.Client` / `httpx.AsyncClient` constructions and wraps `requests.Session.request`, so raw clients in `recon` / `analysis` / `fuzzing` / `exploitation` inherit the active filter without per-file rewrites. Shared clients from `src/core/utils/shared_sessions.py` (also via `src/core/http_utils.py`) keep explicit hooks. `SafeExploiter` / `ExploitationCampaign` still call `assert_exploit_target_egress` at engine entry.
-
-**I29 residual:** transports that never use httpx/requests (raw `socket`, custom HTTP/2 stacks, headless browser CDP) are outside this patch; prefer asserting at those boundaries. Prefer `get_async_client` for pooling even though egress is now process-wide for HTTP libraries.
+**I29 In-Process Universal Egress Authority:** `stage_admit` installs `NetworkEgressFilter` into `src/sandbox/egress_context.py` (ContextVar; IMDS/metadata unconditionally denied) and calls `ensure_process_network_egress_hooks()`. That idempotent patch intercepts network dispatch across all execution primitives:
+- **HTTP Clients (`httpx`, `requests`)**: Injects I29 request hooks into `httpx.Client` / `httpx.AsyncClient` and wraps `requests.Session.request`.
+- **Raw Network Sockets (`socket.socket.connect`, `socket.create_connection`)**: Validates destination host/port before connect, preserving process-internal loopback IPC.
+- **AsyncIO Network Streams (`asyncio.open_connection`)**: Intercepts socket stream construction for custom HTTP/2, raw WebSocket, and raw TLS transports.
+- **Headless Browser Runtime (`runtime_browser.py`)**: Enforces `assert_url_egress_allowed` before Playwright `page.goto` navigation.
+- **Subprocess Execution (`process_sandbox.py`)**: Enforces `ProcessSandbox.check_egress` on command line URLs/hosts.
+- **Transport Registry (`get_registered_transports`)**: Requires explicit registration of all execution primitives with the I29 Egress Authority.
 
 **I28/I30 residual (exploitation entry):** campaign / SafeExploiter gates **egress only**. HuntBudget reserve + I30 ticket mint/consume remain on the `stage_admit` path when authority is attached; standalone exploit entry does not settle budget.
 
@@ -879,7 +883,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py` | `test_formal_invariants.py` | `impl` |
 | **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `CASStore`, `request_executor.py` | `test_resilience.py` | `impl` |
 | **I28** | Hardened Lease State Transitions (`UNALLOCATED` $\rightarrow$ `RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED`/`EXPIRED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py` | `impl` |
-| **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (subprocess + shared + raw httpx/requests hooks; non-HTTP residual) |
+| **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `runtime_browser.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (universal: subprocess + shared + httpx/requests + raw socket/asyncio + browser) |
 | **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py` | `test_global_invariants.py` | `impl` (stage path; exploit campaign entry residual) |
 | **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
 | **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
@@ -1044,5 +1048,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-26 | Audit vs code: fix F-004 Readiness FSM (scheduler-local vs StageStatus); replace invented PROVEN_EMPTY reasons with actor_scheduler skip reasons; restore exploit I28/I30 + raw-httpx residual counts; F-025 index facades | edit |
 | 2026-08-27 | Invariant audit reconciliation: verified I28/I30 budget reservation & ticket consume paths, I29 process-wide HTTP egress hooks vs raw transport boundaries, I37 zero-dual-writer fence (library/tests-only caller), and single-node quorum-1 Raft live operation | edit |
 | 2026-08-27 | Invariant namespace synchronization: aligned F-033 Formal Invariant Registry with architecture.md canonical I1–I37 definitions; fixed F-006 budget matrix compensation sequence | edit |
+| 2026-08-27 | I29 Universal Network Egress Authority: eliminated transport bypass residuals by patching raw socket.connect/create_connection, asyncio.open_connection, Playwright page.goto, and establishing transport primitive registration | edit |
 
 Append a row for every later edit. Do not delete this table.

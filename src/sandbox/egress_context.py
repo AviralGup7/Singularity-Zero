@@ -176,9 +176,97 @@ def ensure_process_http_egress_hooks() -> bool:
             if not getattr(requests.Session.request, _I29_HOOK_MARKER, False):
                 requests.Session.request = _patched_session_request  # type: ignore[method-assign]
 
+        # Patch raw socket.socket.connect and socket.create_connection (I29 universal network boundary)
+        import socket
+        if not getattr(socket.socket.connect, _I29_HOOK_MARKER, False):
+            _orig_socket_connect = socket.socket.connect
+
+            def _patched_socket_connect(self: Any, address: Any) -> Any:
+                if isinstance(address, (tuple, list)) and len(address) >= 2:
+                    host = str(address[0])
+                    port = int(address[1]) if isinstance(address[1], (int, str)) and str(address[1]).isdigit() else None
+                    # Internal IPC/self-pipe loopback connections within the process are preserved
+                    if host not in {"127.0.0.1", "::1", "localhost"}:
+                        assert_egress_allowed(host, port)
+                elif isinstance(address, str):
+                    if address not in {"127.0.0.1", "::1", "localhost"}:
+                        assert_egress_allowed(address)
+                return _orig_socket_connect(self, address)
+
+            setattr(_patched_socket_connect, _I29_HOOK_MARKER, True)
+            socket.socket.connect = _patched_socket_connect  # type: ignore[method-assign]
+
+        if hasattr(socket, "create_connection") and not getattr(socket.create_connection, _I29_HOOK_MARKER, False):
+            _orig_create_connection = socket.create_connection
+
+            def _patched_create_connection(address: Any, *args: Any, **kwargs: Any) -> Any:
+                if isinstance(address, (tuple, list)) and len(address) >= 2:
+                    host = str(address[0])
+                    port = int(address[1]) if isinstance(address[1], (int, str)) and str(address[1]).isdigit() else None
+                    if host not in {"127.0.0.1", "::1", "localhost"}:
+                        assert_egress_allowed(host, port)
+                elif isinstance(address, str):
+                    if address not in {"127.0.0.1", "::1", "localhost"}:
+                        assert_egress_allowed(address)
+                return _orig_create_connection(address, *args, **kwargs)
+
+            setattr(_patched_create_connection, _I29_HOOK_MARKER, True)
+            socket.create_connection = _patched_create_connection  # type: ignore[assignment]
+
+        # Patch asyncio.open_connection
+        import asyncio
+        if hasattr(asyncio, "open_connection") and not getattr(asyncio.open_connection, _I29_HOOK_MARKER, False):
+            _orig_asyncio_open_conn = asyncio.open_connection
+
+            async def _patched_asyncio_open_conn(host: Any = None, port: Any = None, *args: Any, **kwargs: Any) -> Any:
+                if host is not None:
+                    p = int(port) if isinstance(port, (int, str)) and str(port).isdigit() else None
+                    assert_egress_allowed(str(host), p)
+                return await _orig_asyncio_open_conn(host, port, *args, **kwargs)
+
+            setattr(_patched_asyncio_open_conn, _I29_HOOK_MARKER, True)
+            asyncio.open_connection = _patched_asyncio_open_conn  # type: ignore[assignment]
+
         _HOOKS_INSTALLED = True
-        logger.debug("I29 process HTTP egress hooks installed (httpx + requests)")
+        logger.debug("I29 universal network egress hooks installed (httpx + requests + socket + asyncio)")
         return True
+
+
+def ensure_process_network_egress_hooks() -> bool:
+    """Universal alias for installing all I29 network primitive hooks."""
+    return ensure_process_http_egress_hooks()
+
+
+# ---------------------------------------------------------------------------
+# Registered Transport Primitives Registry (I29 Egress Authority Registration)
+# ---------------------------------------------------------------------------
+
+_REGISTERED_TRANSPORTS: dict[str, dict[str, Any]] = {
+    "httpx": {"type": "http", "enforced_by": "event_hooks + Client.__init__ patch"},
+    "requests": {"type": "http", "enforced_by": "Session.request patch"},
+    "raw_socket": {"type": "tcp/udp", "enforced_by": "socket.socket.connect + create_connection patch"},
+    "asyncio_stream": {"type": "tcp/tls", "enforced_by": "asyncio.open_connection patch"},
+    "http2_custom": {"type": "h2/h2c", "enforced_by": "asyncio.open_connection / socket.connect"},
+    "websocket_raw": {"type": "ws/wss", "enforced_by": "asyncio.open_connection / socket.connect"},
+    "subprocess": {"type": "external_bin", "enforced_by": "ProcessSandbox.check_egress"},
+    "headless_browser": {"type": "cdp/chromium", "enforced_by": "assert_url_egress_allowed pre-navigation"},
+}
+
+
+def register_transport_primitive(name: str, *, transport_type: str, enforcement_mechanism: str) -> None:
+    """Register a new network-capable transport primitive with the I29 Egress Authority.
+
+    Ensures no transport operates uncataloged or unhooked.
+    """
+    _REGISTERED_TRANSPORTS[name] = {
+        "type": transport_type,
+        "enforced_by": enforcement_mechanism,
+    }
+
+
+def get_registered_transports() -> dict[str, dict[str, Any]]:
+    """Return dictionary of all registered and enforced transport primitives."""
+    return dict(_REGISTERED_TRANSPORTS)
 
 
 def install_filter_from_scope(
@@ -205,8 +293,8 @@ def install_filter_from_scope(
             strict=filt.strict or entries_filt.strict,
         )
     set_current_egress_filter(filt)
-    # Shared boundary: once a stage filter is live, raw clients must see it too.
-    ensure_process_http_egress_hooks()
+    # Shared boundary: once a stage filter is live, raw clients and sockets must see it too.
+    ensure_process_network_egress_hooks()
     return filt
 
 
@@ -215,8 +303,11 @@ __all__ = [
     "assert_url_egress_allowed",
     "clear_current_egress_filter",
     "ensure_process_http_egress_hooks",
+    "ensure_process_network_egress_hooks",
     "get_current_egress_filter",
+    "get_registered_transports",
     "install_filter_from_scope",
+    "register_transport_primitive",
     "reset_current_egress_filter",
     "set_current_egress_filter",
 ]

@@ -232,6 +232,11 @@ async def _headless_analyze(
         )
 
     result = RuntimeDetectionResult(url=url, mode="headless")
+    from src.sandbox.egress_context import assert_url_egress_allowed
+
+    # Mandatory I29 Egress Enforcement before browser navigation
+    assert_url_egress_allowed(url)
+
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=headless, args=["--no-sandbox"])

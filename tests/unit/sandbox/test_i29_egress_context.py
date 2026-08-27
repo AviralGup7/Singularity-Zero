@@ -133,6 +133,61 @@ def test_process_hooks_install_is_idempotent() -> None:
     assert first in {True, False}
 
 
+def test_raw_socket_connect_blocks_imds_and_out_of_scope() -> None:
+    """Raw socket.connect respects ContextVar egress filter."""
+    import socket
+    from src.sandbox.egress_context import ensure_process_network_egress_hooks
+
+    ensure_process_network_egress_hooks()
+    filt = NetworkEgressFilter(allowed_domains=("in-scope.test",), allowed_cidrs=(), strict=True)
+    set_current_egress_filter(filt)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            with pytest.raises(EgressViolationError):
+                s.connect(("169.254.169.254", 80))
+            with pytest.raises(EgressViolationError):
+                s.connect(("evil.example.org", 443))
+        finally:
+            s.close()
+    finally:
+        clear_current_egress_filter()
+
+
+def test_asyncio_open_connection_blocks_imds_and_out_of_scope() -> None:
+    """asyncio.open_connection respects ContextVar egress filter."""
+    from src.sandbox.egress_context import ensure_process_network_egress_hooks
+
+    ensure_process_network_egress_hooks()
+    filt = NetworkEgressFilter(allowed_domains=("in-scope.test",), allowed_cidrs=(), strict=True)
+    set_current_egress_filter(filt)
+    try:
+        with pytest.raises(EgressViolationError):
+            asyncio.run(asyncio.open_connection("169.254.169.254", 80))
+        with pytest.raises(EgressViolationError):
+            asyncio.run(asyncio.open_connection("evil.example.org", 443))
+    finally:
+        clear_current_egress_filter()
+
+
+def test_transport_primitive_registry() -> None:
+    """Every network transport primitive is registered and cataloged."""
+    from src.sandbox.egress_context import get_registered_transports, register_transport_primitive
+
+    transports = get_registered_transports()
+    assert "httpx" in transports
+    assert "requests" in transports
+    assert "raw_socket" in transports
+    assert "asyncio_stream" in transports
+    assert "http2_custom" in transports
+    assert "websocket_raw" in transports
+    assert "subprocess" in transports
+    assert "headless_browser" in transports
+
+    register_transport_primitive("custom_quic", transport_type="quic/udp", enforcement_mechanism="custom_gate")
+    assert "custom_quic" in get_registered_transports()
+
+
 def test_stage_settle_zero_findings_releases_budget(tmp_path) -> None:
     """F-004: COMPLETED with zero findings → I28 RELEASE not COMMIT."""
     state = NeuralState()
