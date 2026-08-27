@@ -401,15 +401,20 @@ class GenerationalBloomFilter:
     def __init__(
         self,
         capacity: int = 1000000,
-        error_rate: float = 0.01,
+        error_rate: float = 0.001,  # Target FPR bounded to 0.1% (0.001)
         fill_ratio_threshold: float = 0.80,
+        max_fpr_threshold: float = 0.005,  # Auto-rotate if FPR exceeds 0.5%
     ) -> None:
         self.capacity = capacity
         self.error_rate = error_rate
         self.fill_ratio_threshold = fill_ratio_threshold
+        self.max_fpr_threshold = max_fpr_threshold
         self._current = NeuralBloomFilter(capacity=capacity, error_rate=error_rate)
         self._previous: NeuralBloomFilter | None = None
         self._generation = 1
+        self._ground_truth_known_negatives: set[str] = set()
+        self._ground_truth_fp_count = 0
+        self._ground_truth_checks = 0
         self._lock = threading.RLock()
 
     @property
@@ -429,34 +434,60 @@ class GenerationalBloomFilter:
         return self.contains(item)
 
     def add(self, item: str) -> bool:
-        """Add item to active generation, triggering generational rebuild if saturated."""
+        """Add item to active generation, triggering generational rebuild if saturated or FPR threshold breached."""
         with self._lock:
-            # Check if active generation needs rotation
             stats = self._current.get_stats()
+            observed_fpr = stats["false_positive_probability"]
+
+            # Rotate if fill ratio exceeded, capacity exceeded, or FPR breached bounds
             if (
                 stats["fill_ratio"] >= self.fill_ratio_threshold
                 or self._current.element_count >= self.capacity
+                or observed_fpr >= self.max_fpr_threshold
             ):
                 self._rotate_generation()
 
             self._current.add(item)
             return True
 
+    def check_ground_truth_fpr(self, negative_sample: str) -> bool:
+        """Evaluate ground truth false positive on known negative sample; trigger rotation if degraded."""
+        with self._lock:
+            self._ground_truth_checks += 1
+            is_fp = self.contains(negative_sample)
+            if is_fp:
+                self._ground_truth_fp_count += 1
+                empirical_fpr = self._ground_truth_fp_count / max(1, self._ground_truth_checks)
+                if empirical_fpr > self.max_fpr_threshold:
+                    self._rotate_generation()
+            return is_fp
+
     def _rotate_generation(self) -> None:
         """Rotate active filter into previous and spawn a fresh active filter."""
         self._previous = self._current
         self._current = NeuralBloomFilter(capacity=self.capacity, error_rate=self.error_rate)
         self._generation += 1
+        self._ground_truth_fp_count = 0
+        self._ground_truth_checks = 0
 
     def get_stats(self) -> dict[str, Any]:
-        """Aggregate stats across current and previous generations."""
+        """Aggregate stats across current and previous generations with bounded FPR diagnostics."""
         with self._lock:
             curr_stats = self._current.get_stats()
             prev_stats = self._previous.get_stats() if self._previous else None
+            empirical_fpr = (
+                (self._ground_truth_fp_count / self._ground_truth_checks)
+                if self._ground_truth_checks > 0
+                else 0.0
+            )
             return {
                 "generation": self._generation,
+                "target_fpr": self.error_rate,
+                "max_fpr_threshold": self.max_fpr_threshold,
                 "current_generation": curr_stats,
                 "previous_generation": prev_stats,
+                "empirical_fpr": empirical_fpr,
+                "ground_truth_checks": self._ground_truth_checks,
                 "total_elements_estimated": curr_stats["element_count"]
                 + (prev_stats["element_count"] if prev_stats else 0),
             }
