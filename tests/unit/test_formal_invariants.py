@@ -644,3 +644,33 @@ class TestFormalSystemInvariants(unittest.TestCase):
         self.assertFalse(egress.is_destination_allowed("fd00:ec2::254"))
         with self.assertRaises(EgressViolationError):
             egress.validate_destination_or_raise("169.254.169.254")
+
+    def test_invariant_i30_exploitation_entry_authority_and_budget(self) -> None:
+        """INVARIANT-I30 / I28: Standalone exploitation enforces full ticket authorization, budget reservation and settlement."""
+        import asyncio
+        from src.core.config.typed_config import PipelineConfig
+        from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
+        from src.exploitation.engines.safe_exploiter import SafeExploiter
+        from src.exploitation.models import ExploitTarget
+
+        cfg = PipelineConfig(target_name="api.example.com", output_dir="out_test")
+        enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=2, label="exploit_test"))
+        cfg.hunt_budget_enforcer = enforcer
+
+        target = ExploitTarget(url="https://in-scope.test/endpoint", metadata={"tenant_id": "t1"})
+
+        # Executing via SafeExploiter goes through I30 ticket mint, consume, and settlement
+        exploiter = SafeExploiter(cfg)
+        from unittest.mock import patch
+        with patch("src.exploitation.safety.is_safe_url_with_dns_check", return_value=True), \
+             patch("src.exploitation.engines.safe_exploiter.is_safe_url_with_dns_check", return_value=True):
+            res = asyncio.run(exploiter.execute("ssrf", target))
+            self.assertIn("ticket_id", res.metadata)
+            self.assertIn("command_id", res.metadata)
+            self.assertEqual(enforcer.consumed_requests, 1)
+
+            # Budget exhaustion blocks exploit entry
+            enforcer.reserve_requests(1)
+            res2 = asyncio.run(exploiter.execute("ssrf", target))
+            self.assertTrue(res2.metadata.get("i30_refused"))
+            self.assertEqual(res2.status.value, "failed")

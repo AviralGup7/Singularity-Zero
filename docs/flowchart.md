@@ -452,7 +452,10 @@ Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspen
 - **Subprocess Execution (`process_sandbox.py`)**: Enforces `ProcessSandbox.check_egress` on command line URLs/hosts.
 - **Transport Registry (`get_registered_transports`)**: Requires explicit registration of all execution primitives with the I29 Egress Authority.
 
-**I28/I30 residual (exploitation entry):** campaign / SafeExploiter gates **egress only**. HuntBudget reserve + I30 ticket mint/consume remain on the `stage_admit` path when authority is attached; standalone exploit entry does not settle budget.
+**I28/I30 Unified Execution Authority & Settlement:** Every execution path — whether entering through `stage_admit` or standalone `SafeExploiter.execute` — routes through `ExecutionAuthorizer`:
+- Binds `ScopeToken` hash, `BudgetReservation`, live `AuthorityRevision`, and `CommandId` into an `AuthorizedExecutionTicket`.
+- Requires successful atomic ticket consumption before network dispatch.
+- Authoritatively settles consumed request quota to `HuntBudgetEnforcer` upon execution completion (or releases reserved quota on dispatch/pre-execution failure).
 
 **Package Path Authority:**
 | Surface | Role | Authority Model |
@@ -884,7 +887,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `CASStore`, `request_executor.py` | `test_resilience.py` | `impl` |
 | **I28** | Hardened Lease State Transitions (`UNALLOCATED` $\rightarrow$ `RESERVED` $\rightarrow$ `ACTIVE` $\rightarrow$ `CONSUMED`/`EXPIRED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `test_global_invariants.py`, `test_state_authority_durability.py` | `impl` |
 | **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `runtime_browser.py`, `stage_admit.py` | `test_sandbox.py`, `test_i29_egress_context.py` | `impl` (universal: subprocess + shared + httpx/requests + raw socket/asyncio + browser) |
-| **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py` | `test_global_invariants.py` | `impl` (stage path; exploit campaign entry residual) |
+| **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 / F-033 | `src/decision/authorization.py`, `stage_admit.py`, `safe_exploiter.py` | `test_global_invariants.py`, `test_formal_invariants.py` | `impl` (universal: stage admission + standalone exploitation) |
 | **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `test_global_invariants.py` | `impl` |
 | **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `test_eventbus_guarantees.py` | `impl` |
 | **I33** | Causal Identity Chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `test_causal_identity.py` | `impl` |
@@ -1049,5 +1052,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | 2026-08-27 | Invariant audit reconciliation: verified I28/I30 budget reservation & ticket consume paths, I29 process-wide HTTP egress hooks vs raw transport boundaries, I37 zero-dual-writer fence (library/tests-only caller), and single-node quorum-1 Raft live operation | edit |
 | 2026-08-27 | Invariant namespace synchronization: aligned F-033 Formal Invariant Registry with architecture.md canonical I1–I37 definitions; fixed F-006 budget matrix compensation sequence | edit |
 | 2026-08-27 | I29 Universal Network Egress Authority: eliminated transport bypass residuals by patching raw socket.connect/create_connection, asyncio.open_connection, Playwright page.goto, and establishing transport primitive registration | edit |
+| 2026-08-27 | I30/I28 Unified Execution Authority: closed standalone exploitation authorization gap by routing SafeExploiter through ExecutionAuthorizer ticket mint/consume, HuntBudget reservation, and authoritative settlement | edit |
 
 Append a row for every later edit. Do not delete this table.
