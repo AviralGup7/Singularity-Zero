@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -19,6 +20,51 @@ class FindingLifecycleState(StrEnum):
     FALSE_POSITIVE = "false_positive"
 
 
+class FindingConfidenceAxis(StrEnum):
+    """Axis 2: Confidence & Exploitability Refinement (F-007)."""
+
+    HEURISTIC_CANDIDATE = "heuristic_candidate"
+    PASSIVE_ONLY = "passive_only"
+    VALIDATED = "validated"
+    EXPLOITABLE = "exploitable"
+
+
+class FindingTicketStatus(StrEnum):
+    """Dashboard ticket axis — independent of F-007 surface lifecycle."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+@dataclass(frozen=True, slots=True)
+class TriAxialFindingState:
+    """Rigorous Tri-Axial finding state representation (F-007).
+
+    Axis 1: Surface Lifecycle (CANDIDATE | REPORTABLE | FALSE_POSITIVE)
+    Axis 2: Confidence & Exploitability (heuristic_candidate | passive_only | validated | exploitable)
+    Axis 3: Operator Ticket Status (OPEN | CLOSED)
+    """
+
+    surface: FindingLifecycleState
+    confidence: FindingConfidenceAxis
+    ticket: FindingTicketStatus
+
+    def validate(self) -> None:
+        """Validate tri-axial state consistency against formal F-007 lattice rules."""
+        # Rule 1: A FALSE_POSITIVE surface finding cannot remain in an active EXPLOITABLE confidence state
+        # (must be demoted or archived)
+        if self.surface is FindingLifecycleState.FALSE_POSITIVE and self.confidence is FindingConfidenceAxis.EXPLOITABLE:
+            raise ValueError(
+                "Invalid Tri-Axial State: Surface FALSE_POSITIVE cannot coexist with Confidence EXPLOITABLE"
+            )
+        # Rule 2: A REPORTABLE surface finding requires at least PASSIVE_ONLY or higher confidence
+        # (cannot be purely unverified heuristic candidate without triage)
+        if self.surface is FindingLifecycleState.REPORTABLE and self.confidence is FindingConfidenceAxis.HEURISTIC_CANDIDATE:
+            raise ValueError(
+                "Invalid Tri-Axial State: Surface REPORTABLE requires verified confidence (not raw HEURISTIC_CANDIDATE)"
+            )
+
+
 _CANDIDATE_CLASS: frozenset[FindingLifecycleState] = frozenset(
     {
         FindingLifecycleState.CANDIDATE,
@@ -31,13 +77,6 @@ _CANDIDATE_CLASS: frozenset[FindingLifecycleState] = frozenset(
 _STICKY_STATES: frozenset[FindingLifecycleState] = frozenset(
     {FindingLifecycleState.REPORTABLE, FindingLifecycleState.FALSE_POSITIVE}
 )
-
-
-class FindingTicketStatus(StrEnum):
-    """Dashboard ticket axis — independent of F-007 surface lifecycle."""
-
-    OPEN = "open"
-    CLOSED = "closed"
 
 
 _TICKET_ONLY: frozenset[str] = frozenset({"open", "closed", "accepted"})
@@ -277,8 +316,10 @@ def filter_report_surface(findings: list[dict[str, Any]]) -> list[dict[str, Any]
 
 
 __all__ = [
+    "FindingConfidenceAxis",
     "FindingLifecycleState",
     "FindingTicketStatus",
+    "TriAxialFindingState",
     "apply_lifecycle",
     "can_transition",
     "filter_report_surface",

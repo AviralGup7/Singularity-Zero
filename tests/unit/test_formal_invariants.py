@@ -736,3 +736,45 @@ class TestFormalSystemInvariants(unittest.TestCase):
         self.assertEqual(placement.lease_for("P-0002").phase, TransferPhase.OWNED)
         self.assertFalse(placement.is_fenced("P-0001"))
         self.assertNotIn("actor_scan_1", handler._actor_refs)
+
+    def test_tri_axial_finding_state_lattice_validation(self) -> None:
+        """F-007: Test formal validity and invalidity rules of Tri-Axial finding state lattice."""
+        from src.core.contracts.finding_lifecycle import (
+            FindingConfidenceAxis,
+            FindingLifecycleState,
+            FindingTicketStatus,
+            TriAxialFindingState,
+        )
+
+        # Valid states
+        valid_1 = TriAxialFindingState(
+            surface=FindingLifecycleState.REPORTABLE,
+            confidence=FindingConfidenceAxis.EXPLOITABLE,
+            ticket=FindingTicketStatus.OPEN,
+        )
+        valid_1.validate()
+
+        valid_2 = TriAxialFindingState(
+            surface=FindingLifecycleState.FALSE_POSITIVE,
+            confidence=FindingConfidenceAxis.PASSIVE_ONLY,
+            ticket=FindingTicketStatus.CLOSED,
+        )
+        valid_2.validate()
+
+        # Invalid Rule 1: Surface FALSE_POSITIVE cannot coexist with Confidence EXPLOITABLE
+        invalid_1 = TriAxialFindingState(
+            surface=FindingLifecycleState.FALSE_POSITIVE,
+            confidence=FindingConfidenceAxis.EXPLOITABLE,
+            ticket=FindingTicketStatus.CLOSED,
+        )
+        with self.assertRaises(ValueError):
+            invalid_1.validate()
+
+        # Invalid Rule 2: Surface REPORTABLE requires verified confidence, cannot be raw HEURISTIC_CANDIDATE
+        invalid_2 = TriAxialFindingState(
+            surface=FindingLifecycleState.REPORTABLE,
+            confidence=FindingConfidenceAxis.HEURISTIC_CANDIDATE,
+            ticket=FindingTicketStatus.OPEN,
+        )
+        with self.assertRaises(ValueError):
+            invalid_2.validate()
