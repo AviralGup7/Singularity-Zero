@@ -61,6 +61,7 @@ class CacheManager:
             eviction_count=int(self._config.max_entries * self._config.lru_eviction_ratio),
             initial_version=self._config.version,
         )
+        self._cache_generation: int = 1
         self._bloom_synchronizer: NeuralBloomMesh | None = None
         self._bloom_filter: NeuralBloomFilter | None = None
         self._closed = False
@@ -69,6 +70,38 @@ class CacheManager:
 
         if self._config.warm_on_init:
             self._warm_cache()
+
+    @property
+    def cache_generation(self) -> int:
+        """Global cache epoch generation counter."""
+        return self._cache_generation
+
+    def bump_generation(self, reason: str = "") -> int:
+        """Increment global cache generation and invalidate volatile query tiers."""
+        self._cache_generation += 1
+        logger.info("Cache generation bumped to %d (reason: %s); clearing volatile tiers", self._cache_generation, reason)
+        self.clear(namespace="analytics")
+        self.clear(namespace="queries")
+        return self._cache_generation
+
+    def handle_outbox_invalidation_event(self, event_type: str, payload: Mapping[str, Any]) -> int:
+        """Process outbox stream invalidation events (FALSE_POSITIVE, TARGET_REMOVED, POLICY_CHANGE)."""
+        purged_count = 0
+        if event_type in ("FINDING_FALSE_POSITIVE", "FINDING_STATUS_CHANGED"):
+            finding_id = str(payload.get("finding_id", "") or payload.get("id", ""))
+            target = str(payload.get("target", "") or payload.get("affected_url", ""))
+            tags = {f"finding:{finding_id}", f"target:{target}"}
+            purged = self.invalidate_by_tags(tags)
+            purged_count = len(purged)
+        elif event_type in ("TARGET_REMOVED", "SCOPE_MODIFIED"):
+            target = str(payload.get("target", "") or payload.get("hostname", ""))
+            purged = self.invalidate_by_tags({f"target:{target}", "scope:active"})
+            self.bump_generation(reason=f"scope_modified_{target}")
+            purged_count = len(purged)
+        elif event_type in ("POLICY_UPDATED", "POLICY_VERSION_BUMPED"):
+            self.bump_generation(reason="policy_version_bumped")
+            purged_count = 1
+        return purged_count
 
     def _register_with_lifecycle(self) -> None:
         """Register close() with the lifecycle manager for ordered shutdown."""
