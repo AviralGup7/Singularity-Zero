@@ -33,10 +33,13 @@ logger = logging.getLogger(__name__)
 
 
 class DeliveryLedger:
-    """In-process exactly-once record of EventBus deliveries (I33 DeliveryId)."""
+    """In-process exactly-once record of EventBus deliveries (I33 DeliveryId) with Poison-Pill DLQ."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_delivery_attempts: int = 5) -> None:
+        self.max_delivery_attempts = max_delivery_attempts
         self._delivered: set[str] = set()
+        self._attempt_counts: dict[str, int] = {}
+        self._poison_events: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
     def already_delivered(self, delivery_id: str) -> bool:
@@ -44,7 +47,39 @@ class DeliveryLedger:
         if not did:
             return False
         with self._lock:
-            return did in self._delivered
+            return did in self._delivered or did in self._poison_events
+
+    def record_attempt(self, delivery_id: str, event_data: dict[str, Any], error: str = "") -> bool:
+        """Increment attempt count. If exceeds max_delivery_attempts, quarantine to poison_events DLQ."""
+        did = str(delivery_id or "").strip()
+        if not did:
+            return False
+        with self._lock:
+            count = self._attempt_counts.get(did, 0) + 1
+            self._attempt_counts[did] = count
+            if count >= self.max_delivery_attempts:
+                self._poison_events[did] = {
+                    "delivery_id": did,
+                    "attempts": count,
+                    "last_error": error,
+                    "event_data": event_data,
+                }
+                logger.error(
+                    "Poison event detected: delivery_id=%s exceeded max attempts (%d); quarantined to DLQ",
+                    did,
+                    count,
+                )
+                return True  # Quarantined
+            return False
+
+    def is_poisoned(self, delivery_id: str) -> bool:
+        did = str(delivery_id or "").strip()
+        with self._lock:
+            return did in self._poison_events
+
+    def get_poison_events(self) -> dict[str, dict[str, Any]]:
+        with self._lock:
+            return dict(self._poison_events)
 
     def record(self, delivery_id: str) -> bool:
         """Record a successful delivery. True if this was the first time."""
@@ -60,6 +95,8 @@ class DeliveryLedger:
     def clear(self) -> None:
         with self._lock:
             self._delivered.clear()
+            self._attempt_counts.clear()
+            self._poison_events.clear()
 
     def delivered_ids(self) -> frozenset[str]:
         with self._lock:
@@ -208,25 +245,27 @@ def dispatch_committed_findings(
         if ledger.already_delivered(delivery_id):
             continue
         bound = identity.with_event(event_id).with_delivery(delivery_id)
+        event_payload = {
+            "finding": finding,
+            "trace_id": trace_id,
+            **bound.payload_fields(),
+            **receipt,
+            "causation_id": envelope.causation_id,
+        }
         try:
             emit(
                 event_type,
                 source=f"settlement.{stage_name}",
-                data={
-                    "finding": finding,
-                    "trace_id": trace_id,
-                    **bound.payload_fields(),
-                    **receipt,
-                    "causation_id": envelope.causation_id,
-                },
+                data=event_payload,
                 trace_id=trace_id or None,
             )
             ledger.record(delivery_id)
         except Exception as exc:
             must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
+            ledger.record_attempt(delivery_id, event_payload, error=str(exc))
             logger.warning(
                 "%s: EventBus delivery failed after COMMITTED settlement "
-                "(authoritative state unchanged; retry allowed, no compensate): %s",
+                "(authoritative state unchanged; retry/DLQ tracked): %s",
                 I32_EVENTBUS_NON_AUTHORITY,
                 exc,
             )

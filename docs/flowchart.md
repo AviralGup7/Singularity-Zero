@@ -404,7 +404,7 @@ flowchart TD
         Viol -->|"EGRESS_VIOLATION claim dropped"| DropSettle["Settle DROPPED (No Finding)"]:::forbidden
         DropSettle --> SettleRel["I28 Budget RELEASE"]:::impl
         
-        Coord --> Fingerprint["SHA256 Fingerprint (tool|target|type|endpoint)"]:::impl
+        Coord --> Fingerprint["Structural Parameterized Fingerprint (tool|path|param|type|sig)"]:::impl
         Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
         Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
         
@@ -415,6 +415,7 @@ flowchart TD
         DedupStage --> FinalReport["Canonical Report Output"]:::impl
         FindingCreated -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
         Emit --> PORT_F019_BUS[["PORT: F-019 EventBus Dispatch"]]
+        Emit -->|"Max Delivery Retries Exceeded (5x)"| PoisonDLQ["Poison-Pill Quarantine (DLQ Table + Metric)"]:::forbidden
         FindingCreated -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
         
         WAL -->|FAILED Attempt with wal_id| SettleRej["Settle REJECTED"]:::impl
