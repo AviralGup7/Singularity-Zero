@@ -167,7 +167,7 @@ flowchart TD
 flowchart TD
     subgraph Upcasting["Schema Upcasting & Key Hierarchy (F-044, F-037)"]
         OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast| Upcaster["SchemaUpcaster (v1 → v2 → v3)"]:::impl
-        Upcaster --> EnvelopePort["Canonical Envelope (v3)"]:::impl
+        Upcaster --> EnvelopePort["Output: Canonical Envelope (v3)"]:::impl
         MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> Derive["HMAC Key Derivation"]:::impl
         Derive --> ReceiptKey["CommandReceipt Key (Stable Cross-Restart)"]:::impl
         Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
@@ -178,7 +178,6 @@ flowchart TD
     subgraph AuthoritativeStrata["AUTHORITATIVE STRATA: Partition Plane (L0–L3 Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
         Promo --> Envelope["Canonical Envelope (v3)"]:::impl
-        EnvelopePort --> Envelope
         Envelope --> Admit["Admission Clock-Skew Check I22 (< 1000ms)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
@@ -192,8 +191,7 @@ flowchart TD
         Log --> Leader
         Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
         Apply --> StateHash["Deterministic State Hash (SHA-256)"]:::impl
-        StateHash --> Receipt["HMAC-SHA256 CommandReceipt (Signed by ReceiptKey)"]:::impl
-        ReceiptKey -.-> Receipt
+        StateHash --> Receipt["HMAC-SHA256 CommandReceipt"]:::impl
         Apply ==> Intent["Pure OutboxIntent Emitted (Zero I/O)"]:::impl
         Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
