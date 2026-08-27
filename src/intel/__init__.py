@@ -1,4 +1,9 @@
-"""Threat-intelligence facade."""
+"""Threat Feed & IOC Ingestion Package.
+
+Provides external threat intelligence feed aggregation, indicator matching,
+IOC extraction (CVE, IP, domain, URL, hash), and watchlist querying.
+Higher-order attack graph synthesis and risk modeling reside in `src.intelligence`.
+"""
 
 from src.intel.aggregator import FeedAggregator, LookupResult
 from src.intel.correlation import FindingIntel, correlate_finding, correlate_findings

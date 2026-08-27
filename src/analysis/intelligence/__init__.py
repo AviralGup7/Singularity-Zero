@@ -1,4 +1,8 @@
-"""Intelligence package exports."""
+"""Analysis Finding Intelligence & Scoring Package.
+
+Provides finding decision classification, CVSS score mapping, attack surface insights,
+and finding merger orchestration for the analysis subsystem.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""Intelligence package.
+"""Attack Graph & Risk Intelligence Package.
+
+Houses multi-vulnerability attack chain correlation, CVSS risk modeling,
+threat campaign analysis, and severity scoring models.
+Raw IOC feed ingestion and indicator parsing reside in `src.intel`.
 
 Subpackages are intentionally imported directly by their callers. Keeping this
 module light avoids circular imports between finding classification and the

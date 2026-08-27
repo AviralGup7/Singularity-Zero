@@ -189,13 +189,13 @@ src/
 │   ├── correlation.py    # Request correlation ID tracking across threads/async tasks
 │   └── idempotency.py    # Idempotent scan task execution locks
 │
-├── intel/                # 🕵️ Threat intelligence aggregation and IOC feeds
+├── intel/                # 🕵️ Threat feed ingestion, indicator extraction, and IOC watchlists
 │   ├── aggregator.py     # Multi-source threat intel aggregator
 │   ├── feeds.py          # OTX, Shodan, VirusTotal, NVD, and CISA KEV feed parsers
 │   ├── ioc.py            # Indicator of Compromise matching and extraction
 │   └── watchlist.py      # Target and IP asset watchlists
 │
-├── intelligence/         # 🧠 Active learning, severity scoring, and threat modeling
+├── intelligence/         # 🧠 Attack graph synthesis, risk modeling, and severity scoring
 │   ├── campaigns/        # Threat campaign tracking and attribution
 │   ├── correlation/      # Multi-stage finding correlation and attack chain diff engine
 │   ├── feeds/            # External intelligence connector feeds (CISA KEV, EPSS, Shodan, MISP, OTX, VT)
