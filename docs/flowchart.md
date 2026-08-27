@@ -356,7 +356,7 @@ flowchart TD
         
         Report ==> Sarif["sarif_export"]:::impl
         Report ==> CiExp["ci_export"]:::impl
-        Report ==> Dedup["dedup_stage"]:::impl
+        Report ==> Dedup["dedup_stage (Structural Parameterized Fingerprinting)"]:::impl
     end
 
     subgraph ReadinessFSM["Scheduler readiness (ActorScheduler) vs persisted StageStatus"]

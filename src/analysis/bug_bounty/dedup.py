@@ -48,17 +48,16 @@ class FindingDedup:
             logging.warning("Operation failed in dedup.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def fingerprint_finding(self, finding: dict[str, Any]) -> str:
+        """Derive structural fingerprint for parameterized vulnerability deduplication.
+
+        Extracts:
+        - Tool / Detector family
+        - Normalized path template (stripping dynamic query parameter values while preserving param names)
+        - Parameter name / injection point
+        - Vulnerability / Injection classification
+        - Response signature / HTTP status signature
+        """
         tool = str(finding.get("tool") or finding.get("source") or "unknown").strip().lower()
-        target = (
-            str(
-                finding.get("target_url")
-                or finding.get("affected_url")
-                or finding.get("url")
-                or "unknown"
-            )
-            .strip()
-            .lower()
-        )
         vuln_type = (
             str(
                 finding.get("vuln_type")
@@ -69,11 +68,55 @@ class FindingDedup:
             .strip()
             .lower()
         )
-        affected = (
-            str(finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
-        )
-        raw = "|".join([tool, target, vuln_type, affected])
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+        raw_target = str(
+            finding.get("target_url")
+            or finding.get("affected_url")
+            or finding.get("url")
+            or "unknown"
+        ).strip()
+
+        # Structural URL decomposition: normalize path template and extract parameter names
+        param_name = str(
+            finding.get("param")
+            or finding.get("parameter")
+            or finding.get("injection_point")
+            or ""
+        ).strip().lower()
+
+        normalized_path = raw_target.lower()
+        query_params: list[str] = []
+
+        if "://" in raw_target:
+            from urllib.parse import parse_qs, urlparse
+
+            parsed = urlparse(raw_target)
+            scheme = (parsed.scheme or "https").lower()
+            netloc = (parsed.netloc or "").lower()
+            path = parsed.path or "/"
+            normalized_path = f"{scheme}://{netloc}{path}"
+            if parsed.query:
+                parsed_qs = parse_qs(parsed.query, keep_blank_values=True)
+                query_params = sorted(parsed_qs.keys())
+                if not param_name and query_params:
+                    # If parameter not explicitly tagged, use sorted parameter keys as structural vector
+                    param_name = ",".join(query_params)
+
+        response_signature = str(
+            finding.get("response_signature")
+            or finding.get("status_code")
+            or finding.get("cwe")
+            or ""
+        ).strip().lower()
+
+        raw_structural = "|".join([
+            tool,
+            normalized_path,
+            param_name,
+            vuln_type,
+            response_signature,
+        ])
+        return hashlib.sha256(raw_structural.encode("utf-8")).hexdigest()
 
     def is_duplicate(self, finding: dict[str, Any]) -> tuple[bool, str | None]:
         fp = self.fingerprint_finding(finding)
