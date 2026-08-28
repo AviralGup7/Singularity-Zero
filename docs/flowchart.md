@@ -849,8 +849,8 @@ flowchart TD
 | Invariant | Name & Scope | Formal Verification Rule | Verification Level |
 |---|---|---|---|
 | **`I-GRAPH-01`** | **Topological Need-Edge Equivalence** | $\forall B \in \text{Graph.nodes}, \text{incoming\_edges}(B) \equiv B.\text{needs}$. Only `needs` create Kahn topological ordering; `when` gates are pure runtime predicates. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
-| **`I-GRAPH-02`** | **Conjunctive Dependencies** | Multiple `needs` are strictly conjunctive (AND): $B$ unblocks $\iff \forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$. | `MODEL-CHECKED` (`actor_scheduler.py`) |
-| **`I-GRAPH-03`** | **Root & Sink Validity** | $\ge 1$ root ($\text{in\_degree}=0$, `subdomains`), $\ge 1$ terminal sink ($\text{out\_degree}=0$, `sarif_export`). All finding producers have directed paths to `reporting`. | `PROPERTY-TESTED` (`graph_builder.py`) |
+| **`I-GRAPH-02`** | **Conjunctive Dependencies** | Multiple `needs` are strictly conjunctive (AND): $B \text{ unblocks} \iff \forall A \in B.\text{needs}, \text{\_need\_met}(A, B) == \text{True}$. | `MODEL-CHECKED` (`actor_scheduler.py`) |
+| **`I-GRAPH-03`** | **Root & Sink Validity** | $\ge 1 \text{ root } (\text{in\_degree}=0, \text{subdomains}), \ge 1 \text{ terminal sink } (\text{out\_degree}=0, \text{sarif\_export})$. All finding producers have directed paths to `reporting`. | `PROPERTY-TESTED` (`graph_builder.py`) |
 | **`I-GRAPH-04`** | **Isolated Node Prohibition** | Registered nodes lacking both `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) fail validation unless declared root/sink. | `FAULT-INJECTED` (`test_formal_invariants.py`) |
 | **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). | `TESTED` (`graph_builder.py`) |
 | **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. | `ADVERSARIAL` (`test_formal_invariants.py`) |
@@ -976,8 +976,8 @@ flowchart TD
     PORT_F004_REL_IN -->|"release units"| COMPENSATED
 ```
 
-$$\text{Partition-Local Budget Conservation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available} \quad \text{[Verified in Recovery VERIFY_INVARIANTS]}$$
-$$\text{Multi-Raft Cross-Partition Quota Slab Conservation (I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available} \quad (\text{SlabReserved} > 0 \text{ in Multi-Raft Mode}) \quad \text{[Verified in Recovery VERIFY_INVARIANTS]}$$
+$$\text{Partition-Local Budget Conservation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available} \quad \text{[Verified in Recovery VERIFY\_INVARIANTS]}$$
+$$\text{Multi-Raft Cross-Partition Quota Slab Conservation (I26): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available} \quad (\text{SlabReserved} > 0 \text{ in Multi-Raft Mode}) \quad \text{[Verified in Recovery VERIFY\_INVARIANTS]}$$
 
 ---
 
