@@ -301,33 +301,40 @@ flowchart TD
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
     subgraph GraphBuilderPipeline["Dynamic Plugin & DAG Lifecycle: DISCOVER → VALIDATE → COMPOSE → VERIFY → FREEZE"]
-        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. COMPOSE: Merge Plugins from StageRegistry"]:::impl
-        MergePlugins --> ProfileOverride["3. Apply Capability Profile Manifest"]:::impl
+        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. COMPOSE: Deterministic Merge Plugins from StageRegistry"]:::impl
+        MergePlugins --> ProfileOverride["3. Capability Profile (Tool Availability Probes)"]:::impl
         ProfileOverride --> PruneTools["4. Prune Unavailable Tools (nuclei/semgrep binary check)"]:::impl
         PruneTools --> DynamicJoin["5. _join_finding_producers (Bind finding producers to reporting)"]:::impl
         DynamicJoin --> CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
-        CycleCheck ==> Freeze["7. FREEZE: Immutable Graph(nodes=tuple) + GraphGenID"]:::impl
+        CycleCheck ==>|"deterministic graph generation"| Freeze["7. FREEZE: Immutable Graph(nodes=tuple) + GraphGenID"]:::impl
     end
 
     subgraph Init["Process Bootstrap & Authority Attachment"]
         CSTP["cstp CLI"]:::impl --> Launch["launch: Dashboard + Background Worker"]:::impl
         CSTP --> Scan["scan run: Runtime Pipeline"]:::impl
         CSTP --> Sys["system doctor / status / setup / cleanup"]:::impl
+        Launch ==> Bind["register_process_bindings"]:::impl
         Scan --> Runtime["src.pipeline.runtime"]:::impl
-        Runtime --> Bind["register_process_bindings"]:::impl
-        Bind --> Recover["RecoveryManager (I35 Snapshot + WAL Protocol)"]:::impl
-        Recover --> Verify["verify_checkpoint_against_fsm"]:::impl
-        Recover --> Auth["attach_pipeline_authority"]:::impl
-        Auth --> Stamp["ctx.budget_enforcer + authorizer"]:::impl
+        Runtime ==> Bind
+        Bind ==> Recover["RecoveryManager (I35 Snapshot + WAL Protocol)"]:::impl
+        Recover ==>|"verify state"| Verify["verify_checkpoint_against_fsm"]:::impl
+        Recover ==>|"attach authority"| Auth["attach_pipeline_authority"]:::impl
+        Verify --> Auth
+        Auth ==>|"inject context"| Stamp["ctx.budget_enforcer + authorizer"]:::impl
     end
 
-    Freeze ==> Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl
+    Freeze ==>|"frozen graph consumed at runtime"| DAG
+    Freeze -->|"GraphGenID validation"| Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
+    Stamp ==>|"runtime authorizer binding"| Req
     Stamp --> Sub["subdomains"]:::impl
-    Scheduler ==> DAG
+
+    Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl ==>|"evaluate readiness"| DAG
+    DAG ==>|"candidate ready"| Scheduler
+    Scheduler ==>|"dispatch actor"| ReadinessFSM
 
     subgraph DAG["Runtime Executable STAGE_GRAPH (ActorScheduler Readiness & Gates)"]
         Sub ==> Takeover["subdomain_takeover"]:::impl
-        Sub ==> LiveH["live_hosts<br/>critical=true"]:::impl
+        Sub ==> LiveH["live_hosts [critical=true]"]:::impl
         LiveH ==> WAF["waf"]:::impl
         LiveH ==> Urls["urls"]:::impl
         Urls ==> ReconVal["recon_validation"]:::impl
@@ -350,7 +357,7 @@ flowchart TD
         Passive & Active & Nuclei & Val ==> Intel["intelligence"]:::impl
         Intel ==> Threat["threat_modeling"]:::impl
         
-        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting<br/>join_sink=true"]:::impl
+        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting [JOIN_SINK]"]:::impl
         
         DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl -->|"_join_finding_producers composition"| Report
         
@@ -360,70 +367,94 @@ flowchart TD
     end
 
     subgraph ReadinessFSM["Scheduler readiness (ActorScheduler) vs persisted StageStatus"]
-        P_PEND["PENDING (persisted)"]:::impl -->|"_need_met all deps"| P_CAND["candidate ready (scheduler-local)"]:::impl
-        P_CAND -->|"when.is_satisfied == True"| P_DISP["dispatch actor"]:::impl
-        P_DISP --> P_RUN["RUNNING (persisted)"]:::impl
-        P_RUN --> P_COMP["COMPLETED"]:::impl
-        P_RUN --> P_DEG["DEGRADED"]:::impl
-        P_RUN --> P_FAIL["FAILED"]:::impl
-        P_CAND -->|"when == False (retry next tick)"| P_DEF["deferred (scheduler-local, not a StageStatus)"]:::vacuous
-        P_DEF -->|"tick retry"| P_CAND
-        P_DEF -->|"scan end"| P_SKIP["SKIPPED / SKIPPED_DISABLED reason=condition_never_satisfied"]:::impl
-        P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL["SKIPPED_FAILED"]:::impl
+        P_PEND["PENDING (persisted)"]:::impl ==>|"_need_met all deps"| P_CAND["candidate ready (scheduler-local)"]:::impl
+        P_CAND ==>|"when.is_satisfied == True"| P_DISP["dispatch actor"]:::impl
+        P_DISP ==>|"spawn execution"| P_RUN["RUNNING (persisted)"]:::impl
+        P_RUN -->|"success"| P_COMP["COMPLETED (persisted)"]:::impl
+        P_RUN -->|"partial / degraded"| P_DEG["DEGRADED (persisted)"]:::impl
+        P_RUN -->|"failure"| P_FAIL["FAILED (persisted)"]:::impl
+        
+        P_CAND -.->|"when == False (control state)"| P_DEF["deferred (scheduler-local control state)"]:::vacuous
+        P_DEF -.->|"tick retry"| P_CAND
+        P_DEF -->|"scan drain"| P_SKIP["SKIPPED_DISABLED [TERMINAL FOR RUN] (reason=condition_never_satisfied)"]:::impl
+        P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL["SKIPPED_FAILED (persisted)"]:::impl
+        
+        P_FAIL -->|"non-critical stage failure"| DownstreamRun["downstream execution continues (non-critical)"]:::impl
+        P_FAIL -->|"critical stage failure (e.g. live_hosts)"| P_SKIP_FAIL
     end
 
-    DAG -->|"per ready node"| Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
+    DAG -->|"per ready node"| Req
     
     subgraph Sandbox["Execution Gate & Universal Egress Enforcement (I29, Ticket Binding I30, F-036)"]
-        Req --> Budget{"HuntBudget.reserve"}:::impl
+        Req ==>|"1. request authorization"| Budget{"HuntBudget.reserve"}:::impl
         Budget -->|Exhausted| Rej["ScopeAuthorizationError (Skipped)"]:::forbidden
-        Budget -->|OK| Ticket["AuthorizedExecutionTicket I30<br/>(ScopeToken + BudgetRes + Rev + CmdID + BlastRadius)"]:::impl
+        Budget ==>|OK| Ticket["AuthorizedExecutionTicket I30<br/>(ScopeToken + BudgetRes + Rev + CmdID + BlastRadius)"]:::impl
         Budget --> PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
-        Ticket --> Consume["ExecutionAuthorizer.consume (Single-Use nonce check)"]:::impl
-        Consume --> InstallFilt["install_filter_from_scope → egress_context ContextVar"]:::impl
-        InstallFilt --> Guard["I29 Universal Egress Authority"]:::impl
+        Ticket ==>|"2. single-use consumption"| Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
+        Consume ==>|"3. scope filter install"| InstallFilt["install_filter_from_scope → egress_context ContextVar"]:::impl
+        InstallFilt ==>|"4. universal egress guard"| Guard["I29 Universal Egress Authority"]:::impl
         
-        Guard -->|"hook"| HTTPX["httpx.Client"]:::impl
-        Guard -->|"hook"| Requests["requests.Session"]:::impl
-        Guard -->|"hook"| Shared["shared_sessions.py"]:::impl
-        Guard -->|"patch"| Socket["socket.socket.connect / create_connection"]:::impl
-        Guard -->|"patch"| Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
-        Guard -->|"guard"| Browser["runtime_browser.py (page.goto)"]:::impl
-        Guard -->|"sandbox (Kernel NetNS unshare -n + Seccomp-BPF [OS-dependent / Linux])"| Subproc["ProcessSandbox (Kernel-Level Enforcement)"]:::specOnly
+        subgraph AppEnforcement["Application & Runtime Egress Layer"]
+            Guard -->|"hook"| HTTPX["httpx.Client"]:::impl
+            Guard -->|"hook"| Requests["requests.Session"]:::impl
+            Guard -->|"hook"| Shared["shared_sessions.py"]:::impl
+            Guard -->|"patch"| Socket["socket.socket.connect / create_connection"]:::impl
+            Guard -->|"patch"| Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
+            Guard -->|"guard"| Browser["runtime_browser.py (page.goto)"]:::impl
+        end
         
-        HTTPX & Requests & Shared & Socket & Stream & Browser & Subproc --> Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
+        subgraph KernelEnforcement["Kernel-Level Isolation Layer"]
+            Guard -->|"sandbox (NetNS unshare -n + Seccomp-BPF [Linux])"| Subproc["ProcessSandbox (Kernel-Level Enforcement)"]:::specOnly
+        end
         
-        Guard -.->|"refuse IMDS / out-of-scope"| Viol["EgressViolationError (Kill & Compensate Budget)"]:::forbidden
+        HTTPX & Requests & Shared & Socket & Stream & Browser & Subproc ==> Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
         
-        Exploit["Standalone SafeExploiter.execute"]:::impl ==>|"I30 Quartet"| Ticket
+        Guard -.->|"refuse IMDS / out-of-scope"| Viol["EgressViolationError"]:::forbidden
+        
+        subgraph EgressCompensationBranch["I28 Egress Violation Compensation Path"]
+            Viol ==> KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
+            KillSubproc ==> SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
+            SettleDrop ==> SettleRel["I28 Budget COMPENSATE"]:::impl
+        end
+        
+        Exploit["Standalone SafeExploiter.execute"]:::impl ==>|"Mandatory ScopeToken + Budget Reservation"| Ticket
     end
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28, I31, I32, F-042)"]
         PORT_F003_SETTLE_BRIDGE[["PORT: F-003 DurableOutbox Settlement Bridge"]] --> Coord
-        Out --> Coord["SettlementCoordinator (Claim Validation)"]:::impl
-        Viol -->|"EGRESS_VIOLATION claim dropped"| DropSettle["Settle DROPPED (No Finding)"]:::forbidden
-        DropSettle --> SettleRel["I28 Budget COMPENSATE"]:::impl
+        Out ==> Coord["SettlementCoordinator (5-Stage Claim Validation)"]:::impl
         
-        Coord --> Fingerprint["Structural Parameterized Fingerprint (tool|path|param|type|sig)"]:::impl
-        Fingerprint --> Thaw["_to_mutable Record Format"]:::impl
-        Thaw --> WAL["StateAuthority.append SettlementIntent"]:::impl
+        Coord ==> Fingerprint["Structural Parameterized Fingerprint (tool|path|param|type|sig)"]:::impl
+        Fingerprint ==> Thaw["_to_mutable Record Format"]:::impl
+        Thaw ==> WAL["StateAuthority.append SettlementIntent"]:::impl
         
-        WAL -->|COMMITTED + wal_id I31| BudgetCommit["I28 Budget COMMIT"]:::impl
-        BudgetCommit --> FindingCreated["Outbox FINDING_CREATED"]:::impl
+        WAL ==>|COMMITTED + wal_id I31| BudgetCommit["I28 Budget COMMIT"]:::impl
+        BudgetCommit ==> FindingCreated["Outbox FINDING_CREATED"]:::impl
         FindingCreated --> PORT_F006_COM[["PORT: F-006 Settle Consumed"]]
         FindingCreated --> DedupStage["dedup_stage Clustering"]:::impl
         DedupStage --> FinalReport["Canonical Report Output"]:::impl
-        FindingCreated -->|HMAC Receipt| Emit["EventBus Notify I32"]:::impl
+        FindingCreated ==>|HMAC Receipt Stamp| Emit["EventBus Notify I32"]:::impl
         Emit --> PORT_F019_BUS[["PORT: F-019 EventBus Dispatch"]]
         Emit -->|"Max Delivery Retries Exceeded (5x)"| PoisonDLQ["Poison-Pill Quarantine (DLQ Table + Metric)"]:::forbidden
-        FindingCreated -->|Outbox Fail| NoBus["No Bus Notify; WAL Committed; Replay Later"]:::vacuous
+        
+        subgraph OutboxFailureReplay["I32 Outbox Append Failure Replay"]
+            FindingCreated -.->|Outbox Append Failure| NoBus["No Bus Notify; WAL Remains Authoritative"]:::vacuous
+            NoBus ==>|"no rollback of WAL"| WALAuthoritative["WAL Committed State Preserved"]:::impl
+            WALAuthoritative ==>|"recovery replay"| ReplayDispatch["Replay Outbox Append & EventBus Dispatch"]:::impl
+        end
         
         WAL -->|FAILED Attempt with wal_id| SettleRej["Settle REJECTED"]:::impl
-        SettleRej --> SettleRel
-        SettleRej -.->|forbid| FindingCreated
+        WAL -->|DEDUPLICATED Claim| SettleDedup["Settle DEDUPLICATED"]:::vacuous
+        WAL -->|Missing / Corrupt wal_id| SettleNoWal["Settle DROPPED (No wal_id)"]:::forbidden
         
-        WAL -->|REJECTED / DEDUPLICATED / No wal_id| SilentDrop["SettleDropped(Idempotent/Dedup)"]:::vacuous
-        SilentDrop --> SettleRel
+        SettleRej ==> SettleRel
+        SettleDedup ==> SettleRel
+        SettleNoWal ==> SettleRel
+        
+        SettleRej -.->|forbid| FindingCreated
+        SettleDedup -.->|forbid| FindingCreated
+        SettleNoWal -.->|forbid| FindingCreated
+        SettleDrop -.->|forbid| FindingCreated
         
         SettleRel --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
     end

@@ -778,3 +778,57 @@ class TestFormalSystemInvariants(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             invalid_2.validate()
+
+    def test_i_graph_formal_invariants(self) -> None:
+        """I-GRAPH-01..08: Formal graph construction, plugin override safety, and invariant validation."""
+        from src.pipeline.services.pipeline_orchestrator.graph_builder import build_pipeline_graph
+        from src.pipeline.stage_registry import StageNodeDefinition
+
+        # 1. Base graph verification (I-GRAPH-01, 03, 07)
+        g = build_pipeline_graph(registered_stages=[])
+        self.assertIn("subdomains", g.names())
+        self.assertIn("reporting", g.names())
+        self.assertIn("sarif_export", g.names())
+
+        # I-GRAPH-01: Need-edge equivalence
+        sub_node = g.require("subdomains")
+        self.assertEqual(sub_node.needs, ())
+        live_node = g.require("live_hosts")
+        self.assertEqual(live_node.needs, ("subdomains",))
+
+        # I-GRAPH-07: Immutable sink membership: reporting depends on finding producers
+        rep_node = g.require("reporting")
+        self.assertIn("active_scan", rep_node.needs)
+        self.assertIn("nuclei", rep_node.needs)
+        self.assertIn("semgrep", rep_node.needs)
+
+        # 2. I-GRAPH-06: Plugin override safety (monotonicity & criticality preservation)
+        # Attempting to drop dependencies fails
+        bad_plugin_1 = StageNodeDefinition(
+            name="live_hosts",
+            needs=[],  # drops 'subdomains' prerequisite
+            critical=True,
+        )
+        with self.assertRaises(ValueError) as cm1:
+            build_pipeline_graph(registered_stages=[bad_plugin_1])
+        self.assertIn("drops required dependencies", str(cm1.exception))
+
+        # Attempting to unset critical flag on critical built-in stage fails
+        bad_plugin_2 = StageNodeDefinition(
+            name="live_hosts",
+            needs=["subdomains"],
+            critical=False,  # unsets critical=True
+        )
+        with self.assertRaises(ValueError) as cm2:
+            build_pipeline_graph(registered_stages=[bad_plugin_2])
+        self.assertIn("cannot unset critical=True", str(cm2.exception))
+
+        # Valid plugin override preserving needs & criticality succeeds
+        valid_plugin = StageNodeDefinition(
+            name="live_hosts",
+            needs=["subdomains"],
+            weight=20,
+            critical=True,
+        )
+        g_custom = build_pipeline_graph(registered_stages=[valid_plugin])
+        self.assertEqual(g_custom.require("live_hosts").weight, 20)

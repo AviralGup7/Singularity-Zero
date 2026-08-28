@@ -310,6 +310,22 @@ def build_pipeline_graph(
             effective_defn = _apply_profile_to_definition(defn, profile)
 
         stage_node = _make_stage_node(effective_defn)
+        if stage_node.name in nodes_by_name:
+            builtin_node = nodes_by_name[stage_node.name]
+            # I-GRAPH-06: Plugin override safety validation
+            # Monotonicity check: plugin cannot drop built-in needs
+            builtin_needs_set = set(builtin_node.needs)
+            plugin_needs_set = set(stage_node.needs)
+            if not builtin_needs_set.issubset(plugin_needs_set):
+                dropped = builtin_needs_set - plugin_needs_set
+                raise ValueError(
+                    f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' drops required dependencies {dropped}"
+                )
+            # Criticality preservation: plugin cannot weaken a critical built-in stage
+            if builtin_node.critical and not stage_node.critical:
+                raise ValueError(
+                    f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' cannot unset critical=True"
+                )
         nodes_by_name[stage_node.name] = stage_node
 
     nodes = list(nodes_by_name.values())
@@ -321,6 +337,10 @@ def build_pipeline_graph(
         for node in list(nodes):
             required_tool = {"nuclei": "nuclei", "semgrep": "semgrep"}.get(node.name)
             if required_tool and required_tool not in available_set:
+                if node.critical:
+                    raise ValueError(
+                        f"I-GRAPH-04/06: Cannot prune critical stage '{node.name}' due to missing tool '{required_tool}'"
+                    )
                 nodes = [n for n in nodes if n.name != node.name]
                 pruned_stages.add(node.name)
                 logger.info(
