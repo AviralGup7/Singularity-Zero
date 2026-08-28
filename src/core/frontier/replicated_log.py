@@ -437,6 +437,7 @@ class ReplicatedPartitionLog:
             )
             self.entries.append(committed_entry)
             self.wal.append_entry(committed_entry, committed=True, sync=True)
+            self.wal.flush_pending()
 
             # 7. Step F: Durable Outbox Append
             self.outbox.append_events(emitted_events, sync=True)

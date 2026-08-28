@@ -168,3 +168,209 @@ def test_i31_dispatch_refuses_uncommitted() -> None:
             event_type=None,
             outbox=None,
         )
+
+
+# =========================================================================
+# Expanded Invariant Testing: Adversarial, Tampering & Concurrency
+# =========================================================================
+
+def test_i30_tampered_signature_rejected() -> None:
+    """Tampering with any field of the ticket invalidates HMAC signature and prevents consumption."""
+    enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=10), label="i30_tamper")
+    auth = ExecutionAuthorizer(budget_enforcer=enforcer)
+    ticket = auth.authorize(_req())
+    assert auth.verify_ticket(ticket) is True
+
+    # Tamper with scope token hash
+    tampered_scope = AuthorizedExecutionTicket(
+        ticket_id=ticket.ticket_id,
+        request_id=ticket.request_id,
+        tenant_id=ticket.tenant_id,
+        authorized_at=ticket.authorized_at,
+        expires_at=ticket.expires_at,
+        nonce=ticket.nonce,
+        signature=ticket.signature,
+        request=ticket.request,
+        epoch=ticket.epoch,
+        partition_id=ticket.partition_id,
+        canonical_identity_hash=ticket.canonical_identity_hash,
+        policy_generation=ticket.policy_generation,
+        scope_token_hash="tampered_scope_hash",
+        budget_reservation_id=ticket.budget_reservation_id,
+        authority_revision=ticket.authority_revision,
+        command_id=ticket.command_id,
+    )
+    assert auth.verify_ticket(tampered_scope) is False
+    assert auth.consume_ticket(tampered_scope) is False
+
+    # Tamper with command_id
+    tampered_cmd = AuthorizedExecutionTicket(
+        ticket_id=ticket.ticket_id,
+        request_id=ticket.request_id,
+        tenant_id=ticket.tenant_id,
+        authorized_at=ticket.authorized_at,
+        expires_at=ticket.expires_at,
+        nonce=ticket.nonce,
+        signature=ticket.signature,
+        request=ticket.request,
+        epoch=ticket.epoch,
+        partition_id=ticket.partition_id,
+        canonical_identity_hash=ticket.canonical_identity_hash,
+        policy_generation=ticket.policy_generation,
+        scope_token_hash=ticket.scope_token_hash,
+        budget_reservation_id=ticket.budget_reservation_id,
+        authority_revision=ticket.authority_revision,
+        command_id="cmd_injected_adversary",
+    )
+    assert auth.verify_ticket(tampered_cmd) is False
+    assert auth.consume_ticket(tampered_cmd) is False
+
+
+def test_i30_single_use_replay_defense() -> None:
+    """Consume ticket must be strictly single-use; subsequent consumes are rejected."""
+    enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=10), label="i30_replay")
+    auth = ExecutionAuthorizer(budget_enforcer=enforcer)
+    ticket = auth.authorize(_req())
+
+    assert auth.consume_ticket(ticket) is True
+    # Replay attempt fails immediately
+    assert auth.consume_ticket(ticket) is False
+    assert auth.consume_ticket(ticket) is False
+
+
+def test_i30_expired_ticket_rejected() -> None:
+    """An expired ticket must fail verify_ticket and consume_ticket."""
+    enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=10), label="i30_exp")
+    auth = ExecutionAuthorizer(budget_enforcer=enforcer)
+    ticket = auth.authorize(_req())
+
+    expired_ticket = AuthorizedExecutionTicket(
+        ticket_id=ticket.ticket_id,
+        request_id=ticket.request_id,
+        tenant_id=ticket.tenant_id,
+        authorized_at=ticket.authorized_at - 100,
+        expires_at=ticket.authorized_at - 10,  # in the past
+        nonce=ticket.nonce,
+        signature=ticket.signature,
+        request=ticket.request,
+        epoch=ticket.epoch,
+        partition_id=ticket.partition_id,
+        canonical_identity_hash=ticket.canonical_identity_hash,
+        policy_generation=ticket.policy_generation,
+        scope_token_hash=ticket.scope_token_hash,
+        budget_reservation_id=ticket.budget_reservation_id,
+        authority_revision=ticket.authority_revision,
+        command_id=ticket.command_id,
+    )
+    assert auth.verify_ticket(expired_ticket) is False
+    assert auth.consume_ticket(expired_ticket) is False
+
+
+def test_i31_receipt_hmac_tampering_rejected() -> None:
+    """Tampering with finding receipt fields or HMAC fails receipt verification."""
+    from src.core.events.event_bus import EventBus, EventType
+    from src.core.frontier.settlement_receipt import stamp_finding_receipt, verify_finding_receipt
+
+    receipt = stamp_finding_receipt(wal_id="wal_valid", settlement_id="stl_valid", command_id="cmd_valid")
+    assert verify_finding_receipt(receipt) is True
+
+    # Tampered wal_id
+    tampered_wal = dict(receipt)
+    tampered_wal["wal_id"] = "wal_forged"
+    assert verify_finding_receipt(tampered_wal) is False
+
+    # Tampered settlement status
+    tampered_status = dict(receipt)
+    tampered_status["settlement_status"] = "REJECTED"
+    assert verify_finding_receipt(tampered_status) is False
+
+    # Tampered signature
+    tampered_sig = dict(receipt)
+    tampered_sig["receipt_hmac"] = "deadbeef" * 8
+    assert verify_finding_receipt(tampered_sig) is False
+
+    # Bus refuses all tampered variations
+    bus = EventBus()
+    seen: list[object] = []
+    bus.subscribe(EventType.FINDING_CREATED, seen.append)
+
+    bus.emit(EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_wal})
+    bus.emit(EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_status})
+    bus.emit(EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_sig})
+    assert len(seen) == 0
+    assert bus.dropped_status()["dropped_unauthoritative"] == 3
+
+
+def test_i32_outbox_failure_does_not_emit_on_bus(tmp_path) -> None:
+    """If the durable outbox append fails, FINDING_CREATED is NOT emitted on the bus."""
+    from unittest.mock import MagicMock
+
+    reset_delivery_ledger()
+    outbox = DurableOutboxLedger("P-0000", outbox_dir=tmp_path)
+    # Simulate an outbox filesystem write failure
+    outbox.append_events = MagicMock(side_effect=IOError("disk full"))
+
+    seen_bus: list[dict] = []
+    def emit(event_type, *, source, data, trace_id=None):
+        seen_bus.append(data)
+
+    settle_res = SettlementResult(
+        execution_id="exec-failoutbox",
+        status="COMMITTED",
+        wal_id="wal_durable123",
+        committed_findings=({"title": "finding1"},),
+    )
+
+    n = dispatch_committed_findings(
+        settle_res=settle_res,
+        stage_name="subdomains",
+        findings=({"title": "finding1"},),
+        emit=emit,
+        event_type=SimpleNamespace(value="finding_created"),
+        outbox=outbox,
+    )
+    # Returns published count for tracking, but bus was NOT notified because outbox append failed
+    assert n == 1
+    assert len(seen_bus) == 0
+
+
+def test_i32_delivery_deduplication_via_ledger(tmp_path) -> None:
+    """Duplicate dispatch calls with the same causal identity do not duplicate bus emissions."""
+    reset_delivery_ledger()
+    outbox = DurableOutboxLedger("P-0000", outbox_dir=tmp_path)
+    seen_bus: list[dict] = []
+
+    def emit(event_type, *, source, data, trace_id=None):
+        seen_bus.append(data)
+
+    settle_res = SettlementResult(
+        execution_id="exec-dedup",
+        status="COMMITTED",
+        wal_id="wal_dedup_1",
+        committed_findings=({"title": "unique_vuln"},),
+    )
+
+    # First dispatch
+    n1 = dispatch_committed_findings(
+        settle_res=settle_res,
+        stage_name="subdomains",
+        findings=({"title": "unique_vuln"},),
+        emit=emit,
+        event_type=SimpleNamespace(value="finding_created"),
+        outbox=outbox,
+    )
+    assert n1 == 1
+    assert len(seen_bus) == 1
+
+    # Second dispatch with identical settlement (e.g. recovery replay)
+    n2 = dispatch_committed_findings(
+        settle_res=settle_res,
+        stage_name="subdomains",
+        findings=({"title": "unique_vuln"},),
+        emit=emit,
+        event_type=SimpleNamespace(value="finding_created"),
+        outbox=outbox,
+    )
+    assert n2 == 1
+    # Bus was NOT emitted to a second time because delivery ledger prevented double dispatch
+    assert len(seen_bus) == 1

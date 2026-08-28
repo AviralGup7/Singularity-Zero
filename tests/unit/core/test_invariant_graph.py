@@ -371,3 +371,56 @@ def test_assert_transfer_does_not_resurrect_i30_invalid() -> None:
     bare.request = SimpleNamespace(scope_token=None)
     with pytest.raises(ProofGraphError, match="I30-invalid"):
         assert_transfer_does_not_resurrect((bare,), live_revision="arev_new")
+
+
+def test_i35_verify_invariants_budget_conservation_checks() -> None:
+    """I35 fail-closes if recovered single-partition (I5) or multi-Raft (I26) budget violates conservation."""
+    # Valid I5 state (total = 100 = 30 + 20 + 50)
+    valid_i5 = SimpleNamespace(
+        recovered_tickets=(),
+        recovered_settlements=(),
+        recovered_identities=(),
+        recovered_budget_state={"total": 100, "consumed": 30, "outstanding": 20, "available": 50},
+    )
+    verify_recovery_prerequisites(valid_i5)
+
+    # Invalid I5 state (sum is 110 != 100)
+    invalid_i5 = SimpleNamespace(
+        recovered_tickets=(),
+        recovered_settlements=(),
+        recovered_identities=(),
+        recovered_budget_state={"total": 100, "consumed": 40, "outstanding": 20, "available": 50},
+    )
+    with pytest.raises(ProofGraphError, match="I5 conservation"):
+        verify_recovery_prerequisites(invalid_i5)
+
+    # Valid I26 multi-Raft slab state (total = 1000 = 200 + 100 + 300 + 400)
+    valid_i26 = SimpleNamespace(
+        recovered_tickets=(),
+        recovered_settlements=(),
+        recovered_identities=(),
+        recovered_budget_state={
+            "total": 1000,
+            "consumed": 200,
+            "outstanding": 100,
+            "slab_reserved": 300,
+            "available": 400,
+        },
+    )
+    verify_recovery_prerequisites(valid_i26)
+
+    # Invalid I26 state (leak/divergence: sum is 900 != 1000)
+    invalid_i26 = SimpleNamespace(
+        recovered_tickets=(),
+        recovered_settlements=(),
+        recovered_identities=(),
+        recovered_budget_state={
+            "total": 1000,
+            "consumed": 200,
+            "outstanding": 100,
+            "slab_reserved": 300,
+            "available": 300,
+        },
+    )
+    with pytest.raises(ProofGraphError, match="I26 slab conservation"):
+        verify_recovery_prerequisites(invalid_i26)

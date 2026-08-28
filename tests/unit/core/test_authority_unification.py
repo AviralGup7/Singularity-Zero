@@ -132,7 +132,7 @@ def test_partition_wal_crc_mismatch_fail_closed(tmp_path: Path) -> None:
         wal_dir=tmp_path,
     )
     log.propose_and_commit(cmd)
-    path = wal.wal_path
+    path = log.wal.wal_path
     assert path is not None and path.exists()
     lines = path.read_text(encoding="utf-8").splitlines()
     record = json.loads(lines[-1])
