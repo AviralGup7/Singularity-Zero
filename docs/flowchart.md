@@ -293,171 +293,584 @@ flowchart TD
 
 ```mermaid
 flowchart TD
+
+    %% ============================================================
+    %% NODE CLASSES
+    %% ============================================================
+
     classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
     classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
     classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
     classDef specOnly fill:#1e1b4b,stroke:#818cf8,stroke-width:1px,stroke-dasharray:4 4,color:#fff;
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
+    classDef anchor fill:#111827,stroke:#94a3b8,stroke-width:2px,color:#fff;
+    classDef property fill:#172554,stroke:#60a5fa,stroke-width:1px,color:#dbeafe;
 
-    subgraph GraphBuilderPipeline["Dynamic Plugin & DAG Lifecycle: DISCOVER → VALIDATE → COMPOSE → VERIFY → FREEZE"]
-        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl --> MergePlugins["2. COMPOSE: Deterministic Merge Plugins from StageRegistry"]:::impl
-        MergePlugins --> ProfileOverride["3. Capability Profile (Tool Availability Probes)"]:::impl
-        ProfileOverride --> PruneTools["4. Prune Unavailable Tools (nuclei/semgrep binary check)"]:::impl
-        PruneTools --> DynamicJoin["5. _join_finding_producers (Bind finding producers to reporting)"]:::impl
-        DynamicJoin --> CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
-        CycleCheck ==>|"deterministic graph generation"| Freeze["7. FREEZE: Immutable Graph(nodes=tuple) + GraphGenID"]:::impl
+
+    %% ============================================================
+    %% GRAPH BUILDER
+    %% DISCOVER -> VALIDATE -> COMPOSE -> VERIFY -> FREEZE
+    %% ============================================================
+
+    subgraph GraphBuilderPipeline["Dynamic Plugin & DAG Lifecycle"]
+
+        BaseNodes["1. _BASE_NODES (19 Static Built-in Nodes)"]:::impl
+
+        MergePlugins["2. COMPOSE: Deterministic Merge Plugins from StageRegistry"]:::impl
+
+        ProfileOverride["3. Capability Profile (Tool Availability Probes)"]:::impl
+
+        PruneTools["4. Prune Unavailable Tools (nuclei/semgrep binary check)"]:::impl
+
+        DynamicJoin["5. _join_finding_producers (Bind finding producers to reporting)"]:::impl
+
+        CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
+
+        Freeze["7. FREEZE: Immutable Graph (nodes=tuple) + GraphGenID"]:::impl
+
+        FrozenGraph["Frozen Runtime Graph (Immutable Node / Dependency Set)"]:::anchor
+
+        GraphGenID["GraphGenID (Canonical Frozen Graph Identity)"]:::property
+
+        BaseNodes --> MergePlugins
+        MergePlugins --> ProfileOverride
+        ProfileOverride --> PruneTools
+        PruneTools --> DynamicJoin
+        DynamicJoin --> CycleCheck
+        CycleCheck -->|"deterministic graph generation"| Freeze
+
+        Freeze --> FrozenGraph
+        FrozenGraph --> GraphGenID
     end
+
+
+    %% ============================================================
+    %% PROCESS BOOTSTRAP / RECOVERY / AUTHORITY
+    %% ============================================================
 
     subgraph Init["Process Bootstrap & Authority Attachment"]
-        CSTP["cstp CLI"]:::impl --> Launch["launch: Dashboard + Background Worker"]:::impl
-        CSTP --> Scan["scan run: Runtime Pipeline"]:::impl
-        CSTP --> Sys["system doctor / status / setup / cleanup"]:::impl
-        Launch ==> Bind["register_process_bindings"]:::impl
-        Scan --> Runtime["src.pipeline.runtime"]:::impl
-        Runtime ==> Bind
-        Bind ==> Recover["RecoveryManager (I35 Snapshot + WAL Protocol)"]:::impl
-        Recover ==>|"verify state"| Verify["verify_checkpoint_against_fsm"]:::impl
-        Recover ==>|"attach authority"| Auth["attach_pipeline_authority"]:::impl
+
+        CSTP["cstp CLI"]:::impl
+
+        Launch["launch: Dashboard + Background Worker"]:::impl
+
+        Scan["scan run: Runtime Pipeline"]:::impl
+
+        Sys["system doctor / status / setup / cleanup"]:::impl
+
+        Runtime["src.pipeline.runtime"]:::impl
+
+        Bind["register_process_bindings"]:::impl
+
+        Recover["RecoveryManager (I35 Snapshot + WAL Protocol)"]:::impl
+
+        Verify["verify_checkpoint_against_fsm"]:::impl
+
+        Auth["attach_pipeline_authority"]:::impl
+
+        Stamp["ctx.budget_enforcer + authorizer"]:::impl
+
+        CSTP --> Launch
+        CSTP --> Scan
+        CSTP --> Sys
+
+        Launch --> Bind
+        Scan --> Runtime
+        Runtime --> Bind
+
+        Bind --> Recover
+
+        Recover -->|"verify state"| Verify
+        Recover -->|"attach authority"| Auth
+
         Verify --> Auth
-        Auth ==>|"inject context"| Stamp["ctx.budget_enforcer + authorizer"]:::impl
+
+        Auth -->|"inject context"| Stamp
     end
 
-    Freeze ==>|"frozen graph consumed at runtime"| DAG
-    Freeze -->|"GraphGenID validation"| Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
-    Stamp ==>|"runtime authorizer binding"| Req
-    Stamp --> Sub["subdomains"]:::impl
 
-    Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl ==>|"evaluate readiness"| DAG
-    DAG ==>|"candidate ready"| Scheduler
-    Scheduler ==>|"dispatch actor"| ReadinessFSM
+    %% ============================================================
+    %% FROZEN GRAPH / RUNTIME GRAPH / GENERATION VALIDATION
+    %% ============================================================
+
+    StageGraphRoot["RUNTIME STAGE_GRAPH (Frozen Executable Dependency Graph)"]:::anchor
+
+    GraphGenGate["GraphGenID Validation Gate"]:::property
+
+    GraphGenID -->|"generation identity"| GraphGenGate
+
+    FrozenGraph -->|"frozen graph consumed at runtime"| StageGraphRoot
+
+    GraphGenGate --> Req
+
+    Stamp -->|"runtime authorizer binding"| Req
+
+    Stamp --> Sub
+
+
+    %% ============================================================
+    %% SCHEDULER CONTROL MODEL
+    %% ============================================================
+
+    Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl
+
+    ReadinessRoot["READINESS / STAGE STATUS CONTROL MODEL"]:::anchor
+
+    ReadinessEvaluation["Readiness Evaluation (needs + when gates)"]:::property
+
+    StageGraphRoot -->|"evaluate graph dependencies"| ReadinessEvaluation
+
+    ReadinessEvaluation -->|"readiness result"| Scheduler
+
+    Scheduler -->|"control state / lifecycle evaluation"| ReadinessRoot
+
+
+    %% ============================================================
+    %% RUNTIME EXECUTABLE STAGE GRAPH
+    %% ============================================================
 
     subgraph DAG["Runtime Executable STAGE_GRAPH (ActorScheduler Readiness & Gates)"]
-        Sub ==> Takeover["subdomain_takeover"]:::impl
-        Sub ==> LiveH["live_hosts [critical=true]"]:::impl
-        LiveH ==> WAF["waf"]:::impl
-        LiveH ==> Urls["urls"]:::impl
-        Urls ==> ReconVal["recon_validation"]:::impl
-        Urls ==> GitDiff["git_diff_crawl"]:::impl
-        Urls ==> Params["parameters"]:::impl
-        Urls & Params & WAF ==> Rank["ranking"]:::impl
-        Rank & LiveH & Urls ==> Passive["passive_scan"]:::impl
-        
-        Passive ==> Active["active_scan"]:::impl
-        Passive ==> Semgrep["semgrep"]:::impl
-        Passive ==> Nuclei["nuclei"]:::impl
-        Rank & Passive ==> Access["access_control"]:::impl
-        
+
+        Sub["subdomains"]:::impl
+
+        Takeover["subdomain_takeover"]:::impl
+
+        LiveH["live_hosts [critical=true]"]:::impl
+
+        WAF["waf"]:::impl
+
+        Urls["urls"]:::impl
+
+        ReconVal["recon_validation"]:::impl
+
+        GitDiff["git_diff_crawl"]:::impl
+
+        Params["parameters"]:::impl
+
+        Rank["ranking"]:::impl
+
+        Passive["passive_scan"]:::impl
+
+        Active["active_scan"]:::impl
+
+        Semgrep["semgrep"]:::impl
+
+        Nuclei["nuclei"]:::impl
+
+        Access["access_control"]:::impl
+
+        Val["validation"]:::impl
+
+        Intel["intelligence"]:::impl
+
+        Threat["threat_modeling"]:::impl
+
+        Report["reporting [JOIN_SINK]"]:::impl
+
+        DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl
+
+        Sarif["sarif_export"]:::impl
+
+        CiExp["ci_export"]:::impl
+
+        Dedup["dedup_stage (Structural Parameterized Fingerprinting)"]:::impl
+
+
+        %% Root of the frozen runtime graph
+        StageGraphRoot --> Sub
+
+        %% Main DAG
+        Sub --> Takeover
+        Sub --> LiveH
+
+        LiveH --> WAF
+        LiveH --> Urls
+
+        Urls --> ReconVal
+        Urls --> GitDiff
+        Urls --> Params
+
+        WAF --> Rank
+        Params --> Rank
+        Urls --> Rank
+
+        Rank --> Passive
+        LiveH --> Passive
+        Urls --> Passive
+
+        Passive --> Active
+        Passive --> Semgrep
+        Passive --> Nuclei
+
+        Rank --> Access
+        Passive --> Access
+
+        %% Runtime scheduling gates
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Active
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Semgrep
-        LiveH -.->|"when: OutputNonEmpty('live_hosts') & FlagSet('nuclei_available')"| Nuclei
+        LiveH -.->|"when: OutputNonEmpty('live_hosts') and FlagSet('nuclei_available')"| Nuclei
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Access
-        
-        Passive & Active ==> Val["validation"]:::impl
-        Passive & Active & Nuclei & Val ==> Intel["intelligence"]:::impl
-        Intel ==> Threat["threat_modeling"]:::impl
-        
-        Intel & Nuclei & Access & Threat & Val & Semgrep & Passive & Takeover ==> Report["reporting [JOIN_SINK]"]:::impl
-        
-        DynProducers["Dynamic Producers (sca_scan, container_scan, iac_scan, git_secret_scan)"]:::impl -->|"_join_finding_producers composition"| Report
-        
-        Report ==> Sarif["sarif_export"]:::impl
-        Report ==> CiExp["ci_export"]:::impl
-        Report ==> Dedup["dedup_stage (Structural Parameterized Fingerprinting)"]:::impl
+
+        %% Validation / intelligence
+        Passive --> Val
+        Active --> Val
+
+        Passive --> Intel
+        Active --> Intel
+        Nuclei --> Intel
+        Val --> Intel
+
+        Intel --> Threat
+
+        %% Join sink
+        Intel --> Report
+        Nuclei --> Report
+        Access --> Report
+        Threat --> Report
+        Val --> Report
+        Semgrep --> Report
+        Passive --> Report
+        Takeover --> Report
+
+        DynProducers -->|"composition: _join_finding_producers"| Report
+
+        %% Terminal outputs
+        Report --> Sarif
+        Report --> CiExp
+        Report --> Dedup
     end
 
-    subgraph ReadinessFSM["Scheduler readiness (ActorScheduler) vs persisted StageStatus"]
-        P_PEND["PENDING (persisted)"]:::impl ==>|"_need_met all deps"| P_CAND["candidate ready (scheduler-local)"]:::impl
-        P_CAND ==>|"when.is_satisfied == True"| P_DISP["dispatch actor"]:::impl
-        P_DISP ==>|"spawn execution"| P_RUN["RUNNING (persisted)"]:::impl
-        P_RUN -->|"success"| P_COMP["COMPLETED (persisted)"]:::impl
-        P_RUN -->|"partial / degraded"| P_DEG["DEGRADED (persisted)"]:::impl
-        P_RUN -->|"failure"| P_FAIL["FAILED (persisted)"]:::impl
-        
-        P_CAND -.->|"when == False (control state)"| P_DEF["deferred (scheduler-local control state)"]:::vacuous
+
+    %% ============================================================
+    %% READINESS FSM
+    %% ============================================================
+
+    subgraph ReadinessFSM["Scheduler Readiness vs Persisted StageStatus"]
+
+        P_PEND["PENDING (persisted)"]:::impl
+
+        P_CAND["candidate ready (scheduler-local)"]:::impl
+
+        P_DISP["dispatch actor"]:::impl
+
+        P_RUN["RUNNING (persisted)"]:::impl
+
+        P_COMP["COMPLETED (persisted)"]:::impl
+
+        P_DEG["DEGRADED (persisted)"]:::impl
+
+        P_FAIL["FAILED (persisted)"]:::impl
+
+        P_DEF["deferred (scheduler-local control state)"]:::vacuous
+
+        P_SKIP["SKIPPED_DISABLED [TERMINAL FOR RUN] (reason=condition_never_satisfied)"]:::impl
+
+        P_SKIP_FAIL["SKIPPED_FAILED (persisted)"]:::impl
+
+        DownstreamRun["downstream execution continues (non-critical)"]:::impl
+
+
+        %% Scheduler enters / evaluates persisted state
+        ReadinessRoot --> P_PEND
+
+        %% Normal readiness lifecycle
+        P_PEND -->|"_need_met all deps"| P_CAND
+
+        P_CAND -->|"when.is_satisfied == True"| P_DISP
+
+        P_DISP -->|"spawn execution"| P_RUN
+
+        %% Terminal execution outcomes
+        P_RUN -->|"success"| P_COMP
+        P_RUN -->|"partial / degraded"| P_DEG
+        P_RUN -->|"failure"| P_FAIL
+
+        %% Scheduler-local control state
+        P_CAND -.->|"when == False (control state)"| P_DEF
+
         P_DEF -.->|"tick retry"| P_CAND
-        P_DEF -->|"scan drain"| P_SKIP["SKIPPED_DISABLED [TERMINAL FOR RUN] (reason=condition_never_satisfied)"]:::impl
-        P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL["SKIPPED_FAILED (persisted)"]:::impl
-        
-        P_FAIL -->|"non-critical stage failure"| DownstreamRun["downstream execution continues (non-critical)"]:::impl
+
+        P_DEF -->|"scan drain"| P_SKIP
+
+        %% Critical upstream failure
+        P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL
+
+        %% Failure propagation
+        P_FAIL -->|"non-critical stage failure"| DownstreamRun
+
         P_FAIL -->|"critical stage failure (e.g. live_hosts)"| P_SKIP_FAIL
     end
 
-    DAG -->|"per ready node"| Req
-    
-    subgraph Sandbox["Execution Gate & Universal Egress Enforcement (I29, Ticket Binding I30, F-036)"]
-        Req ==>|"1. request authorization"| Budget{"HuntBudget.reserve"}:::impl
-        Budget -->|Exhausted| Rej["ScopeAuthorizationError (Skipped)"]:::forbidden
-        Budget ==>|OK| Ticket["AuthorizedExecutionTicket I30<br/>(ScopeToken + BudgetRes + Rev + CmdID + BlastRadius)"]:::impl
-        Budget --> PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
-        Ticket ==>|"2. single-use consumption"| Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
-        Consume ==>|"3. scope filter install"| InstallFilt["install_filter_from_scope → egress_context ContextVar"]:::impl
-        InstallFilt ==>|"4. universal egress guard"| Guard["I29 Universal Egress Authority"]:::impl
-        
+
+    %% Explicit scheduler / readiness relations
+    Scheduler -->|"evaluate persisted lifecycle"| P_PEND
+    Scheduler -->|"dispatch actor"| P_DISP
+
+    %% ============================================================
+    %% READY STAGE -> EXECUTION REQUEST
+    %% ============================================================
+
+    Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
+
+    P_DISP -->|"ExecutionRequest for dispatched stage"| Req
+
+    StageGraphRoot -->|"per ready node"| Req
+
+
+    %% ============================================================
+    %% EXECUTION GATE / AUTHORIZATION / EGRESS
+    %% ============================================================
+
+    subgraph Sandbox["Execution Gate & Universal Egress Enforcement (I29 / I30 / F-036)"]
+
+        Budget["HuntBudget.reserve"]:::impl
+
+        Rej["ScopeAuthorizationError (Skipped)"]:::forbidden
+
+        Ticket["AuthorizedExecutionTicket I30 (ScopeToken + BudgetRes + Rev + CmdID + BlastRadius)"]:::impl
+
+        Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
+
+        InstallFilt["install_filter_from_scope -> egress_context ContextVar"]:::impl
+
+        Guard["I29 Universal Egress Authority"]:::impl
+
+        PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
+
+
+        Req -->|"1. request authorization"| Budget
+
+        Budget -->|"Exhausted"| Rej
+        Budget -->|"OK"| Ticket
+        Budget --> PORT_F006_RES
+
+        Ticket -->|"2. single-use consumption"| Consume
+
+        Consume -->|"3. scope filter install"| InstallFilt
+
+        InstallFilt -->|"4. universal egress guard"| Guard
+
+
+        %% --------------------------------------------------------
+        %% APPLICATION / RUNTIME ENFORCEMENT
+        %% --------------------------------------------------------
+
         subgraph AppEnforcement["Application & Runtime Egress Layer"]
-            Guard -->|"hook"| HTTPX["httpx.Client"]:::impl
-            Guard -->|"hook"| Requests["requests.Session"]:::impl
-            Guard -->|"hook"| Shared["shared_sessions.py"]:::impl
-            Guard -->|"patch"| Socket["socket.socket.connect / create_connection"]:::impl
-            Guard -->|"patch"| Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
-            Guard -->|"guard"| Browser["runtime_browser.py (page.goto)"]:::impl
+
+            HTTPX["httpx.Client"]:::impl
+            Requests["requests.Session"]:::impl
+            Shared["shared_sessions.py"]:::impl
+            Socket["socket.socket.connect / create_connection"]:::impl
+            Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
+            Browser["runtime_browser.py (page.goto)"]:::impl
+
+            Guard -->|"hook"| HTTPX
+            Guard -->|"hook"| Requests
+            Guard -->|"hook"| Shared
+            Guard -->|"patch"| Socket
+            Guard -->|"patch"| Stream
+            Guard -->|"guard"| Browser
         end
-        
+
+
+        %% --------------------------------------------------------
+        %% KERNEL ENFORCEMENT
+        %% --------------------------------------------------------
+
         subgraph KernelEnforcement["Kernel-Level Isolation Layer"]
-            Guard -->|"sandbox (NetNS unshare -n + Seccomp-BPF [Linux])"| Subproc["ProcessSandbox (Kernel-Level Enforcement)"]:::specOnly
+
+            Subproc["ProcessSandbox (Kernel-Level Enforcement)"]:::specOnly
+
+            Guard -->|"sandbox: NetNS unshare -n + Seccomp-BPF (Linux)"| Subproc
         end
-        
-        HTTPX & Requests & Shared & Socket & Stream & Browser & Subproc ==> Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
-        
-        Guard -.->|"refuse IMDS / out-of-scope"| Viol["EgressViolationError"]:::forbidden
-        
+
+
+        %% --------------------------------------------------------
+        %% EXECUTION OUTPUT
+        %% --------------------------------------------------------
+
+        Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
+
+        HTTPX --> Out
+        Requests --> Out
+        Shared --> Out
+        Socket --> Out
+        Stream --> Out
+        Browser --> Out
+        Subproc --> Out
+
+
+        %% --------------------------------------------------------
+        %% UNIVERSAL EGRESS REFUSAL
+        %% --------------------------------------------------------
+
+        Viol["EgressViolationError"]:::forbidden
+
+        Guard -.->|"refuse IMDS / out-of-scope"| Viol
+
+
+        %% --------------------------------------------------------
+        %% EGRESS COMPENSATION
+        %% --------------------------------------------------------
+
         subgraph EgressCompensationBranch["I28 Egress Violation Compensation Path"]
-            Viol ==> KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
-            KillSubproc ==> SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
-            SettleDrop ==> SettleRel["I28 Budget COMPENSATE"]:::impl
+
+            KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
+
+            SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
+
+            EgressCompensate["I28 Budget COMPENSATE"]:::impl
+
+            Viol --> KillSubproc
+            KillSubproc --> SettleDrop
+            SettleDrop --> EgressCompensate
         end
-        
-        Exploit["Standalone SafeExploiter.execute"]:::impl ==>|"Mandatory ScopeToken + Budget Reservation"| Ticket
+
+
+        %% Standalone exploiter remains inside mandatory ticket path
+        Exploit["Standalone SafeExploiter.execute"]:::impl
+
+        Exploit -->|"Mandatory ScopeToken + Budget Reservation"| Ticket
     end
 
-    subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28, I31, I32, F-042)"]
-        PORT_F003_SETTLE_BRIDGE[["PORT: F-003 DurableOutbox Settlement Bridge"]] --> Coord
-        Out ==> Coord["SettlementCoordinator (5-Stage Claim Validation)"]:::impl
-        
-        Coord ==> Fingerprint["Structural Parameterized Fingerprint (tool|path|param|type|sig)"]:::impl
-        Fingerprint ==> Thaw["_to_mutable Record Format"]:::impl
-        Thaw ==> WAL["StateAuthority.append SettlementIntent"]:::impl
-        
-        WAL ==>|COMMITTED + wal_id I31| BudgetCommit["I28 Budget COMMIT"]:::impl
-        BudgetCommit ==> FindingCreated["Outbox FINDING_CREATED"]:::impl
-        FindingCreated --> PORT_F006_COM[["PORT: F-006 Settle Consumed"]]
-        FindingCreated --> DedupStage["dedup_stage Clustering"]:::impl
-        DedupStage --> FinalReport["Canonical Report Output"]:::impl
-        FindingCreated ==>|HMAC Receipt Stamp| Emit["EventBus Notify I32"]:::impl
-        Emit --> PORT_F019_BUS[["PORT: F-019 EventBus Dispatch"]]
-        Emit -->|"Max Delivery Retries Exceeded (5x)"| PoisonDLQ["Poison-Pill Quarantine (DLQ Table + Metric)"]:::forbidden
-        
-        subgraph OutboxFailureReplay["I32 Outbox Append Failure Replay"]
-            FindingCreated -.->|Outbox Append Failure| NoBus["No Bus Notify; WAL Remains Authoritative"]:::vacuous
-            NoBus ==>|"no rollback of WAL"| WALAuthoritative["WAL Committed State Preserved"]:::impl
-            WALAuthoritative ==>|"recovery replay"| ReplayDispatch["Replay Outbox Append & EventBus Dispatch"]:::impl
-        end
-        
-        WAL -->|FAILED Attempt with wal_id| SettleRej["Settle REJECTED"]:::impl
-        WAL -->|DEDUPLICATED Claim| SettleDedup["Settle DEDUPLICATED"]:::vacuous
-        WAL -->|Missing / Corrupt wal_id| SettleNoWal["Settle DROPPED (No wal_id)"]:::forbidden
-        
-        SettleRej ==> SettleRel
-        SettleDedup ==> SettleRel
-        SettleNoWal ==> SettleRel
-        
-        SettleRej -.->|forbid| FindingCreated
-        SettleDedup -.->|forbid| FindingCreated
-        SettleNoWal -.->|forbid| FindingCreated
-        SettleDrop -.->|forbid| FindingCreated
-        
-        SettleRel --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
+
+    %% ============================================================
+    %% SETTLEMENT PIPELINE
+    %% ============================================================
+
+    subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28 / I31 / I32 / F-042)"]
+
+        PORT_F003_SETTLE_BRIDGE[["PORT: F-003 DurableOutbox Settlement Bridge"]]
+
+        Coord["SettlementCoordinator (5-Stage Claim Validation)"]:::impl
+
+        Fingerprint["Structural Parameterized Fingerprint (tool|path|param|type|sig)"]:::impl
+
+        Thaw["_to_mutable Record Format"]:::impl
+
+        WAL["StateAuthority.append SettlementIntent"]:::impl
+
+        BudgetCommit["I28 Budget COMMIT"]:::impl
+
+        FindingOutboxAppend["DurableOutbox Append Attempt"]:::impl
+
+        FindingCreated["FINDING_CREATED (Authoritative Outbox Event)"]:::impl
+
+        PORT_F006_COM[["PORT: F-006 Settle Consumed"]]
+
+        DedupStage["dedup_stage Clustering"]:::impl
+
+        FinalReport["Canonical Report Output"]:::impl
+
+        Emit["EventBus Notify I32"]:::impl
+
+        PORT_F019_BUS[["PORT: F-019 EventBus Dispatch"]]
+
+        PoisonDLQ["Poison-Pill Quarantine (DLQ Table + Metric)"]:::forbidden
+
+
+        %% --------------------------------------------------------
+        %% OUTBOX FAILURE / REPLAY
+        %% --------------------------------------------------------
+
+        NoBus["Outbox Append Failure; WAL Remains Authoritative"]:::vacuous
+
+        WALAuthoritative["WAL Committed State Preserved"]:::impl
+
+        ReplayDispatch["Replay Outbox Append & EventBus Dispatch"]:::impl
+
+
+        %% --------------------------------------------------------
+        %% SETTLEMENT OUTCOMES
+        %% --------------------------------------------------------
+
+        SettleRej["Settle REJECTED"]:::impl
+
+        SettleDedup["Settle DEDUPLICATED"]:::vacuous
+
+        SettleNoWal["Settle DROPPED (No wal_id)"]:::forbidden
+
+
+        %% Settlement entry points
+        PORT_F003_SETTLE_BRIDGE --> Coord
+
+        Out --> Coord
+
+        %% Normal settlement chain
+        Coord --> Fingerprint
+        Fingerprint --> Thaw
+        Thaw --> WAL
+
+        WAL -->|"COMMITTED + wal_id I31"| BudgetCommit
+
+        BudgetCommit --> FindingOutboxAppend
+
+        %% Successful authoritative outbox append
+        FindingOutboxAppend -->|"append committed"| FindingCreated
+
+        %% Failed outbox append: no false claim that FindingCreated exists
+        FindingOutboxAppend -.->|"append failure"| NoBus
+
+        NoBus -->|"no rollback of WAL"| WALAuthoritative
+        WALAuthoritative -->|"recovery replay"| ReplayDispatch
+
+
+        %% Successful finding publication
+        FindingCreated --> PORT_F006_COM
+        FindingCreated --> DedupStage
+        DedupStage --> FinalReport
+
+        FindingCreated -->|"HMAC Receipt Stamp"| Emit
+
+        Emit --> PORT_F019_BUS
+
+        Emit -->|"Max Delivery Retries Exceeded (5x)"| PoisonDLQ
+
+
+        %% Settlement rejection / dedup / missing WAL
+        WAL -->|"FAILED Attempt with wal_id"| SettleRej
+
+        WAL -->|"DEDUPLICATED Claim"| SettleDedup
+
+        WAL -->|"Missing / Corrupt wal_id"| SettleNoWal
+
+
+        %% Compensation
+        SettleRej --> EgressCompensate
+        SettleDedup --> EgressCompensate
+        SettleNoWal --> EgressCompensate
+
+        EgressCompensate --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
+
+
+        %% Explicit I31 negative constraints
+        SettleRej -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
+        SettleDedup -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
+        SettleNoWal -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
+        SettleDrop -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
     end
+
+
+    %% ============================================================
+    %% EGRESS DROP ENTERS SETTLEMENT SEMANTICS
+    %% ============================================================
+
+    %% Canonical egress path:
+    %% Viol -> Kill -> SettleDrop -> EgressCompensate
+    %%
+    %% NO second direct Viol -> SettleDrop edge.
+
+
+    %% ============================================================
+    %% CROSS-PLANE RELATIONSHIPS
+    %% ============================================================
+
+    EgressCompensate --> PORT_F006_REL
+
+    FindingCreated -->|"authoritative durable event"| Emit
+
+    %% Settlement bridge from F-003 is represented by the port above.
 ```
 
 ### Formal Graph Invariants Table (`FREEZE` Boundary)
