@@ -158,6 +158,18 @@ class ProcessSandbox:
 
         cmd_tuple = tuple(command)
         env = self.scrub_environment(custom_env)
+
+        # Inject scoped proxy into child subprocess env (I29 enforcement for external CLI tools)
+        proxy_server = None
+        if self.egress_filter is not None and self.limits.allow_network:
+            from src.sandbox.proxy_guard import ScopedProxyServer
+            proxy_server = ScopedProxyServer(self.egress_filter)
+            proxy_url = proxy_server.start()
+            env["HTTP_PROXY"] = proxy_url
+            env["HTTPS_PROXY"] = proxy_url
+            env["http_proxy"] = proxy_url
+            env["https_proxy"] = proxy_url
+
         start_time = time.time()
 
         # POSIX preexec_fn for rlimits + optional seccomp BPF
@@ -215,6 +227,8 @@ class ProcessSandbox:
             exit_code = -1
             timed_out = True
         except Exception as exc:
+            if proxy_server is not None:
+                proxy_server.stop()
             duration = time.time() - start_time
             return SandboxExecutionResult(
                 command=cmd_tuple,
@@ -224,6 +238,9 @@ class ProcessSandbox:
                 duration_seconds=duration,
                 error=f"Sandbox execution failed: {exc}",
             )
+        finally:
+            if proxy_server is not None:
+                proxy_server.stop()
 
         duration = time.time() - start_time
         stdout_str = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
