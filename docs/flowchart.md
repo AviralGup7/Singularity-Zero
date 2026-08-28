@@ -109,15 +109,15 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 | F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | Active |
 | F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
 | F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
-| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py` | F-011, F-038 | Active |
+| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py` | F-011, F-038 | Active |
 | F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | Active |
 | F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py` | F-024, F-030 | Active |
-| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `recovery/watchdog.py`, `run_lock.py` | F-039 | Active |
-| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py` | F-023, F-026, F-031, F-043 | Active |
+| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `recovery/watchdog.py`, `recovery/orphan_reconciler.py`, `run_lock.py` | F-039 | Active |
+| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py`, `src/api/health.py` | F-023, F-026, F-031, F-043 | Active |
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | Active |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | Active |
 | F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | Active |
-| F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py` | — | Active |
+| F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py`, `bootstrap/enforcement_check.py`, `invariant_registry.py` | — | Active |
 
 
 ---
@@ -370,10 +370,13 @@ flowchart TD
 
         Recover -->|"verify state"| Verify
         Recover -->|"attach authority"| Auth
+        Recover -->|"apply_authority_recovery after attach"| Stamp
 
         Verify --> Auth
 
         Auth -->|"inject context"| Stamp
+        Auth -.->|"attach failure"| AuthFail["Exit 3 FAIL_CLOSED"]:::forbidden
+        Bind -->|"enforcement_check.verify"| Auth
     end
 
     StageGraphRoot["RUNTIME STAGE_GRAPH (Frozen Executable Dependency Graph)"]:::anchor
@@ -684,6 +687,8 @@ flowchart TD
         Emit --> PORT_F019_BUS
 
         Emit -->|"Max Delivery Retries Exceeded (5x)"| PoisonDLQ
+        PoisonDLQ -->|"durable JSONL"| DurableDLQ["DurableDLQ + OutboxReplayAgent"]:::impl
+        DurableDLQ -->|"READY replay"| ReplayDispatch
 
         WAL -->|"FAILED Attempt with wal_id"| SettleRej
 
@@ -827,6 +832,11 @@ flowchart TD
     end
 
     LeaseTTL -->|"monotonic timeout check"| EXPIRED
+    LeaseTTL -->|"reaper tick max(250ms, ttl/4)"| Reaper["LeaseReaper (I5 / I28)"]:::impl
+    Reaper -->|"CAS PENDING -> COMPENSATING -> COMPENSATED"| Ledger["CompensationLedger"]:::impl
+    Ledger -->|"idempotent replay"| COMPENSATED
+    Phoenix["Phoenix reconcile_budget on boot"]:::impl -->|"ghost RESERVED"| Ledger
+    Slab["QuotaSlabAllocator (I26 TTL reclaim)"]:::impl --> Reserve
     PORT_F004_RES_IN -->|"reserve request"| Reserve
     PORT_F004_COM_IN -->|"commit units"| CONSUMED
     PORT_F004_REL_IN -->|"release units"| COMPENSATED
@@ -951,7 +961,8 @@ flowchart TD
     end
     OPEN -->|"set_endpoint_reserve_gate"| NoTicket["HuntBudget Gate: BudgetReserveDenied (Per-Endpoint Breaker Open)"]:::forbidden
     Evt["TelemetryEvent Stream"]:::impl --> Q{"qos_admit"}:::impl
-    Q -->|P0: Critical Audit| P0["P0: 50ms Timeout -> Emergency Ring Buffer (Fixed-size circular buffer + overflow metric)"]:::impl
+    Q -->|P0: Critical Audit| P0["P0: 50ms Timeout -> Emergency Ring Buffer"]:::impl
+    P0 -->|"ring full or capacity 0"| P0BP["P0 backpressure return False (never silent overwrite)"]:::forbidden
     Q -->|P1: Stage Lifecycle| P1["P1: Reliable Queue Dispatch"]:::impl
     Q -->|P2: Findings Buffer| P2["P2: Coalesced Findings Stream"]:::impl
     Q -->|P3: Periodic Metrics| P3["P3: 1s Rolling Aggregates"]:::impl
@@ -965,7 +976,7 @@ flowchart TD
 | **Normal (< 85% Disk, < 80% RAM)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | `Admit` |
 | **Moderate (>= 85% Disk / CPU > 90%)** | `Admit` (Durable) | `Admit` | `Admit` | `Admit` | **`DROP`** |
 | **Severe (>= 92% Disk / RAM > 90%)** | `Admit` (Spool) | `Admit` | **`COALESCE`** | **`DROP`** | **`DROP`** |
-| **Spool Saturated (> 1000 P0 items)** | `Bounded Backpressure (50ms timeout → Emergency Ring Buffer)` | `Drop` | `Drop` | `Drop` | `Drop` |
+| **Spool Saturated (> 1000 P0 items)** | `Admit to emergency ring; if ring full/disabled -> return False (no silent overwrite)` | `Drop` | `Drop` | `Drop` | `Drop` |
 
 ---
 
@@ -1026,11 +1037,11 @@ flowchart TD
 
 | Failure Domain | Retry | Rollback | Compensate | Fail-Closed | Authoritative Resolution |
 |---|---|---|---|---|---|
-| **WAL Corruption** | No | No | No | **Yes** | Restore from last verified FSM snapshot |
+| **WAL Corruption** | No | No | No | **Yes** | Restore LKG snapshot; optional SURVIVAL_READONLY if AUTO_ENTER_SURVIVAL_ON_CORRUPT |
 | **Authority Loss** | No | No | No | **Yes** | Await leader election or restart in quorum-1 mode |
 | **Replication Divergence** | No | No | No | **Yes** | Restore local FSM from leader PartitionWAL |
 | **Event Delivery Failure** | **Yes** | No | No | No | Replay outbox dispatch by `DeliveryId` (I32) |
-| **Budget Inconsistency** | No | No | **Yes** | **Yes** | Compensate outstanding I28 reservations |
+| **Budget Inconsistency** | No | No | **Yes** | **Yes** | Phoenix + CompensationLedger CAS; LeaseReaper on monotonic deadline |
 | **FSM Invariant Violation** | No | No | No | **Yes** | Snapshot re-baseline plus sequential WAL replay |
 | **Egress Policy Violation** | No | No | **Yes** | **Yes** | Terminate subprocess; compensate reserved requests (Security Violation → Exit 3) |
 | **RunLock Collision** | No | No | No | **Yes** | Abort execution (Exit 1: Target under active scan) |
@@ -1059,8 +1070,9 @@ flowchart TD
     Replay --> FSMR["RECONSTRUCT_FSM (Partition Plane Only)"]:::impl
     FSMR --> Out["RECONCILE_OUTBOX"]:::impl
     Out -->|"FSM without outbox"| Rebuild["Rebuild by EventId"]:::impl
-    Out -->|"outbox without FSM (predates commit)"| Orphan["Ignore Pre-Commit Orphan Rows"]:::vacuous
-    Rebuild & Orphan --> Del["RECONCILE_DELIVERY"]:::vacuous
+    Out -->|"outbox without FSM (predates commit)"| OrphanPre["PRE_COMMIT: IGNORE with evidence"]:::vacuous
+    Out -->|"CROSS_EPOCH / UNKNOWN"| OrphanRev["orphan_reconciler REVIEW (no auto-delete)"]:::forbidden
+    Rebuild & OrphanPre --> Del["RECONCILE_DELIVERY"]:::vacuous
     Del -->|"delivery ahead"| Drop["Discard Extra DeliveryIds"]:::vacuous
     Del -->|"delivery missing"| ReplayD["Replay Dispatch I32"]:::vacuous
     Drop & ReplayD --> Inv["VERIFY_INVARIANTS (I30–I33 + I5/I26 Budget Conservation Check)"]:::impl
@@ -1074,7 +1086,7 @@ flowchart TD
     Survival -.->|"refuse mutate / reserve / scan run / transfer"| SurvivalBlock["Mutations refused (X-Survival-Mode)"]:::forbidden
 ```
 
-Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING→COMPENSATING→COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`.
+Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I37 hook is missing.
 
 ---
 
@@ -1099,6 +1111,11 @@ flowchart TD
         ScopeCheck -->|Authorized| ScopeSigned["Signed Context Attached to Request"]:::impl
         ScopeSigned --> Dispatch["FastAPI Route Handlers"]:::impl
     end
+
+    Dispatch --> Healthz["/_healthz liveness"]:::impl
+    Dispatch --> Readyz["/_readyz READY + invariants + disk"]:::impl
+    Dispatch --> Survivalz["/_survivalz SURVIVAL_READONLY dump"]:::impl
+    Survivalz -.->|"mode SURVIVAL_READONLY"| MutRefuse["Refuse POST/PUT/PATCH/DELETE"]:::forbidden
 
     Dispatch --> Hook["useJobMonitor (React Hook)"]:::impl
     Hook -->|"progress stream"| SSE["SSE /api/jobs/:id/progress/stream"]:::impl
@@ -1272,16 +1289,16 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I23** | Partition Budget Isolation (Subleases isolated per partition, negative balances rejected) | F-006 | `raft_fsm.py`, `state.py` | `tests/unit/core/test_adaptive_tombstones.py` | `PROPERTY-TESTED` |
 | **I24** | Persisted Mesh BootID + Monotonic Nonce Safety | F-002 | `mesh/` | `tests/unit/infrastructure/test_cross_region_consensus.py` | `FAULT-INJECTED` |
 | **I25** | Partition Policy Rollback Revocation & Watermark Upper Bound | F-003 | `raft_fsm.py` | `tests/unit/core/test_global_invariants.py` | `TESTED` |
-| **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py` | `tests/unit/core/test_recovery_budget_conservation.py` | `PROPERTY-TESTED` |
+| **I26** | Multi-Raft Quota Slab Conservation ($\text{Total} \equiv \text{Consumed} + \text{Outstanding} + \text{SlabReserved} + \text{Available}$) | F-006 | `global_coordination.py`, `quota_slab.py` | `tests/unit/core/test_recovery_budget_conservation.py`, `tests/unit/core/test_survival_path.py` | `PROPERTY-TESTED` |
 | **I27** | Bounded Execution Claims (64KB) & CAS Merkle Evidence | F-004 | `execution_request.py`, `CASStore` | `tests/unit/sandbox/test_i29_egress_context.py` | `PROPERTY-TESTED` |
-| **I28** | Hardened Lease State Transitions (`RESERVED` -> `ACTIVE` -> `CONSUMED` / `EXPIRED` / `COMPENSATED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py` | `tests/unit/core/test_global_invariants.py` | `MODEL-CHECKED` |
+| **I28** | Hardened Lease State Transitions (`RESERVED` -> `ACTIVE` -> `CONSUMED` / `EXPIRED` / `COMPENSATED`) | F-006 | `lease_status.py`, `hunt_budget.py`, `state_authority.py`, `compensation_log.py`, `lease_reaper.py` | `tests/unit/core/test_global_invariants.py`, `tests/unit/core/test_survival_path.py` | `MODEL-CHECKED` |
 | **I29** | Scope-Derived Network Egress Enforcement (Egress strictly from `ScopeToken`; metadata denied) | F-004 | `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `runtime_browser.py`, `stage_admit.py` | `tests/unit/sandbox/test_i29_egress_context.py`, `tests/unit/sandbox/test_process_sandbox.py` | `ADVERSARIAL` (universal network boundary) |
 | **I30** | Cryptographic Quartet Ticket Binding (Binds ScopeToken, BudgetReservation, Revision, CommandId) | F-004 | `src/decision/authorization.py`, `stage_admit.py`, `safe_exploiter.py` | `tests/unit/core/test_global_invariants.py` | `MODEL-CHECKED` |
 | **I31** | Settlement-Gated `FINDING_CREATED` Emission (Finding requires durably committed SettlementIntent) | F-033 | `event_bus.py` | `tests/unit/core/test_global_invariants.py` | `MODEL-CHECKED` |
-| **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py` | `tests/unit/core/test_eventbus_guarantees.py` | `FAULT-INJECTED` |
+| **I32** | Non-Authoritative EventBus Outbox Decoupling (EventBus delivery failure does not uncommit) | F-033 | `event_bus.py`, `outbox/dlq.py`, `outbox/replay_agent.py` | `tests/unit/core/test_eventbus_guarantees.py`, `tests/unit/core/test_survival_path.py` | `FAULT-INJECTED` |
 | **I33** | Causal Identity Chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `tests/unit/core/test_causal_identity.py` | `PROPERTY-TESTED` |
 | **I34** | Formal Failure Recovery Boundaries (8 failure classes with declared recovery action) | F-018 | `failure_model.py` | `tests/unit/core/test_failure_model.py` | `FAULT-INJECTED` |
-| **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `tests/unit/core/test_recovery_protocol.py` | `MODEL-CHECKED` |
+| **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py`, `recovery/manager.py`, `recovery/survival.py`, `recovery/orphan_reconciler.py` | `tests/unit/core/test_recovery_protocol.py`, `tests/unit/core/test_survival_path.py` | `MODEL-CHECKED` |
 | **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py`, `replication.py` | `tests/unit/core/test_region_model.py`, `tests/unit/infrastructure/test_wal_replication.py` | `MODEL-CHECKED` |
 | **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py`, `global_coordination.py`, `migration_handler.py` | `tests/unit/core/test_authority_transfer.py` | `MODEL-CHECKED` + `ADVERSARIAL` |
 
