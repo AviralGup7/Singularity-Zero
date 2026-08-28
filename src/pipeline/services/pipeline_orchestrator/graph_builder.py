@@ -72,6 +72,7 @@ _BASE_NODES: tuple[StageNode, ...] = (
         weight=15,
         timeout=900,
         critical=True,
+        must_succeed=True,
     ),
     StageNode(
         name="waf",
@@ -235,6 +236,10 @@ def _apply_profile_to_definition(
         weight=stage_profile.get("weight", defn.weight),
         timeout_seconds=stage_profile.get("timeout_seconds", defn.timeout_seconds),
         critical=stage_profile.get("critical", defn.critical),
+        must_succeed=stage_profile.get("must_succeed", defn.must_succeed),
+        allow_degraded_downstream=stage_profile.get(
+            "allow_degraded_downstream", defn.allow_degraded_downstream
+        ),
         when=defn.when,
         runner_name=defn.runner_name,
         produces=list(defn.produces),
@@ -252,6 +257,8 @@ def _apply_profile_to_definition(
                 weight=merged.weight,
                 timeout_seconds=merged.timeout_seconds,
                 critical=merged.critical,
+                must_succeed=merged.must_succeed,
+                allow_degraded_downstream=merged.allow_degraded_downstream,
                 when=flag,
                 runner_name=merged.runner_name,
                 produces=merged.produces,
@@ -265,6 +272,8 @@ def _apply_profile_to_definition(
                 weight=merged.weight,
                 timeout_seconds=merged.timeout_seconds,
                 critical=merged.critical,
+                must_succeed=merged.must_succeed,
+                allow_degraded_downstream=merged.allow_degraded_downstream,
                 when=combined,
                 runner_name=merged.runner_name,
                 produces=merged.produces,
@@ -325,6 +334,10 @@ def build_pipeline_graph(
             if builtin_node.critical and not stage_node.critical:
                 raise ValueError(
                     f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' cannot unset critical=True"
+                )
+            if builtin_node.must_succeed and not stage_node.must_succeed:
+                raise ValueError(
+                    f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' cannot unset must_succeed=True"
                 )
         nodes_by_name[stage_node.name] = stage_node
 

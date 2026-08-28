@@ -533,8 +533,10 @@ flowchart TD
         P_DEF -.->|"tick retry"| P_CAND
         P_DEF -->|"scan drain -> condition_never_satisfied"| P_SKIP
         P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL
+        P_FAIL -->|"non-critical MVR: coerce DEGRADED, continue DAG"| P_DEG
         P_FAIL -->|"non-critical -> downstream may continue"| DownstreamRun
-        P_FAIL -->|"critical -> skip dependent"| P_SKIP_FAIL
+        P_FAIL -->|"must_succeed / critical -> skip dependent"| P_SKIP_FAIL
+        P_DEG -->|"join sink still emits partial report"| Report
     end
 
     Scheduler -->|"evaluate persisted lifecycle"| P_PEND
@@ -671,7 +673,11 @@ flowchart TD
 
         BudgetCommit --> FindingOutboxAppend
 
+        Spill["findings.spill.jsonl (append-only, pre-settle)"]:::impl
+        Out -->|"candidate before settle"| Spill
+        Coord -->|"candidate before WAL"| Spill
         FindingOutboxAppend -->|"append committed"| FindingCreated
+        FindingOutboxAppend -.->|"append failure; spill retained"| Spill
 
         FindingOutboxAppend -.->|"append failure"| NoBus
 
@@ -1084,9 +1090,14 @@ flowchart TD
     Fresh -->|"initialize empty state"| Ready
     Inv -->|"WAL unreadable but LKG snapshot hash ok"| Survival["SURVIVAL_READONLY (reads/export/DLQ only)"]:::impl
     Survival -.->|"refuse mutate / reserve / scan run / transfer"| SurvivalBlock["Mutations refused (X-Survival-Mode)"]:::forbidden
+    AuthLoss["Authority / PartitionWAL unreachable"]:::impl -->|"AUTO_FRONTIER_ONLY_ON_AUTH_LOSS or --frontier-only"| FrontierOnly["FRONTIER_ONLY discovery allowlist"]:::impl
+    FrontierOnly -->|"spill + merge_queue, no PartitionWAL settle"| SpillPath["findings.spill.jsonl + frontier_merge_queue"]:::impl
+    ResourceCrit["ResourceGuard CRITICAL (disk>=95% / OOM)"]:::impl -->|"stop new stages, keep JOIN_SINKS"| Partial["emit_partial_report exit 4"]:::impl
+    DagCkpt["DagCheckpoint (stage_status JSON, independent of FSM)"]:::impl -->|"CRASHED_IN_PROGRESS"| ResumeOrFinalize["--resume or --finalize-crashed"]:::impl
+    Ready -->|"OutboxReplayAgent.tick"| ReplayAgent["DurableDLQ replay"]:::impl
 ```
 
-Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I37 hook is missing.
+Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I37 hook is missing. MVR (`PIPELINE_CONTINUE_ON_NON_CRITICAL=true`) coerces non-`must_succeed` stage failures to `DEGRADED` so join sinks still emit; `FRONTIER_ONLY` keeps discovery running without PartitionWAL settle (spill + merge queue); `DagCheckpoint` records `CRASHED_IN_PROGRESS` independently of the FSM; ResourceGuard CRITICAL stops new stages, keeps JOIN_SINKS, writes `report_partial.*`, exit 4. `OutboxReplayAgent.tick()` runs in `RecoveryManager._finish`.
 
 ---
 
@@ -1116,6 +1127,7 @@ flowchart TD
     Dispatch --> Readyz["/_readyz READY + invariants + disk"]:::impl
     Dispatch --> Survivalz["/_survivalz SURVIVAL_READONLY dump"]:::impl
     Survivalz -.->|"mode SURVIVAL_READONLY"| MutRefuse["Refuse POST/PUT/PATCH/DELETE"]:::forbidden
+    Dispatch --> FrontierHdr["X-Frontier-Only / X-Frontier-Reason"]:::impl
 
     Dispatch --> Hook["useJobMonitor (React Hook)"]:::impl
     Hook -->|"progress stream"| SSE["SSE /api/jobs/:id/progress/stream"]:::impl
@@ -1448,3 +1460,9 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `BUDGET_PHOENIX_ON_BOOT` | `true` | Recovery | Reconcile Outstanding/Consumed/Compensated from durable history |
 | `ARCHIVE_VERIFY_THEN_DELETE` | `true` | Storage | Hard-enforce archive verify before deleting hot runs |
 | `OUTBOX_DLQ_ENABLED` | `true` | Outbox | Enable poison-pill DLQ move after retry exhaustion; durable JSONL + replay agent |
+| `MVR_ENABLED` | `true` | Pipeline | Degrade non-critical failures; emit partial reports; keep join sinks running |
+| `PIPELINE_CONTINUE_ON_NON_CRITICAL` | `true` | Scheduler | Coerce non-must_succeed FAILED -> DEGRADED and continue the DAG |
+| `REPORT_EMIT_PARTIAL_ON_SHUTDOWN` | `true` | Reporting | Write `output/<run_id>/partial/report_partial.{json,html,sarif}` on SIGINT/OOM |
+| `AUTO_FRONTIER_ONLY_ON_AUTH_LOSS` | `false` | Recovery | Auto-enter FRONTIER_ONLY discovery mode when authority is unreachable |
+| `FINDINGS_SPILL_ENABLED` | `true` | Findings | Append-only JSONL spill before settlement |
+| `DAG_CHECKPOINT_ENABLED` | `true` | Checkpoint | Persist DAG stage_status independently of PartitionFSM |

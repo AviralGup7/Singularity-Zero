@@ -426,6 +426,24 @@ class PipelineOrchestrator:
         FINDING_CREATED events from uncommitted or non-dict stage payloads.
         """
         try:
+            from src.core.findings.spill import spill_finding
+
+            run_id = str(getattr(ctx, "run_id", "") or "")
+            output_dir = None
+            try:
+                output_dir = getattr(ctx, "output_dir", None) or getattr(
+                    getattr(self, "_loaded_config", None), "output_dir", None
+                )
+            except Exception:
+                output_dir = None
+            for item in getattr(stage_output, "findings", ()) or ():
+                if isinstance(item, dict):
+                    spill_finding(
+                        dict(item), run_id=run_id, stage=stage_name, output_dir=output_dir
+                    )
+        except Exception:
+            logger.debug("pre-settle findings spill skipped", exc_info=True)
+        try:
             coordinator = self.settlement_coordinator
         except RuntimeError:
             logger.warning(
@@ -433,6 +451,14 @@ class PipelineOrchestrator:
                 stage_name,
             )
             return None
+        try:
+            from src.core.frontier.frontier_only import refuse_authoritative_settle
+
+            if refuse_authoritative_settle():
+                logger.info("FRONTIER_ONLY: skipping PartitionWAL settle for stage %s", stage_name)
+                return None
+        except Exception:
+            logger.debug("frontier_only settle guard skipped", exc_info=True)
         settle_res = coordinator.settle_stage_output(ctx, stage_name, stage_output)
         if getattr(settle_res, "status", "") != "COMMITTED":
             return settle_res

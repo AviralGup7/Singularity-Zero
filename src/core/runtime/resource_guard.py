@@ -11,9 +11,17 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+class PressureLevel(StrEnum):
+    OK = "ok"
+    WARN = "warn"
+    PRESSURE = "pressure"
+    CRITICAL = "critical"
 
 
 class ResourceExhausted(RuntimeError):

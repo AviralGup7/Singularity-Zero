@@ -190,9 +190,15 @@ class StageNode:
         Optional per-stage timeout override (seconds).  ``None`` means
         "use the orchestrator's resolver".
     critical:
-        When ``True``, a fatal failure of this node aborts the run.
-        Mirrors the hard-coded ``{"subdomains", "live_hosts", "urls"}``
-        set used by the legacy tier runner.
+        When ``True``, dependents that list this node in ``needs`` are
+        skipped (SKIPPED_FAILED) if it fails. Independent branches and
+        join sinks still run under MVR.
+    must_succeed:
+        When ``True``, keep FAILED (do not coerce to DEGRADED). Combined
+        with ``critical`` this is the fail-closed gate for live_hosts.
+    allow_degraded_downstream:
+        When ``True`` (default), DEGRADED on this node still satisfies
+        non-join ``_need_met``.
     """
 
     name: str
@@ -201,6 +207,8 @@ class StageNode:
     weight: int = 1
     timeout: int | None = None
     critical: bool = False
+    must_succeed: bool = False
+    allow_degraded_downstream: bool = True
 
 
 @dataclass(frozen=True)

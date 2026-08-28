@@ -446,6 +446,12 @@ def main(argv: list[str] | None = None) -> int:
                     # ``is_set()`` to avoid the always-truthy trap.
                     if bool(getattr(shutdown_flag, "is_set", lambda: False)()):
                         emit_warning("Shutdown flag detected, persisting partial results...")
+                        try:
+                            from src.pipeline.mvr import emit_bound_partial_report
+
+                            emit_bound_partial_report("shutdown_flag")
+                        except Exception:
+                            logger.debug("partial report on shutdown skipped", exc_info=True)
 
             if getattr(args, "replay_archive", None):
                 return loop.run_until_complete(_run_replay(args))
@@ -484,6 +490,12 @@ def main(argv: list[str] | None = None) -> int:
             loop.close()
     except KeyboardInterrupt:
         emit_warning("Interrupted by user.")
+        try:
+            from src.pipeline.mvr import emit_bound_partial_report
+
+            emit_bound_partial_report("keyboard_interrupt")
+        except Exception:
+            logger.debug("partial report on interrupt skipped", exc_info=True)
         return 130
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         emit_error(f"Pipeline failed: {exc}")

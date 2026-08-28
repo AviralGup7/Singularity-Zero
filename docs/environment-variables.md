@@ -38,6 +38,21 @@ This document serves as the authoritative single source of truth for all environ
 | `BUDGET_PHOENIX_ON_BOOT` | boolean | `true` | Rebuild Outstanding/Consumed/Compensated from SettlementIntent + CompensationLedger; compensate ghost reservations. |
 | `ARCHIVE_VERIFY_THEN_DELETE` | boolean | `true` | Refuse to delete hot run data unless archive tarball verified. |
 | `OUTBOX_DLQ_ENABLED` | boolean | `true` | Move poison payloads to DLQ after max delivery retries. |
+| `MVR_ENABLED` | boolean | `true` | Maximum viable result: degrade non-critical failures instead of aborting; always try to emit a report. |
+| `PIPELINE_CONTINUE_ON_NON_CRITICAL` | boolean | `true` | Convert non-`must_succeed` stage failures to `DEGRADED` and keep dispatching independent work / join sinks. |
+| `PIPELINE_STRICT_CRITICAL` | boolean | `false` | Treat every `critical=True` node as must-succeed (restore fail-fast abort of the DAG loop). |
+| `REPORT_EMIT_PARTIAL_ON_SHUTDOWN` | boolean | `true` | Write `report_partial.{json,html,sarif}` on SIGINT/SIGTERM/OOM/resource-critical. |
+| `AUTO_FRONTIER_ONLY_ON_AUTH_LOSS` | boolean | `false` | Auto-enter `FRONTIER_ONLY` (discovery without PartitionWAL settle) when authority is unreachable. Keep `false` on first rollout; `--frontier-only` / `force=True` still works. |
+| `FRONTIER_ONLY_ALLOWLIST` | string | `subdomains,live_hosts,urls,recon_validation,git_diff_crawl,parameters` | Stages permitted while `FRONTIER_ONLY` is active. |
+| `FINDINGS_SPILL_ENABLED` | boolean | `true` | Append-only `findings.spill.jsonl` written before settlement; survives WAL/outbox I/O failure. |
+| `FINDINGS_SPILL_FSYNC_EVERY` | integer | `50` | fsync the spill file every N lines (and on flush). |
+| `DAG_CHECKPOINT_ENABLED` | boolean | `true` | Persist DAG `stage_status` independently of PartitionFSM for resume / finalize-crashed. |
+| `DAG_CHECKPOINT_HEARTBEAT_S` | integer | `15` | Heartbeat interval hint for DAG checkpoint writes. |
+| `AUTO_FINALIZE_CRASHED_ON_STARTUP` | boolean | `false` | Auto-finalize `CRASHED_IN_PROGRESS` runs on boot. Safer to require `--finalize-crashed` first. |
+| `DISK_PRESSURE_PCT` | float | `92` | ResourceGuard PRESSURE threshold (disk utilisation %). |
+| `DISK_CRITICAL_PCT` | float | `95` | ResourceGuard CRITICAL threshold; scheduler stops new work, emits partial report, exit 4. |
+| `MEM_PRESSURE_PCT` | float | `85` | Memory PRESSURE threshold. |
+| `OUTBOX_REPLAY_AGENT_ENABLED` | boolean | `true` | RecoveryManager ticks `OutboxReplayAgent` before READY. |
 
 ---
 

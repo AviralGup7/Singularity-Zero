@@ -12,6 +12,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from src.core.frontier.frontier_only import get_frontier_only_state
 from src.core.recovery.survival import get_survival_state, is_survival
 from src.core.runtime.resource_guard import inspect_resources
 
@@ -55,11 +56,22 @@ def readiness(
 
 
 def survivalz() -> dict[str, Any]:
-    return get_survival_state().to_dict()
+    body = get_survival_state().to_dict()
+    frontier = get_frontier_only_state()
+    body["frontier_only"] = frontier.to_dict()
+    try:
+        from src.core.findings.spill import spill_enabled
+
+        body["findings_spill_enabled"] = spill_enabled()
+    except Exception:
+        body["findings_spill_enabled"] = False
+    return body
 
 
 def survival_headers() -> dict[str, str]:
-    return get_survival_state().headers()
+    headers = get_survival_state().headers()
+    headers.update(get_frontier_only_state().headers())
+    return headers
 
 
 try:

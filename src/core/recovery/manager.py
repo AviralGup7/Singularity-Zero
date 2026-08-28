@@ -280,6 +280,17 @@ class RecoveryManager:
                 write_recovery_report(self.output_dir / "recovery_report.json", report, extra=extra)
         except Exception as exc:  # noqa: BLE001
             logger.debug("recovery_report write skipped: %s", exc)
+        try:
+            from src.core.outbox.dlq import DurableDLQ
+            from src.core.outbox.replay_agent import OutboxReplayAgent
+
+            dlq_path = self.output_dir / "outbox_dlq.json"
+            agent = OutboxReplayAgent(dlq=DurableDLQ(dlq_path))
+            replayed = agent.tick()
+            if replayed:
+                logger.info("OutboxReplayAgent recovered %d deliveries", replayed)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("outbox replay on recovery skipped: %s", exc)
         return result
 
     def _fresh(self, mode: WalReplayMode) -> ReconstructedState:

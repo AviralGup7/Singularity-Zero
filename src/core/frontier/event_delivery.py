@@ -179,9 +179,17 @@ def dispatch_committed_findings(
     Outbox or bus failures are logged; they do not un-commit settlement (I32).
     Duplicate DeliveryId is skipped so crash-replay of dispatch is a no-op (I33).
     """
-    assert_settlement_causality(settle_res)
     identity = _identity_from_settle(settle_res, stage_name)
     ledger = delivery_ledger if delivery_ledger is not None else get_delivery_ledger()
+    frontier_only = False
+    try:
+        from src.core.frontier.frontier_only import is_frontier_only
+
+        frontier_only = is_frontier_only()
+    except Exception:
+        frontier_only = False
+    if not frontier_only:
+        assert_settlement_causality(settle_res)
     if outbox is not None and hasattr(outbox, "read_all_events"):
         try:
             existing = outbox.read_all_events()
@@ -209,6 +217,33 @@ def dispatch_committed_findings(
             )
         )
         published += 1
+
+    run_id = str(getattr(settle_res, "run_id", "") or identity.execution_id)
+    try:
+        from src.core.findings.spill import spill_finding
+
+        for finding in dict_findings:
+            spill_finding(finding, run_id=run_id, stage=stage_name)
+    except Exception:
+        logger.debug("findings spill skipped", exc_info=True)
+
+    if frontier_only:
+        try:
+            from pathlib import Path
+
+            from src.core.frontier.merge_queue import FrontierMergeQueue
+
+            queue = FrontierMergeQueue(Path("output") / run_id / "frontier_merge_queue.jsonl")
+            for finding in dict_findings:
+                queue.append({"stage": stage_name, "finding": finding, "run_id": run_id})
+        except Exception:
+            logger.debug("frontier merge queue skipped", exc_info=True)
+        logger.info(
+            "FRONTIER_ONLY: skipped authoritative outbox/bus for %d findings stage=%s",
+            published,
+            stage_name,
+        )
+        return published
 
     outbox_ok = True
     if outbox is not None and envelopes:

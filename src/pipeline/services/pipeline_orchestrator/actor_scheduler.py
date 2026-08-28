@@ -200,6 +200,16 @@ class ActorScheduler:
             len(self._graph.nodes),
             len(self._completed),
         )
+        try:
+            from src.pipeline.mvr import bind_run
+
+            bind_run(
+                run_id=str(getattr(self._ctx, "run_id", "") or ""),
+                output_dir=getattr(self._config, "output_dir", None),
+                ctx=self._ctx,
+            )
+        except Exception:
+            logger.debug("MVR bind_run skipped", exc_info=True)
 
         # Seed StagePlanner with learning integration
         from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
@@ -216,7 +226,7 @@ class ActorScheduler:
         overridden_keys: set[str] = set()
 
         while True:
-            if self._failed_critical is not None:
+            if self._failed_critical is not None and self._abort_pipeline_on_critical():
                 if self._outcome.exit_code is None:
                     self._outcome.exit_code = 3
                 break
@@ -281,8 +291,16 @@ class ActorScheduler:
                         self._error_emitter(
                             "resource_guard", f"Critical OOM detected: {error_detail}"
                         )
-                        self._failed_critical = "resource_guard"
-                        self._outcome.exit_code = 1
+                        self._outcome.exit_code = 4
+                        self._skip_remaining_keep_sinks(reason="resource_pressure")
+                        try:
+                            from src.pipeline.mvr import emit_bound_partial_report
+
+                            emit_bound_partial_report("resource_guard_critical")
+                        except Exception:
+                            logger.debug(
+                                "partial report on resource pressure skipped", exc_info=True
+                            )
                         break
                 except Exception as exc:  # noqa: BLE001
                     logger.debug("ResourceGuard early check failed (%s).", exc)
@@ -652,13 +670,13 @@ class ActorScheduler:
     def _handle_completion(self, node: StageNode, result: Any) -> None:
         status = self._ctx.result.stage_status.get(node.name)
         if status == StageStatus.FAILED.value:
-            self._outcome.failed.add(node.name)
-            if node.critical:
-                self._failed_critical = node.name
-                self._error_emitter(
-                    node.name,
-                    f"Critical stage '{node.name}' failed; aborting pipeline.",
-                )
+            self._record_stage_failure(node, error="stage_failed")
+            return
+        if status == StageStatus.DEGRADED.value:
+            self._completed.add(node.name)
+            self._outcome.completed.add(node.name)
+            self._run_post_completion_hook(node)
+            self._record_speculative_completion(node)
             return
 
         self._completed.add(node.name)
@@ -674,13 +692,96 @@ class ActorScheduler:
             "failure_reason": str(exc) or exc.__class__.__name__,
             "fatal": node.critical,
         }
-        self._outcome.failed.add(node.name)
-        if node.critical:
-            self._failed_critical = node.name
+        self._record_stage_failure(node, error=str(exc) or exc.__class__.__name__)
         self._error_emitter(
             node.name,
             f"Stage '{node.name}' raised: {exc}",
         )
+
+    def _abort_pipeline_on_critical(self) -> bool:
+        from src.pipeline.mvr import continue_on_non_critical, strict_critical
+
+        if not continue_on_non_critical():
+            return True
+        return strict_critical()
+
+    def _record_stage_failure(self, node: StageNode, *, error: str) -> None:
+        from src.pipeline.mvr import abort_on_stage_failure
+
+        if abort_on_stage_failure(node):
+            self._outcome.failed.add(node.name)
+            if node.critical or node.must_succeed:
+                self._failed_critical = node.name
+                self._error_emitter(
+                    node.name,
+                    f"must_succeed stage '{node.name}' failed ({error}); "
+                    "skipping dependents, continuing independent work.",
+                )
+            self._cascade_unsatisfiable()
+            return
+        logger.warning(
+            "Stage '%s' failed -> DEGRADED (continuing) error=%s",
+            node.name,
+            error,
+        )
+        try:
+            self._ctx.result.stage_status[node.name] = StageStatus.DEGRADED.value
+        except Exception:
+            logger.debug("Unable to coerce %s to DEGRADED", node.name, exc_info=True)
+        metrics = {}
+        try:
+            metrics = dict(self._ctx.result.module_metrics.get(node.name) or {})
+        except Exception:
+            metrics = {}
+        metrics.update(
+            {
+                "status": "degraded",
+                "degraded_from": "failed",
+                "error": error,
+            }
+        )
+        self._ctx.result.module_metrics[node.name] = metrics
+        self._completed.add(node.name)
+        self._outcome.completed.add(node.name)
+        self._run_post_completion_hook(node)
+        self._record_speculative_completion(node)
+        self._persist_dag_checkpoint(current_stage=node.name)
+
+    def _cascade_unsatisfiable(self) -> None:
+        """Mark dependents of a just-failed critical stage so join sinks unblock."""
+        self._finalize_unsatisfiable_nodes()
+        self._persist_dag_checkpoint()
+
+    def _persist_dag_checkpoint(self, current_stage: str = "") -> None:
+        try:
+            from pathlib import Path
+
+            from src.core.checkpoint.dag_checkpoint import DagCheckpoint, DagCheckpointStore
+
+            run_id = str(getattr(self._ctx, "run_id", "") or "")
+            if not run_id:
+                return
+            output_dir = getattr(self._config, "output_dir", None)
+            if not output_dir:
+                return
+            stage_status: dict[str, str] = {}
+            try:
+                stage_status = {
+                    str(k): str(v) for k, v in dict(self._ctx.result.stage_status).items()
+                }
+            except Exception:
+                stage_status = {}
+            snap = DagCheckpoint(
+                run_id=run_id,
+                status="RUNNING",
+                stage_status=stage_status,
+                completed=sorted(self._completed),
+                failed=sorted(self._outcome.failed),
+                current_stage=current_stage,
+            )
+            DagCheckpointStore(Path(str(output_dir)) / run_id / "dag_checkpoint.json").save(snap)
+        except Exception:
+            logger.debug("dag checkpoint persist skipped", exc_info=True)
 
     def _record_speculative_completion(self, node: StageNode) -> None:
         for entry in reversed(self._outcome.speculative_dispatches):
@@ -697,7 +798,7 @@ class ActorScheduler:
         # decided to exit due to a critical failure. Without this check,
         # late-unblocked nodes can be re-dispatched after the main loop
         # has already given up, running stages out of intended order.
-        if self._failed_critical is not None:
+        if self._failed_critical is not None and self._abort_pipeline_on_critical():
             logger.debug(
                 "ActorScheduler: skipping re-scheduling (failed_critical=%s)",
                 self._failed_critical,
@@ -874,7 +975,14 @@ class ActorScheduler:
         return (time.monotonic() - self._run_started_at) >= self._max_duration_seconds
 
     def _skip_remaining_for_deadline(self) -> None:
+        self._skip_remaining_keep_sinks(reason="global_deadline_exceeded")
+
+    def _skip_remaining_keep_sinks(self, *, reason: str) -> None:
+        """Stop new work but keep reporting/sarif/ci_export dispatchable."""
+        keep = set(self._JOIN_SINKS)
         for node in self._graph.nodes:
+            if node.name in keep:
+                continue
             if node.name in self._completed or node.name in self._skipped:
                 continue
             if node.name in self._outcome.skipped:
@@ -883,7 +991,7 @@ class ActorScheduler:
                 continue
             if node.name in self._launched:
                 continue
-            self._mark_skipped(node, reason="global_deadline_exceeded")
+            self._mark_skipped(node, reason=reason)
 
     def _shutdown_requested(self) -> bool:
         try:

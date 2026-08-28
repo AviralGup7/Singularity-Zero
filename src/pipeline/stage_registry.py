@@ -24,6 +24,8 @@ class StageNodeDefinition:
     weight: int = 1
     timeout_seconds: int = 300
     critical: bool = False
+    must_succeed: bool = False
+    allow_degraded_downstream: bool = True
     when: Condition | None = None
     runner_name: str = ""
     produces: list[str] = field(default_factory=list)
