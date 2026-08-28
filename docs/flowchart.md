@@ -490,16 +490,16 @@ flowchart TD
 
         Intel --> Threat
 
-        Intel --> Report
-        Nuclei --> Report
-        Access --> Report
-        Threat --> Report
-        Val --> Report
-        Semgrep --> Report
-        Passive --> Report
-        Takeover --> Report
+        Intel -->|"wait: ALL producers terminal, FAILED included"| Report
+        Nuclei -->|"wait: ALL producers terminal, FAILED included"| Report
+        Access -->|"wait: ALL producers terminal, FAILED included"| Report
+        Threat -->|"wait: ALL producers terminal, FAILED included"| Report
+        Val -->|"wait: ALL producers terminal, FAILED included"| Report
+        Semgrep -->|"wait: ALL producers terminal, FAILED included"| Report
+        Passive -->|"wait: ALL producers terminal, FAILED included"| Report
+        Takeover -->|"wait: ALL producers terminal, FAILED included"| Report
 
-        DynProducers -->|"composition: _join_finding_producers"| Report
+        DynProducers -->|"composition: _join_finding_producers (wait: ALL producers terminal, FAILED included)"| Report
 
         Report --> Sarif
         Report --> CiExp
@@ -515,12 +515,12 @@ flowchart TD
         P_DEG["DEGRADED<br/>(persisted terminal)"]:::impl
         P_FAIL["FAILED<br/>(persisted terminal)"]:::impl
         P_DEF["DEFERRED<br/>(scheduler-local control state; not persisted)"]:::vacuous
-        P_SKIP["SKIPPED_DISABLED<br/>(persisted terminal: reason=condition_never_satisfied)"]:::impl
-        P_SKIP_FAIL["SKIPPED_FAILED<br/>(persisted terminal: upstream_critical_failure)"]:::impl
+        P_SKIP["SKIPPED_DISABLED<br/>(persisted terminal)"]:::impl
+        P_SKIP_FAIL["SKIPPED_FAILED<br/>(persisted terminal)"]:::impl
         DownstreamRun["downstream execution continues (non-critical)"]:::impl
 
         ReadinessRoot --> P_PEND
-        P_PEND -->|"_need_met all deps"| P_CAND
+        P_PEND -->|"_need_met: deps COMPLETED / DEGRADED / SKIPPED_DISABLED"| P_CAND
         P_CAND -->|"when.is_satisfied == True"| P_DISP
         P_DISP -->|"spawn execution"| P_RUN
         P_RUN -->|"success"| P_COMP
@@ -528,10 +528,10 @@ flowchart TD
         P_RUN -->|"failure"| P_FAIL
         P_CAND -.->|"when == False (control state)"| P_DEF
         P_DEF -.->|"tick retry"| P_CAND
-        P_DEF -->|"scan drain"| P_SKIP
+        P_DEF -->|"scan drain -> condition_never_satisfied"| P_SKIP
         P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL
-        P_FAIL -->|"non-critical stage failure"| DownstreamRun
-        P_FAIL -->|"critical stage failure (e.g. live_hosts)"| P_SKIP_FAIL
+        P_FAIL -->|"non-critical -> downstream may continue"| DownstreamRun
+        P_FAIL -->|"critical -> skip dependent"| P_SKIP_FAIL
     end
 
     Scheduler -->|"evaluate persisted lifecycle"| P_PEND
