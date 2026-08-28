@@ -217,7 +217,7 @@ flowchart TD
     classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast (forward-compat)| Registry["SchemaMigrationRegistry (v1 ↔ v2 ↔ v3)"]:::impl
+    OldPayload["Legacy Command / Payload (v1 / v2)"]:::impl -->|upcast (forward-compat)| Registry["SchemaMigrationRegistry (v1 <-> v2 <-> v3)"]:::impl
     NewPayload["Future / v3+ Payload"]:::impl -->|reverse-translate (reverse-compat)| Registry
     Registry -->|target new| Envelope["Output: Canonical Envelope (v3)"]:::impl
     Registry -->|target legacy / rolling upgrade| DowngradedEnvelope["Output: Downgraded Envelope + _unknown_fields bag"]:::impl
@@ -264,7 +264,7 @@ flowchart TD
         Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
         
-        Outbox --> PORT_CRDT_BRIDGE[["PORT: DurableOutbox Settlement Bridge → F-004 SettlementCoordinator"]]
+        Outbox --> PORT_CRDT_BRIDGE[["PORT: DurableOutbox Settlement Bridge -> F-004 SettlementCoordinator"]]
         Outbox --> PORT_F019_BUS[["PORT: F-019 DurableOutbox EventBus Dispatch"]]
     end
     
