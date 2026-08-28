@@ -507,51 +507,30 @@ flowchart TD
     end
 
     subgraph ReadinessFSM["Scheduler Readiness vs Persisted StageStatus"]
-
-        P_PEND["PENDING (persisted)"]:::impl
-
-        P_CAND["candidate ready (scheduler-local)"]:::impl
-
-        P_DISP["dispatch actor"]:::impl
-
-        P_RUN["RUNNING (persisted)"]:::impl
-
-        P_COMP["COMPLETED (persisted)"]:::impl
-
-        P_DEG["DEGRADED (persisted)"]:::impl
-
-        P_FAIL["FAILED (persisted)"]:::impl
-
-        P_DEF["deferred (scheduler-local control state)"]:::vacuous
-
-        P_SKIP["SKIPPED_DISABLED [TERMINAL FOR RUN] (reason=condition_never_satisfied)"]:::impl
-
-        P_SKIP_FAIL["SKIPPED_FAILED (persisted)"]:::impl
-
+        P_PEND["PENDING<br/>(persisted)"]:::impl
+        P_CAND["READY candidate<br/>(scheduler-local; not persisted)"]:::impl
+        P_DISP["DISPATCH actor<br/>(scheduler-local; not persisted)"]:::impl
+        P_RUN["RUNNING<br/>(persisted)"]:::impl
+        P_COMP["COMPLETED<br/>(persisted terminal)"]:::impl
+        P_DEG["DEGRADED<br/>(persisted terminal)"]:::impl
+        P_FAIL["FAILED<br/>(persisted terminal)"]:::impl
+        P_DEF["DEFERRED<br/>(scheduler-local control state; not persisted)"]:::vacuous
+        P_SKIP["SKIPPED_DISABLED<br/>(persisted terminal: reason=condition_never_satisfied)"]:::impl
+        P_SKIP_FAIL["SKIPPED_FAILED<br/>(persisted terminal: upstream_critical_failure)"]:::impl
         DownstreamRun["downstream execution continues (non-critical)"]:::impl
 
         ReadinessRoot --> P_PEND
-
         P_PEND -->|"_need_met all deps"| P_CAND
-
         P_CAND -->|"when.is_satisfied == True"| P_DISP
-
         P_DISP -->|"spawn execution"| P_RUN
-
         P_RUN -->|"success"| P_COMP
         P_RUN -->|"partial / degraded"| P_DEG
         P_RUN -->|"failure"| P_FAIL
-
         P_CAND -.->|"when == False (control state)"| P_DEF
-
         P_DEF -.->|"tick retry"| P_CAND
-
         P_DEF -->|"scan drain"| P_SKIP
-
         P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL
-
         P_FAIL -->|"non-critical stage failure"| DownstreamRun
-
         P_FAIL -->|"critical stage failure (e.g. live_hosts)"| P_SKIP_FAIL
     end
 
@@ -747,8 +726,6 @@ flowchart TD
 
 ### Operational Gating Matrix
 
-Persisted terminals live in `StageStatus` (`PENDING`, `RUNNING`, `COMPLETED`, `DEGRADED`, `FAILED`, `SKIPPED_DISABLED`, `SKIPPED_FAILED`). Scheduler-local “ready / deferred / dispatch” are **not** enum values.
-
 | Upstream Status ($A$) | `OutputNonEmpty(A)` / `when` | Downstream Action ($B$) | Typical terminal / skip reason (code) |
 |---|---|---|---|
 | **`COMPLETED` / `DEGRADED` with output** | `when` true | Dispatch → `RUNNING` → terminal | Normal execution |
@@ -756,12 +733,6 @@ Persisted terminals live in `StageStatus` (`PENDING`, `RUNNING`, `COMPLETED`, `D
 | **`FAILED` on critical upstream** | n/a | Block / skip dependents | `reason="upstream_critical_failure"` → often `SKIPPED_FAILED` path |
 | **`SKIPPED_DISABLED` upstream** | n/a | Still satisfies non-join `_need_met` | Downstream may run or skip on its own `when` |
 | **Join sinks (`reporting`, …)** | n/a | Wait until **every** producer is terminal (incl. `FAILED`) | Report still emits (partial allowed) |
-
-Other skip reasons observed in `actor_scheduler.py`: `method_not_found`, `suspend_triggered`, `cancelled`, `global_deadline_exceeded`, `speculative_dispatch` (dispatch telemetry, not a skip).
-
-- **Dependency Fulfillment (`_need_met`)**: Non-join stages unblock on $\{ \text{COMPLETED}, \text{DEGRADED}, \text{SKIPPED\_DISABLED} \}$ (plus internal completed/skipped sets). Join sinks unblock on **any** `TERMINAL_STAGE_STATUSES` member (including `FAILED`).
-- **Report Integrity**: Partial producer failure still reaches `reporting`; job exit lattice (F-018) maps partial vs fatal (`exit 4` vs `3`).
-- **Concurrency & Fairness**: Ready nodes sorted by $(-\text{node.weight}, \text{declaration\_index})$. Retries mint fresh `AttemptId` (I33) and single-use tickets (I30).
 
 ---
 
