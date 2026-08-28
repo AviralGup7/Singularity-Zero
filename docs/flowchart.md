@@ -653,44 +653,29 @@ flowchart TD
         InstallFilt -->|"4. universal egress guard"| Guard
 
 
-        %% --------------------------------------------------------
-        %% APPLICATION / RUNTIME ENFORCEMENT
-        %% --------------------------------------------------------
+        %% --- Application & Runtime Egress Layer ---
+        HTTPX["httpx.Client (Application Hook)"]:::impl
+        Requests["requests.Session (Application Hook)"]:::impl
+        Shared["shared_sessions.py (Application Hook)"]:::impl
+        Socket["socket.socket.connect (Socket Patch)"]:::impl
+        Stream["asyncio.open_connection (Stream Patch)"]:::impl
+        Browser["runtime_browser.py (Browser Guard)"]:::impl
 
-        subgraph AppEnforcement["Application & Runtime Egress Layer"]
-
-            HTTPX["httpx.Client"]:::impl
-            Requests["requests.Session"]:::impl
-            Shared["shared_sessions.py"]:::impl
-            Socket["socket.socket.connect / create_connection"]:::impl
-            Stream["asyncio.open_connection (H2 / TLS / WS)"]:::impl
-            Browser["runtime_browser.py (page.goto)"]:::impl
-
-            Guard -->|"hook"| HTTPX
-            Guard -->|"hook"| Requests
-            Guard -->|"hook"| Shared
-            Guard -->|"patch"| Socket
-            Guard -->|"patch"| Stream
-            Guard -->|"guard"| Browser
-        end
+        Guard -->|"hook"| HTTPX
+        Guard -->|"hook"| Requests
+        Guard -->|"hook"| Shared
+        Guard -->|"patch"| Socket
+        Guard -->|"patch"| Stream
+        Guard -->|"guard"| Browser
 
 
-        %% --------------------------------------------------------
-        %% KERNEL ENFORCEMENT
-        %% --------------------------------------------------------
+        %% --- Kernel-Level Isolation Layer ---
+        Subproc["ProcessSandbox (Kernel NetNS + Seccomp-BPF)"]:::specOnly
 
-        subgraph KernelEnforcement["Kernel-Level Isolation Layer"]
-
-            Subproc["ProcessSandbox (Kernel-Level Enforcement)"]:::specOnly
-
-            Guard -->|"sandbox: NetNS unshare -n + Seccomp-BPF (Linux)"| Subproc
-        end
+        Guard -->|"sandbox"| Subproc
 
 
-        %% --------------------------------------------------------
-        %% EXECUTION OUTPUT
-        %% --------------------------------------------------------
-
+        %% --- Execution Output Aggregation ---
         Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
 
         HTTPX --> Out
@@ -702,31 +687,16 @@ flowchart TD
         Subproc --> Out
 
 
-        %% --------------------------------------------------------
-        %% UNIVERSAL EGRESS REFUSAL
-        %% --------------------------------------------------------
-
-        Viol["EgressViolationError"]:::forbidden
+        %% --- Universal Egress Refusal & Compensation ---
+        Viol["EgressViolationError (Out-of-Scope / IMDS Deny)"]:::forbidden
+        KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
+        SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
+        EgressCompensate["I28 Budget COMPENSATE"]:::impl
 
         Guard -.->|"refuse IMDS / out-of-scope"| Viol
-
-
-        %% --------------------------------------------------------
-        %% EGRESS COMPENSATION
-        %% --------------------------------------------------------
-
-        subgraph EgressCompensationBranch["I28 Egress Violation Compensation Path"]
-
-            KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
-
-            SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
-
-            EgressCompensate["I28 Budget COMPENSATE"]:::impl
-
-            Viol --> KillSubproc
-            KillSubproc --> SettleDrop
-            SettleDrop --> EgressCompensate
-        end
+        Viol --> KillSubproc
+        KillSubproc --> SettleDrop
+        SettleDrop --> EgressCompensate
 
 
         %% Standalone exploiter remains inside mandatory ticket path
