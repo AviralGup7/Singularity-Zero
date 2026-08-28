@@ -215,14 +215,16 @@ class SQLiteBackend:
                 self._close_conn()
 
     def get(self, key: str) -> Any | None:
-        """Retrieve a value from the cache.
+        """Retrieve a value from the cache with CRC-64 integrity verification (Item 17).
 
         Args:
             key: The cache key to look up.
 
         Returns:
-            The cached value, or None if not found or expired.
+            The cached value, or None if not found, expired, or CRC corrupted (fail-open to recompute).
         """
+        from src.infrastructure.frontier.wal import compute_crc64
+
         with self._lock:
             conn = self._get_conn()
             try:
@@ -239,31 +241,63 @@ class SQLiteBackend:
                     conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
                     conn.commit()
                     return None
+
+                # CRC integrity verification on read (Fail-open to recompute, never serve corrupted payload)
+                try:
+                    payload = json.loads(value_str)
+                    if isinstance(payload, dict) and "_cache_crc64" in payload and "data" in payload:
+                        expected_crc = payload["_cache_crc64"]
+                        data_raw = json.dumps(payload["data"], sort_keys=True, default=str).encode("utf-8")
+                        actual_crc = compute_crc64(data_raw)
+                        if expected_crc != actual_crc:
+                            logger.warning(
+                                "Cache CRC-64 mismatch for key %s (expected %s != actual %s); failing open to recompute",
+                                key,
+                                expected_crc,
+                                actual_crc,
+                            )
+                            conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                            conn.commit()
+                            return None
+                        val = payload["data"]
+                    else:
+                        val = payload
+                except Exception as exc:
+                    logger.warning("Cache JSON/CRC decode failed for key %s (%s); purging corrupted entry", key, exc)
+                    conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                    conn.commit()
+                    return None
+
                 conn.execute(
                     "UPDATE cache_entries SET last_accessed = ?, access_count = access_count + 1 WHERE key = ?",
                     (now, key),
                 )
                 conn.commit()
-                return json.loads(value_str)
+                return val
             except sqlite3.OperationalError as exc:
                 if self._is_locked_error(exc):
                     self._close_conn()
                 raise
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        """Store a value in the cache.
+        """Store a value in the cache with CRC-64 checksum verification envelope.
 
         Args:
             key: The cache key.
             value: The value to cache.
             ttl: Optional time-to-live in seconds.
         """
+        from src.infrastructure.frontier.wal import compute_crc64
+
         with self._lock:
 
             def _op(conn: sqlite3.Connection) -> None:
                 now = time.time()
                 expires_at = now + ttl if ttl is not None else None
-                value_str = json.dumps(value, default=str)
+                data_raw = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+                crc = compute_crc64(data_raw)
+                envelope = {"_cache_crc64": crc, "data": value}
+                value_str = json.dumps(envelope, default=str)
                 conn.execute(
                     """
                     INSERT INTO cache_entries
@@ -308,12 +342,17 @@ class SQLiteBackend:
             depends_on: Set of keys this entry depends on.
             metadata: Additional metadata dictionary.
         """
+        from src.infrastructure.frontier.wal import compute_crc64
+
         with self._lock:
             conn = self._get_conn()
             try:
                 now = time.time()
                 expires_at = now + ttl if ttl is not None else None
-                value_str = json.dumps(value, default=str)
+                data_raw = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+                crc = compute_crc64(data_raw)
+                envelope = {"_cache_crc64": crc, "data": value}
+                value_str = json.dumps(envelope, default=str)
                 tags_str = ",".join(sorted(tags)) if tags else ""
                 deps_str = ",".join(sorted(depends_on)) if depends_on else ""
                 meta_str = json.dumps(metadata or {}, default=str)

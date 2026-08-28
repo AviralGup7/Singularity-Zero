@@ -1209,15 +1209,15 @@ flowchart TD
     subgraph MultiTierCache["Multi-Tier Cache & Storage Hierarchy (F-041)"]
         Call["Cache Read Request"]:::impl --> SF["Single-Flight In-Memory LRU (L1)"]:::impl
         SF -->|Hit| Return["Return Cached Output"]:::impl
-        SF -->|Miss| Persist["SQLite cache_layer.db / Redis (L2)"]:::impl
-        Persist -->|Miss| Origin["Stage Execution (Compute)"]:::impl
-        Origin --> Write["Write-Through to L1 & L2"]:::impl
-        OutboxEvt["Outbox Invalidation Events<br/>(FINDING_FALSE_POSITIVE, TARGET_REMOVED, POLICY_UPDATED)"]:::impl -->|"CacheGeneration Epoch Bump & Invalidate Keys"| SF & Persist
+        SF -->|Miss| Persist["SQLite cache_layer.db / Redis (L2)<br/>(CRC-64 Integrity Gate: Fail-Open to Recompute)"]:::impl
+        Persist -->|Miss / Corrupt CRC| Origin["Stage Execution (Compute)"]:::impl
+        Origin --> Write["Write-Through to L1 & L2 (with CRC-64 Envelope)"]:::impl
+        OutboxEvt["Outbox Invalidation Events<br/>(FINDING_FALSE_POSITIVE, TARGET_REMOVED, POLICY_UPDATED)"]:::impl -->|"CacheGeneration Epoch Bump & Tag Invalidation"| SF & Persist
         Done["Completed Scan Run"]:::impl --> Hot["Hot NVMe Storage (output/run_id/)"]:::impl
         Hot --> Index["index_runs Metadata"]:::impl
         Hot --> PruneCheck{"Older than RETENTION_DAYS (14 Days)?"}:::impl
-        PruneCheck -->|Yes| Arch["Gzip Compressed Archive Tier"]:::impl
-        Arch --> PruneJob["cstp system cleanup (Pruning)"]:::impl
+        PruneCheck -->|Yes| Arch["Transactional Move (Archive -> Verify -> Manifest -> Delete Hot)"]:::impl
+        Arch --> PruneJob["cstp system cleanup (Crash-Safe Prune & Manifest)"]:::impl
     end
 
     subgraph Facades["Thin non-authoritative import facades (Must not mutate authoritative logs)"]

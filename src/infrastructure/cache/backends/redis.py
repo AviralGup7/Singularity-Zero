@@ -84,7 +84,9 @@ class RedisBackend:
         return f"{self._key_prefix}{key}"
 
     def get(self, key: str) -> Any | None:
-        """Retrieve a value from Redis."""
+        """Retrieve a value from Redis with CRC-64 integrity verification (Item 17)."""
+        from src.infrastructure.frontier.wal import compute_crc64
+
         if self._client is None:
             self._maybe_reconnect()
             if self._client is None:
@@ -93,22 +95,45 @@ class RedisBackend:
             data = self._call(lambda: self._client.get(self._full_key(key)))
             if data is None:
                 return self._fallback.get(key)
-            value = json.loads(data)
-            self._fallback.set(key, value)
-            return value
+
+            payload = json.loads(data)
+            if isinstance(payload, dict) and "_cache_crc64" in payload and "data" in payload:
+                expected_crc = payload["_cache_crc64"]
+                data_raw = json.dumps(payload["data"], sort_keys=True, default=str).encode("utf-8")
+                actual_crc = compute_crc64(data_raw)
+                if expected_crc != actual_crc:
+                    logger.warning(
+                        "Redis CRC-64 mismatch for key %s (expected %s != actual %s); failing open to recompute",
+                        key,
+                        expected_crc,
+                        actual_crc,
+                    )
+                    self.delete(key)
+                    return None
+                val = payload["data"]
+            else:
+                val = payload
+
+            self._fallback.set(key, val)
+            return val
         except Exception as exc:
             logger.warning("Redis get failed for key %s; using local fallback: %s", key, exc)
             return self._fallback.get(key)
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        """Store a value in Redis."""
+        """Store a value in Redis with CRC-64 checksum envelope."""
+        from src.infrastructure.frontier.wal import compute_crc64
+
         self._fallback.set(key, value, ttl=ttl)
         if self._client is None:
             self._maybe_reconnect()
             if self._client is None:
                 return
         try:
-            data = json.dumps(value, default=str)
+            data_raw = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+            crc = compute_crc64(data_raw)
+            envelope = {"_cache_crc64": crc, "data": value}
+            data = json.dumps(envelope, default=str)
             if ttl is not None:
                 self._call(lambda: self._client.setex(self._full_key(key), ttl, data))
             else:
