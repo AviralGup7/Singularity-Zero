@@ -29,6 +29,9 @@ try:
         http2_probe,
         http_smuggling_probe,
     )
+    from src.analysis.active.grpc_fuzzer import GrpcFuzzer, run_async as grpc_fuzzer_probe
+    from src.analysis.active.injection.oauth_testing import test_oauth_oidc_security as oauth_security_probe
+    from src.analysis.active.injection.xxe_detection import test_xxe_vulnerabilities as xxe_detection_probe
     from src.analysis.active.injection.command_injection import command_injection_active_probe
     from src.analysis.active.injection.crlf.crlf_probe import crlf_injection_probe
     from src.analysis.active.injection.csrf import csrf_active_probe
@@ -75,6 +78,7 @@ __all__ = [
     "file_upload_active_probe",
     "graphql_active_probe",
     "graphql_ws_injection_probe",
+    "grpc_fuzzer_probe",
     "head_method_probe",
     "hpp_active_probe",
     "http2_probe",
@@ -84,6 +88,7 @@ __all__ = [
     "ldap_injection_active_probe",
     "nosql_injection_probe",
     "oauth_flow_analyzer",
+    "oauth_security_probe",
     "open_redirect_active_probe",
     "options_method_probe",
     "origin_reflection_probe",
@@ -103,6 +108,7 @@ __all__ = [
     "xpath_injection_active_probe",
     "xss_reflect_probe",
     "xxe_active_probe",
+    "xxe_detection_probe",
 ]
 
 

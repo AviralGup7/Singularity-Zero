@@ -201,12 +201,22 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                 timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
                 retries=False,
             )
-            return {
+            record = {
                 "url": normalize_url(resp.geturl() or candidate),
                 "status_code": resp.status,
                 "source": "python-probe-ipv6" if "[" in candidate else "python-probe",
                 "resolved_host": host,
             }
+            if candidate.startswith("https://"):
+                try:
+                    from src.analysis.checks.passive.tls_analyzer import TLSAnalyzer
+                    tls_analyzer = TLSAnalyzer()
+                    tls_findings = tls_analyzer.analyze_host(host, 443)
+                    if tls_findings:
+                        record["tls_findings"] = [f.__dict__ for f in tls_findings]
+                except Exception as tls_exc:
+                    logger.debug("TLS analysis skipped for %s: %s", host, tls_exc)
+            return record
         except (
             OSError,
             urllib3.exceptions.HTTPError,
