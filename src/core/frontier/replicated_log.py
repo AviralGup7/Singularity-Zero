@@ -67,12 +67,15 @@ class PartitionWAL:
         group_commit: bool = True,
         group_commit_batch_size: int = 64,
         group_commit_window_ms: float = 1.0,
+        active_epoch: int = 1,
     ) -> None:
         self.partition_id = partition_id
         self.node_id = node_id
         self.group_commit = group_commit
         self.group_commit_batch_size = group_commit_batch_size
         self.group_commit_window_ms = group_commit_window_ms
+        self.active_epoch = int(active_epoch)
+        self.fence_token = ""
         self._wal_path: Path | None = None
         if wal_dir is not None:
             base_dir = Path(wal_dir)
@@ -88,11 +91,38 @@ class PartitionWAL:
     def wal_path(self) -> Path | None:
         return self._wal_path
 
-    def append_entry(
-        self, entry: CommittedEntry, committed: bool = False, sync: bool = True
-    ) -> None:
-        """Persist a single entry to disk with CRC-64 verification and Group Commit batching."""
+    def cas_fence_epoch(self, expected_epoch: int, new_epoch: int, new_token: str) -> bool:
+        """Linearizable CAS against the partition log: bump active_epoch if expected_epoch matches."""
         with self._lock:
+            if int(self.active_epoch) != int(expected_epoch):
+                logger.warning(
+                    "PartitionWAL CAS fence failed on %s: expected %d != active %d",
+                    self.partition_id,
+                    expected_epoch,
+                    self.active_epoch,
+                )
+                return False
+            self.active_epoch = int(new_epoch)
+            self.fence_token = str(new_token)
+            return True
+
+    def append_entry(
+        self,
+        entry: CommittedEntry,
+        committed: bool = False,
+        sync: bool = True,
+        *,
+        epoch: int | None = None,
+    ) -> None:
+        """Persist a single entry to disk with epoch fence enforcement, CRC-64, and Group Commit."""
+        with self._lock:
+            # I37 Hardened Boundary: Reject writes carrying epoch < active_epoch
+            if epoch is not None and int(epoch) < int(self.active_epoch):
+                from src.core.frontier.authority_transfer import AuthorityFenceError
+                raise AuthorityFenceError(
+                    f"I37_WAL_BOUNDARY: PartitionWAL append rejected stale epoch {epoch} < active {self.active_epoch}"
+                )
+
             self._in_memory_records.append((entry, committed))
             if self._wal_path is None:
                 return
@@ -103,6 +133,7 @@ class PartitionWAL:
             record = {
                 "raft_index": entry.raft_index,
                 "raft_term": entry.raft_term,
+                "epoch": self.active_epoch if epoch is None else int(epoch),
                 "committed": committed,
                 "crc64": crc,
                 "entry": entry_dict,
@@ -273,6 +304,8 @@ class ReplicatedPartitionLog:
         self.current_term = int(
             getattr(lease, "leader_term", self.current_term) or self.current_term
         )
+        self.wal.active_epoch = self.authority_epoch
+        self.wal.fence_token = self.fence_token
         phase = str(
             getattr(getattr(lease, "phase", None), "value", getattr(lease, "phase", "")) or ""
         )
@@ -402,7 +435,9 @@ class ReplicatedPartitionLog:
                     result_code="PENDING",
                 ),
             )
-            self.wal.append_entry(candidate_entry, committed=False, sync=True)
+            self.wal.append_entry(
+                candidate_entry, committed=False, sync=True, epoch=self.authority_epoch
+            )
 
             # 3. Step B: Replicate to Remote Peers & Collect Quorum ACKs
             ack_count = 1  # Leader itself counts as 1 ACK
@@ -456,7 +491,9 @@ class ReplicatedPartitionLog:
                 emitted_events=emitted_events,
             )
             self.entries.append(committed_entry)
-            self.wal.append_entry(committed_entry, committed=True, sync=True)
+            self.wal.append_entry(
+                committed_entry, committed=True, sync=True, epoch=self.authority_epoch
+            )
             self.wal.flush_pending()
 
             # 7. Step F: Durable Outbox Append

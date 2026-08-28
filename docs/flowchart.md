@@ -188,11 +188,11 @@ flowchart TD
     end
 
     subgraph MultiRegionAuthority["Multi-Region Single-Writer & I37 Authority Transfer (I36, I37)"]
-        A["Region A<br/>OWNED (Active Writer)"]:::impl -->|"initiate_transfer(Epoch E)"| F["FENCED<br/>(Zero-Writer; Mutations Rejected)"]:::impl
+        A["Region A<br/>OWNED (Active Writer)"]:::impl -->|"initiate_transfer(Epoch E)"| F["FENCED<br/>(Zero-Writer; Linearizable Log CAS)"]:::impl
         F -->|"activate_ownership(Epoch E+1)"| B["Region B<br/>OWNED (Active Writer)"]:::impl
         F -->|"abort_transfer / timeout"| A_Abort["Region A<br/>OWNED (Epoch E+1 Bumped)"]:::impl
         
-        F -.->|"refuse: stale epoch/token"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
+        F -.->|"refuse: stale epoch/token (WAL boundary)"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
         F -.->|"refuse: mutation while fenced"| Rej2["Refuse: Partition FENCED"]:::forbidden
         
         A_Abort -.->|"delayed activate rejected: activation_token_mismatch"| RejDelayed["Refuse: Stale Activation Token"]:::forbidden

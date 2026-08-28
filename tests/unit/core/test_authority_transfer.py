@@ -166,3 +166,82 @@ def test_i37_transfer_abort_resumes_original_home() -> None:
     foreign.bind_placement(placement)
     with pytest.raises(AuthorityFenceError, match=I37_AUTHORITY_TRANSFER):
         foreign.propose_and_commit(_cmd("cmd_foreign"))
+
+
+def test_i37_wal_boundary_rejects_stale_epoch_appends() -> None:
+    """WAL append boundary directly enforces epoch >= active_epoch."""
+    log = ReplicatedPartitionLog(
+        partition_id="P-0003",
+        is_leader=True,
+        local_region="us-east",
+    )
+    # Simulate active epoch 3 on the partition WAL
+    log.wal.cas_fence_epoch(expected_epoch=1, new_epoch=3, new_token="fnc_3")
+    assert log.wal.active_epoch == 3
+
+    entry = _cmd("cmd_stale_wal")
+    # An append carrying a stale epoch < 3 must be refused at the physical WAL level
+    from src.core.contracts.command_envelope import CommandResult, CommittedEntry
+    stale_candidate = CommittedEntry(
+        partition_id="P-0003",
+        raft_term=1,
+        raft_index=1,
+        entry_hash="hash_dummy",
+        previous_entry_hash="0" * 64,
+        command=entry,
+        transition_result=CommandResult(
+            status="SUCCESS",
+            aggregate_id="sl",
+            resulting_aggregate_version=1,
+            result_code="PENDING",
+        ),
+    )
+
+    with pytest.raises(AuthorityFenceError, match="I37_WAL_BOUNDARY"):
+        log.wal.append_entry(stale_candidate, committed=False, epoch=2)
+
+
+def test_i37_chaos_kill_coordinator_mid_transfer() -> None:
+    """Chaos test: Coordinator crashes mid-transfer after fence; zero dual-writer mutations succeed."""
+    placement = PlacementAuthority(home_region="us-east")
+    old_leader = ReplicatedPartitionLog(
+        partition_id="P-0004",
+        is_leader=True,
+        local_region="us-east",
+    )
+    old_leader.bind_placement(placement)
+    old_leader.install_authority(placement.lease_for("P-0004"))
+    old_leader.propose_and_commit(_cmd("cmd_live_1"))
+
+    # 1. Initiate transfer (Stage 1: Fenced)
+    epoch = placement.initiate_transfer("agg-chaos", "P-0004", "P-0004", to_region="eu-west")
+    assert placement.is_fenced("P-0004")
+
+    # 2. CHAOS: Coordinator crashes / dies mid-transfer. Both nodes attempt to write.
+    candidate_new_leader = ReplicatedPartitionLog(
+        partition_id="P-0004",
+        is_leader=True,
+        local_region="eu-west",
+        leader_region="eu-west",
+    )
+    candidate_new_leader.bind_placement(placement)
+
+    # Neither old leader nor new candidate can commit mutations while fenced
+    with pytest.raises(AuthorityFenceError, match="FENCED"):
+        old_leader.propose_and_commit(_cmd("cmd_old_during_crash"))
+
+    with pytest.raises(AuthorityFenceError, match="FENCED"):
+        candidate_new_leader.propose_and_commit(_cmd("cmd_new_during_crash"))
+
+    # 3. Coordinator recovers and aborts stale abandoned transfer
+    placement.abort_transfer("agg-chaos", epoch)
+    assert not placement.is_fenced("P-0004")
+
+    # Old leader re-adopts fresh lease (epoch bumped) and resumes single-writer operations
+    old_leader.install_authority(placement.lease_for("P-0004"))
+    receipt, _ = old_leader.propose_and_commit(_cmd("cmd_recovered"))
+    assert receipt.receipt_id is not None
+
+    # Candidate in eu-west attempting to write without ownership is rejected
+    with pytest.raises(AuthorityFenceError, match=I37_AUTHORITY_TRANSFER):
+        candidate_new_leader.propose_and_commit(_cmd("cmd_rogue_writer"))

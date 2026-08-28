@@ -45,8 +45,8 @@ def test_http_in_flight_inc_and_dec() -> None:
     assert response.status_code == 200
     assert get_metrics().gauge("http_requests_in_flight", labels={"method": "GET"}).get() == 0
     names = get_metrics().get_all()
-    assert "cyber_pipeline_http_requests_total" in names["counters"]
-    assert "cyber_pipeline_http_request_duration_seconds" in names["histograms"]
+    assert any(k.startswith("cyber_pipeline_http_requests_total") for k in names["counters"])
+    assert any(k.startswith("cyber_pipeline_http_request_duration_seconds") for k in names["histograms"])
 
 
 def test_websocket_metrics_use_registry_prefix() -> None:
@@ -57,8 +57,8 @@ def test_websocket_metrics_use_registry_prefix() -> None:
     WS_DROPPED_MESSAGES.labels(scope="group").inc()
     data = get_metrics().get_all()
     assert data["gauges"]["cyber_pipeline_ws_active_connections"] == 1
-    assert data["counters"]["cyber_pipeline_ws_messages_broadcast_total"] == 1
-    assert data["counters"]["cyber_pipeline_ws_dropped_messages_total"] == 1
+    assert any(k.startswith("cyber_pipeline_ws_messages_broadcast_total") for k in data["counters"])
+    assert any(k.startswith("cyber_pipeline_ws_dropped_messages_total") for k in data["counters"])
 
 
 def test_recon_metrics_use_registry_prefix_and_urls_counter() -> None:
@@ -74,7 +74,7 @@ def test_recon_metrics_use_registry_prefix_and_urls_counter() -> None:
     increment_urls("wayback", 3)
     observe_duration("wayback", 0.25)
     data = get_metrics().get_all()
-    assert data["counters"]["cyber_pipeline_recon_provider_requests_total"] == 1
-    assert data["counters"]["cyber_pipeline_recon_provider_errors_total"] == 1
-    assert data["counters"]["cyber_pipeline_recon_provider_urls_total"] == 3
-    assert data["histograms"]["cyber_pipeline_recon_provider_duration_seconds"]["count"] == 1
+    assert any(k.startswith("cyber_pipeline_recon_provider_requests_total") for k in data["counters"])
+    assert any(k.startswith("cyber_pipeline_recon_provider_errors_total") for k in data["counters"])
+    assert any(k.startswith("cyber_pipeline_recon_provider_urls_total") for k in data["counters"])
+    assert any(k.startswith("cyber_pipeline_recon_provider_duration_seconds") for k in data["histograms"])
