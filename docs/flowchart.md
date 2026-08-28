@@ -585,7 +585,7 @@ flowchart TD
         Guard -->|"patch"| Stream
         Guard -->|"guard"| Browser
 
-        Subproc["ProcessSandbox (Kernel NetNS + Seccomp-BPF)"]:::specOnly
+        Subproc["ProcessSandbox<br/>(Kernel NetNS + Seccomp-BPF / Degraded Userspace)"]:::impl
 
         Guard -->|"sandbox"| Subproc
 

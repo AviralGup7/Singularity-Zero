@@ -70,6 +70,10 @@ class SandboxResourceLimits:
         )
 
 
+class SandboxCapabilityError(PermissionError):
+    """Raised when kernel-enforced sandbox mode is requested but the host lacks required capabilities."""
+
+
 @dataclass(frozen=True, slots=True)
 class SandboxExecutionResult:
     """Result of running a command within the OS sandbox."""
@@ -82,6 +86,8 @@ class SandboxExecutionResult:
     timed_out: bool = False
     memory_exceeded: bool = False
     error: str = ""
+    enforcement_level: str = "DEGRADED_USERSPACE"
+    degraded_reason: str = ""
 
     @property
     def success(self) -> bool:
@@ -97,7 +103,13 @@ class ProcessSandbox:
         *,
         egress_filter: NetworkEgressFilter | None = None,
         seccomp_policy: SeccompPolicy | None = None,
+        required_enforcement_level: str | SandboxEnforcementLevel | None = None,
     ) -> None:
+        from src.sandbox.seccomp_filter import (
+            SandboxEnforcementLevel,
+            detect_sandbox_capabilities,
+        )
+
         self.limits = limits or SandboxResourceLimits()
         # I29: every sandbox at least denies cloud-metadata destinations.
         self.egress_filter = (
@@ -106,6 +118,30 @@ class ProcessSandbox:
         self.seccomp_policy = (
             seccomp_policy if seccomp_policy is not None else get_default_seccomp_policy()
         )
+
+        # Detect host capability at boot/init
+        self.capabilities = detect_sandbox_capabilities()
+        self.enforcement_level = self.capabilities.enforcement_level
+        self.degraded_reason = self.capabilities.degraded_reason
+
+        # Refuse "kernel-enforced" claims when capability is unavailable
+        if required_enforcement_level is not None:
+            req_str = (
+                required_enforcement_level.value
+                if isinstance(required_enforcement_level, SandboxEnforcementLevel)
+                else str(required_enforcement_level)
+            )
+            if (
+                req_str == SandboxEnforcementLevel.KERNEL_ENFORCED.value
+                and self.enforcement_level != SandboxEnforcementLevel.KERNEL_ENFORCED
+            ):
+                raise SandboxCapabilityError(
+                    f"KERNEL_ENFORCEMENT_UNAVAILABLE: Host cannot satisfy KERNEL_ENFORCED sandbox. "
+                    f"Reason: {self.degraded_reason}"
+                )
+
+        if self.enforcement_level == SandboxEnforcementLevel.DEGRADED_USERSPACE:
+            logger.info("ProcessSandbox operating in DEGRADED_USERSPACE mode: %s", self.degraded_reason)
 
     def check_egress(self, host: str, port: int | None = None) -> None:
         """Enforce I29 before the worker opens a destination."""
@@ -237,6 +273,8 @@ class ProcessSandbox:
                 stderr=str(exc),
                 duration_seconds=duration,
                 error=f"Sandbox execution failed: {exc}",
+                enforcement_level=self.enforcement_level.value,
+                degraded_reason=self.degraded_reason,
             )
         finally:
             if proxy_server is not None:
@@ -257,11 +295,14 @@ class ProcessSandbox:
             duration_seconds=duration,
             timed_out=timed_out,
             memory_exceeded=memory_exceeded,
+            enforcement_level=self.enforcement_level.value,
+            degraded_reason=self.degraded_reason,
         )
 
 
 __all__ = [
     "ProcessSandbox",
+    "SandboxCapabilityError",
     "SandboxClass",
     "SandboxExecutionResult",
     "SandboxResourceLimits",
