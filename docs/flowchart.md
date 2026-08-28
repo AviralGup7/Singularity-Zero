@@ -973,6 +973,10 @@ flowchart TD
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
+    PORT_F004_RES_IN[["PORT: F-004 Execution Gate Reserve In"]]
+    PORT_F004_COM_IN[["PORT: F-004 Settlement Finding Commit In"]]
+    PORT_F004_REL_IN[["PORT: F-004 Compensation / Release In"]]
+
     subgraph ClockModel["Multi-Clock Binding Model (src/core/frontier/state.py)"]
         HLC["Hybrid Logical Clock (HLC)"]:::impl -->|"clock"| EventOrder["Scan Journal Ordering (I23)"]:::impl
         Mono["time.monotonic()"]:::impl -->|"clock"| LeaseTTL["Sublease & Fence Expiration (I19 Monotonic Deadline Comparison)"]:::impl
@@ -994,6 +998,12 @@ flowchart TD
         CONSUMED -->|"idempotent re-settle<br/>(Δ=0)"| CONSUMED
         COMPENSATED -->|"idempotent no-op<br/>(Δ=0)"| COMPENSATED
     end
+
+    %% Explicit Cross-Plane Invariant & Port Connections
+    LeaseTTL -->|"monotonic timeout check"| EXPIRED
+    PORT_F004_RES_IN -->|"reserve request"| Reserve
+    PORT_F004_COM_IN -->|"commit units"| CONSUMED
+    PORT_F004_REL_IN -->|"release units"| COMPENSATED
 ```
 
 $$\text{Partition-Local Budget Conservation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available} \quad \text{[Verified in Recovery VERIFY_INVARIANTS]}$$
