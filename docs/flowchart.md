@@ -15,6 +15,7 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 > | **Canonical IDs** | `F-001` … `F-045` are stable architectural identifiers (15 active survivor charts, 31 retired pointers). |
 > | **Retired Pointer Preservation** | Retired IDs are preserved exclusively in the Retired Chart Registry to resolve external identifier references. |
 > | **Graph as Knowledge** | All relationships, authority levels, operational predicates, and negative constraints are encoded directly as graph edges and node attributes. |
+> | **Explicit Edge Topology Law** | **Never assume "inside the same subgraph" means connected. Never assume "close together" means connected. Never use a subgraph as an architectural endpoint. Every important relationship gets its own explicit edge.** The layout engine is allowed to rearrange nodes, but it is not allowed to invent edges. |
 > | **History in Git** | Historical evolution, audit logs, and document diffs belong to the Git database, not inside the AI knowledge graph. |
 >
 > How to modify this atlas:
@@ -1108,7 +1109,7 @@ flowchart TD
     Load --> Bulk["BulkheadPool (Unified Endpoint Isolation (scheme,host,port))"]:::impl
     Load --> Bloom["GenerationalBloomFilter (Target FPR 0.001, Auto-Rotation at 0.005)"]:::impl
     Load --> RedisBreaker["RedisClient Circuit Breaker (Local SQLite/Disk Spool Fallback + Health Probe)"]:::impl
-    Load --> CB
+    Load --> CLOSED
     subgraph CB["Circuit Breaker (Unified Canonical Endpoint Gate)"]
         CLOSED["CLOSED (Normal Traffic)"]:::impl -->|"Failures >= Threshold (5 consecutive)"| OPEN["OPEN (Tripped / Shedding)"]:::impl
         OPEN -->|"Cooldown Elapsed (20s)"| HALF_OPEN["HALF_OPEN (Trial Generation N)"]:::impl
@@ -1391,8 +1392,8 @@ flowchart TD
         CkptFacade["src/checkpoint → core.checkpoint"]:::library
         FrontFacade["src/frontier facades → core.frontier / infrastructure WAL"]:::library
         MemJ["tests/test_support/journal.py MemoryJournal (Unit-test mock WAL)"]:::library
-        CacheFacade -.->|never truth| MultiTierCache
-        CkptFacade -.->|never truth| MultiTierCache
+        CacheFacade -.->|"never truth / read facade"| SF
+        CkptFacade -.->|"never truth / read facade"| Persist
         AuthPlane["StateAuthority / PartitionWAL (F-003)"]:::impl -.->|"reject mutation from test mock"| MemJ
     end
 ```
@@ -1476,9 +1477,9 @@ flowchart TD
     
     subgraph I31_Settlement["I31 Settlement & Outbox Causality"]
         Intent["SettlementIntent"]:::impl --> Durable["WAL wal_id COMMITTED"]:::impl
-        Durable -->|"yes"| Finding["FINDING_CREATED Allowed"]:::impl
+        Durable -->|"yes"| FindingAllowed["FINDING_CREATED Allowed"]:::impl
         Durable -->|"no"| NoEmit["EventBus Refuses Finding"]:::forbidden
-        Finding --> Outbox["DurableOutboxLedger"]:::impl
+        FindingAllowed --> Outbox["DurableOutboxLedger"]:::impl
         Outbox --> Bus["EventBus (In-Process Dispatch)"]:::impl
         Bus --> Consumers["Observers / UI"]:::impl
         Outbox -->|Append Fail| NoBus["No Bus Notification; Replay Later"]:::vacuous
