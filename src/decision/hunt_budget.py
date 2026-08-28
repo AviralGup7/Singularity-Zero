@@ -401,8 +401,12 @@ class HuntBudgetEnforcer:
             )
         return cls(budget=budget)
 
-    def reserve_with_identity(self, count: int = 1) -> dict[str, str] | None:
-        """Reserve quota and return I30 causal identity, or None if exhausted.
+    def reserve_with_identity(
+        self,
+        count: int = 1,
+        endpoint: str | tuple[str, str, int | None] | None = None,
+    ) -> dict[str, str] | None:
+        """Reserve quota and return I30 causal identity, or None if exhausted or endpoint circuit OPEN (Item 19).
 
         A ticket may only be issued from this identity. Fake / zero ids are
         never minted: count<=0 or a rejected GlobalBudget command returns None.
@@ -419,6 +423,21 @@ class HuntBudgetEnforcer:
                     "I37 fence check failed closed", extra={"partition": self._partition_id}
                 )
                 return None
+
+        # 1. Per-Endpoint Circuit Breaker Gate (Item 19)
+        # Check endpoint-specific circuit breaker gate first if an endpoint is provided
+        if endpoint is not None:
+            ep_gate = self.get_endpoint_reserve_gate(endpoint)
+            if callable(ep_gate):
+                try:
+                    if not ep_gate():
+                        logger.debug("HuntBudget reservation blocked by OPEN circuit for endpoint %s", endpoint)
+                        return None
+                except Exception:
+                    logger.debug("Endpoint reserve gate failed closed for %s", endpoint)
+                    return None
+
+        # 2. Global reserve gate fallback
         gate = getattr(self, "_reserve_gate", None)
         if callable(gate):
             try:
@@ -507,8 +526,51 @@ class HuntBudgetEnforcer:
         return str(getattr(self._global_budget, "version", None) or self._authority_revision)
 
     def set_reserve_gate(self, gate: Callable[[], bool] | None) -> None:
-        """Block new reservations when a host breaker is OPEN (F-009 → F-006)."""
+        """Block new reservations when a global host breaker is OPEN (F-009 → F-006)."""
         self._reserve_gate = gate
+
+    def set_endpoint_reserve_gate(
+        self,
+        endpoint: str | tuple[str, str, int | None],
+        gate: Callable[[], bool] | None,
+    ) -> None:
+        """Register an endpoint-specific circuit breaker gate (Item 19)."""
+        norm_ep = self._normalize_endpoint(endpoint)
+        with self._lock:
+            if not hasattr(self, "_endpoint_gates"):
+                self._endpoint_gates: dict[str, Callable[[], bool]] = {}
+            if gate is None:
+                self._endpoint_gates.pop(norm_ep, None)
+            else:
+                self._endpoint_gates[norm_ep] = gate
+
+    def get_endpoint_reserve_gate(
+        self, endpoint: str | tuple[str, str, int | None]
+    ) -> Callable[[], bool] | None:
+        """Retrieve the circuit breaker gate registered for an endpoint (Item 19)."""
+        norm_ep = self._normalize_endpoint(endpoint)
+        with self._lock:
+            if not hasattr(self, "_endpoint_gates"):
+                return None
+            return self._endpoint_gates.get(norm_ep)
+
+    @staticmethod
+    def _normalize_endpoint(endpoint: str | tuple[str, str, int | None]) -> str:
+        """Normalize endpoint to scheme://host:port canonical string."""
+        if isinstance(endpoint, tuple):
+            scheme, host, port = endpoint
+            port_part = f":{port}" if port is not None else ""
+            return f"{scheme.lower()}://{host.lower()}{port_part}"
+        raw = str(endpoint or "").strip().lower()
+        if "://" not in raw:
+            raw = f"https://{raw}"
+        from urllib.parse import urlparse
+        parsed = urlparse(raw)
+        host = parsed.hostname or ""
+        port = parsed.port
+        scheme = parsed.scheme or "https"
+        port_part = f":{port}" if port is not None else ""
+        return f"{scheme}://{host}{port_part}"
 
     def has_reservation(self, reservation_id: str) -> bool:
         """True if this enforcer recorded the reservation (I30 authoritative record)."""

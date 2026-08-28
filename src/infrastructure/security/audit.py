@@ -253,11 +253,14 @@ class AuditEntry(BaseModel):
 
 
 class AuditLogger:
-    """Main audit logging orchestrator.
+    """Main audit logging orchestrator with P0 Emergency Ring Buffer (Item 20).
 
     Provides tamper-evident audit logging with:
     - Sequential entry chaining
     - HMAC-based integrity verification
+    - P0 Emergency Ring Buffer: When disk writes timeout (>50ms) or fail, critical P0
+      audit logs are preserved in a fixed-size circular memory buffer.
+    - Overflow metric tracking for audit drops.
     - Log rotation by size
     - Export and archival
     - Thread-safe writes
@@ -271,12 +274,14 @@ class AuditLogger:
         _current_size: Current log file size in bytes.
     """
 
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SecurityConfig, *, emergency_ring_capacity: int = 4096) -> None:
         """Initialize the audit logger.
 
         Args:
             config: Security configuration.
+            emergency_ring_capacity: Capacity of emergency in-memory circular buffer.
         """
+        from src.core.concurrency.ring_buffer import DisruptorRingBuffer
 
         self.config = config
         self._counter = 0
@@ -285,10 +290,25 @@ class AuditLogger:
         self._file_handle: Any = None
         self._current_size = 0
         self._db: sqlite3.Connection | None = None
+        self._emergency_ring: DisruptorRingBuffer[AuditEntry] = DisruptorRingBuffer(
+            capacity_exponent=12  # 4096 entries
+        )
+        self._emergency_ring_overflow_count: int = 0
+        self._p0_disk_timeout_seconds: float = 0.050  # 50ms QoS budget before emergency ring spool
 
         self._register_with_lifecycle()
 
         self._ensure_log_file()
+
+    @property
+    def emergency_ring_overflow_count(self) -> int:
+        """Total number of P0 audit events dropped due to emergency ring saturation."""
+        with self._lock:
+            return self._emergency_ring_overflow_count
+
+    def get_emergency_ring_entries(self) -> list[AuditEntry]:
+        """Drain entries from the emergency ring buffer."""
+        return self._emergency_ring.drain_batch(max_items=4096)
 
     def _register_with_lifecycle(self) -> None:
         """Register close() with the lifecycle manager for ordered shutdown."""
@@ -468,38 +488,60 @@ class AuditLogger:
         return entry
 
     def _write_entry(self, entry: AuditEntry) -> None:
-        """Write an audit entry to the log file and update SQLite index.
+        """Write an audit entry to the log file and update SQLite index with P0 Emergency Ring spooling (Item 20).
 
         Args:
             entry: Audit entry to write.
         """
-        if self._file_handle is None:
-            self._ensure_log_file()
-        if self._file_handle is None:
-            logger.error("Audit log file handle could not be opened")
-            return
+        is_p0 = entry.severity in (AuditSeverity.CRITICAL.value, AuditSeverity.ERROR.value)
+        start_t = time.monotonic()
 
-        line = json.dumps(entry.model_dump(), separators=(",", ":"))
-        self._file_handle.write(line + "\n")
-        self._file_handle.flush()
-        # Fix #297: len(line) + 1 avoids full string encode on large log entries
-        self._current_size += len(line) + 1
+        try:
+            if self._file_handle is None:
+                self._ensure_log_file()
+            if self._file_handle is None:
+                raise OSError("Audit log file handle could not be opened")
 
-        # Fix #300: Index in SQLite for high-performance queries
-        # Performance #4: Lock already held by caller (log method)
-        if self._db is not None:
-            try:
-                self._db.execute(
-                    "INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
-                    (entry.id, entry.event, entry.user_id, entry.severity, line),
+            line = json.dumps(entry.model_dump(), separators=(",", ":"))
+            self._file_handle.write(line + "\n")
+            self._file_handle.flush()
+            self._current_size += len(line) + 1
+
+            # Check disk write latency against 50ms QoS SLA
+            elapsed = time.monotonic() - start_t
+            if is_p0 and elapsed > self._p0_disk_timeout_seconds:
+                logger.warning(
+                    "Audit disk write latency %.3fs exceeded 50ms QoS budget; spooling P0 copy to Emergency Ring Buffer",
+                    elapsed,
                 )
-                self._db.commit()
-            except sqlite3.IntegrityError:
-                # Duplicate audit entry ID — safe to ignore because the log
-                # file is the source of truth and the index is best-effort.
-                pass
-            except Exception as e:
-                logger.error("Failed to index audit entry in SQLite: %s", e)
+                if not self._emergency_ring.offer(entry):
+                    self._emergency_ring_overflow_count += 1
+                    logger.error(
+                        "Audit Emergency Ring Buffer saturated (overflow_count=%d); P0 entry dropped from ring",
+                        self._emergency_ring_overflow_count,
+                    )
+
+            if self._db is not None:
+                try:
+                    self._db.execute(
+                        "INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
+                        (entry.id, entry.event, entry.user_id, entry.severity, line),
+                    )
+                    self._db.commit()
+                except sqlite3.IntegrityError:
+                    pass
+                except Exception as e:
+                    logger.error("Failed to index audit entry in SQLite: %s", e)
+
+        except Exception as exc:
+            logger.error("Audit log disk write failed (%s); spooling to Emergency Ring Buffer", exc)
+            if is_p0:
+                if not self._emergency_ring.offer(entry):
+                    self._emergency_ring_overflow_count += 1
+                    logger.error(
+                        "Audit Emergency Ring Buffer saturated on disk failure (overflow_count=%d)",
+                        self._emergency_ring_overflow_count,
+                    )
 
     def _check_rotation(self) -> None:
         """Check if log rotation is needed."""

@@ -6,6 +6,7 @@ import hashlib
 import math
 import os
 import threading
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     import numpy as np
 
 from src.core.logging.trace_logging import get_pipeline_logger
+
+logger = get_pipeline_logger(__name__)
 
 mmh3_impl: Any
 
@@ -433,18 +436,44 @@ class GenerationalBloomFilter:
     def __contains__(self, item: str) -> bool:
         return self.contains(item)
 
+    def estimate_runtime_fpr(self, sample_size: int = 100) -> float:
+        """Estimate runtime empirical FPR via a pseudo-random probe sample (Item 21)."""
+        with self._lock:
+            if not self._ground_truth_known_negatives:
+                # Generate deterministically non-inserted probe tokens to evaluate false positive rate
+                probes = [f"__probe_neg_{self._generation}_{i}_{time.time_ns()}__" for i in range(sample_size)]
+            else:
+                probes = list(self._ground_truth_known_negatives)[:sample_size]
+
+            fp_hits = sum(1 for p in probes if self.contains(p))
+            fpr = fp_hits / max(1, len(probes))
+            return fpr
+
     def add(self, item: str) -> bool:
-        """Add item to active generation, triggering generational rebuild if saturated or FPR threshold breached."""
+        """Add item to active generation, triggering auto-rotation at measured FPR >= 0.005 (Item 21)."""
         with self._lock:
             stats = self._current.get_stats()
-            observed_fpr = stats["false_positive_probability"]
+            theoretical_fpr = stats["false_positive_probability"]
 
-            # Rotate if fill ratio exceeded, capacity exceeded, or FPR breached bounds
-            if (
+            # 1. Theoretical FPR & fill ratio boundary check
+            should_rotate = (
                 stats["fill_ratio"] >= self.fill_ratio_threshold
                 or self._current.element_count >= self.capacity
-                or observed_fpr >= self.max_fpr_threshold
-            ):
+                or theoretical_fpr >= self.max_fpr_threshold
+            )
+
+            # 2. Measured empirical sample check (evaluated periodically every 500 inserts)
+            if not should_rotate and self._current.element_count > 0 and self._current.element_count % 500 == 0:
+                measured_fpr = self.estimate_runtime_fpr(sample_size=50)
+                if measured_fpr >= self.max_fpr_threshold:
+                    logger.info(
+                        "GenerationalBloomFilter measured FPR %.4f breached threshold %.4f; triggering auto-rotation",
+                        measured_fpr,
+                        self.max_fpr_threshold,
+                    )
+                    should_rotate = True
+
+            if should_rotate:
                 self._rotate_generation()
 
             self._current.add(item)
@@ -454,13 +483,25 @@ class GenerationalBloomFilter:
         """Evaluate ground truth false positive on known negative sample; trigger rotation if degraded."""
         with self._lock:
             self._ground_truth_checks += 1
+            self._ground_truth_known_negatives.add(negative_sample)
             is_fp = self.contains(negative_sample)
             if is_fp:
                 self._ground_truth_fp_count += 1
                 empirical_fpr = self._ground_truth_fp_count / max(1, self._ground_truth_checks)
-                if empirical_fpr > self.max_fpr_threshold:
+                if empirical_fpr >= self.max_fpr_threshold:
                     self._rotate_generation()
             return is_fp
+
+    def reset_scan(self) -> None:
+        """Reset generation state between scans to prevent cross-run contamination of dedup state (Item 21)."""
+        with self._lock:
+            self._current = NeuralBloomFilter(capacity=self.capacity, error_rate=self.error_rate)
+            self._previous = None
+            self._generation = 1
+            self._ground_truth_known_negatives.clear()
+            self._ground_truth_fp_count = 0
+            self._ground_truth_checks = 0
+            logger.info("GenerationalBloomFilter reset for fresh scan (generation=1)")
 
     def _rotate_generation(self) -> None:
         """Rotate active filter into previous and spawn a fresh active filter."""
@@ -469,6 +510,7 @@ class GenerationalBloomFilter:
         self._generation += 1
         self._ground_truth_fp_count = 0
         self._ground_truth_checks = 0
+        logger.info("GenerationalBloomFilter rotated to generation %d", self._generation)
 
     def get_stats(self) -> dict[str, Any]:
         """Aggregate stats across current and previous generations with bounded FPR diagnostics."""

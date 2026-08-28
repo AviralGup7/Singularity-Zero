@@ -940,7 +940,7 @@ flowchart TD
     Load["Target Probe Latency & Error Stream"]:::impl --> PID["AdaptivePIDController (Anti-Windup Clamping + Back-Calculation)"]:::impl
     PID --> Conc["Dynamic Concurrency Window"]:::impl
     Load --> Bulk["BulkheadPool (Unified Endpoint Isolation (scheme,host,port))"]:::impl
-    Load --> Bloom["GenerationalBloomFilter (Target FPR 0.001, Auto-Rotation at 0.005)"]:::impl
+    Load --> Bloom["GenerationalBloomFilter (Measured FPR Auto-Rotation at 0.005, Per-Scan Reset)"]:::impl
     Load --> RedisBreaker["RedisClient Circuit Breaker (Local SQLite/Disk Spool Fallback + Health Probe)"]:::impl
     Load --> CLOSED
     subgraph CB["Circuit Breaker (Unified Canonical Endpoint Gate)"]
@@ -949,9 +949,9 @@ flowchart TD
         HALF_OPEN -->|"Trial Probe OK"| CLOSED
         HALF_OPEN -->|"Trial Probe Failed"| OPEN
     end
-    OPEN -->|"set_reserve_gate"| NoTicket["HuntBudget Gate: BudgetReserveDenied (Breaker Open)"]:::forbidden
+    OPEN -->|"set_endpoint_reserve_gate"| NoTicket["HuntBudget Gate: BudgetReserveDenied (Per-Endpoint Breaker Open)"]:::forbidden
     Evt["TelemetryEvent Stream"]:::impl --> Q{"qos_admit"}:::impl
-    Q -->|P0: Critical Audit| P0["P0: In-Memory Spool + Disk Journal (p0_capacity=1000)"]:::impl
+    Q -->|P0: Critical Audit| P0["P0: 50ms Timeout -> Emergency Ring Buffer (Fixed-size circular buffer + overflow metric)"]:::impl
     Q -->|P1: Stage Lifecycle| P1["P1: Reliable Queue Dispatch"]:::impl
     Q -->|P2: Findings Buffer| P2["P2: Coalesced Findings Stream"]:::impl
     Q -->|P3: Periodic Metrics| P3["P3: 1s Rolling Aggregates"]:::impl
