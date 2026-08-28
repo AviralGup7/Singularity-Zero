@@ -248,14 +248,14 @@ flowchart TD
         EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (+10s / -5s Monotonic Gate)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
-        subgraph L0_Consensus["L0: Multi-Node Raft Consensus (MultiNodeRaftCluster with Majority Quorum)"]
-            Leader["Leader PartitionWAL (Group Commit 64 entries / 1ms configurable)"]:::impl
-            F1["Follower PartitionWAL Replica (Group Commit)"]:::impl
-            F2["Follower PartitionWAL Replica (Group Commit)"]:::impl
-            Leader -->|"AppendEntries RPC"| F1 & F2
-            F1 & F2 -->|"Majority Quorum ACKs (>= 2 of 3)"| Leader
-            Leader --> Commit["Advance commitIndex & FSM Barrier"]:::impl
-        end
+        %% L0: Multi-Node Raft Consensus
+        Leader["Leader PartitionWAL (Group Commit 64 entries / 1ms configurable)"]:::impl
+        F1["Follower PartitionWAL Replica (Group Commit)"]:::impl
+        F2["Follower PartitionWAL Replica (Group Commit)"]:::impl
+        Leader -->|"AppendEntries RPC"| F1 & F2
+        F1 & F2 -->|"Majority Quorum ACKs (>= 2 of 3)"| Leader
+        Leader --> Commit["Advance commitIndex & FSM Barrier"]:::impl
+
         Log --> Leader
         Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
         Apply --> StateHash["Deterministic State Hash (SHA-256)"]:::impl
@@ -1025,19 +1025,20 @@ flowchart TD
         SF -->|"retries exhausted"| SSF
     end
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
-        subgraph SurfaceAxis["Axis 1: Surface Lifecycle"]
-            FC["CANDIDATE"]:::impl --> FR["REPORTABLE (Surface Decision)"]:::impl
-            FC --> FF["FALSE_POSITIVE (Terminal: Immutable non-repudiation)"]:::impl
-            FR -->|"Analyst Triage"| FF
-        end
-        subgraph ConfidenceAxis["Axis 2: Confidence & Exploitability"]
-            C_HEUR["heuristic_candidate"]:::impl --> C_PASS["passive_only"]:::impl
-            C_PASS --> C_VAL["validated"]:::impl
-            C_VAL --> C_EXP["exploitable"]:::impl
-        end
-        subgraph TicketAxis["Axis 3: Operator Ticket Status"]
-            T_OPEN["OPEN"]:::impl --> T_CLOSED["CLOSED"]:::impl
-        end
+        %% Axis 1: Surface Lifecycle
+        FC["CANDIDATE"]:::impl --> FR["REPORTABLE (Surface Decision)"]:::impl
+        FC --> FF["FALSE_POSITIVE (Terminal: Immutable non-repudiation)"]:::impl
+        FR -->|"Analyst Triage"| FF
+
+        %% Axis 2: Confidence & Exploitability
+        C_HEUR["heuristic_candidate"]:::impl --> C_PASS["passive_only"]:::impl
+        C_PASS --> C_VAL["validated"]:::impl
+        C_VAL --> C_EXP["exploitable"]:::impl
+
+        %% Axis 3: Operator Ticket Status
+        T_OPEN["OPEN"]:::impl --> T_CLOSED["CLOSED"]:::impl
+
+        %% Refinement relation
         C_VAL & C_EXP -.->|"refines confidence of"| FR
     end
 
@@ -1466,55 +1467,50 @@ flowchart TD
     end
     
     subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I37)"]
-        subgraph Tier1["Tier 1: Placement, Consensus & Multi-Raft"]
-            I1g["I1: Hash-Chain Continuity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I2g["I2: Log Monotonicity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl
-            I2g --> I3g["I3: Committed-State Confinement<br/><small>replicated_log.py [FAULT-INJECTED]</small>"]:::impl
-            I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
-            I7g --> I17g["I17: Authority Uniqueness<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
-            I17g --> I36g["I36: Single-Writer Region Relay<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
-            I36g --> I37g["I37: Zero Dual-Writer Transfer Fence<br/><small>authority_transfer.py [PRODUCTION-OBSERVED]</small>"]:::impl
-            I2g --> I4g["I4: Aggregate Monotonicity<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
-            I18g["I18: Stale Command Rejection<br/><small>replicated_log.py [ADVERSARIAL]</small>"]:::impl --> I36g
-        end
+        %% --- Tier 1: Placement, Consensus & Multi-Raft ---
+        I1g["I1: Hash-Chain Continuity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I2g["I2: Log Monotonicity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl
+        I2g --> I3g["I3: Committed-State Confinement<br/><small>replicated_log.py [FAULT-INJECTED]</small>"]:::impl
+        I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
+        I7g --> I17g["I17: Authority Uniqueness<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
+        I17g --> I36g["I36: Single-Writer Region Relay<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
+        I36g --> I37g["I37: Zero Dual-Writer Transfer Fence<br/><small>authority_transfer.py [PRODUCTION-OBSERVED]</small>"]:::impl
+        I2g --> I4g["I4: Aggregate Monotonicity<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
+        I18g["I18: Stale Command Rejection<br/><small>replicated_log.py [ADVERSARIAL]</small>"]:::impl --> I36g
 
-        subgraph Tier2["Tier 2: Durability, Clock Admission & Zero-I/O FSM"]
-            I22g["I22: Clock Skew Admission Gate<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I4g
-            I4g --> I11g["I11: Cryptographic State Commitment<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
-            I11g --> I12g["I12: Snapshot Integrity<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
-            I12g --> I15g["I15: Fail-Closed Corruption Boundary<br/><small>wal.py [FAULT-INJECTED]</small>"]:::impl
-            I15g --> I9g["I9: Pure FSM Determinism<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
-            I9g --> I10g["I10: Worker Epoch Fencing<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
-            I9g --> I13g["I13: Receipt HMAC Binding<br/><small>receipt_crypto.py [TESTED]</small>"]:::impl
-            I9g --> I14g["I14: Deduplicated Outbox Stream<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
-            I9g --> I16g["I16: Replay State Invariance<br/><small>replay_engine.py [PROPERTY-TESTED]</small>"]:::impl
-            I14g --> I8g["I8: Projection Watermark Bound<br/><small>projection_stream.py [PRODUCTION-OBSERVED]</small>"]:::impl
-        end
+        %% --- Tier 2: Durability, Clock Admission & Zero-I/O FSM ---
+        I22g["I22: Clock Skew Admission Gate<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I4g
+        I4g --> I11g["I11: Cryptographic State Commitment<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
+        I11g --> I12g["I12: Snapshot Integrity<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
+        I12g --> I15g["I15: Fail-Closed Corruption Boundary<br/><small>wal.py [FAULT-INJECTED]</small>"]:::impl
+        I15g --> I9g["I9: Pure FSM Determinism<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
+        I9g --> I10g["I10: Worker Epoch Fencing<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
+        I9g --> I13g["I13: Receipt HMAC Binding<br/><small>receipt_crypto.py [TESTED]</small>"]:::impl
+        I9g --> I14g["I14: Deduplicated Outbox Stream<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
+        I9g --> I16g["I16: Replay State Invariance<br/><small>replay_engine.py [PROPERTY-TESTED]</small>"]:::impl
+        I14g --> I8g["I8: Projection Watermark Bound<br/><small>projection_stream.py [PRODUCTION-OBSERVED]</small>"]:::impl
 
-        subgraph Tier3["Tier 3: Quota Slabs, Budget Conservation & Leases"]
-            I26g["I26: Quota Slab Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl --> I5g["I5: Universal Budget Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl
-            I5g --> I6g["I6: Scoped Idempotency<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
-            I6g --> I19g["I19: Lease Terminal Linearization<br/><small>lease_status.py [MODEL-CHECKED]</small>"]:::impl
-            I19g --> I20g["I20: Policy Version Fencing<br/><small>policy_governance.py [FAULT-INJECTED]</small>"]:::impl
-            I19g --> I21g["I21: Projection Recovery Invariance<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
-            I19g --> I28g["I28: Hardened Lease Transitions<br/><small>hunt_budget.py [MODEL-CHECKED]</small>"]:::impl
-        end
+        %% --- Tier 3: Quota Slabs, Budget Conservation & Leases ---
+        I26g["I26: Quota Slab Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl --> I5g["I5: Universal Budget Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl
+        I5g --> I6g["I6: Scoped Idempotency<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
+        I6g --> I19g["I19: Lease Terminal Linearization<br/><small>lease_status.py [MODEL-CHECKED]</small>"]:::impl
+        I19g --> I20g["I20: Policy Version Fencing<br/><small>policy_governance.py [FAULT-INJECTED]</small>"]:::impl
+        I19g --> I21g["I21: Projection Recovery Invariance<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
+        I19g --> I28g["I28: Hardened Lease Transitions<br/><small>hunt_budget.py [MODEL-CHECKED]</small>"]:::impl
 
-        subgraph Tier4["Tier 4: CRDT State, Bulkheads, Sandboxing & Causality"]
-            I23g["I23: Partition Budget Isolation<br/><small>state.py [PROPERTY-TESTED]</small>"]:::impl --> I25g["I25: Policy Revocation Watermark<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
-            I25g --> I24g["I24: Mesh BootID Nonce Safety<br/><small>mesh/ [FAULT-INJECTED]</small>"]:::impl
-            I27g["I27: Bounded Claims & CAS Merkle Evidence<br/><small>resilience.py [PROPERTY-TESTED]</small>"]:::impl --> I29g["I29: Universal Network Egress Authority<br/><small>egress_context.py [ADVERSARIAL]</small>"]:::impl
-            I29g --> I30g["I30: Authorization Causality Quartet<br/><small>authorization.py [MODEL-CHECKED]</small>"]:::impl
-            I22g --> I30g
-            I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
-        end
+        %% --- Tier 4: CRDT State, Bulkheads, Sandboxing & Causality ---
+        I23g["I23: Partition Budget Isolation<br/><small>state.py [PROPERTY-TESTED]</small>"]:::impl --> I25g["I25: Policy Revocation Watermark<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
+        I25g --> I24g["I24: Mesh BootID Nonce Safety<br/><small>mesh/ [FAULT-INJECTED]</small>"]:::impl
+        I27g["I27: Bounded Claims & CAS Merkle Evidence<br/><small>resilience.py [PROPERTY-TESTED]</small>"]:::impl --> I29g["I29: Universal Network Egress Authority<br/><small>egress_context.py [ADVERSARIAL]</small>"]:::impl
+        I29g --> I30g["I30: Authorization Causality Quartet<br/><small>authorization.py [MODEL-CHECKED]</small>"]:::impl
+        I22g --> I30g
+        I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
 
-        subgraph Tier5["Tier 5: Settlement, Outbox Decoupling & Recovery"]
-            I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
-            I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
-            I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
-            I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol<br/><small>recovery_protocol.py [MODEL-CHECKED]</small>"]:::impl
-            I37g --> I35g
-        end
+        %% --- Tier 5: Settlement, Outbox Decoupling & Recovery ---
+        I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
+        I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
+        I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
+        I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol<br/><small>recovery_protocol.py [MODEL-CHECKED]</small>"]:::impl
+        I37g --> I35g
     end
 ```
 
