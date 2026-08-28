@@ -225,3 +225,98 @@ def test_stage_settle_zero_findings_releases_budget(tmp_path) -> None:
     assert res.status == "COMMITTED"
     assert enforcer.reserved_requests == 0
     assert enforcer.consumed_requests == 0
+
+
+def test_i29_raw_thread_propagation_adversarial() -> None:
+    """Gap 7: Spawning work in a raw thread or ThreadPoolExecutor still enforces active I29 filter."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from src.sandbox.egress_context import assert_egress_allowed, clear_current_egress_filter, set_current_egress_filter
+    from src.sandbox.network_isolation import EgressViolationError, NetworkEgressFilter
+
+    filt = NetworkEgressFilter(allowed_domains=("in-scope.com",), allowed_cidrs=(), strict=True)
+    set_current_egress_filter(filt)
+    try:
+        thread_error: list[Exception] = []
+
+        def _thread_worker() -> None:
+            try:
+                assert_egress_allowed("evil.attacker.com")
+            except Exception as e:
+                thread_error.append(e)
+
+        t = threading.Thread(target=_thread_worker)
+        t.start()
+        t.join()
+
+        assert len(thread_error) == 1
+        assert isinstance(thread_error[0], EgressViolationError)
+
+        # ThreadPoolExecutor execution
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fut = executor.submit(assert_egress_allowed, "169.254.169.254")
+            with pytest.raises(EgressViolationError):
+                fut.result()
+    finally:
+        clear_current_egress_filter()
+
+
+def test_i29_hardcoded_metadata_deny_floor_cannot_be_re_enabled() -> None:
+    """Gap 8: Hardcoded metadata endpoints cannot be re-enabled even by permissive ScopeToken or 0.0.0.0/0."""
+    from src.decision.models import ScopeToken
+    from src.sandbox.network_isolation import (
+        HARDCODED_METADATA_DENY_LIST,
+        NetworkEgressFilter,
+    )
+
+    # Even with 0.0.0.0/0 and metadata endpoints in allowed_domains:
+    token = ScopeToken(
+        scope_hash="hash-123",
+        allowed_domains=("169.254.169.254", "metadata.google.internal", "fd00:ec2::254"),
+        allowed_cidrs=("0.0.0.0/0", "169.254.0.0/16"),
+    )
+    filt = NetworkEgressFilter.from_scope_token(token)
+
+    for endpoint in HARDCODED_METADATA_DENY_LIST:
+        assert filt.is_destination_allowed(endpoint) is False, f"Metadata {endpoint} must be blocked"
+
+    # Link local IP is blocked
+    assert filt.is_destination_allowed("169.254.1.1") is False
+
+
+def test_i27_claim_deserialization_boundary_64kb_cap() -> None:
+    """Gap 9: 64KB bound enforced at the byte/stream deserialization boundary before JSON parse."""
+    import io
+    from src.core.contracts.execution_request import (
+        RAW_CLAIM_MAX_BYTES,
+        ClaimTooLargeError,
+        RawExecutionClaim,
+    )
+
+    # 1. from_bytes rejecting oversized payload before parsing
+    oversized_bytes = b"A" * (RAW_CLAIM_MAX_BYTES + 1)
+    with pytest.raises(ClaimTooLargeError, match="exceeds deserialization limit"):
+        RawExecutionClaim.from_bytes(oversized_bytes)
+
+    # 2. from_stream bounded reading to prevent OOM
+    huge_stream = io.BytesIO(b"X" * (RAW_CLAIM_MAX_BYTES * 10))
+    with pytest.raises(ClaimTooLargeError, match="aborted to protect worker memory"):
+        RawExecutionClaim.from_stream(huge_stream)
+
+    # 3. Valid sized payload succeeds
+    import json
+    valid_data = {
+        "request_id": "req-1",
+        "tenant_id": "tenant-1",
+        "candidate_id": "cand-1",
+        "execution_id": "exec-1",
+        "lease_id": "lease-1",
+        "epoch": 1,
+        "worker_id": "worker-1",
+        "outcome": "COMPLETED",
+        "duration_seconds": 1.0,
+    }
+    valid_bytes = json.dumps(valid_data).encode("utf-8")
+    claim = RawExecutionClaim.from_bytes(valid_bytes)
+    assert claim.request_id == "req-1"

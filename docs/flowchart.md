@@ -555,7 +555,7 @@ flowchart TD
 
         InstallFilt["install_filter_from_scope -> egress_context ContextVar"]:::impl
 
-        Guard["I29 Universal Egress Authority"]:::impl
+        Guard["egress_context.py<br/>(ContextVar + Process Lock + Hardcoded Metadata Floor I29)"]:::impl
 
         PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
 
@@ -589,7 +589,7 @@ flowchart TD
 
         Guard -->|"sandbox"| Subproc
 
-        Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
+        Out["StageOutput / ExploitClaim<br/>(Bounded 64KB Deserialization Buffer CAS Merkle Root I27)"]:::impl
 
         HTTPX --> Out
         Requests --> Out

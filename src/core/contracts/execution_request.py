@@ -165,6 +165,10 @@ class ClaimSizeExceededError(ValueError):
     """Raised when RawExecutionClaim exceeds the 64 KB maximum envelope bound."""
 
 
+class ClaimTooLargeError(ClaimSizeExceededError):
+    """Raised when raw claim payload stream or bytes exceed 64 KB prior to deserialization (I27)."""
+
+
 @dataclass(frozen=True, slots=True)
 class RawExecutionClaim:
     """Untrusted execution claim emitted by an isolated worker before control-plane verification."""
@@ -197,9 +201,42 @@ class RawExecutionClaim:
 
         payload_bytes = len(json.dumps(self.to_dict()).encode("utf-8"))
         if payload_bytes > RAW_CLAIM_MAX_BYTES:
-            raise ClaimSizeExceededError(
+            raise ClaimTooLargeError(
                 f"RawExecutionClaim size {payload_bytes} bytes exceeds 64 KB limit ({RAW_CLAIM_MAX_BYTES} bytes)"
             )
+
+    @classmethod
+    def from_bytes(cls, data_bytes: bytes, max_bytes: int = RAW_CLAIM_MAX_BYTES) -> RawExecutionClaim:
+        """Enforce 64KB bound at the deserialization boundary BEFORE parsing (I27)."""
+        import json
+
+        if len(data_bytes) > max_bytes:
+            raise ClaimTooLargeError(
+                f"Claim payload {len(data_bytes)} bytes exceeds deserialization limit ({max_bytes} bytes) - rejected before JSON parsing (I27)"
+            )
+        data = json.loads(data_bytes.decode("utf-8"))
+        return cls.from_mapping(data)
+
+    @classmethod
+    def from_stream(cls, stream: Any, max_bytes: int = RAW_CLAIM_MAX_BYTES) -> RawExecutionClaim:
+        """Stream read with hard cap to prevent worker OOM before size check (I27)."""
+        chunks: list[bytes] = []
+        total_read = 0
+        chunk_size = 4096
+
+        while True:
+            chunk = stream.read(chunk_size)
+            if not chunk:
+                break
+            total_read += len(chunk)
+            if total_read > max_bytes:
+                raise ClaimTooLargeError(
+                    f"Claim stream exceeded {max_bytes} bytes during read - aborted to protect worker memory (I27)"
+                )
+            chunks.append(chunk)
+
+        payload = b"".join(chunks)
+        return cls.from_bytes(payload, max_bytes=max_bytes)
 
     def to_dict(self) -> dict[str, Any]:
         return {

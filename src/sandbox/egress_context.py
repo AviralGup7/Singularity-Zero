@@ -35,21 +35,32 @@ _CURRENT_EGRESS: ContextVar[NetworkEgressFilter | None] = ContextVar(
     "i29_egress_filter", default=None
 )
 
+# Process-level fallback to ensure raw threads or detached async tasks without ContextVar
+# inheritance never silently bypass the active stage filter (Gap 7 remediation).
+_GLOBAL_PROCESS_EGRESS: NetworkEgressFilter | None = None
+_GLOBAL_EGRESS_LOCK = threading.RLock()
+
 _HOOKS_LOCK = threading.Lock()
 _HOOKS_INSTALLED = False
 _I29_HOOK_MARKER = "_i29_egress_hook"
 
 
 def get_current_egress_filter() -> NetworkEgressFilter:
-    """Return the active filter, or the metadata-guard default."""
+    """Return the active filter from ContextVar, or process-wide fallback, or metadata-guard default."""
     current = _CURRENT_EGRESS.get()
     if current is not None:
         return current
+    with _GLOBAL_EGRESS_LOCK:
+        if _GLOBAL_PROCESS_EGRESS is not None:
+            return _GLOBAL_PROCESS_EGRESS
     return NetworkEgressFilter.metadata_guard()
 
 
 def set_current_egress_filter(filt: NetworkEgressFilter | None) -> Token:
-    """Install *filt* for the current context; return a reset token."""
+    """Install *filt* for the current context and update process fallback; return a reset token."""
+    with _GLOBAL_EGRESS_LOCK:
+        global _GLOBAL_PROCESS_EGRESS
+        _GLOBAL_PROCESS_EGRESS = filt
     return _CURRENT_EGRESS.set(filt)
 
 
@@ -58,6 +69,9 @@ def reset_current_egress_filter(token: Token) -> None:
 
 
 def clear_current_egress_filter() -> None:
+    with _GLOBAL_EGRESS_LOCK:
+        global _GLOBAL_PROCESS_EGRESS
+        _GLOBAL_PROCESS_EGRESS = None
     _CURRENT_EGRESS.set(None)
 
 

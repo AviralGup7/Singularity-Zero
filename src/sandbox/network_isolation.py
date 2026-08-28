@@ -17,16 +17,23 @@ from src.decision.models import ScopeToken
 
 logger = logging.getLogger(__name__)
 
-# Cloud metadata endpoints unconditionally blocked across all cloud providers
-CLOUD_METADATA_DESTINATIONS = frozenset(
+# Hardcoded compile-time floor: Cloud metadata and link-local destinations unconditionally denied (I29)
+# Cannot be bypassed or re-enabled by any ScopeToken, wildcards, or custom CIDR allowances.
+HARDCODED_METADATA_DENY_LIST: frozenset[str] = frozenset(
     [
-        "169.254.169.254",
-        "metadata.google.internal",
-        "fd00:ec2::254",
+        "169.254.169.254",  # AWS/GCP/Azure/OpenStack IMDSv1/v2 IPv4
+        "metadata.google.internal",  # GCP internal metadata hostname
+        "fd00:ec2::254",  # AWS IMDS IPv6
         "100.100.100.200",  # Alibaba Cloud metadata
-        "instance-data",
+        "instance-data",  # Legacy EC2 metadata hostname
+        "169.254.169.250",  # Azure IMDS alias
+        "169.254.169.251",
+        "169.254.169.252",
+        "169.254.169.253",
     ]
 )
+
+CLOUD_METADATA_DESTINATIONS = HARDCODED_METADATA_DENY_LIST
 
 
 class EgressViolationError(PermissionError):
@@ -39,7 +46,7 @@ class NetworkEgressFilter:
 
     allowed_domains: tuple[str, ...]
     allowed_cidrs: tuple[str, ...]
-    blocked_endpoints: tuple[str, ...] = tuple(sorted(CLOUD_METADATA_DESTINATIONS))
+    blocked_endpoints: tuple[str, ...] = tuple(sorted(HARDCODED_METADATA_DENY_LIST))
     strict: bool = True
 
     @classmethod
@@ -80,20 +87,21 @@ class NetworkEgressFilter:
             norm_host = norm_host.split(":")[0]
         norm_host = norm_host.rstrip(".")
 
-        # 1. Unconditional Cloud Metadata Denial (I29)
-        if norm_host in self.blocked_endpoints:
+        # 1. Unconditional Hard-Coded Cloud Metadata & Link-Local Pre-Filter (I29 Floor)
+        if norm_host in HARDCODED_METADATA_DENY_LIST or norm_host in self.blocked_endpoints:
             logger.warning("Egress blocked: cloud metadata endpoint %s accessed", norm_host)
             return False
 
         try:
             ip = ipaddress.ip_address(norm_host)
-            # Check Link-Local Metadata range (169.254.0.0/16)
+            # Check Link-Local Metadata range (169.254.0.0/16 or fe80::/10)
             if ip.is_link_local:
                 logger.warning("Egress blocked: link-local IP %s accessed", ip)
                 return False
 
             # Check if IP is explicitly allowed in authorized CIDRs
             if self.allowed_cidrs:
+                # Even if allowed_cidrs contains 0.0.0.0/0 or 169.254.0.0/16, metadata is never permitted
                 return any(
                     ip in ipaddress.ip_network(cidr, strict=False) for cidr in self.allowed_cidrs
                 )
