@@ -16,7 +16,8 @@ Visual graphs of the living docs under `docs/`. Charts are the map; the linked m
 > | **Retired Pointer Preservation** | Retired IDs are preserved exclusively in the Retired Chart Registry to resolve external identifier references. |
 > | **Graph as Knowledge** | All relationships, authority levels, operational predicates, and negative constraints are encoded directly as graph edges and node attributes. |
 > | **Explicit Edge Topology Law** | **Never assume "inside the same subgraph" means connected. Never assume "close together" means connected. Never use a subgraph as an architectural endpoint. Every important relationship gets its own explicit edge.** The layout engine is allowed to rearrange nodes, but it is not allowed to invent edges. |
-> | **Render Engine & Parser Law** | **1. Single-Level Subgraphs Only**: Never nest subgraphs (`subgraph` inside `subgraph`). Dagre compound cluster collisions cause edge detachment and scattered layout.<br/>**2. ASCII Label Safety**: Avoid multi-byte unicode arrows (`↔`, `→`) in node labels or edge text; use ASCII `<->`, `->` to prevent parser failures.<br/>**3. KaTeX Underscore Escaping**: In math formulas, always escape literal underscores (`\_`) in `\text{...}` to prevent subscript `EOF` syntax errors.<br/>**4. Closed Code Fences**: Every diagram must start with ```` ```mermaid ```` followed by `flowchart TD/LR` and terminate with ```` ``` ````. |
+> | **Render Engine & Parser Law** | **1. Single-Level Subgraphs Only**: Never nest subgraphs (`subgraph` inside `subgraph`). Dagre compound cluster collisions cause edge detachment and scattered layout.<br/>**2. ASCII Label Safety**: Avoid multi-byte unicode arrows (`↔`, `→`) in node labels or edge text; use ASCII `<->`, `->` to prevent parser failures.<br/>**3. KaTeX Underscore Escaping**: In math formulas, always escape literal underscores (`\_`) in `\text{...}` to prevent subscript `EOF` syntax errors.<br/>**4. Closed Code Fences**: Every diagram must start with ```` ```mermaid 
+```` followed by `flowchart TD/LR` and terminate with ```` ``` ````. |
 > | **History in Git** | Historical evolution, audit logs, and document diffs belong to the Git database, not inside the AI knowledge graph. |
 >
 > How to modify this atlas:
@@ -249,7 +250,6 @@ flowchart TD
         EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (+10s / -5s Monotonic Gate)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
         
-        %% L0: Multi-Node Raft Consensus
         Leader["Leader PartitionWAL (Group Commit 64 entries / 1ms configurable)"]:::impl
         F1["Follower PartitionWAL Replica (Group Commit)"]:::impl
         F2["Follower PartitionWAL Replica (Group Commit)"]:::impl
@@ -296,10 +296,6 @@ flowchart TD
 ```mermaid
 flowchart TD
 
-    %% ============================================================
-    %% NODE CLASSES
-    %% ============================================================
-
     classDef impl fill:#1f2937,stroke:#10b981,stroke-width:2px,color:#fff;
     classDef singleNode fill:#1e293b,stroke:#0ea5e9,stroke-width:1px,stroke-dasharray:3 3,color:#fff;
     classDef library fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
@@ -308,12 +304,6 @@ flowchart TD
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
     classDef anchor fill:#111827,stroke:#94a3b8,stroke-width:2px,color:#fff;
     classDef property fill:#172554,stroke:#60a5fa,stroke-width:1px,color:#dbeafe;
-
-
-    %% ============================================================
-    %% GRAPH BUILDER
-    %% DISCOVER -> VALIDATE -> COMPOSE -> VERIFY -> FREEZE
-    %% ============================================================
 
     subgraph GraphBuilderPipeline["Dynamic Plugin & DAG Lifecycle"]
 
@@ -345,11 +335,6 @@ flowchart TD
         Freeze --> FrozenGraph
         FrozenGraph --> GraphGenID
     end
-
-
-    %% ============================================================
-    %% PROCESS BOOTSTRAP / RECOVERY / AUTHORITY
-    %% ============================================================
 
     subgraph Init["Process Bootstrap & Authority Attachment"]
 
@@ -391,11 +376,6 @@ flowchart TD
         Auth -->|"inject context"| Stamp
     end
 
-
-    %% ============================================================
-    %% FROZEN GRAPH / RUNTIME GRAPH / GENERATION VALIDATION
-    %% ============================================================
-
     StageGraphRoot["RUNTIME STAGE_GRAPH (Frozen Executable Dependency Graph)"]:::anchor
 
     GraphGenGate["GraphGenID Validation Gate"]:::property
@@ -410,11 +390,6 @@ flowchart TD
 
     Stamp --> Sub
 
-
-    %% ============================================================
-    %% SCHEDULER CONTROL MODEL
-    %% ============================================================
-
     Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl
 
     ReadinessRoot["READINESS / STAGE STATUS CONTROL MODEL"]:::anchor
@@ -426,11 +401,6 @@ flowchart TD
     ReadinessEvaluation -->|"readiness result"| Scheduler
 
     Scheduler -->|"control state / lifecycle evaluation"| ReadinessRoot
-
-
-    %% ============================================================
-    %% RUNTIME EXECUTABLE STAGE GRAPH
-    %% ============================================================
 
     subgraph DAG["Runtime Executable STAGE_GRAPH (ActorScheduler Readiness & Gates)"]
 
@@ -478,11 +448,8 @@ flowchart TD
 
         Dedup["dedup_stage (Structural Parameterized Fingerprinting)"]:::impl
 
-
-        %% Root of the frozen runtime graph
         StageGraphRoot --> Sub
 
-        %% Main DAG
         Sub --> Takeover
         Sub --> LiveH
 
@@ -508,13 +475,11 @@ flowchart TD
         Rank --> Access
         Passive --> Access
 
-        %% Runtime scheduling gates
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Active
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Semgrep
         LiveH -.->|"when: OutputNonEmpty('live_hosts') and FlagSet('nuclei_available')"| Nuclei
         LiveH -.->|"when: OutputNonEmpty('live_hosts')"| Access
 
-        %% Validation / intelligence
         Passive --> Val
         Active --> Val
 
@@ -525,7 +490,6 @@ flowchart TD
 
         Intel --> Threat
 
-        %% Join sink
         Intel --> Report
         Nuclei --> Report
         Access --> Report
@@ -537,16 +501,10 @@ flowchart TD
 
         DynProducers -->|"composition: _join_finding_producers"| Report
 
-        %% Terminal outputs
         Report --> Sarif
         Report --> CiExp
         Report --> Dedup
     end
-
-
-    %% ============================================================
-    %% READINESS FSM
-    %% ============================================================
 
     subgraph ReadinessFSM["Scheduler Readiness vs Persisted StageStatus"]
 
@@ -572,57 +530,39 @@ flowchart TD
 
         DownstreamRun["downstream execution continues (non-critical)"]:::impl
 
-
-        %% Scheduler enters / evaluates persisted state
         ReadinessRoot --> P_PEND
 
-        %% Normal readiness lifecycle
         P_PEND -->|"_need_met all deps"| P_CAND
 
         P_CAND -->|"when.is_satisfied == True"| P_DISP
 
         P_DISP -->|"spawn execution"| P_RUN
 
-        %% Terminal execution outcomes
         P_RUN -->|"success"| P_COMP
         P_RUN -->|"partial / degraded"| P_DEG
         P_RUN -->|"failure"| P_FAIL
 
-        %% Scheduler-local control state
         P_CAND -.->|"when == False (control state)"| P_DEF
 
         P_DEF -.->|"tick retry"| P_CAND
 
         P_DEF -->|"scan drain"| P_SKIP
 
-        %% Critical upstream failure
         P_PEND -->|"upstream_critical_failure"| P_SKIP_FAIL
 
-        %% Failure propagation
         P_FAIL -->|"non-critical stage failure"| DownstreamRun
 
         P_FAIL -->|"critical stage failure (e.g. live_hosts)"| P_SKIP_FAIL
     end
 
-
-    %% Explicit scheduler / readiness relations
     Scheduler -->|"evaluate persisted lifecycle"| P_PEND
     Scheduler -->|"dispatch actor"| P_DISP
-
-    %% ============================================================
-    %% READY STAGE -> EXECUTION REQUEST
-    %% ============================================================
 
     Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
 
     P_DISP -->|"ExecutionRequest for dispatched stage"| Req
 
     StageGraphRoot -->|"per ready node"| Req
-
-
-    %% ============================================================
-    %% EXECUTION GATE / AUTHORIZATION / EGRESS
-    %% ============================================================
 
     subgraph Sandbox["Execution Gate & Universal Egress Enforcement (I29 / I30 / F-036)"]
 
@@ -640,7 +580,6 @@ flowchart TD
 
         PORT_F006_RES[["PORT: F-006 ReserveGlobalBudget"]]
 
-
         Req -->|"1. request authorization"| Budget
 
         Budget -->|"Exhausted"| Rej
@@ -653,8 +592,6 @@ flowchart TD
 
         InstallFilt -->|"4. universal egress guard"| Guard
 
-
-        %% --- Application & Runtime Egress Layer ---
         HTTPX["httpx.Client (Application Hook)"]:::impl
         Requests["requests.Session (Application Hook)"]:::impl
         Shared["shared_sessions.py (Application Hook)"]:::impl
@@ -669,14 +606,10 @@ flowchart TD
         Guard -->|"patch"| Stream
         Guard -->|"guard"| Browser
 
-
-        %% --- Kernel-Level Isolation Layer ---
         Subproc["ProcessSandbox (Kernel NetNS + Seccomp-BPF)"]:::specOnly
 
         Guard -->|"sandbox"| Subproc
 
-
-        %% --- Execution Output Aggregation ---
         Out["StageOutput / ExploitClaim (Bounded 64KB CAS Merkle Root I27)"]:::impl
 
         HTTPX --> Out
@@ -687,8 +620,6 @@ flowchart TD
         Browser --> Out
         Subproc --> Out
 
-
-        %% --- Universal Egress Refusal & Compensation ---
         Viol["EgressViolationError (Out-of-Scope / IMDS Deny)"]:::forbidden
         KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
         SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
@@ -699,17 +630,10 @@ flowchart TD
         KillSubproc --> SettleDrop
         SettleDrop --> EgressCompensate
 
-
-        %% Standalone exploiter remains inside mandatory ticket path
         Exploit["Standalone SafeExploiter.execute"]:::impl
 
         Exploit -->|"Mandatory ScopeToken + Budget Reservation"| Ticket
     end
-
-
-    %% ============================================================
-    %% SETTLEMENT PIPELINE
-    %% ============================================================
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28 / I31 / I32 / F-042)"]
 
@@ -741,21 +665,11 @@ flowchart TD
 
         PoisonDLQ["Poison-Pill Quarantine (DLQ Table + Metric)"]:::forbidden
 
-
-        %% --------------------------------------------------------
-        %% OUTBOX FAILURE / REPLAY
-        %% --------------------------------------------------------
-
         NoBus["Outbox Append Failure; WAL Remains Authoritative"]:::vacuous
 
         WALAuthoritative["WAL Committed State Preserved"]:::impl
 
         ReplayDispatch["Replay Outbox Append & EventBus Dispatch"]:::impl
-
-
-        %% --------------------------------------------------------
-        %% SETTLEMENT OUTCOMES
-        %% --------------------------------------------------------
 
         SettleRej["Settle REJECTED"]:::impl
 
@@ -763,13 +677,10 @@ flowchart TD
 
         SettleNoWal["Settle DROPPED (No wal_id)"]:::forbidden
 
-
-        %% Settlement entry points
         PORT_F003_SETTLE_BRIDGE --> Coord
 
         Out --> Coord
 
-        %% Normal settlement chain
         Coord --> Fingerprint
         Fingerprint --> Thaw
         Thaw --> WAL
@@ -778,17 +689,13 @@ flowchart TD
 
         BudgetCommit --> FindingOutboxAppend
 
-        %% Successful authoritative outbox append
         FindingOutboxAppend -->|"append committed"| FindingCreated
 
-        %% Failed outbox append: no false claim that FindingCreated exists
         FindingOutboxAppend -.->|"append failure"| NoBus
 
         NoBus -->|"no rollback of WAL"| WALAuthoritative
         WALAuthoritative -->|"recovery replay"| ReplayDispatch
 
-
-        %% Successful finding publication
         FindingCreated --> PORT_F006_COM
         FindingCreated --> DedupStage
         DedupStage --> FinalReport
@@ -799,50 +706,28 @@ flowchart TD
 
         Emit -->|"Max Delivery Retries Exceeded (5x)"| PoisonDLQ
 
-
-        %% Settlement rejection / dedup / missing WAL
         WAL -->|"FAILED Attempt with wal_id"| SettleRej
 
         WAL -->|"DEDUPLICATED Claim"| SettleDedup
 
         WAL -->|"Missing / Corrupt wal_id"| SettleNoWal
 
-
-        %% Compensation
         SettleRej --> EgressCompensate
         SettleDedup --> EgressCompensate
         SettleNoWal --> EgressCompensate
 
         EgressCompensate --> PORT_F006_REL[["PORT: F-006 Compensate / Release"]]
 
-
-        %% Explicit I31 negative constraints
         SettleRej -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
         SettleDedup -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
         SettleNoWal -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
         SettleDrop -.->|"FORBIDDEN: no FINDING_CREATED"| FindingCreated
     end
 
-
-    %% ============================================================
-    %% EGRESS DROP ENTERS SETTLEMENT SEMANTICS
-    %% ============================================================
-
-    %% Canonical egress path:
-    %% Viol -> Kill -> SettleDrop -> EgressCompensate
-    %%
-    %% NO second direct Viol -> SettleDrop edge.
-
-
-    %% ============================================================
-    %% CROSS-PLANE RELATIONSHIPS
-    %% ============================================================
-
     EgressCompensate --> PORT_F006_REL
 
     FindingCreated -->|"authoritative durable event"| Emit
 
-    %% Settlement bridge from F-003 is represented by the port above.
 ```
 
 ### Formal Graph Invariants Table (`FREEZE` Boundary)
@@ -970,7 +855,6 @@ flowchart TD
         COMPENSATED -->|"idempotent no-op<br/>(Δ=0)"| COMPENSATED
     end
 
-    %% Explicit Cross-Plane Invariant & Port Connections
     LeaseTTL -->|"monotonic timeout check"| EXPIRED
     PORT_F004_RES_IN -->|"reserve request"| Reserve
     PORT_F004_COM_IN -->|"commit units"| CONSUMED
@@ -1026,20 +910,16 @@ flowchart TD
         SF -->|"retries exhausted"| SSF
     end
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
-        %% Axis 1: Surface Lifecycle
         FC["CANDIDATE"]:::impl --> FR["REPORTABLE (Surface Decision)"]:::impl
         FC --> FF["FALSE_POSITIVE (Terminal: Immutable non-repudiation)"]:::impl
         FR -->|"Analyst Triage"| FF
 
-        %% Axis 2: Confidence & Exploitability
         C_HEUR["heuristic_candidate"]:::impl --> C_PASS["passive_only"]:::impl
         C_PASS --> C_VAL["validated"]:::impl
         C_VAL --> C_EXP["exploitable"]:::impl
 
-        %% Axis 3: Operator Ticket Status
         T_OPEN["OPEN"]:::impl --> T_CLOSED["CLOSED"]:::impl
 
-        %% Refinement relation
         C_VAL & C_EXP -.->|"refines confidence of"| FR
     end
 
@@ -1468,7 +1348,6 @@ flowchart TD
     end
     
     subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I37)"]
-        %% --- Tier 1: Placement, Consensus & Multi-Raft ---
         I1g["I1: Hash-Chain Continuity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I2g["I2: Log Monotonicity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl
         I2g --> I3g["I3: Committed-State Confinement<br/><small>replicated_log.py [FAULT-INJECTED]</small>"]:::impl
         I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
@@ -1478,7 +1357,6 @@ flowchart TD
         I2g --> I4g["I4: Aggregate Monotonicity<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
         I18g["I18: Stale Command Rejection<br/><small>replicated_log.py [ADVERSARIAL]</small>"]:::impl --> I36g
 
-        %% --- Tier 2: Durability, Clock Admission & Zero-I/O FSM ---
         I22g["I22: Clock Skew Admission Gate<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I4g
         I4g --> I11g["I11: Cryptographic State Commitment<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
         I11g --> I12g["I12: Snapshot Integrity<br/><small>raft_fsm.py [FAULT-INJECTED]</small>"]:::impl
@@ -1490,7 +1368,6 @@ flowchart TD
         I9g --> I16g["I16: Replay State Invariance<br/><small>replay_engine.py [PROPERTY-TESTED]</small>"]:::impl
         I14g --> I8g["I8: Projection Watermark Bound<br/><small>projection_stream.py [PRODUCTION-OBSERVED]</small>"]:::impl
 
-        %% --- Tier 3: Quota Slabs, Budget Conservation & Leases ---
         I26g["I26: Quota Slab Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl --> I5g["I5: Universal Budget Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl
         I5g --> I6g["I6: Scoped Idempotency<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
         I6g --> I19g["I19: Lease Terminal Linearization<br/><small>lease_status.py [MODEL-CHECKED]</small>"]:::impl
@@ -1498,7 +1375,6 @@ flowchart TD
         I19g --> I21g["I21: Projection Recovery Invariance<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
         I19g --> I28g["I28: Hardened Lease Transitions<br/><small>hunt_budget.py [MODEL-CHECKED]</small>"]:::impl
 
-        %% --- Tier 4: CRDT State, Bulkheads, Sandboxing & Causality ---
         I23g["I23: Partition Budget Isolation<br/><small>state.py [PROPERTY-TESTED]</small>"]:::impl --> I25g["I25: Policy Revocation Watermark<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
         I25g --> I24g["I24: Mesh BootID Nonce Safety<br/><small>mesh/ [FAULT-INJECTED]</small>"]:::impl
         I27g["I27: Bounded Claims & CAS Merkle Evidence<br/><small>resilience.py [PROPERTY-TESTED]</small>"]:::impl --> I29g["I29: Universal Network Egress Authority<br/><small>egress_context.py [ADVERSARIAL]</small>"]:::impl
@@ -1506,7 +1382,6 @@ flowchart TD
         I22g --> I30g
         I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
 
-        %% --- Tier 5: Settlement, Outbox Decoupling & Recovery ---
         I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
         I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
         I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
