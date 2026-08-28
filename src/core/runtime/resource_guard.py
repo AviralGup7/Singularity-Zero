@@ -97,4 +97,61 @@ def assert_resources(**kwargs: object) -> ResourceSnapshot:
     return snap
 
 
-__all__ = ["ResourceExhausted", "ResourceSnapshot", "assert_resources", "inspect_resources"]
+def _pct_threshold(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+
+
+def classify_pressure(*, disk_pct: float, mem_pct: float | None = None) -> PressureLevel:
+    """Map utilisation percentages onto WARN / PRESSURE / CRITICAL.
+
+    Defaults: disk warn 85, pressure 92, critical 95; mem pressure 85, critical 92.
+    """
+    disk_warn = _pct_threshold("DISK_WARN_PCT", 85.0)
+    disk_pressure = _pct_threshold("DISK_PRESSURE_PCT", 92.0)
+    disk_critical = _pct_threshold("DISK_CRITICAL_PCT", 95.0)
+    mem_pressure = _pct_threshold("MEM_PRESSURE_PCT", 85.0)
+    mem_critical = _pct_threshold("MEM_CRITICAL_PCT", 92.0)
+    level = PressureLevel.OK
+    if disk_pct >= disk_warn:
+        level = PressureLevel.WARN
+    if disk_pct >= disk_pressure:
+        level = PressureLevel.PRESSURE
+    if disk_pct >= disk_critical:
+        level = PressureLevel.CRITICAL
+    if mem_pct is not None:
+        if mem_pct >= mem_pressure and level in {PressureLevel.OK, PressureLevel.WARN}:
+            level = PressureLevel.PRESSURE
+        if mem_pct >= mem_critical:
+            level = PressureLevel.CRITICAL
+    return level
+
+
+def inspect_pressure(
+    *,
+    wal_path: Path | str | None = None,
+) -> tuple[ResourceSnapshot, PressureLevel, float]:
+    snap = inspect_resources(wal_path=wal_path)
+    target = Path(wal_path) if wal_path is not None else Path(tempfile.gettempdir())
+    probe_dir = target if target.is_dir() else target.parent
+    disk_pct = 0.0
+    try:
+        usage = shutil.disk_usage(probe_dir if probe_dir.exists() else Path("."))
+        if usage.total:
+            disk_pct = 100.0 * (1.0 - (usage.free / usage.total))
+    except OSError:
+        disk_pct = 100.0
+    return snap, classify_pressure(disk_pct=disk_pct), disk_pct
+
+
+__all__ = [
+    "PressureLevel",
+    "ResourceExhausted",
+    "ResourceSnapshot",
+    "assert_resources",
+    "classify_pressure",
+    "inspect_pressure",
+    "inspect_resources",
+]
