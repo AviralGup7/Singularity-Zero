@@ -210,6 +210,7 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
             if candidate.startswith("https://"):
                 try:
                     from src.analysis.checks.passive.tls_analyzer import TLSAnalyzer
+
                     tls_analyzer = TLSAnalyzer()
                     tls_findings = tls_analyzer.analyze_host(host, 443)
                     if tls_findings:

@@ -363,9 +363,7 @@ class SchemaMigrationRegistry:
 
         return current
 
-    def downcast(
-        self, event_dict: dict[str, Any], target_version: int
-    ) -> dict[str, Any]:
+    def downcast(self, event_dict: dict[str, Any], target_version: int) -> dict[str, Any]:
         """Progressively downcast a newer schema version into an older target version with unknown field preservation."""
         current = dict(event_dict)
         event_type = str(current.get("event_type", current.get("command_type", "")))

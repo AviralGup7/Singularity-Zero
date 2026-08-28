@@ -46,7 +46,10 @@ class TestProcessSandbox(unittest.TestCase):
         )
 
         caps = detect_sandbox_capabilities()
-        self.assertIn(caps.enforcement_level, (SandboxEnforcementLevel.KERNEL_ENFORCED, SandboxEnforcementLevel.DEGRADED_USERSPACE))
+        self.assertIn(
+            caps.enforcement_level,
+            (SandboxEnforcementLevel.KERNEL_ENFORCED, SandboxEnforcementLevel.DEGRADED_USERSPACE),
+        )
 
         sandbox = ProcessSandbox()
         res = sandbox.run([sys.executable, "-c", "print('cap test')"])
@@ -73,6 +76,8 @@ class TestProcessSandbox(unittest.TestCase):
             degraded_reason="missing /proc/self/ns/net",
         )
 
-        with patch("src.sandbox.seccomp_filter.detect_sandbox_capabilities", return_value=mock_report):
+        with patch(
+            "src.sandbox.seccomp_filter.detect_sandbox_capabilities", return_value=mock_report
+        ):
             with self.assertRaises(SandboxCapabilityError):
                 ProcessSandbox(required_enforcement_level=SandboxEnforcementLevel.KERNEL_ENFORCED)

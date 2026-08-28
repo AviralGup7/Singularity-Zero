@@ -294,7 +294,8 @@ class ObservabilityConfig:
                 enabled=os.getenv("OBSERVABILITY_METRICS_ENABLED", "true").lower() == "true",
                 prometheus_port=int(os.getenv("OBSERVABILITY_METRICS_PORT", "9090")),
                 prometheus_host=os.getenv("OBSERVABILITY_METRICS_HOST", "127.0.0.1"),
-                prometheus_require_mtls=os.getenv("OBSERVABILITY_METRICS_MTLS", "false").lower() == "true",
+                prometheus_require_mtls=os.getenv("OBSERVABILITY_METRICS_MTLS", "false").lower()
+                == "true",
                 prometheus_bearer_token=os.getenv("OBSERVABILITY_METRICS_TOKEN") or None,
             ),
             tracing=TracingConfig(

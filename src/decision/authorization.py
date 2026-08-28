@@ -115,7 +115,11 @@ class AuthorizedExecutionTicket:
         req_raw = data.get("request") or {}
         req = ExecutionRequest.from_mapping(req_raw) if isinstance(req_raw, dict) else req_raw
         blast_raw = data.get("blast_radius")
-        blast = BlastRadiusConstraint.from_mapping(blast_raw) if isinstance(blast_raw, dict) else (blast_raw or BlastRadiusConstraint())
+        blast = (
+            BlastRadiusConstraint.from_mapping(blast_raw)
+            if isinstance(blast_raw, dict)
+            else (blast_raw or BlastRadiusConstraint())
+        )
         return cls(
             ticket_id=str(data.get("ticket_id", "")),
             request_id=str(data.get("request_id", "")),

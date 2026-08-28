@@ -54,7 +54,9 @@ class TestCacheInvalidationProtocol(unittest.TestCase):
 
             # Corrupt the underlying data directly in SQLite
             conn = sqlite3.connect(db_path)
-            conn.execute("UPDATE cache_entries SET value = '{\"_cache_crc64\": \"corrupt_crc\", \"data\": {\"cve\": \"POISONED\"}}' WHERE key = 'cached_probe'")
+            conn.execute(
+                'UPDATE cache_entries SET value = \'{"_cache_crc64": "corrupt_crc", "data": {"cve": "POISONED"}}\' WHERE key = \'cached_probe\''
+            )
             conn.commit()
             conn.close()
 
@@ -83,22 +85,26 @@ class TestCacheInvalidationProtocol(unittest.TestCase):
             # Create 2 mock runs
             run_old = hot_dir / "run_2026_01"
             run_old.mkdir()
-            (run_old / "scan.json").write_text("{\"findings\": [1,2,3]}", encoding="utf-8")
+            (run_old / "scan.json").write_text('{"findings": [1,2,3]}', encoding="utf-8")
             (run_old / "report.txt").write_text("A" * 5000, encoding="utf-8")
 
             run_recent = hot_dir / "run_2026_recent"
             run_recent.mkdir()
-            (run_recent / "scan.json").write_text("{\"findings\": []}", encoding="utf-8")
+            (run_recent / "scan.json").write_text('{"findings": []}', encoding="utf-8")
 
             # 1. Dry Run test
-            dry_res = transactional_prune_and_archive(hot_dir, archive_dir, max_age_seconds=-1.0, dry_run=True)
+            dry_res = transactional_prune_and_archive(
+                hot_dir, archive_dir, max_age_seconds=-1.0, dry_run=True
+            )
             self.assertTrue(dry_res.dry_run)
             self.assertEqual(len(dry_res.archived_runs), 2)
             self.assertTrue(run_old.exists())
             self.assertTrue(run_recent.exists())
 
             # 2. Transactional Prune test
-            res = transactional_prune_and_archive(hot_dir, archive_dir, max_age_seconds=-1.0, dry_run=False)
+            res = transactional_prune_and_archive(
+                hot_dir, archive_dir, max_age_seconds=-1.0, dry_run=False
+            )
             self.assertFalse(res.dry_run)
             self.assertEqual(len(res.archived_runs), 2)
             self.assertEqual(len(res.pruned_runs), 2)
@@ -124,4 +130,3 @@ class TestCacheInvalidationProtocol(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

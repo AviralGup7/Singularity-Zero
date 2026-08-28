@@ -170,5 +170,60 @@ class TestRecoveryReport(unittest.TestCase):
             self.assertTrue(report.exists())
 
 
+class TestDurableDLQ(unittest.TestCase):
+    def test_dlq_move_on_retry_exhaustion_and_idempotent_replay(self) -> None:
+        from src.core.frontier.event_delivery import DeliveryLedger
+        from src.core.outbox.dlq import DurableDLQ
+
+        ledger = DeliveryLedger(max_delivery_attempts=2)
+        poisoned = ledger.record_attempt("del_1", {"event_id": "evt_1"}, error="boom")
+        self.assertFalse(poisoned)
+        poisoned = ledger.record_attempt("del_1", {"event_id": "evt_1"}, error="boom")
+        self.assertTrue(poisoned)
+        with tempfile.TemporaryDirectory() as td:
+            dlq = DurableDLQ(Path(td) / "dlq.json")
+            self.assertEqual(dlq.ingest_poison(ledger.get_poison_events()), 1)
+            self.assertEqual(dlq.depth(), 1)
+            seen: list[str] = []
+            self.assertTrue(dlq.replay("del_1", dispatch=lambda rec: seen.append(rec.delivery_id)))
+            self.assertEqual(seen, ["del_1"])
+            self.assertEqual(dlq.depth(), 0)
+            self.assertFalse(dlq.replay("del_1"))
+
+
+class TestOrphanReconciler(unittest.TestCase):
+    def test_orphan_cross_epoch_requires_review(self) -> None:
+        from src.core.recovery.orphan_reconciler import OrphanAction, OrphanClass, reconcile_orphans
+
+        report = reconcile_orphans(
+            [{"event_id": "e1", "epoch": 1, "commit_index": 3}],
+            fsm_commit_index=5,
+            live_epoch=2,
+        )
+        self.assertTrue(report["blocked"])
+        self.assertEqual(report["orphans"][0]["orphan_class"], OrphanClass.CROSS_EPOCH.value)
+        self.assertEqual(report["orphans"][0]["action"], OrphanAction.REVIEW.value)
+        forced = reconcile_orphans(
+            [{"event_id": "e1", "epoch": 1}],
+            live_epoch=2,
+            force=True,
+        )
+        self.assertFalse(forced["blocked"])
+
+
+class TestQuotaSlab(unittest.TestCase):
+    def test_slab_expires_and_reclaims(self) -> None:
+        from src.core.frontier.quota_slab import QuotaSlabAllocator
+
+        alloc = QuotaSlabAllocator(default_ttl_seconds=1.0)
+        lease = alloc.reserve("slab_1", "P-0001", 10, now_mono=0.0, ttl_seconds=5.0)
+        assert lease is not None
+        self.assertEqual(alloc.reserved_units(), 10)
+        self.assertTrue(alloc.renew("slab_1", now_mono=1.0, ttl_seconds=5.0))
+        reclaimed = alloc.gc_expired(now_mono=100.0)
+        self.assertEqual(reclaimed, ["slab_1"])
+        self.assertEqual(alloc.reserved_units(), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

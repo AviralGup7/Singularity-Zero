@@ -6,6 +6,7 @@ from src.analysis.bug_bounty.dedup import FindingDedup
 class TestStructuralFindingDedup(unittest.TestCase):
     def setUp(self) -> None:
         import tempfile
+
         self.tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
         self.dedup = FindingDedup(self.tmp.name)
 

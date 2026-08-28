@@ -1430,4 +1430,4 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `RECOVERY_WRITE_REPORT` | `true` | Recovery | Write `recovery_report.json` before READY |
 | `BUDGET_PHOENIX_ON_BOOT` | `true` | Recovery | Reconcile Outstanding/Consumed/Compensated from durable history |
 | `ARCHIVE_VERIFY_THEN_DELETE` | `true` | Storage | Hard-enforce archive verify before deleting hot runs |
-| `OUTBOX_DLQ_ENABLED` | `true` | Outbox | Enable poison-pill DLQ move after retry exhaustion |
+| `OUTBOX_DLQ_ENABLED` | `true` | Outbox | Enable poison-pill DLQ move after retry exhaustion; durable JSONL + replay agent |

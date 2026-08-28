@@ -269,7 +269,9 @@ class MeshConsensus:
 
             # Pre-Vote Guard: partitioned/isolated nodes must not trigger disruptive term bumps
             if not self._passes_prevote_check():
-                logger.debug("MeshConsensus: pre-vote failed — skipping takeover attempt to prevent split-brain")
+                logger.debug(
+                    "MeshConsensus: pre-vote failed — skipping takeover attempt to prevent split-brain"
+                )
                 return
 
             # Lease is stale: the term must be bumped on takeover so any
@@ -291,7 +293,9 @@ class MeshConsensus:
         peers = getattr(self.gossip, "peers", {})
         if not peers:
             return True  # Single-node mode passes
-        alive_peers = sum(1 for p in peers.values() if getattr(p, "status", "alive") in {"alive", "suspect"})
+        alive_peers = sum(
+            1 for p in peers.values() if getattr(p, "status", "alive") in {"alive", "suspect"}
+        )
         total_nodes = len(peers) + 1
         quorum = (total_nodes // 2) + 1
         return (alive_peers + 1) >= quorum

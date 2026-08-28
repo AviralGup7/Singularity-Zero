@@ -206,7 +206,9 @@ class RawExecutionClaim:
             )
 
     @classmethod
-    def from_bytes(cls, data_bytes: bytes, max_bytes: int = RAW_CLAIM_MAX_BYTES) -> RawExecutionClaim:
+    def from_bytes(
+        cls, data_bytes: bytes, max_bytes: int = RAW_CLAIM_MAX_BYTES
+    ) -> RawExecutionClaim:
         """Enforce 64KB bound at the deserialization boundary BEFORE parsing (I27)."""
         import json
 

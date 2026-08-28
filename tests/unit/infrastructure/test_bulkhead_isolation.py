@@ -8,8 +8,13 @@ from src.infrastructure.flow_control.bulkhead import (
 
 class TestBulkheadEndpointIsolation(unittest.TestCase):
     def test_canonical_isolation_key_derivation(self) -> None:
-        self.assertEqual(canonical_isolation_key("http://api.example.com/v1/scan"), "http://api.example.com:80")
-        self.assertEqual(canonical_isolation_key("https://api.example.com:8443/test"), "https://api.example.com:8443")
+        self.assertEqual(
+            canonical_isolation_key("http://api.example.com/v1/scan"), "http://api.example.com:80"
+        )
+        self.assertEqual(
+            canonical_isolation_key("https://api.example.com:8443/test"),
+            "https://api.example.com:8443",
+        )
         self.assertEqual(canonical_isolation_key("192.168.1.10:8080"), "https://192.168.1.10:8080")
         self.assertEqual(canonical_isolation_key("api.example.com"), "https://api.example.com:443")
 

@@ -174,6 +174,7 @@ def test_i31_dispatch_refuses_uncommitted() -> None:
 # Expanded Invariant Testing: Adversarial, Tampering & Concurrency
 # =========================================================================
 
+
 def test_i30_tampered_signature_rejected() -> None:
     """Tampering with any field of the ticket invalidates HMAC signature and prevents consumption."""
     enforcer = HuntBudgetEnforcer(HuntBudget(max_requests=10), label="i30_tamper")
@@ -271,7 +272,9 @@ def test_i31_receipt_hmac_tampering_rejected() -> None:
     from src.core.events.event_bus import EventBus, EventType
     from src.core.frontier.settlement_receipt import stamp_finding_receipt, verify_finding_receipt
 
-    receipt = stamp_finding_receipt(wal_id="wal_valid", settlement_id="stl_valid", command_id="cmd_valid")
+    receipt = stamp_finding_receipt(
+        wal_id="wal_valid", settlement_id="stl_valid", command_id="cmd_valid"
+    )
     assert verify_finding_receipt(receipt) is True
 
     # Tampered wal_id
@@ -295,7 +298,9 @@ def test_i31_receipt_hmac_tampering_rejected() -> None:
     bus.subscribe(EventType.FINDING_CREATED, seen.append)
 
     bus.emit(EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_wal})
-    bus.emit(EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_status})
+    bus.emit(
+        EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_status}
+    )
     bus.emit(EventType.FINDING_CREATED, source="settlement", data={"title": "bad", **tampered_sig})
     assert len(seen) == 0
     assert bus.dropped_status()["dropped_unauthoritative"] == 3
@@ -311,6 +316,7 @@ def test_i32_outbox_failure_does_not_emit_on_bus(tmp_path) -> None:
     outbox.append_events = MagicMock(side_effect=OSError("disk full"))
 
     seen_bus: list[dict] = []
+
     def emit(event_type, *, source, data, trace_id=None):
         seen_bus.append(data)
 

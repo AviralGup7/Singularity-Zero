@@ -431,7 +431,10 @@ class HuntBudgetEnforcer:
             if callable(ep_gate):
                 try:
                     if not ep_gate():
-                        logger.debug("HuntBudget reservation blocked by OPEN circuit for endpoint %s", endpoint)
+                        logger.debug(
+                            "HuntBudget reservation blocked by OPEN circuit for endpoint %s",
+                            endpoint,
+                        )
                         return None
                 except Exception:
                     logger.debug("Endpoint reserve gate failed closed for %s", endpoint)
@@ -565,6 +568,7 @@ class HuntBudgetEnforcer:
         if "://" not in raw:
             raw = f"https://{raw}"
         from urllib.parse import urlparse
+
         parsed = urlparse(raw)
         host = parsed.hostname or ""
         port = parsed.port

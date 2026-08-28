@@ -56,7 +56,10 @@ class TestWALReplicationRelay(unittest.TestCase):
         stream_messages = [
             ("1000-1", {b"delta": json.dumps({"_seq": 1, "host": "h1", "_src_ts": now}).encode()}),
             ("1000-2", {b"delta": json.dumps({"_seq": 2, "host": "h2", "_src_ts": now}).encode()}),
-            ("1000-3", {b"delta": json.dumps({"_seq": 1, "host": "h1-stale", "_src_ts": now}).encode()}),
+            (
+                "1000-3",
+                {b"delta": json.dumps({"_seq": 1, "host": "h1-stale", "_src_ts": now}).encode()},
+            ),
             ("1000-4", {b"delta": json.dumps({"_seq": 3, "host": "h3", "_src_ts": now}).encode()}),
         ]
         mock_client.xread.return_value = [("cyber:wal:run-test-relay", stream_messages)]
@@ -90,10 +93,34 @@ class TestWALReplicationRelay(unittest.TestCase):
 
         now = time.time()
         stream_messages = [
-            ("1000-1", {b"delta": json.dumps({"_seq": 1, "host": "target1", "_src_ts": now}).encode()}),
-            ("1000-2", {b"delta": json.dumps({"_seq": 2, "_is_settlement_intent": True, "_src_ts": now}).encode()}),
-            ("1000-3", {b"delta": json.dumps({"_seq": 3, "command_type": "APPLY_MUTATION", "_src_ts": now}).encode()}),
-            ("1000-4", {b"delta": json.dumps({"_seq": 4, "scan_discovery": "vuln_found", "_src_ts": now}).encode()}),
+            (
+                "1000-1",
+                {b"delta": json.dumps({"_seq": 1, "host": "target1", "_src_ts": now}).encode()},
+            ),
+            (
+                "1000-2",
+                {
+                    b"delta": json.dumps(
+                        {"_seq": 2, "_is_settlement_intent": True, "_src_ts": now}
+                    ).encode()
+                },
+            ),
+            (
+                "1000-3",
+                {
+                    b"delta": json.dumps(
+                        {"_seq": 3, "command_type": "APPLY_MUTATION", "_src_ts": now}
+                    ).encode()
+                },
+            ),
+            (
+                "1000-4",
+                {
+                    b"delta": json.dumps(
+                        {"_seq": 4, "scan_discovery": "vuln_found", "_src_ts": now}
+                    ).encode()
+                },
+            ),
         ]
         mock_client.xread.return_value = [("cyber:wal:run-test-relay", stream_messages)]
 

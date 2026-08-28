@@ -206,9 +206,7 @@ class RaftTransportProtocol(Protocol):
         """Send RequestVote RPC synchronously or via network timeout."""
         ...
 
-    def send_pre_vote(
-        self, target_node_id: str, request: PreVoteRequest
-    ) -> PreVoteResponse:
+    def send_pre_vote(self, target_node_id: str, request: PreVoteRequest) -> PreVoteResponse:
         """Send PreVote RPC synchronously or via network timeout."""
         ...
 

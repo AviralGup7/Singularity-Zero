@@ -77,12 +77,16 @@ class FindingDedup:
         ).strip()
 
         # Structural URL decomposition: normalize path template and extract parameter names
-        param_name = str(
-            finding.get("param")
-            or finding.get("parameter")
-            or finding.get("injection_point")
-            or ""
-        ).strip().lower()
+        param_name = (
+            str(
+                finding.get("param")
+                or finding.get("parameter")
+                or finding.get("injection_point")
+                or ""
+            )
+            .strip()
+            .lower()
+        )
 
         normalized_path = raw_target.lower()
         query_params: list[str] = []
@@ -102,20 +106,26 @@ class FindingDedup:
                     # If parameter not explicitly tagged, use sorted parameter keys as structural vector
                     param_name = ",".join(query_params)
 
-        response_signature = str(
-            finding.get("response_signature")
-            or finding.get("status_code")
-            or finding.get("cwe")
-            or ""
-        ).strip().lower()
+        response_signature = (
+            str(
+                finding.get("response_signature")
+                or finding.get("status_code")
+                or finding.get("cwe")
+                or ""
+            )
+            .strip()
+            .lower()
+        )
 
-        raw_structural = "|".join([
-            tool,
-            normalized_path,
-            param_name,
-            vuln_type,
-            response_signature,
-        ])
+        raw_structural = "|".join(
+            [
+                tool,
+                normalized_path,
+                param_name,
+                vuln_type,
+                response_signature,
+            ]
+        )
         return hashlib.sha256(raw_structural.encode("utf-8")).hexdigest()
 
     def is_duplicate(self, finding: dict[str, Any]) -> tuple[bool, str | None]:

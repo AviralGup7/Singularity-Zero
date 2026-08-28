@@ -245,9 +245,15 @@ class SQLiteBackend:
                 # CRC integrity verification on read (Fail-open to recompute, never serve corrupted payload)
                 try:
                     payload = json.loads(value_str)
-                    if isinstance(payload, dict) and "_cache_crc64" in payload and "data" in payload:
+                    if (
+                        isinstance(payload, dict)
+                        and "_cache_crc64" in payload
+                        and "data" in payload
+                    ):
                         expected_crc = payload["_cache_crc64"]
-                        data_raw = json.dumps(payload["data"], sort_keys=True, default=str).encode("utf-8")
+                        data_raw = json.dumps(payload["data"], sort_keys=True, default=str).encode(
+                            "utf-8"
+                        )
                         actual_crc = compute_crc64(data_raw)
                         if expected_crc != actual_crc:
                             logger.warning(
@@ -263,7 +269,11 @@ class SQLiteBackend:
                     else:
                         val = payload
                 except Exception as exc:
-                    logger.warning("Cache JSON/CRC decode failed for key %s (%s); purging corrupted entry", key, exc)
+                    logger.warning(
+                        "Cache JSON/CRC decode failed for key %s (%s); purging corrupted entry",
+                        key,
+                        exc,
+                    )
                     conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
                     conn.commit()
                     return None

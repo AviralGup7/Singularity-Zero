@@ -182,6 +182,7 @@ def test_i37_wal_boundary_rejects_stale_epoch_appends() -> None:
     entry = _cmd("cmd_stale_wal")
     # An append carrying a stale epoch < 3 must be refused at the physical WAL level
     from src.core.contracts.command_envelope import CommandResult, CommittedEntry
+
     stale_candidate = CommittedEntry(
         partition_id="P-0003",
         raft_term=1,

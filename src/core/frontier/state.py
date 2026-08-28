@@ -123,7 +123,9 @@ class ClockHealth:
         }
 
 
-def compute_clock_health(hlc: HybridLogicalClock, max_skew_threshold_sec: float = 5.0) -> ClockHealth:
+def compute_clock_health(
+    hlc: HybridLogicalClock, max_skew_threshold_sec: float = 5.0
+) -> ClockHealth:
     """Measure cross-clock drift and skew between HLC, monotonic, and UTC wall clock."""
     mono_now = time.monotonic()
     wall_now = time.time()

@@ -114,17 +114,19 @@ def reconcile_budget(
             outstanding_ids.add(ident)
 
     for item in settlements or []:
-        status = ""
-        ident = ""
+        settle_status = ""
+        settle_ident = ""
         if isinstance(item, dict):
-            status = str(item.get("status") or item.get("outcome") or "").upper()
-            ident = str(item.get("lease_id") or item.get("execution_id") or "")
+            settle_status = str(item.get("status") or item.get("outcome") or "").upper()
+            settle_ident = str(item.get("lease_id") or item.get("execution_id") or "")
         else:
-            status = str(getattr(item, "status", "") or "").upper()
-            ident = str(getattr(item, "lease_id", "") or getattr(item, "execution_id", "") or "")
-        if status in {"COMMITTED", "CONSUMED"} and ident:
-            consumed_ids.add(ident)
-            outstanding_ids.discard(ident)
+            settle_status = str(getattr(item, "status", "") or "").upper()
+            settle_ident = str(
+                getattr(item, "lease_id", "") or getattr(item, "execution_id", "") or ""
+            )
+        if settle_status in {"COMMITTED", "CONSUMED"} and settle_ident:
+            consumed_ids.add(settle_ident)
+            outstanding_ids.discard(settle_ident)
 
     if ledger is not None:
         for row in list(getattr(ledger, "_rows", {}).values()):

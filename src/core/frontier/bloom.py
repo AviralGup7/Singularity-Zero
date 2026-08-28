@@ -441,7 +441,10 @@ class GenerationalBloomFilter:
         with self._lock:
             if not self._ground_truth_known_negatives:
                 # Generate deterministically non-inserted probe tokens to evaluate false positive rate
-                probes = [f"__probe_neg_{self._generation}_{i}_{time.time_ns()}__" for i in range(sample_size)]
+                probes = [
+                    f"__probe_neg_{self._generation}_{i}_{time.time_ns()}__"
+                    for i in range(sample_size)
+                ]
             else:
                 probes = list(self._ground_truth_known_negatives)[:sample_size]
 
@@ -463,7 +466,11 @@ class GenerationalBloomFilter:
             )
 
             # 2. Measured empirical sample check (evaluated periodically every 500 inserts)
-            if not should_rotate and self._current.element_count > 0 and self._current.element_count % 500 == 0:
+            if (
+                not should_rotate
+                and self._current.element_count > 0
+                and self._current.element_count % 500 == 0
+            ):
                 measured_fpr = self.estimate_runtime_fpr(sample_size=50)
                 if measured_fpr >= self.max_fpr_threshold:
                     logger.info(

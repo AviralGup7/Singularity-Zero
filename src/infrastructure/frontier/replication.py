@@ -150,7 +150,12 @@ class WALReplicationRelay:
 
                 try:
                     # Apply backpressure: trim stream length if max queue threshold reached
-                    client.xadd(stream_key, stream_data, maxlen=self.backpressure_max_queue, approximate=True)
+                    client.xadd(
+                        stream_key,
+                        stream_data,
+                        maxlen=self.backpressure_max_queue,
+                        approximate=True,
+                    )
                     results[url] = True
                 except Exception as exc:
                     logger.debug("WALReplicationRelay: Replication to %s failed: %s", url, exc)

@@ -38,7 +38,7 @@ class TestWALGroupCommit(unittest.TestCase):
                     raft_term=1,
                     raft_index=i,
                     entry_hash=f"hash_{i}",
-                    previous_entry_hash=f"hash_{i-1}",
+                    previous_entry_hash=f"hash_{i - 1}",
                     command=cmd,
                     transition_result=res,
                 )
@@ -62,7 +62,7 @@ class TestWALGroupCommit(unittest.TestCase):
                     raft_term=1,
                     raft_index=i,
                     entry_hash=f"hash_{i}",
-                    previous_entry_hash=f"hash_{i-1}",
+                    previous_entry_hash=f"hash_{i - 1}",
                     command=cmd,
                     transition_result=res,
                 )

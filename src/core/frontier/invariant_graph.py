@@ -829,7 +829,9 @@ def verify_recovery_prerequisites(observed: Any) -> None:
         )
 
     # I5 & I26: Budget conservation verification
-    budget_state = getattr(observed, "recovered_budget_state", None) or getattr(observed, "budget_state", None)
+    budget_state = getattr(observed, "recovered_budget_state", None) or getattr(
+        observed, "budget_state", None
+    )
     if budget_state is not None and isinstance(budget_state, dict):
         total = int(budget_state.get("total", 0))
         consumed = int(budget_state.get("consumed", 0))

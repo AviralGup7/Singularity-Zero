@@ -173,4 +173,3 @@ def jwt_manipulation_probe(
     from src.analysis.checks.active.jwt import jwt_security_analyzer
 
     return jwt_security_analyzer(priority_urls, response_cache, limit=limit)
-

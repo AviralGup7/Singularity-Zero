@@ -6,7 +6,9 @@ from src.infrastructure.task_pool import ScopeGroupLock, derive_scope_group
 class TestScopeGroupLocking(unittest.TestCase):
     def test_derive_scope_group(self) -> None:
         self.assertEqual(derive_scope_group("api.example.com"), "example.com")
-        self.assertEqual(derive_scope_group("https://admin.staging.example.com:8443"), "example.com")
+        self.assertEqual(
+            derive_scope_group("https://admin.staging.example.com:8443"), "example.com"
+        )
         self.assertEqual(derive_scope_group("192.168.1.10"), "192.168.1.10")
 
     def test_concurrent_overlapping_subdomains_blocked(self) -> None:

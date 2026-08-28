@@ -102,7 +102,9 @@ class MultiNodeRaftCluster:
         with self._lock:
             lid = self.leader_id
             if lid is None or lid not in self.nodes:
-                raise RuntimeError("No active Raft leader in cluster (election required or partition isolated)")
+                raise RuntimeError(
+                    "No active Raft leader in cluster (election required or partition isolated)"
+                )
             return self.nodes[lid]
 
     @property
@@ -116,9 +118,7 @@ class MultiNodeRaftCluster:
         """Propose a mutation to the active leader, replicating across quorum followers."""
         with self._lock:
             leader_log = self.leader
-            follower_fsms = [
-                fsm for nid, fsm in self.fsms.items() if nid != leader_log.node_id
-            ]
+            follower_fsms = [fsm for nid, fsm in self.fsms.items() if nid != leader_log.node_id]
             return leader_log.propose_and_commit(cmd, follower_fsms=follower_fsms)
 
     def isolate_node(self, node_id: str) -> None:
@@ -160,4 +160,3 @@ class MultiNodeRaftCluster:
         if self._temp_dir is not None:
             self._temp_dir.cleanup()
             self._temp_dir = None
-

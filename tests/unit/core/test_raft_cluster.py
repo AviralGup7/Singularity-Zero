@@ -32,7 +32,11 @@ class TestMultiNodeRaftCluster(unittest.TestCase):
             command_id="cmd_cluster_test_1",
             command_type="AllocateSubLeaseCommand",
             aggregate_id="sublease_cluster_1",
-            payload={"sublease_id": "sublease_cluster_1", "units_allocated": 500, "run_id": "run_c1"},
+            payload={
+                "sublease_id": "sublease_cluster_1",
+                "units_allocated": 500,
+                "run_id": "run_c1",
+            },
             correlation_id="corr_c1",
             causation_id="caus_c1",
             expected_aggregate_version=0,
@@ -51,7 +55,11 @@ class TestMultiNodeRaftCluster(unittest.TestCase):
             command_id="cmd_cluster_test_2",
             command_type="AllocateSubLeaseCommand",
             aggregate_id="sublease_cluster_2",
-            payload={"sublease_id": "sublease_cluster_2", "units_allocated": 300, "run_id": "run_c2"},
+            payload={
+                "sublease_id": "sublease_cluster_2",
+                "units_allocated": 300,
+                "run_id": "run_c2",
+            },
             correlation_id="corr_c2",
             causation_id="caus_c2",
             expected_aggregate_version=0,
@@ -77,7 +85,11 @@ class TestMultiNodeRaftCluster(unittest.TestCase):
             command_id="cmd_cluster_test_failover",
             command_type="AllocateSubLeaseCommand",
             aggregate_id="sublease_cluster_failover",
-            payload={"sublease_id": "sublease_cluster_failover", "units_allocated": 250, "run_id": "run_c3"},
+            payload={
+                "sublease_id": "sublease_cluster_failover",
+                "units_allocated": 250,
+                "run_id": "run_c3",
+            },
             correlation_id="corr_c3",
             causation_id="caus_c3",
             expected_aggregate_version=0,
@@ -96,7 +108,11 @@ class TestMultiNodeRaftCluster(unittest.TestCase):
             command_id="cmd_cluster_test_no_quorum",
             command_type="AllocateSubLeaseCommand",
             aggregate_id="sublease_cluster_no_quorum",
-            payload={"sublease_id": "sublease_cluster_no_quorum", "units_allocated": 100, "run_id": "run_c4"},
+            payload={
+                "sublease_id": "sublease_cluster_no_quorum",
+                "units_allocated": 100,
+                "run_id": "run_c4",
+            },
             correlation_id="corr_c4",
             causation_id="caus_c4",
             expected_aggregate_version=0,
@@ -137,4 +153,3 @@ class TestMultiNodeRaftCluster(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

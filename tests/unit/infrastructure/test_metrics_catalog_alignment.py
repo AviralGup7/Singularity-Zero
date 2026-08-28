@@ -46,7 +46,9 @@ def test_http_in_flight_inc_and_dec() -> None:
     assert get_metrics().gauge("http_requests_in_flight", labels={"method": "GET"}).get() == 0
     names = get_metrics().get_all()
     assert any(k.startswith("cyber_pipeline_http_requests_total") for k in names["counters"])
-    assert any(k.startswith("cyber_pipeline_http_request_duration_seconds") for k in names["histograms"])
+    assert any(
+        k.startswith("cyber_pipeline_http_request_duration_seconds") for k in names["histograms"]
+    )
 
 
 def test_websocket_metrics_use_registry_prefix() -> None:
@@ -74,7 +76,11 @@ def test_recon_metrics_use_registry_prefix_and_urls_counter() -> None:
     increment_urls("wayback", 3)
     observe_duration("wayback", 0.25)
     data = get_metrics().get_all()
-    assert any(k.startswith("cyber_pipeline_recon_provider_requests_total") for k in data["counters"])
+    assert any(
+        k.startswith("cyber_pipeline_recon_provider_requests_total") for k in data["counters"]
+    )
     assert any(k.startswith("cyber_pipeline_recon_provider_errors_total") for k in data["counters"])
     assert any(k.startswith("cyber_pipeline_recon_provider_urls_total") for k in data["counters"])
-    assert any(k.startswith("cyber_pipeline_recon_provider_duration_seconds") for k in data["histograms"])
+    assert any(
+        k.startswith("cyber_pipeline_recon_provider_duration_seconds") for k in data["histograms"]
+    )

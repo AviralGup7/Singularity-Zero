@@ -141,7 +141,9 @@ class EventBus:
         self._running = False
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
-        self._tenant_partitions: dict[str, dict[str, list[Subscription]]] = defaultdict(lambda: defaultdict(list))
+        self._tenant_partitions: dict[str, dict[str, list[Subscription]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         self._metrics = {
             "published": 0,
             "delivered": 0,
@@ -297,7 +299,9 @@ class EventBus:
         if event_tenant and event_tenant in self._tenant_partitions:
             tenant_subs = self._tenant_partitions[event_tenant].get(et_str, [])
             subs.extend(tenant_subs)
-            self._metrics["tenant_dispatches"] = int(self._metrics.get("tenant_dispatches", 0)) + len(tenant_subs)
+            self._metrics["tenant_dispatches"] = int(
+                self._metrics.get("tenant_dispatches", 0)
+            ) + len(tenant_subs)
 
         for sub in subs:
             try:

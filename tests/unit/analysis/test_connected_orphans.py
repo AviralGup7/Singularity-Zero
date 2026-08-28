@@ -39,7 +39,9 @@ class TestConnectedOrphanSecurityModules(unittest.IsolatedAsyncioTestCase):
             "https://auth.example.com/callback?code=abc12345",
             "https://auth.example.com/callback?access_token=eyJhbGciOi...",
         ]
-        with patch("src.analysis.active.injection.oauth_testing.discover_oauth_config") as mock_disc:
+        with patch(
+            "src.analysis.active.injection.oauth_testing.discover_oauth_config"
+        ) as mock_disc:
             mock_disc.return_value = []
             findings = await oauth_security_probe(test_urls, timeout=2.0, max_urls=10)
             self.assertIsInstance(findings, list)

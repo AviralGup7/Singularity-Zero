@@ -70,7 +70,9 @@ def _verify_archive_integrity(dest_dir: Path, expected_file_count: int) -> bool:
     return True
 
 
-def _update_manifest(manifest_path: Path, run_id: str, dest_path: Path, metadata: dict[str, Any] | None = None) -> None:
+def _update_manifest(
+    manifest_path: Path, run_id: str, dest_path: Path, metadata: dict[str, Any] | None = None
+) -> None:
     """Atomically record an archived run in the durable manifest."""
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     records: dict[str, Any] = {}
@@ -140,7 +142,9 @@ def transactional_prune_and_archive(
 ) -> ArchivalPruneResult:
     """Crash-safe transactional archive-then-verify-then-delete prune job (F-025 Item 18)."""
     now = time.time()
-    result = ArchivalPruneResult(dry_run=dry_run, manifest_path=str((archive_root / manifest_name).resolve()))
+    result = ArchivalPruneResult(
+        dry_run=dry_run, manifest_path=str((archive_root / manifest_name).resolve())
+    )
 
     if not hot_root.exists():
         return result

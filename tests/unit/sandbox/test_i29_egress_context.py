@@ -185,7 +185,9 @@ def test_transport_primitive_registry() -> None:
     assert "subprocess" in transports
     assert "headless_browser" in transports
 
-    register_transport_primitive("custom_quic", transport_type="quic/udp", enforcement_mechanism="custom_gate")
+    register_transport_primitive(
+        "custom_quic", transport_type="quic/udp", enforcement_mechanism="custom_gate"
+    )
     assert "custom_quic" in get_registered_transports()
 
 
@@ -284,7 +286,9 @@ def test_i29_hardcoded_metadata_deny_floor_cannot_be_re_enabled() -> None:
     filt = NetworkEgressFilter.from_scope_token(token)
 
     for endpoint in HARDCODED_METADATA_DENY_LIST:
-        assert filt.is_destination_allowed(endpoint) is False, f"Metadata {endpoint} must be blocked"
+        assert filt.is_destination_allowed(endpoint) is False, (
+            f"Metadata {endpoint} must be blocked"
+        )
 
     # Link local IP is blocked
     assert filt.is_destination_allowed("169.254.1.1") is False
@@ -312,6 +316,7 @@ def test_i27_claim_deserialization_boundary_64kb_cap() -> None:
 
     # 3. Valid sized payload succeeds
     import json
+
     valid_data = {
         "request_id": "req-1",
         "tenant_id": "tenant-1",

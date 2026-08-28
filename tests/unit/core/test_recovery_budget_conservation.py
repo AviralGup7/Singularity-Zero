@@ -11,7 +11,12 @@ class TestRecoveryBudgetConservation(unittest.TestCase):
             recovered_tickets=(),
             recovered_settlements=(),
             recovered_identities=(),
-            recovered_budget_state={"total": 100, "consumed": 10, "outstanding": 20, "available": 70},
+            recovered_budget_state={
+                "total": 100,
+                "consumed": 10,
+                "outstanding": 20,
+                "available": 70,
+            },
             bus_emitted_without_outbox=False,
             live_authority_revision="",
         )
@@ -24,7 +29,12 @@ class TestRecoveryBudgetConservation(unittest.TestCase):
             recovered_tickets=(),
             recovered_settlements=(),
             recovered_identities=(),
-            recovered_budget_state={"total": 100, "consumed": 10, "outstanding": 20, "available": 60},
+            recovered_budget_state={
+                "total": 100,
+                "consumed": 10,
+                "outstanding": 20,
+                "available": 60,
+            },
             bus_emitted_without_outbox=False,
             live_authority_revision="",
         )
@@ -35,4 +45,3 @@ class TestRecoveryBudgetConservation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

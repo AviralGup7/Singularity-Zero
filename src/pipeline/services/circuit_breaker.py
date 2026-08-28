@@ -1,4 +1,5 @@
 """Compatibility shim. Canonical breaker is ``src.resilience.circuit_breaker``."""
+
 from __future__ import annotations
 
 from src.resilience.circuit_breaker import (
@@ -24,4 +25,3 @@ __all__ = [
     "persist_all_breakers",
     "persist_breaker_state",
 ]
-

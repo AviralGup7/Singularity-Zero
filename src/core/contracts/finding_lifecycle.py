@@ -53,13 +53,19 @@ class TriAxialFindingState:
         """Validate tri-axial state consistency against formal F-007 lattice rules."""
         # Rule 1: A FALSE_POSITIVE surface finding cannot remain in an active EXPLOITABLE confidence state
         # (must be demoted or archived)
-        if self.surface is FindingLifecycleState.FALSE_POSITIVE and self.confidence is FindingConfidenceAxis.EXPLOITABLE:
+        if (
+            self.surface is FindingLifecycleState.FALSE_POSITIVE
+            and self.confidence is FindingConfidenceAxis.EXPLOITABLE
+        ):
             raise ValueError(
                 "Invalid Tri-Axial State: Surface FALSE_POSITIVE cannot coexist with Confidence EXPLOITABLE"
             )
         # Rule 2: A REPORTABLE surface finding requires at least PASSIVE_ONLY or higher confidence
         # (cannot be purely unverified heuristic candidate without triage)
-        if self.surface is FindingLifecycleState.REPORTABLE and self.confidence is FindingConfidenceAxis.HEURISTIC_CANDIDATE:
+        if (
+            self.surface is FindingLifecycleState.REPORTABLE
+            and self.confidence is FindingConfidenceAxis.HEURISTIC_CANDIDATE
+        ):
             raise ValueError(
                 "Invalid Tri-Axial State: Surface REPORTABLE requires verified confidence (not raw HEURISTIC_CANDIDATE)"
             )

@@ -43,7 +43,10 @@ class ScopedProxyHandler(BaseHTTPRequestHandler):
         port = int(host_port[1]) if len(host_port) > 1 else 443
 
         if not self._check_destination(host, port):
-            self.send_error(403, f"EgressViolation: Out-of-scope destination blocked by I29 guard ({host}:{port})")
+            self.send_error(
+                403,
+                f"EgressViolation: Out-of-scope destination blocked by I29 guard ({host}:{port})",
+            )
             return
 
         try:
@@ -82,7 +85,9 @@ class ScopedProxyHandler(BaseHTTPRequestHandler):
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
 
         if not self._check_destination(host, port):
-            self.send_error(403, f"EgressViolation: Out-of-scope destination blocked by I29 guard ({host})")
+            self.send_error(
+                403, f"EgressViolation: Out-of-scope destination blocked by I29 guard ({host})"
+            )
             return
 
         self.send_error(501, "Direct HTTP proxy relay not supported; use CONNECT tunnel")

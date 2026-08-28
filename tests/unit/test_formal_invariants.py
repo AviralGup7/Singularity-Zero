@@ -663,8 +663,14 @@ class TestFormalSystemInvariants(unittest.TestCase):
         # Executing via SafeExploiter goes through I30 ticket mint, consume, and settlement
         exploiter = SafeExploiter(cfg)
         from unittest.mock import patch
-        with patch("src.exploitation.safety.is_safe_url_with_dns_check", return_value=True), \
-             patch("src.exploitation.engines.safe_exploiter.is_safe_url_with_dns_check", return_value=True):
+
+        with (
+            patch("src.exploitation.safety.is_safe_url_with_dns_check", return_value=True),
+            patch(
+                "src.exploitation.engines.safe_exploiter.is_safe_url_with_dns_check",
+                return_value=True,
+            ),
+        ):
             res = asyncio.run(exploiter.execute("ssrf", target))
             self.assertIn("ticket_id", res.metadata)
             self.assertIn("command_id", res.metadata)
@@ -727,11 +733,15 @@ class TestFormalSystemInvariants(unittest.TestCase):
                 )
                 # Verify fence is live during transfer
                 assert pl.is_fenced(from_part)
-                migration_triggered = await handler._coordinator.migrate_if_needed(actor_ref, task_metadata={"actor_id": actor_id})
+                migration_triggered = await handler._coordinator.migrate_if_needed(
+                    actor_ref, task_metadata={"actor_id": actor_id}
+                )
                 if migration_triggered:
                     verified = await handler._verify_migration(actor_id)
                     if verified:
-                        pl.activate_ownership(aggregate_id=actor_id, new_owner_partition=to_part, epoch=epoch)
+                        pl.activate_ownership(
+                            aggregate_id=actor_id, new_owner_partition=to_part, epoch=epoch
+                        )
                         handler.unregister_actor(actor_id)
 
         asyncio.run(_run_single_pass())
