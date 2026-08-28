@@ -8,10 +8,11 @@ import logging
 import re
 
 import httpx
+
 try:
     from bs4 import BeautifulSoup
 except ImportError:
-    BeautifulSoup = None  # type: ignore[assignment]
+    BeautifulSoup = None  # type: ignore[assignment,misc]
 
 from src.recon.domain_validation import normalize_domain as _normalize_domain
 
@@ -51,8 +52,12 @@ async def query_rapiddns(
                 return set()
 
             if BeautifulSoup is None:
-                for cell in re.findall(r'<td[^>]*class=["\']hostname["\'][^>]*>(.*?)</td>', resp.text, re.DOTALL | re.IGNORECASE):
-                    text = re.sub(r'<[^>]+>', ' ', cell).strip().lower()
+                for cell in re.findall(
+                    r'<td[^>]*class=["\']hostname["\'][^>]*>(.*?)</td>',
+                    resp.text,
+                    re.DOTALL | re.IGNORECASE,
+                ):
+                    text = re.sub(r"<[^>]+>", " ", cell).strip().lower()
                     if text and pattern.match(text):
                         subdomains.add(text)
                 return subdomains

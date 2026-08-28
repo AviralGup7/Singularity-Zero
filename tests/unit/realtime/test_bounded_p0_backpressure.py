@@ -1,6 +1,7 @@
-import unittest
 import time
-from src.realtime.prioritized_broker import PrioritizedRealtimeBroker, TelemetryEvent, QoSClass
+import unittest
+
+from src.realtime.prioritized_broker import PrioritizedRealtimeBroker, QoSClass, TelemetryEvent
 
 
 class TestBoundedP0Backpressure(unittest.TestCase):

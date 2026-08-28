@@ -40,9 +40,8 @@ def generate_finding_explanations(finding: dict[str, Any]) -> dict[str, Any]:
         snippet = (
             f"# Parameterized query remediation for {category}\n"
             "def query_database(cursor, user_id, input_param):\n"
-            "    # Enforce parameterized query boundaries to prevent SQL injection\n"
-            "    cursor.execute('SELECT * FROM records WHERE user_id = %s AND key = %s', (user_id, input_param))\n"
-            "    return cursor.fetchall()"
+            "    # Enforce parameterized query boundaries to prevent injection\n"
+            "    return fetch_records(cursor, user_id=user_id, key=input_param)"
         )
     elif "xss" in cat_lower:
         snippet = (

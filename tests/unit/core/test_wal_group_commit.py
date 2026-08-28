@@ -1,8 +1,8 @@
-import unittest
 import tempfile
-import time
-from src.core.frontier.replicated_log import PartitionWAL, CommittedEntry
+import unittest
+
 from src.core.contracts.command_envelope import CommandEnvelope, CommandResult
+from src.core.frontier.replicated_log import CommittedEntry, PartitionWAL
 
 
 class TestWALGroupCommit(unittest.TestCase):

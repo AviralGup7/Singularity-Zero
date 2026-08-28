@@ -119,6 +119,7 @@ class PartitionWAL:
             # I37 Hardened Boundary: Reject writes carrying epoch < active_epoch
             if epoch is not None and int(epoch) < int(self.active_epoch):
                 from src.core.frontier.authority_transfer import AuthorityFenceError
+
                 raise AuthorityFenceError(
                     f"I37_WAL_BOUNDARY: PartitionWAL append rejected stale epoch {epoch} < active {self.active_epoch}"
                 )
@@ -703,8 +704,8 @@ class ReplicatedPartitionLog:
                 )
                 pre_votes = 1  # Candidate votes for self
                 for peer_id in self.peers:
-                    resp = self.transport.send_pre_vote(peer_id, pre_vote_req)
-                    if resp.pre_vote_granted:
+                    pre_resp = self.transport.send_pre_vote(peer_id, pre_vote_req)
+                    if pre_resp.pre_vote_granted:
                         pre_votes += 1
 
                 if pre_votes < self.quorum_size:
@@ -730,8 +731,8 @@ class ReplicatedPartitionLog:
             )
 
             for peer_id in self.peers:
-                resp = self.transport.send_request_vote(peer_id, vote_req)
-                if resp.vote_granted:
+                vote_resp = self.transport.send_request_vote(peer_id, vote_req)
+                if vote_resp.vote_granted:
                     votes += 1
 
             if votes >= self.quorum_size:

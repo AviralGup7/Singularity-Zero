@@ -7,14 +7,10 @@ import json
 import logging
 import re
 from typing import Any, cast
-from urllib.parse import parse_qsl, urlparse
 
 import requests
 
-from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url
-
-from ._confidence import probe_confidence, probe_severity
 
 logger = logging.getLogger(__name__)
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -79,7 +80,11 @@ class CacheManager:
     def bump_generation(self, reason: str = "") -> int:
         """Increment global cache generation and invalidate volatile query tiers."""
         self._cache_generation += 1
-        logger.info("Cache generation bumped to %d (reason: %s); clearing volatile tiers", self._cache_generation, reason)
+        logger.info(
+            "Cache generation bumped to %d (reason: %s); clearing volatile tiers",
+            self._cache_generation,
+            reason,
+        )
         self.clear(namespace="analytics")
         self.clear(namespace="queries")
         return self._cache_generation

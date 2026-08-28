@@ -214,7 +214,9 @@ class CircuitBreaker:
         window_size: int = 20,
     ) -> None:
         self.name = name
-        self._is_statistical = isinstance(failure_threshold, float) and 0.0 < failure_threshold < 1.0
+        self._is_statistical = (
+            isinstance(failure_threshold, float) and 0.0 < failure_threshold < 1.0
+        )
         self.failure_threshold = failure_threshold
         self.recovery_timeout = max(0.0, float(recovery_timeout))
         self.recovery_cooldown_seconds = self.recovery_timeout
@@ -347,7 +349,9 @@ class CircuitBreaker:
             else:
                 self._force_open_until = now + float(duration_seconds)
             self._forced_open = True
-            threshold_int = int(self.failure_threshold) if not self._is_statistical else self.min_samples
+            threshold_int = (
+                int(self.failure_threshold) if not self._is_statistical else self.min_samples
+            )
             self._failure_count = max(self._failure_count, threshold_int)
             self._last_failure_time = now
             self._set_state_locked(CircuitState.OPEN.value, now, log=False)
@@ -378,7 +382,9 @@ class CircuitBreaker:
 
     def stats(self) -> CircuitBreakerStats:
         with self._lock:
-            threshold_int = int(self.failure_threshold) if not self._is_statistical else self.min_samples
+            threshold_int = (
+                int(self.failure_threshold) if not self._is_statistical else self.min_samples
+            )
             return CircuitBreakerStats(
                 name=self.name,
                 state=self._state,
@@ -469,13 +475,11 @@ _CB_PERSISTENCE_PREFIX = "cb_state:"
 def persist_breaker_state(cache: Any, tool_name: str, breaker: CircuitBreaker) -> None:
     """Persist a circuit breaker's serializable state to unified cache."""
     try:
-        from src.pipeline.unified_cache import CachePriority
-
         cache.set(
             f"{_CB_PERSISTENCE_PREFIX}{tool_name}",
             breaker.stats().as_dict(),
             ttl=86400 * 30,
-            priority=CachePriority.CRITICAL,
+            priority="critical",
         )
     except Exception as exc:
         logging.warning("Operation failed in persist_breaker_state: %s", exc, exc_info=True)

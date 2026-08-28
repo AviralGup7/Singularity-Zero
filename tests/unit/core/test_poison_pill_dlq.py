@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+
 from src.core.frontier.event_delivery import (
     DeliveryLedger,
     dispatch_committed_findings,

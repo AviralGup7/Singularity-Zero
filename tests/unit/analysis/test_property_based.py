@@ -13,7 +13,9 @@ from hypothesis import strategies as st
 from src.analysis.passive.detectors.detector_idor import idor_candidate_finder
 from src.analysis.passive.detectors.detector_ssrf import ssrf_candidate_finder
 from src.analysis.passive.detectors.detector_token import token_leak_detector
-from src.analysis.passive.detectors.detector_vulnerable_components import vulnerable_component_detector
+from src.analysis.passive.detectors.detector_vulnerable_components import (
+    vulnerable_component_detector,
+)
 
 # ---------------------------------------------------------------------------
 # SSRF: private/reserved URLs are always flagged

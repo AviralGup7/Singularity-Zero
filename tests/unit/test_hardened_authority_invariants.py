@@ -93,6 +93,7 @@ class TestHardenedAuthorityInvariants(unittest.TestCase):
             p0_capacity=2,
             max_p0_spool=3,
             spool_dir=None,  # Memory-only mode
+            emergency_ring_capacity=0,  # disable ring: capacity exhaustion must backpressure
         )
 
         for i in range(5):  # Fills 2 memory + 3 memory spool

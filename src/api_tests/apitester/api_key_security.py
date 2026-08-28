@@ -36,6 +36,19 @@ def _public_secret_map(mapping: dict[str, Any], api_key: str) -> dict[str, Any]:
     return public
 
 
+def _is_insecure_ok(result: dict[str, object]) -> bool:
+    """True when a probe succeeded with an HTTP status below 400."""
+    if not result.get("ok"):
+        return False
+    raw = result.get("status_code", 0) or 0
+    if not isinstance(raw, (int, str)):
+        return False
+    try:
+        return int(raw) < 400
+    except (TypeError, ValueError):
+        return False
+
+
 def _probe_endpoint(
     session: Any,
     url: str,
@@ -113,10 +126,9 @@ def test_api_key_security(
                     "location": location["name"],
                     "headers": _public_secret_map(location_headers, api_key),
                     "params": _public_secret_map(location_params, api_key),
-                    "insecure_query_transport": bool(location_params and any(
-                        r.get("ok") and int(r.get("status_code", 0) or 0) < 400
-                        for r in endpoint_results
-                    )),
+                    "insecure_query_transport": bool(
+                        location_params and any(_is_insecure_ok(r) for r in endpoint_results)
+                    ),
                     "results": endpoint_results,
                 }
             )

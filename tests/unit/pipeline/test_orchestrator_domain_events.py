@@ -198,9 +198,11 @@ async def test_orchestrator_emits_domain_events(
     event_types = [event.event_type for event in observed]
     assert event_types[0] == EventType.PIPELINE_STARTED
     assert EventType.STAGE_STARTED in event_types
-    assert EventType.FINDING_CREATED in event_types
     assert EventType.STAGE_COMPLETED in event_types
     assert event_types[-1] == EventType.PIPELINE_COMPLETE
+    # I31: FINDING_CREATED is emitted only after HMAC settlement of a committed
+    # WalId. This unit fixture does not attach SettlementCoordinator, so the
+    # bus must not self-attest findings from a stage delta.
 
     stage_started = next(event for event in observed if event.event_type == EventType.STAGE_STARTED)
     assert stage_started.data["contract"]["stage_name"] == "subdomains"

@@ -1,4 +1,5 @@
 import unittest
+
 from src.infrastructure.queue.redis_client import RedisClient
 
 

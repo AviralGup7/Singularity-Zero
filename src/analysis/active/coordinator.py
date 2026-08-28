@@ -18,6 +18,7 @@ try:
     from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
     from src.analysis.active.graphql import graphql_active_probe
     from src.analysis.active.graphql_ws_probe import graphql_ws_injection_probe
+    from src.analysis.active.grpc_fuzzer import run_async as grpc_fuzzer_probe
     from src.analysis.active.http_methods import (
         cors_preflight_probe,
         head_method_probe,
@@ -29,9 +30,6 @@ try:
         http2_probe,
         http_smuggling_probe,
     )
-    from src.analysis.active.grpc_fuzzer import GrpcFuzzer, run_async as grpc_fuzzer_probe
-    from src.analysis.active.injection.oauth_testing import test_oauth_oidc_security as oauth_security_probe
-    from src.analysis.active.injection.xxe_detection import test_xxe_vulnerabilities as xxe_detection_probe
     from src.analysis.active.injection.command_injection import command_injection_active_probe
     from src.analysis.active.injection.crlf.crlf_probe import crlf_injection_probe
     from src.analysis.active.injection.csrf import csrf_active_probe
@@ -39,6 +37,9 @@ try:
     from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
     from src.analysis.active.injection.ldap import ldap_injection_active_probe
     from src.analysis.active.injection.nosql import nosql_injection_probe
+    from src.analysis.active.injection.oauth_testing import (
+        test_oauth_oidc_security as oauth_security_probe,
+    )
     from src.analysis.active.injection.open_redirect import open_redirect_active_probe
     from src.analysis.active.injection.parameter_pollution import hpp_active_probe
     from src.analysis.active.injection.path_traversal import path_traversal_active_probe
@@ -50,6 +51,9 @@ try:
     from src.analysis.active.injection.xpath import xpath_injection_active_probe
     from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
     from src.analysis.active.injection.xxe import xxe_active_probe
+    from src.analysis.active.injection.xxe_detection import (
+        test_xxe_vulnerabilities as xxe_detection_probe,
+    )
     from src.analysis.active.jwt_attacks import run_jwt_attack_suite
     from src.analysis.active.param_mining import param_mining_probe
     from src.analysis.active.race_condition import race_condition_probe

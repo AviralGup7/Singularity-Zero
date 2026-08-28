@@ -116,7 +116,6 @@ def test_commit_stage_output_returns_dict_findings_only() -> None:
 
 
 def test_partition_wal_crc_mismatch_fail_closed(tmp_path: Path) -> None:
-    wal = PartitionWAL("P-0001", "node-1", wal_dir=tmp_path)
     cmd = CommandEnvelope(
         command_id="cmd_crc",
         command_type="AllocateSubLeaseCommand",

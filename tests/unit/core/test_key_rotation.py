@@ -1,6 +1,5 @@
 import unittest
-import hashlib
-from src.core.contracts.command_envelope import CommandReceipt
+
 from src.core.frontier.receipt_crypto import (
     GLOBAL_KEY_RING,
     receipt_bind_payload,

@@ -1,12 +1,11 @@
-import unittest
-from pathlib import Path
 import tempfile
 import time
+import unittest
 
 from src.core.contracts.command_envelope import CommandEnvelope
+from src.core.frontier.failure_model import AuthorityLostError
 from src.core.frontier.raft_cluster import MultiNodeRaftCluster
 from src.core.frontier.raft_transport import PreVoteRequest
-from src.core.frontier.failure_model import AuthorityLostError
 
 
 class TestMultiNodeRaftCluster(unittest.TestCase):

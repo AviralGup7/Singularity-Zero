@@ -1,4 +1,5 @@
 import unittest
+
 from src.infrastructure.observability.config import MetricsConfig, ObservabilityConfig
 
 

@@ -11,9 +11,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
-
 from enum import StrEnum
+from typing import Any
 
 from src.core.frontier.failure_model import FailureClass, FsmInvariantError, semantics_for
 from src.core.frontier.global_coordination import GlobalBudgetAggregate

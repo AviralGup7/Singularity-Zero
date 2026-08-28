@@ -8,7 +8,6 @@ import unittest
 from unittest.mock import MagicMock
 
 from src.infrastructure.frontier.replication import (
-    ReplicationCursor,
     ReplicationLagExceededError,
     WALReplicationRelay,
 )

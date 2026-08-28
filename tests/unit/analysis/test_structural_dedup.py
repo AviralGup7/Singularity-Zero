@@ -1,4 +1,5 @@
 import unittest
+
 from src.analysis.bug_bounty.dedup import FindingDedup
 
 

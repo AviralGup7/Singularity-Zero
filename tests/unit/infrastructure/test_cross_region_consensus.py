@@ -1,6 +1,7 @@
 import unittest
 from dataclasses import dataclass
 from unittest.mock import MagicMock
+
 from src.infrastructure.mesh.consensus import MeshConsensus
 
 

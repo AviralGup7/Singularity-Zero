@@ -9,7 +9,6 @@ Verifies:
 from __future__ import annotations
 
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -58,7 +57,7 @@ class TestResilienceAndObservability(unittest.TestCase):
             logger = AuditLogger(config, emergency_ring_capacity=64)
 
             # Normal log write
-            entry1 = logger.log(
+            logger.log(
                 event=AuditEvent.SYSTEM_START,
                 severity=AuditSeverity.INFO,
                 details={"status": "normal"},
@@ -72,7 +71,7 @@ class TestResilienceAndObservability(unittest.TestCase):
             logger._ensure_log_file = lambda: None  # Prevent auto-reopen
 
             # Log P0 critical entry during disk failure
-            crit_entry = logger.log(
+            logger.log(
                 event=AuditEvent.AUTHZ_FAILURE,
                 severity=AuditSeverity.CRITICAL,
                 user_id="attacker",

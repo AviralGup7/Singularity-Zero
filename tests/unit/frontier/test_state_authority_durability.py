@@ -1,6 +1,8 @@
 import time
 import unittest
 
+from tests.test_support.journal import MemoryJournal
+
 from src.core.frontier.state import NeuralState
 from src.core.frontier.state_authority import (
     LeaseProjection,
@@ -11,7 +13,6 @@ from src.core.frontier.state_authority import (
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 from src.decision.models import ExecutionResult, Finding
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
-from tests.test_support.journal import MemoryJournal
 
 
 class TestStateAuthorityDurability(unittest.TestCase):

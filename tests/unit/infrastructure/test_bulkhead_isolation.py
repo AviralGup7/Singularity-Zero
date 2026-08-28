@@ -1,4 +1,5 @@
 import unittest
+
 from src.infrastructure.flow_control.bulkhead import (
     BulkheadPool,
     canonical_isolation_key,

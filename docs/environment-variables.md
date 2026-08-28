@@ -31,6 +31,13 @@ This document serves as the authoritative single source of truth for all environ
 | `APP_SECURITY_PERMISSIVE` | boolean | `false` | Permissive security override for local dev (bypasses signature and secret checks). |
 | `EXTRA_SECRET_ENV_VARS` | string | (empty) | Comma-separated extra environment variable names to validate as secrets. |
 | `CYBER_HTTP_PROFILING` | boolean | `false` | Enable microsecond HTTP profiling and flame-graph logging. |
+| `AUTO_ENTER_SURVIVAL_ON_CORRUPT` | boolean | `false` | Auto-enter `SURVIVAL_READONLY` when WAL is unreadable but a last-known-good snapshot verifies. Keep `false` on first rollout; watchdog records a proposal either way. |
+| `REQUIRE_KERNEL_SANDBOX` | boolean | `false` | If `true` and kernel NetNS/seccomp is degraded, boot fails closed (`BootstrapEnforcementError`). |
+| `EGRESS_STRICT_CONTEXT` | boolean | `true` | Enforce non-null egress ContextVar on network/spawn paths. |
+| `RECOVERY_WRITE_REPORT` | boolean | `true` | Always write `recovery_report.json` before READY / FRESH / FAIL_CLOSED. |
+| `BUDGET_PHOENIX_ON_BOOT` | boolean | `true` | Rebuild Outstanding/Consumed/Compensated from SettlementIntent + CompensationLedger; compensate ghost reservations. |
+| `ARCHIVE_VERIFY_THEN_DELETE` | boolean | `true` | Refuse to delete hot run data unless archive tarball verified. |
+| `OUTBOX_DLQ_ENABLED` | boolean | `true` | Move poison payloads to DLQ after max delivery retries. |
 
 ---
 

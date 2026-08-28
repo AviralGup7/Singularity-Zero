@@ -136,6 +136,7 @@ def test_process_hooks_install_is_idempotent() -> None:
 def test_raw_socket_connect_blocks_imds_and_out_of_scope() -> None:
     """Raw socket.connect respects ContextVar egress filter."""
     import socket
+
     from src.sandbox.egress_context import ensure_process_network_egress_hooks
 
     ensure_process_network_egress_hooks()
@@ -232,7 +233,11 @@ def test_i29_raw_thread_propagation_adversarial() -> None:
     import threading
     from concurrent.futures import ThreadPoolExecutor
 
-    from src.sandbox.egress_context import assert_egress_allowed, clear_current_egress_filter, set_current_egress_filter
+    from src.sandbox.egress_context import (
+        assert_egress_allowed,
+        clear_current_egress_filter,
+        set_current_egress_filter,
+    )
     from src.sandbox.network_isolation import EgressViolationError, NetworkEgressFilter
 
     filt = NetworkEgressFilter(allowed_domains=("in-scope.com",), allowed_cidrs=(), strict=True)
@@ -288,6 +293,7 @@ def test_i29_hardcoded_metadata_deny_floor_cannot_be_re_enabled() -> None:
 def test_i27_claim_deserialization_boundary_64kb_cap() -> None:
     """Gap 9: 64KB bound enforced at the byte/stream deserialization boundary before JSON parse."""
     import io
+
     from src.core.contracts.execution_request import (
         RAW_CLAIM_MAX_BYTES,
         ClaimTooLargeError,

@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.analysis.active.coordinator import (
     grpc_fuzzer_probe,
     oauth_security_probe,
     xxe_detection_probe,
 )
-from src.analysis.checks.passive.tls_analyzer import TLSAnalyzer
 from src.analysis.active.grpc_fuzzer import GrpcMethod
+from src.analysis.checks.passive.tls_analyzer import TLSAnalyzer
 
 
 class TestConnectedOrphanSecurityModules(unittest.IsolatedAsyncioTestCase):

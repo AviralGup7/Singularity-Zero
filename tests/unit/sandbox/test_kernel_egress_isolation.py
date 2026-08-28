@@ -1,12 +1,11 @@
 import unittest
-from src.sandbox.seccomp_filter import (
-    SeccompPolicy,
-    KernelEgressNamespace,
-    get_default_seccomp_policy,
-)
+
 from src.sandbox.process_sandbox import (
     ProcessSandbox,
     SandboxResourceLimits,
+)
+from src.sandbox.seccomp_filter import (
+    get_default_seccomp_policy,
 )
 
 

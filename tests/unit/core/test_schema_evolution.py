@@ -1,6 +1,6 @@
 import unittest
+
 from src.core.contracts.command_envelope import (
-    CommandEnvelope,
     SchemaMigrationRegistry,
 )
 

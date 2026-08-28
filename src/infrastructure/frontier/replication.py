@@ -8,10 +8,10 @@ the only mutating log, and only on the leader home.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)

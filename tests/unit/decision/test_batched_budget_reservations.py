@@ -1,4 +1,5 @@
 import unittest
+
 from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
 
 

@@ -1,6 +1,7 @@
 import unittest
 from types import SimpleNamespace
-from src.core.frontier.invariant_graph import verify_recovery_prerequisites, ProofGraphError
+
+from src.core.frontier.invariant_graph import ProofGraphError, verify_recovery_prerequisites
 
 
 class TestRecoveryBudgetConservation(unittest.TestCase):

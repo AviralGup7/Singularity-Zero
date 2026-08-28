@@ -76,7 +76,7 @@ def _update_manifest(manifest_path: Path, run_id: str, dest_path: Path, metadata
     records: dict[str, Any] = {}
     if manifest_path.exists():
         try:
-            with open(manifest_path, "r", encoding="utf-8") as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 records = json.load(f)
         except Exception:
             records = {}

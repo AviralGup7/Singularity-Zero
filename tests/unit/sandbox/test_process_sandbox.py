@@ -47,7 +47,7 @@ class TestProcessSandbox(unittest.TestCase):
 
         caps = detect_sandbox_capabilities()
         self.assertIn(caps.enforcement_level, (SandboxEnforcementLevel.KERNEL_ENFORCED, SandboxEnforcementLevel.DEGRADED_USERSPACE))
-        
+
         sandbox = ProcessSandbox()
         res = sandbox.run([sys.executable, "-c", "print('cap test')"])
         self.assertEqual(res.exit_code, 0)
@@ -56,6 +56,7 @@ class TestProcessSandbox(unittest.TestCase):
 
     def test_refuse_invalid_kernel_enforcement_claim(self):
         from unittest.mock import patch
+
         from src.sandbox.process_sandbox import SandboxCapabilityError
         from src.sandbox.seccomp_filter import (
             SandboxCapabilityReport,

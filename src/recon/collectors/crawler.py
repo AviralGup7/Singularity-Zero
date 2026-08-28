@@ -21,16 +21,18 @@ Public API
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Generator, Iterable
 from typing import Any, cast
 from urllib.parse import urljoin, urlparse
 
 import requests
+
 try:
     from bs4 import BeautifulSoup
 except ImportError:
-    BeautifulSoup = None  # type: ignore[assignment]
+    BeautifulSoup = None  # type: ignore[assignment,misc]
 
 from src.infrastructure.execution_engine.shared_pool import get_recon_executor
 from src.recon.collectors import metrics as collector_metrics

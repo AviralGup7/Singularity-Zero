@@ -8,7 +8,9 @@ Restricts untrusted worker subprocesses from executing dangerous kernel primitiv
 
 from __future__ import annotations
 
+import importlib.util
 import logging
+import os
 import sys
 from dataclasses import dataclass
 from enum import StrEnum
@@ -137,18 +139,13 @@ class SandboxCapabilityReport:
 def detect_sandbox_capabilities() -> SandboxCapabilityReport:
     """Detect OS-level isolation capabilities at boot."""
     has_netns = sys.platform == "linux" and os.path.exists("/proc/self/ns/net")
-    has_seccomp = False
-    if sys.platform == "linux":
-        try:
-            import seccomp  # type: ignore[import-not-found]
-            has_seccomp = True
-        except ImportError:
-            has_seccomp = False
+    has_seccomp = sys.platform == "linux" and importlib.util.find_spec("seccomp") is not None
 
     has_rlimit = False
     if sys.platform != "win32":
         try:
             import resource  # noqa: F401
+
             has_rlimit = True
         except ImportError:
             has_rlimit = False

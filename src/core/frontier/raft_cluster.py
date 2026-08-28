@@ -10,12 +10,9 @@ Provides a fully implemented 3-node (or N-node) fault-tolerant Raft consensus cl
 from __future__ import annotations
 
 import logging
-import shutil
 import tempfile
 import threading
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
 
 from src.core.contracts.command_envelope import (
     CommandEnvelope,
@@ -24,7 +21,7 @@ from src.core.contracts.command_envelope import (
 )
 from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.raft_transport import InMemoryRaftTransport
-from src.core.frontier.replicated_log import PartitionWAL, ReplicatedPartitionLog
+from src.core.frontier.replicated_log import ReplicatedPartitionLog
 
 logger = logging.getLogger(__name__)
 

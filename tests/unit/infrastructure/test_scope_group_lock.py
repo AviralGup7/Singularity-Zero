@@ -1,4 +1,5 @@
 import unittest
+
 from src.infrastructure.task_pool import ScopeGroupLock, derive_scope_group
 
 

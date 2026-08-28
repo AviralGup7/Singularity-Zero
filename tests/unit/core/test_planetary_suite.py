@@ -3,10 +3,10 @@
 import time
 
 from src.infrastructure.flow_control.bulkhead import BulkheadPool
-from src.resilience.circuit_breaker import CircuitBreaker, CircuitState
 
 # 1. Flow Control
 from src.infrastructure.flow_control.pid_controller import AdaptivePIDController, PIDTuning
+from src.resilience.circuit_breaker import CircuitBreaker, CircuitState
 
 
 class TestFlowControl:

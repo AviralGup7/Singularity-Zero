@@ -1,4 +1,5 @@
 import unittest
+
 from src.infrastructure.cache.cache_manager import CacheManager
 
 
@@ -38,6 +39,7 @@ class TestCacheInvalidationProtocol(unittest.TestCase):
         import sqlite3
         import tempfile
         from pathlib import Path
+
         from src.infrastructure.cache.backends.sqlite import SQLiteBackend
 
         with tempfile.TemporaryDirectory() as td:
@@ -67,8 +69,8 @@ class TestCacheInvalidationProtocol(unittest.TestCase):
         """Item 18: Transactional archival prune (archive-then-verify-then-delete) with dry-run and manifest."""
         import json
         import tempfile
-        import time
         from pathlib import Path
+
         from src.pipeline.storage_tiering import transactional_prune_and_archive
 
         with tempfile.TemporaryDirectory() as td:
@@ -114,7 +116,7 @@ class TestCacheInvalidationProtocol(unittest.TestCase):
             # Manifest must be written and contain run_ids
             manifest_file = archive_dir / "archive_manifest.json"
             self.assertTrue(manifest_file.exists())
-            with open(manifest_file, "r", encoding="utf-8") as f:
+            with open(manifest_file, encoding="utf-8") as f:
                 manifest_data = json.load(f)
             self.assertIn("run_2026_01", manifest_data)
             self.assertIn("run_2026_recent", manifest_data)

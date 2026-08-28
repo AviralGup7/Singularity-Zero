@@ -308,7 +308,7 @@ def test_i32_outbox_failure_does_not_emit_on_bus(tmp_path) -> None:
     reset_delivery_ledger()
     outbox = DurableOutboxLedger("P-0000", outbox_dir=tmp_path)
     # Simulate an outbox filesystem write failure
-    outbox.append_events = MagicMock(side_effect=IOError("disk full"))
+    outbox.append_events = MagicMock(side_effect=OSError("disk full"))
 
     seen_bus: list[dict] = []
     def emit(event_type, *, source, data, trace_id=None):

@@ -109,10 +109,10 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 | F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | Active |
 | F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
 | F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
-| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py` | F-011, F-038 | Active |
+| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py` | F-011, F-038 | Active |
 | F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | Active |
 | F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py` | F-024, F-030 | Active |
-| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `run_lock.py` | F-039 | Active |
+| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `recovery/watchdog.py`, `run_lock.py` | F-039 | Active |
 | F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py` | F-023, F-026, F-031, F-043 | Active |
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | Active |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | Active |
@@ -1070,7 +1070,11 @@ flowchart TD
     Inv -->|"invariants verified"| Ready["READY (DAG Execution Resume)"]:::impl
     Comp --> Ready
     Fresh -->|"initialize empty state"| Ready
+    Inv -->|"WAL unreadable but LKG snapshot hash ok"| Survival["SURVIVAL_READONLY (reads/export/DLQ only)"]:::impl
+    Survival -.->|"refuse mutate / reserve / scan run / transfer"| SurvivalBlock["Mutations refused (X-Survival-Mode)"]:::forbidden
 ```
+
+Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING→COMPENSATING→COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`.
 
 ---
 
@@ -1420,3 +1424,10 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `WAL_GROUP_COMMIT_WINDOW_MS` | `1.0` | Partition WAL | Group commit maximum window duration in ms |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | Observability | OpenTelemetry OTLP collector gRPC endpoint |
 | `AUTHORITY_SIGNING_KEY_ID` | `authority-hmac-v1` | Frontier Crypto | Key identifier for HMAC receipt verification |
+| `AUTO_ENTER_SURVIVAL_ON_CORRUPT` | `false` | Recovery | Auto-enter `SURVIVAL_READONLY` when WAL is unreadable but LKG snapshot verifies |
+| `REQUIRE_KERNEL_SANDBOX` | `false` | Sandbox | Boot fail-closed if kernel NetNS+seccomp is degraded |
+| `EGRESS_STRICT_CONTEXT` | `true` | Egress | Assert non-null egress ContextVar on network paths |
+| `RECOVERY_WRITE_REPORT` | `true` | Recovery | Write `recovery_report.json` before READY |
+| `BUDGET_PHOENIX_ON_BOOT` | `true` | Recovery | Reconcile Outstanding/Consumed/Compensated from durable history |
+| `ARCHIVE_VERIFY_THEN_DELETE` | `true` | Storage | Hard-enforce archive verify before deleting hot runs |
+| `OUTBOX_DLQ_ENABLED` | `true` | Outbox | Enable poison-pill DLQ move after retry exhaustion |

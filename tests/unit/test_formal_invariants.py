@@ -648,6 +648,7 @@ class TestFormalSystemInvariants(unittest.TestCase):
     def test_invariant_i30_exploitation_entry_authority_and_budget(self) -> None:
         """INVARIANT-I30 / I28: Standalone exploitation enforces full ticket authorization, budget reservation and settlement."""
         import asyncio
+
         from src.core.config.typed_config import PipelineConfig
         from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
         from src.exploitation.engines.safe_exploiter import SafeExploiter
@@ -679,9 +680,12 @@ class TestFormalSystemInvariants(unittest.TestCase):
         """INVARIANT-I37: Production actor evacuation initiates I37 fence, verifies replica, and activates new partition owner."""
         import asyncio
         from unittest.mock import AsyncMock
-        from src.core.frontier.global_coordination import PlacementAuthority
+
         from src.core.frontier.authority_transfer import TransferPhase
-        from src.pipeline.services.pipeline_orchestrator.migration_handler import ProactiveMigrationHandler
+        from src.core.frontier.global_coordination import PlacementAuthority
+        from src.pipeline.services.pipeline_orchestrator.migration_handler import (
+            ProactiveMigrationHandler,
+        )
 
         placement = PlacementAuthority(initial_version=10, home_region="us-east-1")
 

@@ -15,7 +15,11 @@ import time
 from dataclasses import dataclass
 
 from src.sandbox.network_isolation import NetworkEgressFilter
-from src.sandbox.seccomp_filter import SeccompPolicy, get_default_seccomp_policy
+from src.sandbox.seccomp_filter import (
+    SandboxEnforcementLevel,
+    SeccompPolicy,
+    get_default_seccomp_policy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +109,7 @@ class ProcessSandbox:
         seccomp_policy: SeccompPolicy | None = None,
         required_enforcement_level: str | SandboxEnforcementLevel | None = None,
     ) -> None:
-        from src.sandbox.seccomp_filter import (
-            SandboxEnforcementLevel,
-            detect_sandbox_capabilities,
-        )
+        from src.sandbox.seccomp_filter import detect_sandbox_capabilities
 
         self.limits = limits or SandboxResourceLimits()
         # I29: every sandbox at least denies cloud-metadata destinations.
@@ -141,7 +142,9 @@ class ProcessSandbox:
                 )
 
         if self.enforcement_level == SandboxEnforcementLevel.DEGRADED_USERSPACE:
-            logger.info("ProcessSandbox operating in DEGRADED_USERSPACE mode: %s", self.degraded_reason)
+            logger.info(
+                "ProcessSandbox operating in DEGRADED_USERSPACE mode: %s", self.degraded_reason
+            )
 
     def check_egress(self, host: str, port: int | None = None) -> None:
         """Enforce I29 before the worker opens a destination."""
@@ -199,6 +202,7 @@ class ProcessSandbox:
         proxy_server = None
         if self.egress_filter is not None and self.limits.allow_network:
             from src.sandbox.proxy_guard import ScopedProxyServer
+
             proxy_server = ScopedProxyServer(self.egress_filter)
             proxy_url = proxy_server.start()
             env["HTTP_PROXY"] = proxy_url

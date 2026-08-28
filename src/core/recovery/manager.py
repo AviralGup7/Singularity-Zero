@@ -111,13 +111,13 @@ class RecoveryManager:
         """Return reconstructed state from checkpoint snapshot + WAL journal."""
         mode = self._coerce_mode(wal_replay)
         if force_fresh:
-            return self._fresh(mode)
+            return self._finish(self._fresh(mode))
 
         checkpoint = pre_recovered_state
         if checkpoint is None:
             checkpoint = self._load_checkpoint_snapshot(resume_from)
         if checkpoint is None:
-            return self._fresh(mode)
+            return self._finish(self._fresh(mode))
 
         run_id = checkpoint.pipeline_run_id
         checkpoint_mgr = create_checkpoint_manager(
@@ -137,10 +137,10 @@ class RecoveryManager:
                 "Recovery Manager: checkpoint %s has no usable context snapshot; starting fresh",
                 run_id,
             )
-            return self._fresh(mode)
+            return self._finish(self._fresh(mode))
 
         if not self._payload_is_compatible(payload, run_id):
-            return self._fresh(mode)
+            return self._finish(self._fresh(mode))
 
         wal = self._open_wal(run_id)
         wal_state = self._replay_journal(wal, mode)
@@ -169,27 +169,29 @@ class RecoveryManager:
                 run_id,
                 [window.value for window in verdict.windows],
             )
-            return ReconstructedState(
-                run_id=run_id,
-                can_recover=False,
-                source=source,
-                mode=mode,
-                checkpoint_mgr=checkpoint_mgr,
-                remaining_stages=[],
-                wal=wal,
-                wal_state=wal_state,
-                wal_counts=wal_counts,
-                verify_report=verify_report,
-                execute_stages=False,
-                snapshot_last_wal_id=snapshot_cursor,
-                snapshot_applied_wal_ids=snapshot_applied,
-                recovery_phase="fail_closed",
-                recovery_windows=tuple(window.value for window in verdict.windows),
-                snapshot_stale=True,
-                protocol_notes=verdict.notes,
+            return self._finish(
+                ReconstructedState(
+                    run_id=run_id,
+                    can_recover=False,
+                    source=source,
+                    mode=mode,
+                    checkpoint_mgr=checkpoint_mgr,
+                    remaining_stages=[],
+                    wal=wal,
+                    wal_state=wal_state,
+                    wal_counts=wal_counts,
+                    verify_report=verify_report,
+                    execute_stages=False,
+                    snapshot_last_wal_id=snapshot_cursor,
+                    snapshot_applied_wal_ids=snapshot_applied,
+                    recovery_phase="fail_closed",
+                    recovery_windows=tuple(window.value for window in verdict.windows),
+                    snapshot_stale=True,
+                    protocol_notes=verdict.notes,
+                )
             )
         if verdict.phase.value == "fresh":
-            return self._fresh(mode)
+            return self._finish(self._fresh(mode))
         if discard_snapshot:
             # Keep the run id so the existing journal is reused; do not restore ctx.
             logger.warning(
@@ -197,15 +199,42 @@ class RecoveryManager:
                 run_id,
                 [window.value for window in verdict.windows],
             )
-            return ReconstructedState(
+            return self._finish(
+                ReconstructedState(
+                    run_id=run_id,
+                    can_recover=False,
+                    source="wal",
+                    mode=mode,
+                    checkpoint_mgr=checkpoint_mgr,
+                    remaining_stages=list(self.stage_order),
+                    wal=wal,
+                    wal_state=wal_state,
+                    wal_counts=wal_counts,
+                    verify_report=verify_report,
+                    execute_stages=mode is not WalReplayMode.DRY_RUN,
+                    snapshot_last_wal_id=snapshot_cursor,
+                    snapshot_applied_wal_ids=snapshot_applied,
+                    recovery_phase=verdict.phase.value,
+                    recovery_windows=tuple(window.value for window in verdict.windows),
+                    snapshot_stale=True,
+                    protocol_notes=verdict.notes,
+                )
+            )
+
+        return self._finish(
+            ReconstructedState(
                 run_id=run_id,
-                can_recover=False,
-                source="wal",
+                can_recover=True,
+                source=source,
                 mode=mode,
+                checkpoint=checkpoint,
                 checkpoint_mgr=checkpoint_mgr,
-                remaining_stages=list(self.stage_order),
+                context_payload=payload,
+                completed_stages=completed,
+                remaining_stages=remaining,
                 wal=wal,
                 wal_state=wal_state,
+                checkpoint_counts=checkpoint_counts,
                 wal_counts=wal_counts,
                 verify_report=verify_report,
                 execute_stages=mode is not WalReplayMode.DRY_RUN,
@@ -213,33 +242,45 @@ class RecoveryManager:
                 snapshot_applied_wal_ids=snapshot_applied,
                 recovery_phase=verdict.phase.value,
                 recovery_windows=tuple(window.value for window in verdict.windows),
-                snapshot_stale=True,
+                snapshot_stale=verdict.snapshot_stale,
                 protocol_notes=verdict.notes,
             )
-
-        return ReconstructedState(
-            run_id=run_id,
-            can_recover=True,
-            source=source,
-            mode=mode,
-            checkpoint=checkpoint,
-            checkpoint_mgr=checkpoint_mgr,
-            context_payload=payload,
-            completed_stages=completed,
-            remaining_stages=remaining,
-            wal=wal,
-            wal_state=wal_state,
-            checkpoint_counts=checkpoint_counts,
-            wal_counts=wal_counts,
-            verify_report=verify_report,
-            execute_stages=mode is not WalReplayMode.DRY_RUN,
-            snapshot_last_wal_id=snapshot_cursor,
-            snapshot_applied_wal_ids=snapshot_applied,
-            recovery_phase=verdict.phase.value,
-            recovery_windows=tuple(window.value for window in verdict.windows),
-            snapshot_stale=verdict.snapshot_stale,
-            protocol_notes=verdict.notes,
         )
+
+    def _finish(self, result: ReconstructedState) -> ReconstructedState:
+        """Phoenix + recovery_report.json before READY / FRESH / FAIL_CLOSED."""
+        try:
+            from src.core.frontier.budget_phoenix import (
+                PhoenixReport,
+                reconcile_budget,
+                write_recovery_report,
+                write_report_enabled,
+            )
+
+            phoenix = reconcile_budget()
+            if write_report_enabled():
+                extra = dict(result.verify_report or {})
+                extra.update(
+                    {
+                        "recovery_phase": result.recovery_phase,
+                        "source": result.source,
+                        "run_id": result.run_id,
+                        "execute_stages": result.execute_stages,
+                    }
+                )
+                report = PhoenixReport(
+                    outstanding=phoenix.outstanding,
+                    consumed=phoenix.consumed,
+                    compensated=phoenix.compensated,
+                    ghosts_compensated=list(phoenix.ghosts_compensated),
+                    orphans=list(phoenix.orphans),
+                    duration_ms=phoenix.duration_ms,
+                    chosen_snapshot=result.source,
+                )
+                write_recovery_report(self.output_dir / "recovery_report.json", report, extra=extra)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("recovery_report write skipped: %s", exc)
+        return result
 
     def _fresh(self, mode: WalReplayMode) -> ReconstructedState:
         run_id = generate_run_id()

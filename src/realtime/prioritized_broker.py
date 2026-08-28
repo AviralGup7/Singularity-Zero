@@ -235,9 +235,20 @@ class PrioritizedRealtimeBroker:
                     self._p0_memory_spool.append(event)
                     return True
 
-                # 4. Spool Full: Shed to non-blocking Emergency Ring Buffer (bounded latency)
-                if len(self._p0_emergency_ring) >= self.emergency_ring_capacity:
+                # 4. Spool Full: Shed to non-blocking Emergency Ring Buffer (bounded latency).
+                # When the ring is also full (or disabled with capacity 0), fail closed with
+                # explicit backpressure — never silently overwrite the oldest P0 event.
+                if (
+                    self.emergency_ring_capacity <= 0
+                    or len(self._p0_emergency_ring) >= self.emergency_ring_capacity
+                ):
                     self._emergency_ring_overflow_count += 1
+                    self._dropped_counts[event.qos] += 1
+                    logger.warning(
+                        "P0 spool and emergency ring saturated; applying backpressure (event_id=%s)",
+                        event.event_id,
+                    )
+                    return False
                 self._p0_emergency_ring.append(event)
                 logger.warning(
                     "P0 spool saturated; admitted to emergency ring buffer (non-blocking fallback)"

@@ -160,7 +160,6 @@ class ProactiveMigrationHandler:
                     # I37 Fenced Authority Transfer Protocol during Actor Evacuation
                     placement = getattr(self._coordinator, "placement", None)
                     epoch = None
-                    token = None
                     if placement is not None and hasattr(placement, "initiate_transfer"):
                         from_part = getattr(actor_ref, "partition_id", "P-0000")
                         to_part = getattr(self._coordinator, "destination_partition", "P-0001")
@@ -174,10 +173,17 @@ class ProactiveMigrationHandler:
                             )
                             logger.info(
                                 "I37 Fenced Authority Transfer initiated for actor [%s] (from %s to %s, epoch %d)",
-                                actor_id, from_part, to_part, epoch
+                                actor_id,
+                                from_part,
+                                to_part,
+                                epoch,
                             )
                         except Exception as exc:
-                            logger.warning("I37 authority fence failed; aborting evacuation for [%s]: %s", actor_id, exc)
+                            logger.warning(
+                                "I37 authority fence failed; aborting evacuation for [%s]: %s",
+                                actor_id,
+                                exc,
+                            )
                             continue
 
                     migration_triggered = await self._coordinator.migrate_if_needed(
@@ -188,8 +194,14 @@ class ProactiveMigrationHandler:
                         verified = await self._verify_migration(actor_id)
                         if verified:
                             # Finalize I37 Authority Transfer upon destination verification
-                            if placement is not None and epoch is not None and hasattr(placement, "activate_ownership"):
-                                to_part = getattr(self._coordinator, "destination_partition", "P-0001")
+                            if (
+                                placement is not None
+                                and epoch is not None
+                                and hasattr(placement, "activate_ownership")
+                            ):
+                                to_part = getattr(
+                                    self._coordinator, "destination_partition", "P-0001"
+                                )
                                 activated = placement.activate_ownership(
                                     aggregate_id=actor_id,
                                     new_owner_partition=to_part,
@@ -197,7 +209,9 @@ class ProactiveMigrationHandler:
                                 )
                                 logger.info(
                                     "I37 Authority Transfer activated on destination %s for actor [%s] (ok=%s)",
-                                    to_part, actor_id, activated
+                                    to_part,
+                                    actor_id,
+                                    activated,
                                 )
                             self.unregister_actor(actor_id)
                             get_event_bus().emit(
@@ -210,16 +224,27 @@ class ProactiveMigrationHandler:
                                 },
                             )
                         else:
-                            if placement is not None and epoch is not None and hasattr(placement, "abort_transfer"):
+                            if (
+                                placement is not None
+                                and epoch is not None
+                                and hasattr(placement, "abort_transfer")
+                            ):
                                 placement.abort_transfer(aggregate_id=actor_id, epoch=epoch)
-                                logger.warning("I37 Authority Transfer aborted for [%s] due to failed destination verification", actor_id)
+                                logger.warning(
+                                    "I37 Authority Transfer aborted for [%s] due to failed destination verification",
+                                    actor_id,
+                                )
                             logger.error(
                                 "ProactiveMigration: Actor [%s] migration NOT verified; "
                                 "keeping local reference to prevent actor loss",
                                 actor_id,
                             )
                     else:
-                        if placement is not None and epoch is not None and hasattr(placement, "abort_transfer"):
+                        if (
+                            placement is not None
+                            and epoch is not None
+                            and hasattr(placement, "abort_transfer")
+                        ):
                             placement.abort_transfer(aggregate_id=actor_id, epoch=epoch)
 
             except Exception as e:

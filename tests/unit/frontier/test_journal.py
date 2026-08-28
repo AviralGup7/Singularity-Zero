@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from src.frontier.deltas import delta
 from tests.test_support.journal import MemoryJournal
+
+from src.frontier.deltas import delta
 
 
 def test_memory_journal_replay() -> None:
