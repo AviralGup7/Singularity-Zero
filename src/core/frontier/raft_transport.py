@@ -137,6 +137,60 @@ class RequestVoteResponse:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class PreVoteRequest:
+    """Raft PreVote RPC request envelope (prevents disruptive partitioned election storms)."""
+
+    next_term: int
+    candidate_id: str
+    last_log_index: int
+    last_log_term: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "next_term": self.next_term,
+            "candidate_id": self.candidate_id,
+            "last_log_index": self.last_log_index,
+            "last_log_term": self.last_log_term,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PreVoteRequest:
+        return cls(
+            next_term=int(data.get("next_term", 1)),
+            candidate_id=str(data.get("candidate_id", "")),
+            last_log_index=int(data.get("last_log_index", 0)),
+            last_log_term=int(data.get("last_log_term", 0)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PreVoteResponse:
+    """Raft PreVote RPC response envelope."""
+
+    term: int
+    node_id: str
+    pre_vote_granted: bool
+    error_code: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "term": self.term,
+            "node_id": self.node_id,
+            "pre_vote_granted": self.pre_vote_granted,
+            "error_code": self.error_code,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PreVoteResponse:
+        return cls(
+            term=int(data.get("term", 1)),
+            node_id=str(data.get("node_id", "")),
+            pre_vote_granted=bool(data.get("pre_vote_granted", False)),
+            error_code=str(data.get("error_code", "")),
+        )
+
+
 class RaftTransportProtocol(Protocol):
     """Protocol interface for dispatching Raft RPCs across nodes."""
 
@@ -150,6 +204,12 @@ class RaftTransportProtocol(Protocol):
         self, target_node_id: str, request: RequestVoteRequest
     ) -> RequestVoteResponse:
         """Send RequestVote RPC synchronously or via network timeout."""
+        ...
+
+    def send_pre_vote(
+        self, target_node_id: str, request: PreVoteRequest
+    ) -> PreVoteResponse:
+        """Send PreVote RPC synchronously or via network timeout."""
         ...
 
 
@@ -184,10 +244,11 @@ class InMemoryRaftTransport:
             self._partitions_isolated.discard(node_id)
 
     def send_append_entries(
-        self, target_node_id: str, request: AppendEntriesRequest
+        self, target_node_id: str, request: AppendEntriesRequest, sender_id: str | None = None
     ) -> AppendEntriesResponse:
         with self._lock:
-            if target_node_id in self._partitions_isolated:
+            src = sender_id or request.leader_id
+            if src in self._partitions_isolated or target_node_id in self._partitions_isolated:
                 return AppendEntriesResponse(
                     term=request.term,
                     node_id=target_node_id,
@@ -209,10 +270,11 @@ class InMemoryRaftTransport:
         return cast(AppendEntriesResponse, target.handle_append_entries_rpc(request))
 
     def send_request_vote(
-        self, target_node_id: str, request: RequestVoteRequest
+        self, target_node_id: str, request: RequestVoteRequest, sender_id: str | None = None
     ) -> RequestVoteResponse:
         with self._lock:
-            if target_node_id in self._partitions_isolated:
+            src = sender_id or request.candidate_id
+            if src in self._partitions_isolated or target_node_id in self._partitions_isolated:
                 return RequestVoteResponse(
                     term=request.term,
                     node_id=target_node_id,
@@ -229,6 +291,29 @@ class InMemoryRaftTransport:
                 )
 
         return cast(RequestVoteResponse, target.handle_request_vote_rpc(request))
+
+    def send_pre_vote(
+        self, target_node_id: str, request: PreVoteRequest, sender_id: str | None = None
+    ) -> PreVoteResponse:
+        with self._lock:
+            src = sender_id or request.candidate_id
+            if src in self._partitions_isolated or target_node_id in self._partitions_isolated:
+                return PreVoteResponse(
+                    term=request.next_term - 1,
+                    node_id=target_node_id,
+                    pre_vote_granted=False,
+                    error_code="NODE_UNREACHABLE",
+                )
+            target = self._endpoints.get(target_node_id)
+            if target is None:
+                return PreVoteResponse(
+                    term=request.next_term - 1,
+                    node_id=target_node_id,
+                    pre_vote_granted=False,
+                    error_code="NODE_NOT_FOUND",
+                )
+
+        return cast(PreVoteResponse, target.handle_pre_vote_rpc(request))
 
 
 class NetworkRaftTransport:

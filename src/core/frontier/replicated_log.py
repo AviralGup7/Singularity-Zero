@@ -38,6 +38,8 @@ from src.core.frontier.raft_fsm import PartitionFSM
 from src.core.frontier.raft_transport import (
     AppendEntriesRequest,
     AppendEntriesResponse,
+    PreVoteRequest,
+    PreVoteResponse,
     RaftTransportProtocol,
     RequestVoteRequest,
     RequestVoteResponse,
@@ -227,11 +229,26 @@ class ReplicatedPartitionLog:
         self.last_applied: int = 0
         self.voted_for: str | None = node_id if is_leader else None
         self._last_entry_hash: str = "0" * 64
+        self._leader_lease_expiry: float = time.monotonic() + 10.0 if is_leader else 0.0
+        self._leader_lease_duration_sec: float = 3.0
         self._lock = threading.RLock()
 
         # Recover state from existing WAL on startup (if persisted)
         if wal_dir is not None:
             self._recover_from_wal()
+
+    @property
+    def has_leader_lease(self) -> bool:
+        """Verify leader lease is valid under monotonic clock."""
+        with self._lock:
+            if not self.is_leader:
+                return False
+            return time.monotonic() < self._leader_lease_expiry
+
+    def renew_leader_lease(self) -> None:
+        """Renew leader lease upon successful quorum contact."""
+        with self._lock:
+            self._leader_lease_expiry = time.monotonic() + self._leader_lease_duration_sec
 
     @property
     def quorum_size(self) -> int:
@@ -417,6 +434,9 @@ class ReplicatedPartitionLog:
                     f"Only {ack_count}/{self.quorum_size} nodes acknowledged."
                 )
 
+            # Quorum reached: renew leader lease
+            self.renew_leader_lease()
+
             # 5. Step D: Quorum Reached -> Advance commitIndex & Commit in Leader WAL
             self.commit_index = next_index
             self._last_entry_hash = entry_hash
@@ -554,6 +574,42 @@ class ReplicatedPartitionLog:
                 match_index=len(self.entries),
             )
 
+    def handle_pre_vote_rpc(self, request: PreVoteRequest) -> PreVoteResponse:
+        """Handle PreVote RPC on a replica without incrementing term or modifying state."""
+        with self._lock:
+            if request.next_term <= self.current_term:
+                return PreVoteResponse(
+                    term=self.current_term,
+                    node_id=self.node_id,
+                    pre_vote_granted=False,
+                    error_code="STALE_NEXT_TERM",
+                )
+
+            # Reject pre-vote if leader lease is currently active (prevents partitioned disruption)
+            if self.is_leader and self.has_leader_lease:
+                return PreVoteResponse(
+                    term=self.current_term,
+                    node_id=self.node_id,
+                    pre_vote_granted=False,
+                    error_code="ACTIVE_LEADER_LEASE",
+                )
+
+            # Pre-vote candidate log must be at least as up to date as replica's log
+            log_ok = request.last_log_index >= self.commit_index
+            if log_ok:
+                return PreVoteResponse(
+                    term=self.current_term,
+                    node_id=self.node_id,
+                    pre_vote_granted=True,
+                )
+
+            return PreVoteResponse(
+                term=self.current_term,
+                node_id=self.node_id,
+                pre_vote_granted=False,
+                error_code="LOG_BEHIND",
+            )
+
     def handle_request_vote_rpc(self, request: RequestVoteRequest) -> RequestVoteResponse:
         """Handle RequestVote RPC on a replica."""
         with self._lock:
@@ -589,19 +645,45 @@ class ReplicatedPartitionLog:
                 error_code="VOTE_DENIED",
             )
 
-    def start_election(self) -> bool:
-        """Initiate leader election: increment term, vote for self, collect peer votes."""
+    def start_election(self, skip_pre_vote: bool = False) -> bool:
+        """Initiate leader election: run pre-vote phase first, then increment term and collect votes."""
         with self._lock:
+            if not self.peers or self.transport is None:
+                # Single-node cluster becomes leader immediately
+                self.current_term += 1
+                self.role = "LEADER"
+                self.is_leader = True
+                self.renew_leader_lease()
+                return True
+
+            # Phase 1: Pre-Vote to prevent disrupted partitioned terms
+            if not skip_pre_vote:
+                pre_vote_req = PreVoteRequest(
+                    next_term=self.current_term + 1,
+                    candidate_id=self.node_id,
+                    last_log_index=self.commit_index,
+                    last_log_term=self.current_term,
+                )
+                pre_votes = 1  # Candidate votes for self
+                for peer_id in self.peers:
+                    resp = self.transport.send_pre_vote(peer_id, pre_vote_req)
+                    if resp.pre_vote_granted:
+                        pre_votes += 1
+
+                if pre_votes < self.quorum_size:
+                    logger.info(
+                        "Node %s aborted election: Pre-Vote failed (%d/%d grants)",
+                        self.node_id,
+                        pre_votes,
+                        self.quorum_size,
+                    )
+                    return False
+
+            # Phase 2: Formal Election (increment term, vote for self)
             self.current_term += 1
             self.role = "CANDIDATE"
             self.voted_for = self.node_id
             votes = 1  # Self vote
-
-            if not self.peers or self.transport is None:
-                # Single-node cluster becomes leader immediately
-                self.role = "LEADER"
-                self.is_leader = True
-                return True
 
             vote_req = RequestVoteRequest(
                 term=self.current_term,
@@ -618,6 +700,7 @@ class ReplicatedPartitionLog:
             if votes >= self.quorum_size:
                 self.role = "LEADER"
                 self.is_leader = True
+                self.renew_leader_lease()
                 logger.info(
                     "Node %s won election for term %d with %d votes",
                     self.node_id,

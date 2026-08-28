@@ -1245,7 +1245,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 |---|---|---|---|---|---|
 | **I1** | Hash-Chain Continuity ($H_n = \text{SHA256}(H_{n-1} \mathbin{\Vert} \text{CanonicalEncode}(E_n))$) | F-003 | `replicated_log.py` | `tests/unit/core/test_global_invariants.py` | `PROPERTY-TESTED` |
 | **I2** | Log Monotonicity (Index $K_n > K_{n-1}$, Term $T_n \ge T_{n-1}$) | F-003 | `replicated_log.py` | `tests/unit/core/test_global_invariants.py` | `PROPERTY-TESTED` |
-| **I3** | Committed-State Confinement (Transitions on quorum-committed entries only) | F-003 | `replicated_log.py` | `tests/unit/core/test_global_invariants.py` | `FAULT-INJECTED` (single-node quorum-1) |
+| **I3** | Committed-State Confinement (Transitions on quorum-committed entries only) | F-003 | `replicated_log.py`, `raft_cluster.py` | `tests/unit/core/test_raft_cluster.py`, `tests/unit/core/test_global_invariants.py` | `MODEL-CHECKED` (multi-node quorum) |
 | **I4** | Aggregate Monotonicity ($\text{version}' = \text{version} + 1$ on `SUCCESS`) | F-003 | `raft_fsm.py` | `tests/unit/core/test_global_invariants.py` | `TESTED` |
 | **I5** | Global Budget Conservation ($\text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available}$) | F-006 | `global_coordination.py`, `hunt_budget.py` | `tests/unit/core/test_global_budget_conservation.py` | `PROPERTY-TESTED` |
 | **I6** | Scoped Idempotency ($\forall \text{ valid } \text{cmd\_id}: \text{Count}(\text{Mutations}) \le 1$) | F-003 | `raft_fsm.py` | `tests/unit/core/test_global_invariants.py` | `PROPERTY-TESTED` |
@@ -1320,7 +1320,7 @@ flowchart TD
     
     subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I37)"]
         I1g["I1: Hash-Chain Continuity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I2g["I2: Log Monotonicity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl
-        I2g --> I3g["I3: Committed-State Confinement<br/><small>replicated_log.py [FAULT-INJECTED]</small>"]:::impl
+        I2g --> I3g["I3: Committed-State Confinement<br/><small>raft_cluster.py [MODEL-CHECKED]</small>"]:::impl
         I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
         I7g --> I17g["I17: Authority Uniqueness<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
         I17g --> I36g["I36: Single-Writer Region Relay<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl

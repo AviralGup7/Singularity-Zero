@@ -5,6 +5,7 @@ import time
 
 from src.core.contracts.command_envelope import CommandEnvelope
 from src.core.frontier.raft_cluster import MultiNodeRaftCluster
+from src.core.frontier.raft_transport import PreVoteRequest
 from src.core.frontier.failure_model import AuthorityLostError
 
 
@@ -104,6 +105,35 @@ class TestMultiNodeRaftCluster(unittest.TestCase):
         )
         with self.assertRaises(AuthorityLostError):
             self.cluster.propose_and_commit(cmd)
+
+    def test_pre_vote_prevents_disrupted_terms_from_isolated_partition(self) -> None:
+        """Isolated node (node_2) cannot obtain majority pre-votes, so its term does not increase."""
+        self.cluster.isolate_node("node_2")
+        node_2 = self.cluster.nodes["node_2"]
+        initial_term = node_2.current_term
+
+        # Trigger election on isolated node
+        won = self.cluster.trigger_election("node_2")
+        self.assertFalse(won)
+        # Term was not increased because Pre-Vote phase aborted before term increment
+        self.assertEqual(node_2.current_term, initial_term)
+
+    def test_leader_lease_prevents_stale_leader_split_brain(self) -> None:
+        """Active leader holds lease; isolated follower cannot usurp while leader lease is active."""
+        leader = self.cluster.leader
+        self.assertTrue(leader.has_leader_lease)
+
+        # Node 1 tries to usurp while connected, but pre-vote is rejected because leader lease is active
+        # (simulate pre-vote request to leader directly)
+        pre_vote_req = PreVoteRequest(
+            next_term=leader.current_term + 1,
+            candidate_id="node_1",
+            last_log_index=leader.commit_index,
+            last_log_term=leader.current_term,
+        )
+        resp = leader.handle_pre_vote_rpc(pre_vote_req)
+        self.assertFalse(resp.pre_vote_granted)
+        self.assertEqual(resp.error_code, "ACTIVE_LEADER_LEASE")
 
 
 if __name__ == "__main__":
