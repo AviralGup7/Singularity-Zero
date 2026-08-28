@@ -199,7 +199,7 @@ flowchart TD
         
         A ==>|"authoritative write"| OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
         A ==>|"authoritative write"| JA["FrontierWAL Journal (Scan Discovery)"]:::impl
-        JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::specOnly
+        JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::impl
         B -.->|"refuse: foreign mutation rejected"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
         
         GA["Gossip Node A1"]:::impl -.-|"SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::specOnly
@@ -1278,7 +1278,7 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I33** | Causal Identity Chain ($\text{CommandId} \rightarrow \dots \rightarrow \text{DeliveryId}$) | F-033 | `causal_identity.py` | `tests/unit/core/test_causal_identity.py` | `PROPERTY-TESTED` |
 | **I34** | Formal Failure Recovery Boundaries (8 failure classes with declared recovery action) | F-018 | `failure_model.py` | `tests/unit/core/test_failure_model.py` | `FAULT-INJECTED` |
 | **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py` | `tests/unit/core/test_recovery_protocol.py` | `MODEL-CHECKED` |
-| **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py` | `tests/unit/core/test_region_model.py` | `MODEL-CHECKED` |
+| **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py`, `replication.py` | `tests/unit/core/test_region_model.py`, `tests/unit/infrastructure/test_wal_replication.py` | `MODEL-CHECKED` |
 | **I37** | Zero Dual-Writer Fenced Authority Transfer | F-002 | `authority_transfer.py`, `global_coordination.py`, `migration_handler.py` | `tests/unit/core/test_authority_transfer.py` | `MODEL-CHECKED` + `ADVERSARIAL` |
 
 ```mermaid
