@@ -363,7 +363,7 @@ flowchart TD
         CSTP --> Sys
 
         Launch --> Bind
-        Scan --> Runtime
+        Scan -->|"--frontier-only / resume --run-id"| Runtime
         Runtime --> Bind
 
         Bind --> Recover
@@ -376,6 +376,7 @@ flowchart TD
 
         Auth -->|"inject context"| Stamp
         Auth -.->|"attach failure"| AuthFail["Exit 3 FAIL_CLOSED"]:::forbidden
+        Auth -.->|"AUTO_FRONTIER_ONLY_ON_AUTH_LOSS"| FO["FRONTIER_ONLY discovery continues"]:::impl
         Bind -->|"enforcement_check.verify"| Auth
     end
 
@@ -761,6 +762,7 @@ flowchart TD
 | **SKIPPED / UNBUDGETED** | Not submitted to WAL | `N/A` | No | `COMPENSATE` (if reserved) | `SKIPPED_DISABLED` |
 | **FRONTIER_ONLY (authority down)** | Not submitted to PartitionWAL | `N/A` | No | none (no reserve) | Discovery stages continue; findings in `findings.spill.jsonl` |
 | **Outbox append failure after COMMITTED** | WAL unchanged | `COMMITTED` | **No** (I31 outbox-before-bus) | none | Spill retained; `OutboxReplayAgent` on READY |
+| **ResourceGuard PRESSURE / SPILL_FIRST** | WAL may be committed | skip outbox/bus | No | none | Spill JSONL only; merge later |
 
 ---
 
@@ -1105,9 +1107,11 @@ flowchart TD
     Inv -->|"WAL unreadable but LKG snapshot hash ok"| Survival["SURVIVAL_READONLY (reads/export/DLQ only)"]:::impl
     Survival -.->|"refuse mutate / reserve / scan run / transfer"| SurvivalBlock["Mutations refused (X-Survival-Mode)"]:::forbidden
     Inv -->|"authority / PartitionWAL unreachable"| AuthLoss["Authority / PartitionWAL unreachable"]:::impl
+    Watchdog["RecoveryWatchdog cooldown 30s"]:::impl -->|"quorum_loss / leader_lease"| AuthLoss
     AuthLoss -->|"AUTO_FRONTIER_ONLY_ON_AUTH_LOSS or --frontier-only"| FrontierOnly["FRONTIER_ONLY discovery allowlist"]:::impl
     FrontierOnly -->|"spill + merge_queue, no PartitionWAL settle"| SpillPath["findings.spill.jsonl + frontier_merge_queue"]:::impl
     Ready -->|"scan runtime"| ResourceCrit["ResourceGuard CRITICAL (disk>=95% / OOM)"]:::impl
+    Ready -->|"PRESSURE >=92%"| SpillFirst["spill-first skip outbox/bus"]:::impl
     ResourceCrit -->|"stop new stages, keep JOIN_SINKS"| Partial["emit_partial_report exit 4"]:::impl
     Ready -->|"heartbeat stage_status"| DagCkpt["DagCheckpoint (stage_status JSON, independent of FSM)"]:::impl
     DagCkpt -->|"CRASHED_IN_PROGRESS"| ResumeOrFinalize["--resume or --finalize-crashed"]:::impl
@@ -1493,3 +1497,6 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `DISK_CRITICAL_PCT` | `95` | ResourceGuard | CRITICAL threshold: stop new stages, partial report, exit 4 |
 | `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
 | `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed `GraphGenerationMismatch` when stored GraphGenID differs |
+| `TICKET_CONSUME_STORE` | (empty) | I30 | Optional JSONL of consumed ticket ids (process restart replay defense) |
+| `SPILL_FIRST` | `false` | Findings | Force spill-only I/O even without ResourceGuard PRESSURE |
+| `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
