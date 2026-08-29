@@ -323,6 +323,9 @@ class HuntBudgetEnforcer:
         self._authority_revision = 0
         self._issued_identities: dict[str, dict[str, str]] = {}
         self._open_subleases: list[tuple[str, int]] = []
+        from src.core.frontier.lease_status import LeaseFence
+
+        self._lease_fence = LeaseFence()
         self._local_sublease_pool_available: int = 0
         self._active_batched_sl_id: str = ""
         self._active_batched_cmd_id: str = ""
@@ -469,6 +472,7 @@ class HuntBudgetEnforcer:
                     "authority_revision": revision,
                 }
                 self._issued_identities[sl_id] = dict(identity)
+                self._lease_fence.bind(sl_id)
                 return identity
 
             # 2. Slow Path: Allocate batched reservation from GlobalBudget FSM
@@ -519,6 +523,7 @@ class HuntBudgetEnforcer:
                 "authority_revision": revision,
             }
             self._issued_identities[sl_id] = dict(identity)
+            self._lease_fence.bind(sl_id)
             return identity
 
     def live_authority_revision(self) -> str:
@@ -605,9 +610,14 @@ class HuntBudgetEnforcer:
             remaining = int(count)
             if self._global_budget is not None:
                 from src.core.frontier.commands import settlement_return
+                from src.core.frontier.lease_status import LeaseStatus, StaleLeaseFenceError
 
                 while remaining > 0 and self._open_subleases:
                     sl_id, units = self._open_subleases.pop(0)
+                    try:
+                        self._lease_fence.cas(sl_id, LeaseStatus.CONSUMED)
+                    except StaleLeaseFenceError:
+                        continue
                     if units > remaining:
                         env = settlement_return(
                             sublease_id=sl_id,

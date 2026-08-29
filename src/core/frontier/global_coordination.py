@@ -443,6 +443,7 @@ class PlacementAuthority:
         attempt_in_flight: bool = False,
         attempt_terminal: bool = False,
         to_region: str | None = None,
+        source_committed_offset: int | None = None,
     ) -> int:
         """I37 stage 1: fence the old home. Do **not** move ``partition_home``.
 
@@ -478,6 +479,7 @@ class PlacementAuthority:
             fence_token=token,
             revision=fenced.authority_revision,
             leader_term=fenced.leader_term,
+            source_committed_offset=source_committed_offset,
         )
         self.migration_states[aggregate_id] = f"FENCE_ISSUED:{src}->{dest}:{fenced.authority_epoch}"
         return fenced.authority_epoch
@@ -497,8 +499,10 @@ class PlacementAuthority:
         ``recovered_tickets`` are checked *before* cutover. An I30-invalid
         ticket cannot be blessed by a successful transfer.
 
-        When both offsets are supplied, activation refuses unless the
-        replica has caught up (``replica_applied_offset >= source_committed_offset``).
+        Catch-up: if the fence stored ``source_committed_offset`` (or the
+        caller passes one), activation refuses unless
+        ``replica_applied_offset >= source_committed``. Missing replica
+        offset while a source offset is known is refuse (must prove catch-up).
         """
         from src.core.frontier.authority_transfer import (
             activate_lease,

@@ -412,7 +412,12 @@ class TestPlanRemainders(unittest.TestCase):
                 os.environ["APP_SECRET_KEY"] = old_s
 
     def test_graph_gen_id_ignores_tool_pruning(self) -> None:
-        from src.pipeline.graph_identity import graph_gen_id
+        from src.pipeline.graph_identity import (
+            CapabilityGenerationMismatch,
+            assert_capability_generation,
+            capability_gen_id,
+            graph_gen_id,
+        )
         from src.pipeline.services.pipeline_orchestrator.graph_builder import build_pipeline_graph
 
         full = build_pipeline_graph(tool_status={"nuclei": True, "semgrep": True})
@@ -423,6 +428,9 @@ class TestPlanRemainders(unittest.TestCase):
         names_pruned = {n.name for n in pruned.nodes}
         if "nuclei" in names_full:
             self.assertNotIn("nuclei", names_pruned)
+            self.assertNotEqual(capability_gen_id(full), capability_gen_id(pruned))
+            with self.assertRaises(CapabilityGenerationMismatch):
+                assert_capability_generation(capability_gen_id(full), capability_gen_id(pruned))
 
     def test_cas_lease_fence_refuses_stale(self) -> None:
         from src.core.frontier.lease_status import (

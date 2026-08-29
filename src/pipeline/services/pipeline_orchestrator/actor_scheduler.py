@@ -216,8 +216,11 @@ class ActorScheduler:
 
             from src.core.checkpoint.dag_checkpoint import DagCheckpointStore
             from src.pipeline.graph_identity import (
+                CapabilityGenerationMismatch,
                 GraphGenerationMismatch,
+                assert_capability_generation,
                 assert_graph_generation,
+                capability_gen_id,
                 graph_gen_id,
             )
         except Exception:
@@ -230,10 +233,15 @@ class ActorScheduler:
                     snap = DagCheckpointStore(
                         Path(str(output_dir)) / run_id / "dag_checkpoint.json"
                     ).load()
-                    if snap is not None and snap.graph_gen_id:
-                        assert_graph_generation(snap.graph_gen_id, graph_gen_id(self._graph))
-            except GraphGenerationMismatch as exc:
-                logger.error("GraphGenID resume mismatch: %s", exc)
+                    if snap is not None:
+                        if snap.graph_gen_id:
+                            assert_graph_generation(snap.graph_gen_id, graph_gen_id(self._graph))
+                        if snap.capability_gen_id:
+                            assert_capability_generation(
+                                snap.capability_gen_id, capability_gen_id(self._graph)
+                            )
+            except (GraphGenerationMismatch, CapabilityGenerationMismatch) as exc:
+                logger.error("GraphGenID/capability resume mismatch: %s", exc)
                 self._outcome.exit_code = EXIT_INFRA_FAILURE
                 return self._outcome
             except Exception:
@@ -786,9 +794,6 @@ class ActorScheduler:
         self._ctx.result.module_metrics[node.name] = metrics
         self._completed.add(node.name)
         self._outcome.completed.add(node.name)
-        self._run_post_completion_hook(node)
-        self._record_speculative_completion(node)
-        self._persist_dag_checkpoint(current_stage=node.name)
 
     def _cascade_unsatisfiable(self) -> None:
         """Mark dependents of a just-failed critical stage so join sinks unblock."""
@@ -816,11 +821,13 @@ class ActorScheduler:
                 stage_status = {}
             gen = ""
             try:
-                from src.pipeline.graph_identity import graph_gen_id
+                from src.pipeline.graph_identity import capability_gen_id, graph_gen_id
 
                 gen = graph_gen_id(self._graph)
+                cap = capability_gen_id(self._graph)
             except Exception:
                 gen = ""
+                cap = ""
             tickets: list[str] = []
             try:
                 runtime = getattr(self._ctx, "authority_runtime", None)
@@ -840,6 +847,7 @@ class ActorScheduler:
                 failed=sorted(self._outcome.failed),
                 current_stage=current_stage,
                 graph_gen_id=gen,
+                capability_gen_id=cap,
                 consumed_ticket_ids=tickets,
             )
             DagCheckpointStore(Path(str(output_dir)) / run_id / "dag_checkpoint.json").save(snap)
@@ -954,14 +962,9 @@ class ActorScheduler:
     def _finalize_unsatisfiable_nodes(self) -> None:
         """Mark nodes that never became ready as SKIPPED.
 
-        This covers two cases:
-
-        * A node's ``when`` predicate is permanently false (e.g. the
-          upstream stage produced an empty output and the node opted
-          in to skip-on-empty).
-        * A node's ``needs`` include a FAILED critical stage — the
-          condition will never be re-evaluated after the loop
-          exits, so we mark it now for reporting.
+        Covers permanently-false ``when`` predicates and dependents of a
+        FAILED critical stage that will never be re-evaluated after the
+        loop exits.
         """
         for node in self._graph.nodes:
             if node.name in self._completed:

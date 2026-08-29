@@ -143,18 +143,18 @@ def transition_accounting_mode(
     s = int(slab_reserved)
     move = int(slab_units)
     if t < 0 or c < 0 or o < 0 or a < 0 or s < 0 or move < 0:
-        raise BudgetModeTransitionError("I40: negative budget component")
+        raise BudgetModeTransitionError("I39: negative budget component")
     if to_multi_raft:
         if c + o + a != t:
             raise BudgetModeTransitionError(
-                f"I40: I5 preimage broken C+O+A={c + o + a} != total={t}"
+                f"I39: I5 preimage broken C+O+A={c + o + a} != total={t}"
             )
         if move > a:
-            raise BudgetModeTransitionError("I40: slab_units exceed Available")
+            raise BudgetModeTransitionError("I39: slab_units exceed Available")
         a2 = a - move
         s2 = s + move
         if c + o + s2 + a2 != t:
-            raise BudgetModeTransitionError("I40: I26 postimage broken")
+            raise BudgetModeTransitionError("I39: I26 postimage broken")
         return {
             "total": t,
             "consumed": c,
@@ -164,11 +164,11 @@ def transition_accounting_mode(
         }
     if c + o + s + a != t:
         raise BudgetModeTransitionError(
-            f"I40: I26 preimage broken C+O+S+A={c + o + s + a} != total={t}"
+            f"I39: I26 preimage broken C+O+S+A={c + o + s + a} != total={t}"
         )
     a2 = a + s
     if c + o + a2 != t:
-        raise BudgetModeTransitionError("I40: I5 postimage broken")
+        raise BudgetModeTransitionError("I39: I5 postimage broken")
     return {
         "total": t,
         "consumed": c,

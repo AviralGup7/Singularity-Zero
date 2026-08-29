@@ -112,3 +112,39 @@ def cas_lease_status(
     if int(fence) != int(expected_fence):
         raise StaleLeaseFenceError(f"I28: stale lease fence {fence} != expected {expected_fence}")
     return require_transition(current, target)
+
+
+class LeaseFence:
+    """Shared monotonic fence for settle vs reaper on one reservation id."""
+
+    def __init__(self) -> None:
+        import threading
+
+        self._lock = threading.Lock()
+        self._seq: dict[str, int] = {}
+        self._status: dict[str, LeaseStatus] = {}
+
+    def bind(self, lease_id: str, status: LeaseStatus = LeaseStatus.RESERVED) -> int:
+        key = str(lease_id or "").strip()
+        if not key:
+            return 0
+        with self._lock:
+            self._seq.setdefault(key, 0)
+            self._status.setdefault(key, status)
+            return self._seq[key]
+
+    def cas(self, lease_id: str, target: LeaseStatus) -> LeaseStatus:
+        key = str(lease_id or "").strip()
+        if not key:
+            raise StaleLeaseFenceError("I28: empty lease id")
+        with self._lock:
+            fence = int(self._seq.get(key, 0))
+            current = self._status.get(key, LeaseStatus.RESERVED)
+            dest = cas_lease_status(current, target, fence=fence, expected_fence=fence)
+            self._seq[key] = fence + 1
+            self._status[key] = dest
+            return dest
+
+    def status_of(self, lease_id: str) -> LeaseStatus | None:
+        with self._lock:
+            return self._status.get(str(lease_id or "").strip())

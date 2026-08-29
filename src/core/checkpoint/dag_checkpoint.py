@@ -55,6 +55,7 @@ class DagCheckpoint:
     outputs_paths: dict[str, str] = field(default_factory=dict)
     clean_exit: bool = False
     graph_gen_id: str = ""
+    capability_gen_id: str = ""
     consumed_ticket_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,6 +73,7 @@ class DagCheckpoint:
             "outputs_paths": dict(self.outputs_paths),
             "clean_exit": self.clean_exit,
             "graph_gen_id": self.graph_gen_id,
+            "capability_gen_id": self.capability_gen_id,
             "consumed_ticket_ids": list(self.consumed_ticket_ids),
         }
 
@@ -91,6 +93,7 @@ class DagCheckpoint:
             outputs_paths={str(k): str(v) for k, v in dict(raw.get("outputs_paths") or {}).items()},
             clean_exit=bool(raw.get("clean_exit")),
             graph_gen_id=str(raw.get("graph_gen_id") or ""),
+            capability_gen_id=str(raw.get("capability_gen_id") or ""),
             consumed_ticket_ids=[
                 str(x) for x in (raw.get("consumed_ticket_ids") or []) if str(x).strip()
             ],

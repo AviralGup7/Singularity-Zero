@@ -74,6 +74,7 @@ class TransferRecord:
     fence_token: str
     revision: str
     leader_term: int
+    source_committed_offset: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +86,7 @@ class TransferRecord:
             "fence_token": self.fence_token,
             "revision": self.revision,
             "leader_term": self.leader_term,
+            "source_committed_offset": self.source_committed_offset,
         }
 
 

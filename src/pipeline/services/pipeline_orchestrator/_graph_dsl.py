@@ -229,6 +229,8 @@ class Graph:
     # SHA-256 of the *declared* node set (before tool-availability prune).
     # GRAPHGEN_STRICT resume compares this, not the host-pruned graph.
     declared_gen_id: str = ""
+    # SHA-256 of the *post-prune* executable node set (host capability).
+    capability_gen_id: str = ""
 
     def __post_init__(self) -> None:
         self._validate()

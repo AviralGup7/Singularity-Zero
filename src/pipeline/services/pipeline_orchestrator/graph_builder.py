@@ -351,7 +351,12 @@ def build_pipeline_graph(
         nodes_by_name[stage_node.name] = stage_node
 
     nodes = list(nodes_by_name.values())
-    from src.pipeline.graph_identity import graph_gen_id as _graph_gen_id
+    from src.pipeline.graph_identity import (
+        capability_gen_id as _capability_gen_id,
+    )
+    from src.pipeline.graph_identity import (
+        graph_gen_id as _graph_gen_id,
+    )
 
     declared_id = _graph_gen_id(Graph(nodes=tuple(nodes)))
 
@@ -385,7 +390,12 @@ def build_pipeline_graph(
             nodes = new_nodes
 
     nodes = _join_finding_producers(nodes)
-    return Graph(nodes=tuple(nodes), declared_gen_id=declared_id)
+    cap_id = _capability_gen_id(Graph(nodes=tuple(nodes)))
+    return Graph(
+        nodes=tuple(nodes),
+        declared_gen_id=declared_id,
+        capability_gen_id=cap_id,
+    )
 
 
 _FINDING_PRODUCER_STAGES: frozenset[str] = frozenset(
