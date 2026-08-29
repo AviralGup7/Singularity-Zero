@@ -176,7 +176,9 @@ async def run_secured(
                     "another process is recovering. Aborting to avoid split-brain.",
                     config.target_name,
                 )
-                return 1
+                from src.jobs.run_outcome import EXIT_ERROR
+
+                return EXIT_ERROR
         except Exception as exc:  # noqa: BLE001
             logger.debug("Recovery lock acquisition failed (non-fatal): %s", exc)
             recovery_lock = None
@@ -195,6 +197,12 @@ async def run_secured(
         wal_replay=wal_replay,
         pre_recovered_state=pre_recovered_state,
     )
+    try:
+        from src.pipeline.mvr import finalize_crashed_runs
+
+        finalize_crashed_runs(Path(config.output_dir))
+    except Exception:
+        logger.debug("auto-finalize crashed runs skipped", exc_info=True)
     can_recover = reconstructed.can_recover
     recovered_state = reconstructed.checkpoint
     recovered_payload = reconstructed.context_payload
@@ -341,7 +349,9 @@ async def run_secured(
         else:
             logger.error("Pipeline authority runtime attach failed (fail-closed): %s", exc)
             emit_progress("startup", "Authority attach failed; refusing scan", 100, status="failed")
-            return 3
+            from src.jobs.run_outcome import EXIT_INFRA_FAILURE
+
+            return EXIT_INFRA_FAILURE
     logger.info(
         "Recovery Manager: WAL journal ready stream=cyber:wal:%s source=%s mode=%s",
         run_id,
@@ -518,7 +528,9 @@ async def run_secured(
             getattr(reconstructed, "recovery_windows", ()),
         )
         emit_progress("startup", "Recovery fail-closed; refusing scan", 100, status="failed")
-        return 3
+        from src.jobs.run_outcome import EXIT_INFRA_FAILURE
+
+        return EXIT_INFRA_FAILURE
     if getattr(args, "dry_run", False) or not reconstructed.execute_stages:
         logger.info(
             "Dry-run / WAL dry-run: reconstructed source=%s remaining=%s; skipping stage execution.",

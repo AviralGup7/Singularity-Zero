@@ -288,11 +288,9 @@ class RecoveryManager:
             agent = OutboxReplayAgent(dlq=DurableDLQ(dlq_path))
 
             def _replay_dispatch(payload: dict[str, Any]) -> None:
-                logger.info(
-                    "I32 OutboxReplayAgent dispatch delivery_id=%s event_id=%s",
-                    payload.get("delivery_id") or payload.get("event_id"),
-                    payload.get("event_id"),
-                )
+                from src.core.frontier.event_delivery import replay_finding_dispatch
+
+                replay_finding_dispatch(payload)
 
             replayed = agent.tick(dispatch=_replay_dispatch)
             if replayed:
@@ -318,16 +316,14 @@ class RecoveryManager:
                     auto_finalize_crashed,
                     detect_crashed_runs,
                 )
-                from src.reporting.partial import emit_partial_report
 
                 if auto_finalize_crashed():
                     for crashed in detect_crashed_runs(self.output_dir):
-                        emit_partial_report(
+                        logger.warning(
+                            "auto-finalize candidate crashed run %s "
+                            "(pipeline/mvr emits report_partial)",
                             crashed.run_id,
-                            "auto_finalize_crashed",
-                            output_dir=self.output_dir,
                         )
-                        logger.warning("auto-finalized crashed run %s", crashed.run_id)
             except Exception:
                 logger.debug("auto-finalize crashed skipped", exc_info=True)
         except Exception as exc:  # noqa: BLE001
@@ -536,10 +532,25 @@ class RecoveryManager:
                     if aof is not None:
                         outbox = DurableOutboxLedger("P-0000", outbox_dir=_Path(aof) / ".outbox")
                 rebuild_outbox_from_committed_entries(list(entries), outbox)
+                from src.core.frontier.event_delivery import dispatch_rebuilt_outbox_events
+
+                dispatched = dispatch_rebuilt_outbox_events(outbox)
+                if dispatched:
+                    logger.info("I35 rebuilt-outbox dispatched %d FINDING_CREATED", dispatched)
             except Exception as exc:  # noqa: BLE001
                 logger.debug("I35 rebuild_outbox skipped: %s", exc)
         if getattr(verdict, "replay_delivery", False):
-            logger.info("I35: outbox replay of missing DeliveryIds deferred to dispatch path")
+            try:
+                from src.core.frontier.event_delivery import dispatch_rebuilt_outbox_events
+
+                outbox = getattr(wal, "outbox", None)
+                dispatched = dispatch_rebuilt_outbox_events(outbox)
+                logger.info(
+                    "I35 replay_delivery dispatched %d HMAC FINDING_CREATED",
+                    dispatched,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("I35 replay_delivery skipped: %s", exc)
         discarded = getattr(verdict, "discarded_delivery_ids", ()) or ()
         if discarded:
             try:

@@ -162,6 +162,39 @@ def reconcile_budget(
     return report
 
 
+def choose_lkg_snapshot(candidates: list[Any] | tuple[Any, ...] | None) -> dict[str, Any] | None:
+    """Pick the verified snapshot with max (commitIndex, term).
+
+    Unverified rows (``verified is False``) are ignored. Missing
+    commit/term sort as 0. Empty input → None.
+    """
+    best: tuple[int, int, dict[str, Any]] | None = None
+    for item in candidates or ():
+        if isinstance(item, dict):
+            row = dict(item)
+        else:
+            row = {
+                "commitIndex": getattr(item, "commitIndex", None)
+                or getattr(item, "commit_index", 0),
+                "term": getattr(item, "term", 0),
+                "verified": getattr(item, "verified", True),
+                "id": getattr(item, "id", "") or getattr(item, "snapshot_id", ""),
+            }
+        if row.get("verified") is False:
+            continue
+        try:
+            commit = int(row.get("commitIndex") or row.get("commit_index") or 0)
+        except (TypeError, ValueError):
+            commit = 0
+        try:
+            term = int(row.get("term") or 0)
+        except (TypeError, ValueError):
+            term = 0
+        if best is None or (commit, term) >= (best[0], best[1]):
+            best = (commit, term, row)
+    return None if best is None else best[2]
+
+
 def write_recovery_report(
     path: Path | str, report: PhoenixReport, extra: dict[str, Any] | None = None
 ) -> Path:
@@ -180,6 +213,7 @@ def write_recovery_report(
 __all__ = [
     "PHOENIX_ENV",
     "PhoenixReport",
+    "choose_lkg_snapshot",
     "phoenix_enabled",
     "reconcile_budget",
     "write_recovery_report",

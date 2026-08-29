@@ -261,13 +261,18 @@ class EventBus:
         }
 
     def _finding_is_authoritative(self, data: dict[str, Any] | None) -> bool:
-        """I31: FINDING_CREATED requires a verified HMAC settlement receipt.
+        """I31: FINDING_CREATED requires nonempty wal_id + HMAC receipt.
 
-        A self-set ``authoritative`` boolean is ignored.
+        A self-set ``authoritative`` boolean is ignored. The
+        ``FindingCreated`` dataclass is the type gate; EventBus still
+        refuse-and-drops (does not raise) so I32 holds.
         """
+        payload = data or {}
+        if not str(payload.get("wal_id") or "").strip():
+            return False
         from src.core.frontier.settlement_receipt import verify_finding_receipt
 
-        return verify_finding_receipt(data)
+        return verify_finding_receipt(payload)
 
     def publish_sync(self, event: Any) -> list[Any]:
         """Synchronous publish fallback."""

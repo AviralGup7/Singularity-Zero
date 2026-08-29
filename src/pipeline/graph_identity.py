@@ -16,7 +16,7 @@ def _when_hash(when: Any) -> str:
     if when is None:
         return "always"
     name = type(when).__name__
-    payload = {"t": name}
+    payload: dict[str, Any] = {"t": name}
     for attr in ("stage", "field", "flag"):
         if hasattr(when, attr):
             payload[attr] = getattr(when, attr)

@@ -88,6 +88,7 @@ class DagCheckpoint:
             findings_count_so_far=int(raw.get("findings_count_so_far") or 0),
             outputs_paths={str(k): str(v) for k, v in dict(raw.get("outputs_paths") or {}).items()},
             clean_exit=bool(raw.get("clean_exit")),
+            graph_gen_id=str(raw.get("graph_gen_id") or ""),
         )
 
     def is_crashed_in_progress(self) -> bool:

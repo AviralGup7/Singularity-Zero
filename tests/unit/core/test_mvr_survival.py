@@ -298,6 +298,70 @@ class TestPlanRemainders(unittest.TestCase):
         snap.clean_exit = True
         self.assertFalse(snap.is_worker_dead(now=200.0, dead_after_s=120.0))
 
+    def test_dag_checkpoint_roundtrips_graph_gen_id(self) -> None:
+        from src.core.checkpoint.dag_checkpoint import DagCheckpoint, DagCheckpointStore
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "dag_checkpoint.json"
+            store = DagCheckpointStore(path)
+            store.save(DagCheckpoint(run_id="run-g", graph_gen_id="abc123", status="RUNNING"))
+            loaded = store.load()
+            assert loaded is not None
+            self.assertEqual(loaded.graph_gen_id, "abc123")
+
+    def test_choose_lkg_snapshot_max_commit_then_term(self) -> None:
+        from src.core.frontier.budget_phoenix import choose_lkg_snapshot
+
+        chosen = choose_lkg_snapshot(
+            [
+                {"id": "old", "commitIndex": 3, "term": 9, "verified": True},
+                {"id": "best", "commitIndex": 10, "term": 1, "verified": True},
+                {"id": "unverified", "commitIndex": 99, "term": 99, "verified": False},
+                {"id": "tie_term", "commitIndex": 10, "term": 4, "verified": True},
+            ]
+        )
+        assert chosen is not None
+        self.assertEqual(chosen["id"], "tie_term")
+        self.assertIsNone(choose_lkg_snapshot([]))
+
+    def test_replay_finding_dispatch_requires_hmac(self) -> None:
+        from src.core.events.event_bus import EventType, get_event_bus, reset_event_bus
+        from src.core.frontier.event_delivery import replay_finding_dispatch
+        from src.core.frontier.settlement_receipt import stamp_finding_receipt
+
+        reset_event_bus()
+        bus = get_event_bus()
+        seen: list[object] = []
+        bus.subscribe(EventType.FINDING_CREATED, lambda event: seen.append(event))
+        self.assertFalse(replay_finding_dispatch({"wal_id": "wal_1", "authoritative": True}))
+        self.assertEqual(seen, [])
+        receipt = stamp_finding_receipt(
+            wal_id="wal_replay", settlement_id="stl_r", command_id="cmd_r"
+        )
+        self.assertTrue(replay_finding_dispatch({**receipt, "event_id": "evt_r"}))
+        self.assertEqual(len(seen), 1)
+        reset_event_bus()
+
+    def test_tool_policy_retry_settings(self) -> None:
+        from src.pipeline.tool_policy import ToolPolicy, is_unavailable_error
+
+        settings = ToolPolicy(retries=4, timeout_s=30.0).as_retry_settings()
+        self.assertEqual(settings["retry_attempts"], 4)
+        self.assertEqual(settings["timeout_seconds"], 30.0)
+        self.assertTrue(is_unavailable_error(FileNotFoundError("nuclei")))
+
+    def test_core_recovery_manager_does_not_import_reporting(self) -> None:
+        import ast
+
+        tree = ast.parse(Path("src/core/recovery/manager.py").read_text(encoding="utf-8"))
+        modules: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                modules.append(node.module)
+            elif isinstance(node, ast.Import):
+                modules.extend(alias.name for alias in node.names)
+        self.assertFalse(any(m.startswith("src.reporting") for m in modules))
+
 
 if __name__ == "__main__":
     unittest.main()

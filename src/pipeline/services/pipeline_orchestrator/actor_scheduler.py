@@ -30,6 +30,7 @@ from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
+from src.jobs.run_outcome import EXIT_INFRA_FAILURE, EXIT_INTERRUPTED, EXIT_PARTIAL, EXIT_SUSPEND
 from src.pipeline.runner_support import emit_stage_skipped
 
 from ._graph_dsl import Graph, StageNode
@@ -233,7 +234,7 @@ class ActorScheduler:
                         assert_graph_generation(snap.graph_gen_id, graph_gen_id(self._graph))
             except GraphGenerationMismatch as exc:
                 logger.error("GraphGenID resume mismatch: %s", exc)
-                self._outcome.exit_code = 3
+                self._outcome.exit_code = EXIT_INFRA_FAILURE
                 return self._outcome
             except Exception:
                 logger.debug("GraphGenID resume check skipped", exc_info=True)
@@ -255,17 +256,17 @@ class ActorScheduler:
         while True:
             if self._failed_critical is not None and self._abort_pipeline_on_critical():
                 if self._outcome.exit_code is None:
-                    self._outcome.exit_code = 3
+                    self._outcome.exit_code = EXIT_INFRA_FAILURE
                 break
             if self._deadline_exceeded():
                 logger.warning("ActorScheduler: global max-duration exceeded; stopping dispatch")
                 if self._outcome.exit_code is None:
-                    self._outcome.exit_code = 4
+                    self._outcome.exit_code = EXIT_PARTIAL
                 self._skip_remaining_for_deadline()
                 break
             if self._shutdown_requested():
                 logger.warning("Shutdown flag detected by ActorScheduler, stopping.")
-                self._outcome.exit_code = 130
+                self._outcome.exit_code = EXIT_INTERRUPTED
                 break
 
             # Dynamically plan remaining stages and calibrate resources/timeouts
@@ -318,7 +319,7 @@ class ActorScheduler:
                         self._error_emitter(
                             "resource_guard", f"Critical OOM detected: {error_detail}"
                         )
-                        self._outcome.exit_code = 4
+                        self._outcome.exit_code = EXIT_PARTIAL
                         self._skip_remaining_keep_sinks(reason="resource_pressure")
                         try:
                             from src.pipeline.mvr import emit_bound_partial_report
@@ -1063,7 +1064,7 @@ class ActorScheduler:
                     "Pipeline paused cleanly via suspend trigger at stage '%s'.",
                     node.name,
                 )
-                self._outcome.exit_code = 7
+                self._outcome.exit_code = EXIT_SUSPEND
                 self._failed_critical = node.name
                 return False
         except Exception as exc:  # noqa: BLE001 — broad catch intentional, suspend check must not crash scheduler

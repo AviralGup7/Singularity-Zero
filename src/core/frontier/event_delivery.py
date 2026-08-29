@@ -326,6 +326,115 @@ def dispatch_committed_findings(
     return published
 
 
+def _payload_from_replay(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+    data = dict(payload or {})
+    nested = data.get("event_data")
+    if isinstance(nested, dict):
+        inner = dict(nested)
+        for key in (
+            "wal_id",
+            "settlement_id",
+            "event_id",
+            "receipt_hmac",
+            "command_id",
+            "status",
+            "settlement_status",
+            "finding",
+        ):
+            if key in data and key not in inner:
+                inner[key] = data[key]
+        return inner
+    return data
+
+
+def replay_finding_dispatch(payload: Mapping[str, Any] | None) -> bool:
+    """Re-emit HMAC FINDING_CREATED from DLQ/poison. EventBus still verifies.
+
+    Returns True when the bus was invoked. Missing/invalid receipts are
+    skipped (WAL remains authoritative; I32 forbids rollback).
+    """
+    from src.core.frontier.settlement_receipt import verify_finding_receipt
+
+    data = _payload_from_replay(payload)
+    if not str(data.get("wal_id") or "").strip():
+        logger.info("I32 replay skipped: payload has no wal_id")
+        return False
+    if not verify_finding_receipt(data):
+        logger.info("I32 replay skipped: payload has no valid HMAC receipt")
+        return False
+    from src.core.events.event_bus import EventType, get_event_bus
+
+    get_event_bus().emit(
+        EventType.FINDING_CREATED,
+        source="outbox_replay",
+        data=data,
+    )
+    return True
+
+
+def dispatch_rebuilt_outbox_events(
+    outbox: Any,
+    *,
+    emit: Callable[..., Any] | None = None,
+    delivery_ledger: DeliveryLedger | None = None,
+) -> int:
+    """WAL-committed-no-outbox reconstruct: notify bus for outbox rows
+    that never recorded a DeliveryId. Stamps HMAC only when the envelope
+    has wal_id but no receipt (rebuilt EventEnvelope from WAL).
+    """
+    if outbox is None or not hasattr(outbox, "read_all_events"):
+        return 0
+    from src.core.frontier.settlement_receipt import stamp_finding_receipt, verify_finding_receipt
+
+    ledger = delivery_ledger if delivery_ledger is not None else get_delivery_ledger()
+    dispatched = 0
+    try:
+        events = list(outbox.read_all_events() or ())
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("rebuild dispatch: outbox read failed: %s", exc)
+        return 0
+    for evt in events:
+        payload = getattr(evt, "payload", None) or {}
+        if not isinstance(payload, dict):
+            continue
+        event_id = str(getattr(evt, "event_id", "") or payload.get("event_id") or "")
+        wal_id = str(payload.get("wal_id") or "")
+        if not event_id or not wal_id:
+            continue
+        delivery_id = derive_delivery_id(event_id, 1)
+        if ledger.already_delivered(delivery_id):
+            continue
+        data = dict(payload)
+        data.setdefault("event_id", event_id)
+        if not verify_finding_receipt(data):
+            data.update(
+                stamp_finding_receipt(
+                    wal_id=wal_id,
+                    settlement_id=str(payload.get("settlement_id") or ""),
+                    command_id=str(payload.get("command_id") or ""),
+                    status="COMMITTED",
+                )
+            )
+        try:
+            if emit is None:
+                from src.core.events.event_bus import EventType, get_event_bus
+
+                get_event_bus().emit(
+                    EventType.FINDING_CREATED,
+                    source="wal_outbox_rebuild",
+                    data=data,
+                )
+            else:
+                emit(data)
+            ledger.record(delivery_id)
+            dispatched += 1
+        except Exception as exc:  # noqa: BLE001
+            must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
+            ledger.record_attempt(delivery_id, data, error=str(exc))
+            logger.warning("I32 rebuild dispatch failed event_id=%s: %s", event_id, exc)
+    return dispatched
+
+
 def reconcile_delivery_against_outbox(
     ledger: DeliveryLedger,
     outbox_event_ids: Sequence[str],
@@ -342,7 +451,9 @@ def reconcile_delivery_against_outbox(
 __all__ = [
     "DeliveryLedger",
     "dispatch_committed_findings",
+    "dispatch_rebuilt_outbox_events",
     "get_delivery_ledger",
     "reconcile_delivery_against_outbox",
+    "replay_finding_dispatch",
     "reset_delivery_ledger",
 ]

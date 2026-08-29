@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,15 @@ class ToolPolicy:
     retry_jitter: bool = True
     max_consecutive_failures_before_degrade: int = 3
     continue_if_unavailable: bool = True
+
+    def as_retry_settings(self) -> dict[str, Any]:
+        """Map onto ``RetryPolicy.from_settings`` tool_settings keys."""
+        return {
+            "retry_attempts": max(0, int(self.retries)),
+            "retry_backoff_seconds": float(self.retry_backoff_base),
+            "retry_jitter": bool(self.retry_jitter),
+            "timeout_seconds": float(self.timeout_s),
+        }
 
 
 def is_unavailable_error(exc: BaseException) -> bool:

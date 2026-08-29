@@ -147,6 +147,7 @@ __all__ = [
     "EXIT_OK",
     "EXIT_PARTIAL",
     "EXIT_POLICY_VIOLATION",
+    "EXIT_SUSPEND",
     "RunOutcome",
     "derive_job_and_exit",
 ]

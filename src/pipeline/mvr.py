@@ -134,10 +134,43 @@ def emit_bound_partial_report(reason: str) -> int:
             reason=reason,
             ctx=ctx,
         )
+        _partial_emitted = True
         return int(result.findings_emitted)
     except Exception as exc:  # noqa: BLE001
         logger.warning("partial report on %s failed: %s", reason, exc)
         return 0
+
+
+def finalize_crashed_runs(output_dir: str | os.PathLike[str] | None) -> int:
+    """Emit partial reports for CRASHED_IN_PROGRESS DAG checkpoints.
+
+    Honors ``AUTO_FINALIZE_CRASHED_ON_STARTUP``. Lives in the pipeline
+    layer so ``src/core`` stays free of ``src.reporting`` imports.
+    """
+    if not output_dir:
+        return 0
+    from src.core.checkpoint.dag_checkpoint import auto_finalize_crashed, detect_crashed_runs
+
+    if not auto_finalize_crashed():
+        return 0
+    written = 0
+    try:
+        from src.reporting.partial import emit_partial_report
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("finalize_crashed_runs: partial reporter unavailable: %s", exc)
+        return 0
+    for crashed in detect_crashed_runs(output_dir):
+        try:
+            emit_partial_report(
+                crashed.run_id,
+                "auto_finalize_crashed",
+                output_dir=output_dir,
+            )
+            written += 1
+            logger.warning("auto-finalized crashed run %s", crashed.run_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("auto-finalize %s failed: %s", crashed.run_id, exc)
+    return written
 
 
 __all__ = [
@@ -152,6 +185,7 @@ __all__ = [
     "current_run",
     "emit_bound_partial_report",
     "emit_partial_on_shutdown",
+    "finalize_crashed_runs",
     "mvr_enabled",
     "stage_policy_of",
     "strict_critical",
