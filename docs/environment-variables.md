@@ -8,7 +8,7 @@ This document serves as the authoritative single source of truth for all environ
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `APP_ENV` | string | `development` | Runtime environment (`development`, `staging`, `production`). |
+| `APP_ENV` | string | `development` | Runtime environment (`development`, `staging`, `production`). `production`/`prod`/`staging` refuse authority attach without a persistent HMAC key. |
 | `APP_SECRET_KEY` | string | (None) | Secret key used for signing JWT authentication tokens and session cookies. |
 | `DATABASE_URL` | string | `sqlite:///./data/pipeline.db` | SQLAlchemy database URL for persisting jobs, findings, and target metadata. |
 | `REDIS_URL` | string | `redis://localhost:6379/0` | Connection URL for Redis (used for queue, pub/sub, Bloom mesh, and session caching). |
@@ -16,7 +16,7 @@ This document serves as the authoritative single source of truth for all environ
 | `REDIS_TLS_CA_CERTS` | string | (None) | Path to CA bundle file for Redis mTLS connections. |
 | `SEC_ENCRYPTION_KEY` | string | (None) | Master 256-bit AES encryption key for securing cached secrets and credentials. |
 | `SEC_API_KEY_PEPPER` | string | (None) | Cryptographic pepper for Argon2id hashing of API keys. |
-| `AUTHORITY_SIGNING_KEY` | string | (None) | HMAC-SHA256 key for command receipts (I13) and settlement/ticket HMAC. Falls back to `APP_SECRET_KEY`. If **neither** is set, a process-local random key is used for single-process local development — in-process verify works; **verify dies across restart**. Production deployments must set this key. |
+| `AUTHORITY_SIGNING_KEY` | string | (None) | HMAC-SHA256 key for command receipts (I13) and settlement/ticket HMAC. Falls back to `APP_SECRET_KEY`. If **neither** is set, a process-local random key is used for local/dev — in-process verify works; **verify dies across restart**. `APP_ENV=production\|prod\|staging` fail-closes attach (`PersistentSigningKeyRequired`). |
 | `AUTHORITY_SIGNING_KEY_ID` | string | `authority-hmac-v1` | Key identifier string bound into certified command receipts. |
 | `PIPELINE_GLOBAL_BUDGET_UNITS` | integer | `10000` | Total units allocated to `GlobalBudgetAggregate` (P-0000) for sub-lease distribution. |
 | `PIPELINE_STATE_MODE` | string | (empty) | Explicit state mode selector (`memory`, `hybrid`, `disk`). |
@@ -54,7 +54,7 @@ This document serves as the authoritative single source of truth for all environ
 | `MEM_PRESSURE_PCT` | float | `85` | Memory PRESSURE threshold. |
 | `OUTBOX_REPLAY_AGENT_ENABLED` | boolean | `true` | RecoveryManager ticks `OutboxReplayAgent` before READY; dispatch re-emits HMAC `FINDING_CREATED`. |
 | `GRAPHGEN_STRICT` | boolean | `true` | Fail-closed `GraphGenerationMismatch` when a stored GraphGenID is present and differs. Empty stored id (pre-MVR checkpoint) skips. |
-| `TICKET_CONSUME_STORE` | string | (empty) | Optional JSONL path of consumed I30 ticket ids (process-restart replay defense). |
+| `TICKET_CONSUME_STORE` | string | (empty) | Optional JSONL path of consumed I30 ticket ids. `DagCheckpoint.consumed_ticket_ids` is also persisted and replayed via `remember_consumed` on attach. |
 | `SPILL_FIRST` | boolean | `false` | Force spill-only I/O even without ResourceGuard PRESSURE. |
 | `RUN_DEAD_AFTER_S` | float | `120` | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead. |
 
