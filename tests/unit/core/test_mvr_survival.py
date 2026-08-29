@@ -62,6 +62,21 @@ class TestPartialSuccessDag(unittest.TestCase):
         self.assertIn("live_hosts", sched._outcome.failed)
         self.assertIn("active_scan", sched._outcome.skipped)
 
+    def test_plugin_override_inherits_must_succeed(self) -> None:
+        from src.pipeline.services.pipeline_orchestrator.graph_builder import build_pipeline_graph
+        from src.pipeline.stage_registry import StageNodeDefinition
+
+        plugin = StageNodeDefinition(
+            name="live_hosts",
+            needs=["subdomains"],
+            weight=20,
+            critical=True,
+        )
+        graph = build_pipeline_graph(registered_stages=[plugin])
+        live = graph.require("live_hosts")
+        self.assertTrue(live.must_succeed)
+        self.assertEqual(live.weight, 20)
+
 
 class TestFindingsSpill(unittest.TestCase):
     def test_spill_survives_and_merger_skips_existing(self) -> None:

@@ -41,12 +41,9 @@ def _collect_findings(
             if isinstance(value, list):
                 for item in value:
                     _add(item)
-            elif hasattr(value, "__iter__") and not isinstance(value, (str, bytes, dict)):
-                try:
-                    for item in value:
-                        _add(item)
-                except TypeError:
-                    pass
+            elif isinstance(value, (tuple, set, frozenset)):
+                for item in value:
+                    _add(item)
     try:
         from src.core.findings.spill import FindingSpill
 

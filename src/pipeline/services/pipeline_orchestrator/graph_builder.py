@@ -335,10 +335,14 @@ def build_pipeline_graph(
                 raise ValueError(
                     f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' cannot unset critical=True"
                 )
+            # StageNodeDefinition.must_succeed defaults False; a plugin that
+            # only restates critical=True is not an explicit downgrade.
+            # Inherit the builtin must_succeed bit so graph construction
+            # stays valid (I-GRAPH-06 preserve, don't fail-closed on default).
             if builtin_node.must_succeed and not stage_node.must_succeed:
-                raise ValueError(
-                    f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' cannot unset must_succeed=True"
-                )
+                import dataclasses
+
+                stage_node = dataclasses.replace(stage_node, must_succeed=True)
         nodes_by_name[stage_node.name] = stage_node
 
     nodes = list(nodes_by_name.values())
