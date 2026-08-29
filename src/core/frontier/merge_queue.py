@@ -32,6 +32,12 @@ class FrontierMergeQueue:
                 handle.write(json.dumps(event, sort_keys=True, default=str) + "\n")
             return True
 
+    def process_on_ready(self, *, dry_run: bool = False) -> list[dict[str, Any]]:
+        """Advance cursor and return pending events for settlement/dedup."""
+        rows = self.pending(dry_run=dry_run)
+        logger.info("frontier merge queue processed count=%d dry_run=%s", len(rows), dry_run)
+        return rows
+
     def pending(self, *, dry_run: bool = False) -> list[dict[str, Any]]:
         cursor = self._read_cursor()
         rows: list[dict[str, Any]] = []

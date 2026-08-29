@@ -7,6 +7,7 @@ non-critical stages, tools, disk, or authority fail. Critical
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 from dataclasses import dataclass
@@ -79,6 +80,8 @@ def abort_on_stage_failure(node: Any) -> bool:
 
 
 _binder: dict[str, Any] | None = None
+_atexit_registered = False
+_partial_emitted = False
 
 
 def bind_run(
@@ -89,13 +92,17 @@ def bind_run(
     extra: dict[str, Any] | None = None,
 ) -> None:
     """Remember the in-flight run so SIGINT/OOM can emit a partial report."""
-    global _binder
+    global _binder, _atexit_registered, _partial_emitted
+    _partial_emitted = False
     _binder = {
         "run_id": str(run_id or ""),
         "output_dir": str(output_dir or ""),
         "ctx": ctx,
         "extra": dict(extra or {}),
     }
+    if not _atexit_registered:
+        atexit.register(lambda: emit_bound_partial_report("atexit"))
+        _atexit_registered = True
 
 
 def current_run() -> dict[str, Any] | None:
@@ -109,7 +116,10 @@ def unbind_run() -> None:
 
 def emit_bound_partial_report(reason: str) -> int:
     """Best-effort partial report from the bound run. Returns findings written."""
+    global _partial_emitted
     if not emit_partial_on_shutdown():
+        return 0
+    if _partial_emitted:
         return 0
     state = current_run()
     if not state:

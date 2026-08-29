@@ -64,7 +64,7 @@ register_module_meta(MODULE_META)
 
 import argparse
 
-from src.cli.commands.scan import handle_scan
+from src.cli.commands.scan import handle_resume, handle_scan
 from src.cli.commands.start import handle_dashboard, handle_launch, handle_worker
 from src.cli.commands.system import (
     handle_cleanup,
@@ -146,6 +146,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Discovery without PartitionWAL settle (writes spill + merge queue).",
     )
+
+    resume = scan_sub.add_parser("resume", help="Resume a crashed or incomplete scan run.")
+    resume.add_argument("--config", required=True, help="Path to runtime configuration (JSON)")
+    resume.add_argument("--scope", required=True, help="Path to target scope file (TXT)")
+    resume.add_argument("--run-id", required=True, dest="run_id", help="Checkpoint / DAG run id")
 
     sys_area = subparsers.add_parser("system", help="System maintenance and health.")
     sys_sub = sys_area.add_subparsers(dest="cmd", required=True)

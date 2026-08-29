@@ -96,6 +96,13 @@ class RecoveryWatchdog:
         if "wal_fs" in reasons or "quorum_loss" in reasons:
             if snap.lkg_exists:
                 enter_survival(reason, commit_index=snap.commit_index)
+        if "quorum_loss" in reasons or "leader_lease_expired" in reasons:
+            try:
+                from src.core.frontier.frontier_only import enter_frontier_only
+
+                enter_frontier_only(reason)
+            except Exception:
+                logger.debug("FRONTIER_ONLY proposal skipped", exc_info=True)
         return reason
 
 

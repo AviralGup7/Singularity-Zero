@@ -301,12 +301,16 @@ class RecoveryManager:
                 from src.core.frontier.frontier_only import is_frontier_only
                 from src.core.frontier.merge_queue import FrontierMergeQueue
 
+                queue = FrontierMergeQueue(
+                    self.output_dir / str(result.run_id) / "frontier_merge_queue.jsonl"
+                )
                 if is_frontier_only():
-                    queue = FrontierMergeQueue(
-                        self.output_dir / str(result.run_id) / "frontier_merge_queue.jsonl"
-                    )
                     pending = queue.pending(dry_run=True)
                     logger.info("FRONTIER_ONLY merge queue pending=%d", len(pending))
+                else:
+                    merged = queue.process_on_ready(dry_run=False)
+                    if merged:
+                        logger.info("FRONTIER_ONLY -> READY merged %d queued events", len(merged))
             except Exception:
                 logger.debug("frontier merge queue inspect skipped", exc_info=True)
             try:

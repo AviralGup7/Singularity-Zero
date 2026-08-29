@@ -93,6 +93,20 @@ class DagCheckpoint:
     def is_crashed_in_progress(self) -> bool:
         return (not self.clean_exit) and self.status in RUNNING_STATUSES
 
+    def is_worker_dead(
+        self, *, now: float | None = None, dead_after_s: float | None = None
+    ) -> bool:
+        ttl = dead_after_s
+        if ttl is None:
+            try:
+                ttl = float(os.environ.get("RUN_DEAD_AFTER_S", "120"))
+            except ValueError:
+                ttl = 120.0
+        ts = time.time() if now is None else float(now)
+        if not self.last_heartbeat_ts:
+            return self.is_crashed_in_progress()
+        return (not self.clean_exit) and (ts - self.last_heartbeat_ts) >= float(ttl)
+
 
 class DagCheckpointStore:
     def __init__(self, path: Path | str) -> None:

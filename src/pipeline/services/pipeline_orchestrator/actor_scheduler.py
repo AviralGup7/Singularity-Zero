@@ -210,6 +210,33 @@ class ActorScheduler:
             )
         except Exception:
             logger.debug("MVR bind_run skipped", exc_info=True)
+        try:
+            from pathlib import Path
+
+            from src.core.checkpoint.dag_checkpoint import DagCheckpointStore
+            from src.pipeline.graph_identity import (
+                GraphGenerationMismatch,
+                assert_graph_generation,
+                graph_gen_id,
+            )
+        except Exception:
+            logger.debug("GraphGenID imports skipped", exc_info=True)
+        else:
+            try:
+                run_id = str(getattr(self._ctx, "run_id", "") or "")
+                output_dir = getattr(self._config, "output_dir", None)
+                if run_id and output_dir:
+                    snap = DagCheckpointStore(
+                        Path(str(output_dir)) / run_id / "dag_checkpoint.json"
+                    ).load()
+                    if snap is not None and snap.graph_gen_id:
+                        assert_graph_generation(snap.graph_gen_id, graph_gen_id(self._graph))
+            except GraphGenerationMismatch as exc:
+                logger.error("GraphGenID resume mismatch: %s", exc)
+                self._outcome.exit_code = 3
+                return self._outcome
+            except Exception:
+                logger.debug("GraphGenID resume check skipped", exc_info=True)
 
         # Seed StagePlanner with learning integration
         from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
@@ -302,6 +329,20 @@ class ActorScheduler:
                                 "partial report on resource pressure skipped", exc_info=True
                             )
                         break
+                    try:
+                        from src.core.runtime.resource_guard import PressureLevel, inspect_pressure
+
+                        _snap, level, _pct = inspect_pressure()
+                        if level is PressureLevel.CRITICAL:
+                            logger.error("ResourceGuard CRITICAL disk/mem; graceful finalize")
+                            self._outcome.exit_code = 4
+                            self._skip_remaining_keep_sinks(reason="resource_guard_critical")
+                            from src.pipeline.mvr import emit_bound_partial_report
+
+                            emit_bound_partial_report("resource_guard_critical")
+                            break
+                    except Exception:
+                        logger.debug("inspect_pressure skipped", exc_info=True)
                 except Exception as exc:  # noqa: BLE001
                     logger.debug("ResourceGuard early check failed (%s).", exc)
 
@@ -738,6 +779,7 @@ class ActorScheduler:
                 "status": "degraded",
                 "degraded_from": "failed",
                 "error": error,
+                "error_summary": error[:8192],
             }
         )
         self._ctx.result.module_metrics[node.name] = metrics

@@ -129,6 +129,25 @@ def classify_pressure(*, disk_pct: float, mem_pct: float | None = None) -> Press
     return level
 
 
+_current_level = PressureLevel.OK
+
+
+def set_pressure_level(level: PressureLevel) -> None:
+    global _current_level
+    _current_level = level
+
+
+def current_pressure_level() -> PressureLevel:
+    return _current_level
+
+
+def spill_first_active() -> bool:
+    """True when I/O should prefer JSONL spill over outbox/DB."""
+    if os.environ.get("SPILL_FIRST", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    return current_pressure_level() in {PressureLevel.PRESSURE, PressureLevel.CRITICAL}
+
+
 def inspect_pressure(
     *,
     wal_path: Path | str | None = None,
@@ -143,7 +162,9 @@ def inspect_pressure(
             disk_pct = 100.0 * (1.0 - (usage.free / usage.total))
     except OSError:
         disk_pct = 100.0
-    return snap, classify_pressure(disk_pct=disk_pct), disk_pct
+    level = classify_pressure(disk_pct=disk_pct)
+    set_pressure_level(level)
+    return snap, level, disk_pct
 
 
 __all__ = [
@@ -152,6 +173,9 @@ __all__ = [
     "ResourceSnapshot",
     "assert_resources",
     "classify_pressure",
+    "current_pressure_level",
     "inspect_pressure",
     "inspect_resources",
+    "set_pressure_level",
+    "spill_first_active",
 ]

@@ -51,6 +51,7 @@ class TestPartialSuccessDag(unittest.TestCase):
         self.assertIn("semgrep", sched._completed)
         self.assertIsNone(sched._failed_critical)
         self.assertTrue(sched._need_met("semgrep", reporting))
+        self.assertIn("error_summary", sched._ctx.result.module_metrics["semgrep"])
 
     def test_must_succeed_critical_keeps_failed_and_skips_dependents(self) -> None:
         live = StageNode(name="live_hosts", needs=(), weight=1, critical=True, must_succeed=True)
@@ -272,6 +273,30 @@ class TestPlanRemainders(unittest.TestCase):
             ns.force = True
             ns.older_than = 0.0
             self.assertEqual(handle_dlq(ns), 0)
+
+    def test_spill_first_under_pressure(self) -> None:
+        import os
+
+        from src.core.runtime.resource_guard import (
+            PressureLevel,
+            set_pressure_level,
+            spill_first_active,
+        )
+
+        set_pressure_level(PressureLevel.OK)
+        os.environ.pop("SPILL_FIRST", None)
+        self.assertFalse(spill_first_active())
+        set_pressure_level(PressureLevel.PRESSURE)
+        self.assertTrue(spill_first_active())
+        set_pressure_level(PressureLevel.OK)
+
+    def test_worker_dead_heartbeat(self) -> None:
+        from src.core.checkpoint.dag_checkpoint import DagCheckpoint
+
+        snap = DagCheckpoint(run_id="r", status="RUNNING", last_heartbeat_ts=1.0, clean_exit=False)
+        self.assertTrue(snap.is_worker_dead(now=200.0, dead_after_s=120.0))
+        snap.clean_exit = True
+        self.assertFalse(snap.is_worker_dead(now=200.0, dead_after_s=120.0))
 
 
 if __name__ == "__main__":

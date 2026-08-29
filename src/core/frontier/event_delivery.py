@@ -257,6 +257,14 @@ def dispatch_committed_findings(
         return published
 
     outbox_ok = True
+    try:
+        from src.core.runtime.resource_guard import spill_first_active
+
+        if spill_first_active():
+            logger.warning("spill-first: skipping outbox/bus under resource pressure")
+            return published
+    except Exception:
+        logger.debug("spill_first_active probe skipped", exc_info=True)
     if outbox is not None and envelopes:
         try:
             outbox.append_events(envelopes)

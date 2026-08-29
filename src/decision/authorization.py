@@ -163,6 +163,7 @@ class ExecutionAuthorizer:
         self._budget_enforcer = budget_enforcer
         self._consumed_tickets: set[str] = set()
         self._lock = threading.Lock()
+        self._load_consumed_store()
 
     def _normalize_path(self, raw_path: str) -> str:
         """Adversarial normalization of URL paths (URL unquoting + path traversal collapsing)."""
@@ -461,7 +462,42 @@ class ExecutionAuthorizer:
             # (BudgetProjection) so crash-before-settle keeps the reservation
             # and WAL replay can reconstruct consumption exactly once.
             self._consumed_tickets.add(ticket.ticket_id)
+            self._persist_consumed_locked(ticket.ticket_id)
             return True
+
+    def _consumed_store_path(self) -> str:
+        return os.environ.get("TICKET_CONSUME_STORE", "").strip()
+
+    def _load_consumed_store(self) -> None:
+        path = self._consumed_store_path()
+        if not path:
+            return
+        from pathlib import Path
+
+        p = Path(path)
+        if not p.exists():
+            return
+        try:
+            for line in p.read_text(encoding="utf-8").splitlines():
+                tid = line.strip()
+                if tid:
+                    self._consumed_tickets.add(tid)
+        except OSError:
+            return
+
+    def _persist_consumed_locked(self, ticket_id: str) -> None:
+        path = self._consumed_store_path()
+        if not path:
+            return
+        from pathlib import Path
+
+        p = Path(path)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "a", encoding="utf-8") as handle:
+                handle.write(ticket_id + "\n")
+        except OSError:
+            return
 
 
 @dataclass(frozen=True, slots=True)

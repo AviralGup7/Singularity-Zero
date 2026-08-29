@@ -324,9 +324,24 @@ async def run_secured(
         if runtime is not None:
             apply_authority_recovery(runtime, reconstructed)
     except Exception as exc:  # noqa: BLE001
-        logger.error("Pipeline authority runtime attach failed (fail-closed): %s", exc)
-        emit_progress("startup", "Authority attach failed; refusing scan", 100, status="failed")
-        return 3
+        from src.core.frontier.frontier_only import (
+            auto_frontier_only_enabled,
+            enter_frontier_only,
+        )
+
+        if auto_frontier_only_enabled():
+            enter_frontier_only(f"authority_attach_failed:{exc}", force=True)
+            logger.error("Authority attach failed; FRONTIER_ONLY discovery continues: %s", exc)
+            emit_progress(
+                "startup",
+                "Authority attach failed; FRONTIER_ONLY discovery",
+                9,
+                status="warning",
+            )
+        else:
+            logger.error("Pipeline authority runtime attach failed (fail-closed): %s", exc)
+            emit_progress("startup", "Authority attach failed; refusing scan", 100, status="failed")
+            return 3
     logger.info(
         "Recovery Manager: WAL journal ready stream=cyber:wal:%s source=%s mode=%s",
         run_id,
