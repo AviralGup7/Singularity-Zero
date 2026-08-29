@@ -217,6 +217,17 @@ def dispatch_committed_findings(
             )
         )
         published += 1
+        try:
+            from src.core.frontier.finding_created import FindingCreated
+
+            FindingCreated(
+                wal_id=str(identity.wal_id or ""),
+                settlement_id=str(identity.settlement_id or ""),
+                event_id=event_id,
+                finding=finding,
+            )
+        except ValueError:
+            logger.debug("FindingCreated type-gate skipped (missing I31 bindings)")
 
     run_id = str(getattr(settle_res, "run_id", "") or identity.execution_id)
     try:

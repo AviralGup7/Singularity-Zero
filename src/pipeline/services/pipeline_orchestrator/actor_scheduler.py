@@ -771,6 +771,13 @@ class ActorScheduler:
                 }
             except Exception:
                 stage_status = {}
+            gen = ""
+            try:
+                from src.pipeline.graph_identity import graph_gen_id
+
+                gen = graph_gen_id(self._graph)
+            except Exception:
+                gen = ""
             snap = DagCheckpoint(
                 run_id=run_id,
                 status="RUNNING",
@@ -778,6 +785,7 @@ class ActorScheduler:
                 completed=sorted(self._completed),
                 failed=sorted(self._outcome.failed),
                 current_stage=current_stage,
+                graph_gen_id=gen,
             )
             DagCheckpointStore(Path(str(output_dir)) / run_id / "dag_checkpoint.json").save(snap)
         except Exception:

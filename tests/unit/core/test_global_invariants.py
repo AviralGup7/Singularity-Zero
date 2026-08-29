@@ -234,9 +234,12 @@ def test_i30_single_use_replay_defense() -> None:
     ticket = auth.authorize(_req())
 
     assert auth.consume_ticket(ticket) is True
-    # Replay attempt fails immediately
-    assert auth.consume_ticket(ticket) is False
-    assert auth.consume_ticket(ticket) is False
+    from src.decision.authorization import TicketAlreadyConsumedError
+
+    with pytest.raises(TicketAlreadyConsumedError):
+        auth.consume_ticket(ticket)
+    with pytest.raises(TicketAlreadyConsumedError):
+        auth.consume_ticket(ticket)
 
 
 def test_i30_expired_ticket_rejected() -> None:

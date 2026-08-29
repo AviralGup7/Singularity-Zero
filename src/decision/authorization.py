@@ -38,6 +38,10 @@ class ScopeAuthorizationError(ValueError):
     """Raised when an ExecutionRequest violates scope or authorization policy."""
 
 
+class TicketAlreadyConsumedError(ScopeAuthorizationError):
+    """Second consume of the same ticket_id (I30 replay)."""
+
+
 @dataclass(frozen=True, slots=True)
 class BlastRadiusConstraint:
     """Explicit blast-radius bounds enforced by execution sandbox."""
@@ -430,7 +434,7 @@ class ExecutionAuthorizer:
 
         with self._lock:
             if ticket.ticket_id in self._consumed_tickets:
-                return False  # Replay detected!
+                raise TicketAlreadyConsumedError(f"I30: ticket {ticket.ticket_id} already consumed")
             try:
                 assert_authorization_causality(ticket)
             except AuthorizationCausalityError:
@@ -552,6 +556,7 @@ __all__ = [
     "AuthorizedExecutionTicket",
     "ExecutionAuthorizer",
     "ScopeAuthorizationError",
+    "TicketAlreadyConsumedError",
     "WorkerIdentity",
     "WorkerKeyRotator",
 ]

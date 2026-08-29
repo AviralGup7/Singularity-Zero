@@ -208,5 +208,71 @@ class TestPressureAndReplay(unittest.TestCase):
         self.assertEqual(names, [])
 
 
+class TestPlanRemainders(unittest.TestCase):
+    def test_finding_created_requires_wal_id(self) -> None:
+        from src.core.frontier.finding_created import FindingCreated
+
+        with self.assertRaises(ValueError):
+            FindingCreated(wal_id="", settlement_id="s", event_id="e", finding={})
+        event = FindingCreated(wal_id="wal_1", settlement_id="stl_1", event_id="evt_1", finding={})
+        self.assertEqual(event.wal_id, "wal_1")
+
+    def test_graph_gen_id_order_independent_and_mismatch(self) -> None:
+        from src.pipeline.graph_identity import (
+            GraphGenerationMismatch,
+            assert_graph_generation,
+            graph_gen_id,
+        )
+        from src.pipeline.services.pipeline_orchestrator._graph_dsl import Graph, StageNode
+
+        a = StageNode(name="a", needs=(), weight=1)
+        b = StageNode(name="b", needs=("a",), weight=2)
+        g1 = Graph(nodes=(a, b))
+        g2 = Graph(nodes=(b, a))
+        self.assertEqual(graph_gen_id(g1), graph_gen_id(g2))
+        assert_graph_generation(graph_gen_id(g1), graph_gen_id(g2))
+        with self.assertRaises(GraphGenerationMismatch):
+            assert_graph_generation("deadbeef" * 4, graph_gen_id(g1))
+
+    def test_ticket_already_consumed_raises(self) -> None:
+        from src.decision.authorization import ExecutionAuthorizer, TicketAlreadyConsumedError
+        from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
+        from src.decision.models import ExecutionRequest, TargetSpec
+
+        auth = ExecutionAuthorizer(
+            budget_enforcer=HuntBudgetEnforcer(HuntBudget(max_requests=10), label="t")
+        )
+        ticket = auth.authorize(
+            ExecutionRequest(
+                request_id="r", tenant_id="t", target=TargetSpec(host="example.com"), stage="s"
+            )
+        )
+        self.assertTrue(auth.consume_ticket(ticket))
+        with self.assertRaises(TicketAlreadyConsumedError):
+            auth.consume_ticket(ticket)
+
+    def test_dlq_cli_list_and_purge(self) -> None:
+        from src.cli.commands.system import handle_dlq
+        from src.core.outbox.dlq import DLQRecord, DurableDLQ
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "dlq.json"
+            dlq = DurableDLQ(path)
+            dlq.append_record(DLQRecord(delivery_id="d1", event_id="e1", reason="test"))
+            ns = SimpleNamespace(
+                dlq_action="list",
+                dlq_path=str(path),
+                delivery_id="",
+                all=False,
+                older_than=1.0,
+                force=False,
+            )
+            self.assertEqual(handle_dlq(ns), 0)
+            ns.dlq_action = "purge"
+            ns.force = True
+            ns.older_than = 0.0
+            self.assertEqual(handle_dlq(ns), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

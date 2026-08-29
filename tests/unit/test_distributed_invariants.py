@@ -7,6 +7,8 @@
 
 import time
 
+import pytest
+
 from src.core.frontier.partition_authority import PartitionRouter
 from src.core.frontier.state_authority import (
     SettlementCoordinator,
@@ -68,9 +70,10 @@ def test_single_use_ticket_replay_resistance() -> None:
     consumed_first = authorizer.consume_ticket(ticket)
     assert consumed_first is True
 
-    # Second consumption must strictly fail (Replay detected)
-    consumed_second = authorizer.consume_ticket(ticket)
-    assert consumed_second is False
+    from src.decision.authorization import TicketAlreadyConsumedError
+
+    with pytest.raises(TicketAlreadyConsumedError):
+        authorizer.consume_ticket(ticket)
 
 
 def test_fencing_token_rejects_zombie_claim() -> None:

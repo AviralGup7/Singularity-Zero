@@ -192,8 +192,10 @@ class TestAuthorizationGateDefenseInDepth:
         assert len(ticket.signature) == 64
         # Single-use ticket consumption succeeds
         assert authorizer.consume_ticket(ticket) is True
-        # Replay attempt fails!
-        assert authorizer.consume_ticket(ticket) is False
+        from src.decision.authorization import TicketAlreadyConsumedError
+
+        with pytest.raises(TicketAlreadyConsumedError):
+            authorizer.consume_ticket(ticket)
 
     def test_adversarial_host_spoofing_blocked(self):
         """Authorizer rejects domain suffix attacks and userinfo spoofing."""

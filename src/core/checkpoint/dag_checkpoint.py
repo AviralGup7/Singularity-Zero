@@ -54,6 +54,7 @@ class DagCheckpoint:
     findings_count_so_far: int = 0
     outputs_paths: dict[str, str] = field(default_factory=dict)
     clean_exit: bool = False
+    graph_gen_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,6 +70,7 @@ class DagCheckpoint:
             "findings_count_so_far": self.findings_count_so_far,
             "outputs_paths": dict(self.outputs_paths),
             "clean_exit": self.clean_exit,
+            "graph_gen_id": self.graph_gen_id,
         }
 
     @classmethod

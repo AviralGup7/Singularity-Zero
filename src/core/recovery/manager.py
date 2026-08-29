@@ -286,9 +286,46 @@ class RecoveryManager:
 
             dlq_path = self.output_dir / "outbox_dlq.json"
             agent = OutboxReplayAgent(dlq=DurableDLQ(dlq_path))
-            replayed = agent.tick()
+
+            def _replay_dispatch(payload: dict[str, Any]) -> None:
+                logger.info(
+                    "I32 OutboxReplayAgent dispatch delivery_id=%s event_id=%s",
+                    payload.get("delivery_id") or payload.get("event_id"),
+                    payload.get("event_id"),
+                )
+
+            replayed = agent.tick(dispatch=_replay_dispatch)
             if replayed:
                 logger.info("OutboxReplayAgent recovered %d deliveries", replayed)
+            try:
+                from src.core.frontier.frontier_only import is_frontier_only
+                from src.core.frontier.merge_queue import FrontierMergeQueue
+
+                if is_frontier_only():
+                    queue = FrontierMergeQueue(
+                        self.output_dir / str(result.run_id) / "frontier_merge_queue.jsonl"
+                    )
+                    pending = queue.pending(dry_run=True)
+                    logger.info("FRONTIER_ONLY merge queue pending=%d", len(pending))
+            except Exception:
+                logger.debug("frontier merge queue inspect skipped", exc_info=True)
+            try:
+                from src.core.checkpoint.dag_checkpoint import (
+                    auto_finalize_crashed,
+                    detect_crashed_runs,
+                )
+                from src.reporting.partial import emit_partial_report
+
+                if auto_finalize_crashed():
+                    for crashed in detect_crashed_runs(self.output_dir):
+                        emit_partial_report(
+                            crashed.run_id,
+                            "auto_finalize_crashed",
+                            output_dir=self.output_dir,
+                        )
+                        logger.warning("auto-finalized crashed run %s", crashed.run_id)
+            except Exception:
+                logger.debug("auto-finalize crashed skipped", exc_info=True)
         except Exception as exc:  # noqa: BLE001
             logger.debug("outbox replay on recovery skipped: %s", exc)
         return result

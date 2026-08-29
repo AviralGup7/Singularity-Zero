@@ -114,7 +114,15 @@ class ExecutionRequestWorker:
                 error="Unauthorized execution attempt: Worker strictly requires an AuthorizedExecutionTicket",
             )
 
-        if not self._authorizer.consume_ticket(ticket):
+        try:
+            consumed = self._authorizer.consume_ticket(ticket)
+        except Exception as exc:
+            from src.decision.authorization import TicketAlreadyConsumedError
+
+            if not isinstance(exc, TicketAlreadyConsumedError):
+                raise
+            consumed = False
+        if not consumed:
             request = ticket.request
             return ExecutionResult(
                 request_id=request.request_id,

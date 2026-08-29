@@ -93,6 +93,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Ignore checkpoint recovery and start a fresh run",
     )
     parser.add_argument(
+        "--frontier-only",
+        action="store_true",
+        dest="frontier_only",
+        help="Run discovery stages without PartitionWAL settle (FRONTIER_ONLY).",
+    )
+    parser.add_argument(
         "--replay",
         type=Path,
         default=None,

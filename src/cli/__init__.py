@@ -68,7 +68,9 @@ from src.cli.commands.scan import handle_scan
 from src.cli.commands.start import handle_dashboard, handle_launch, handle_worker
 from src.cli.commands.system import (
     handle_cleanup,
+    handle_dlq,
     handle_doctor,
+    handle_finalize_crashed,
     handle_plugin_new,
     handle_setup,
     handle_status,
@@ -139,6 +141,11 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--scope", required=True, help="Path to target scope file (TXT)")
     run.add_argument("--fresh", action="store_true", help="Ignore existing checkpoints")
     run.add_argument("--dry-run", action="store_true", help="Validation only (no outbound traffic)")
+    run.add_argument(
+        "--frontier-only",
+        action="store_true",
+        help="Discovery without PartitionWAL settle (writes spill + merge queue).",
+    )
 
     sys_area = subparsers.add_parser("system", help="System maintenance and health.")
     sys_sub = sys_area.add_subparsers(dest="cmd", required=True)
@@ -172,6 +179,30 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=5,
         help="How many recent launcher job directories to keep.",
+    )
+
+    dlq = sys_sub.add_parser("dlq", help="Inspect / replay / purge the durable outbox DLQ.")
+    dlq.add_argument("dlq_action", choices=["list", "replay", "purge"], help="DLQ action")
+    dlq.add_argument("--id", dest="delivery_id", default="", help="Delivery id for replay")
+    dlq.add_argument("--all", action="store_true", help="Replay every DLQ row")
+    dlq.add_argument(
+        "--path", dest="dlq_path", default="output/outbox_dlq.json", help="DLQ JSON path"
+    )
+    dlq.add_argument(
+        "--older-than",
+        dest="older_than",
+        type=float,
+        default=7 * 86400,
+        help="Purge rows older than N seconds (default 7d)",
+    )
+    dlq.add_argument("--force", action="store_true", help="Purge for real (default is dry-run)")
+
+    finalize = sys_sub.add_parser(
+        "finalize-crashed",
+        help="Emit partial reports for DAG checkpoints left CRASHED_IN_PROGRESS.",
+    )
+    finalize.add_argument(
+        "--output-root", default="output", help="Root that contains run directories."
     )
 
     launch = subparsers.add_parser(
@@ -243,6 +274,10 @@ def main() -> int:
                 return handle_setup(args)
             elif args.cmd == "cleanup":
                 return handle_cleanup(args)
+            elif args.cmd == "dlq":
+                return handle_dlq(args)
+            elif args.cmd == "finalize-crashed":
+                return handle_finalize_crashed(args)
 
     except KeyboardInterrupt:
         console.print("\n[warning]Operation aborted by user.[/warning]")

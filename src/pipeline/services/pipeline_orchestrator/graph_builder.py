@@ -21,6 +21,11 @@ from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
+
+class PluginOverrideError(ValueError):
+    """I-GRAPH-06: plugin dropped needs or unset critical on a builtin stage."""
+
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -327,12 +332,12 @@ def build_pipeline_graph(
             plugin_needs_set = set(stage_node.needs)
             if not builtin_needs_set.issubset(plugin_needs_set):
                 dropped = builtin_needs_set - plugin_needs_set
-                raise ValueError(
+                raise PluginOverrideError(
                     f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' drops required dependencies {dropped}"
                 )
             # Criticality preservation: plugin cannot weaken a critical built-in stage
             if builtin_node.critical and not stage_node.critical:
-                raise ValueError(
+                raise PluginOverrideError(
                     f"I-GRAPH-06 Plugin override violation: stage '{stage_node.name}' cannot unset critical=True"
                 )
             # StageNodeDefinition.must_succeed defaults False; a plugin that

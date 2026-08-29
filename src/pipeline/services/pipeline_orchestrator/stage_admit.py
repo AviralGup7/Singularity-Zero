@@ -115,7 +115,15 @@ def admit_stage(
         ticket = authorizer.authorize(request)
     except ScopeAuthorizationError as exc:
         raise StageAdmissionError(f"I30: stage '{stage_name}' refused a ticket: {exc}") from exc
-    if not authorizer.consume_ticket(ticket):
+    try:
+        consumed = authorizer.consume_ticket(ticket)
+    except Exception as exc:
+        from src.decision.authorization import TicketAlreadyConsumedError
+
+        if isinstance(exc, TicketAlreadyConsumedError):
+            raise StageAdmissionError(f"I30 replay: {exc}") from exc
+        raise
+    if not consumed:
         raise StageAdmissionError(f"I30: stage '{stage_name}' ticket consume failed before sandbox")
     host = request.target.host
     # Install process-wide I29 filter for in-process httpx/requests (F-004).
@@ -156,7 +164,14 @@ def consume_stage_ticket(orchestrator: Any, ticket: Any | None) -> bool:
     authorizer = getattr(runtime, "authorizer", None) if runtime is not None else None
     if authorizer is None or not hasattr(authorizer, "consume_ticket"):
         return True
-    return bool(authorizer.consume_ticket(ticket))
+    try:
+        return bool(authorizer.consume_ticket(ticket))
+    except Exception as exc:
+        from src.decision.authorization import TicketAlreadyConsumedError
+
+        if isinstance(exc, TicketAlreadyConsumedError):
+            return True
+        raise
 
 
 __all__ = [

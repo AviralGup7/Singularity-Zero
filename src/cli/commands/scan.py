@@ -17,5 +17,7 @@ def handle_scan(args: Namespace) -> int:
         argv.append("--force-fresh-run")
     if args.dry_run:
         argv.append("--dry-run")
+    if getattr(args, "frontier_only", False):
+        argv.append("--frontier-only")
 
     return run_pipeline(argv)

@@ -253,6 +253,67 @@ def handle_cleanup(args: Namespace) -> int:
     return 0
 
 
+def handle_dlq(args: Namespace) -> int:
+    """List / replay / purge the durable outbox DLQ."""
+    from src.core.outbox.dlq import DurableDLQ
+
+    path = Path(getattr(args, "dlq_path", None) or "output/outbox_dlq.json")
+    dlq = DurableDLQ(path)
+    action = str(getattr(args, "dlq_action", "list") or "list")
+    if action == "list":
+        rows = dlq.list()
+        console.print(f"[info]DLQ depth={len(rows)} path={path}[/info]")
+        for row in rows[:200]:
+            console.print(
+                f"  {row.delivery_id} event={row.event_id} reason={row.reason} retries={row.retries}"
+            )
+        return 0
+    if action == "replay":
+        did = str(getattr(args, "delivery_id", "") or "")
+        if getattr(args, "all", False):
+            n = 0
+            for row in dlq.list():
+                if dlq.replay(row.delivery_id, dispatch=lambda rec: None):
+                    n += 1
+            console.print(f"[success]Replayed {n} DLQ row(s).[/success]")
+            return 0
+        if not did:
+            console.print("[error]replay requires --id or --all[/error]")
+            return 2
+        ok = dlq.replay(did, dispatch=lambda rec: None)
+        console.print("[success]Replayed.[/success]" if ok else "[warning]Not found.[/warning]")
+        return 0 if ok else 1
+    if action == "purge":
+        older = float(getattr(args, "older_than", 7 * 86400) or 7 * 86400)
+        dry = not bool(getattr(args, "force", False))
+        n = dlq.purge(older_than_seconds=older, dry_run=dry)
+        mode = "would purge" if dry else "purged"
+        console.print(f"[info]{mode} {n} row(s) (dry-run={dry})[/info]")
+        return 0
+    console.print(f"[error]Unknown DLQ action {action}[/error]")
+    return 2
+
+
+def handle_finalize_crashed(args: Namespace) -> int:
+    """Emit partial reports for CRASHED_IN_PROGRESS DAG checkpoints."""
+    from src.core.checkpoint.dag_checkpoint import detect_crashed_runs
+    from src.reporting.partial import emit_partial_report
+
+    root = Path(getattr(args, "output_root", None) or "output")
+    crashed = detect_crashed_runs(root)
+    if not crashed:
+        console.print("[info]No crashed-in-progress runs.[/info]")
+        return 0
+    for snap in crashed:
+        result = emit_partial_report(
+            snap.run_id, "finalize-crashed", output_dir=root, include_findings=True
+        )
+        console.print(
+            f"[success]Finalized {snap.run_id} findings={result.findings_emitted} dir={result.directory}[/success]"
+        )
+    return 0
+
+
 def handle_plugin_new(args: Namespace) -> int:
     """Scaffold a new custom security plugin."""
     from rich.prompt import Prompt

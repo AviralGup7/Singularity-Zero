@@ -391,6 +391,10 @@ def main(argv: list[str] | None = None) -> int:
 
         enforce_production_security()
         args = parse_args(argv)
+        if getattr(args, "frontier_only", False):
+            from src.core.frontier.frontier_only import enter_frontier_only
+
+            enter_frontier_only("cli --frontier-only", force=True)
         resume_from = getattr(args, "resume_from", None)
         if resume_from:
             if hasattr(args, "_loaded_config"):
