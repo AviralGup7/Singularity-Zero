@@ -78,7 +78,7 @@ Every graph in this atlas adheres to a standardized, machine-verifiable visual t
 | `A -->|data| B` | **Dataflow & Ingestion** | Findings, URLs, payloads, context artifact ingestion |
 | `A -->|replicate| B` | **Replication** | Network journal sync, cross-region peer relay |
 | `A -->|state| B` | **State Transition** | Deterministic CAS lifecycle progression (e.g. `PENDING` $\rightarrow$ `RUNNING`) |
-| `A <--> B` | **Bidirectional** | Two independent directed relationships; two independent directed relationships; `<-->` is allowed when both directions share one label |
+| `A <--> B` | **Bidirectional** | Represents two directed relationships; permitted only when both directions share the same semantic label. |
 | `A -.->|label| B` | **Soft / Conditional** | Gossip, refuse-guard, or best-effort notification (not a hot-path `==>` ) |
 | `A -->|durable| B` | **Durable Side Effect** | Synchronous WAL commit, Outbox append, fsync flush |
 | `A -.->|when: cond| B` | **Scheduling Gate** | Runtime predicate evaluation (e.g. `OutputNonEmpty`) |
@@ -91,14 +91,16 @@ The term "authority" is strictly typed across this specification to avoid semant
 
 | Typed Authority | Scope & Plane | Authoritative Entity | Governed Invariants |
 |---|---|---|---|
-| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate`, `RaftFSM` | I1, I2, I3, I4, I7, I8, I9, I10, I11 (Joint Prerequisite), I13, I18, I20, I22, I25 |
+| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate`, `RaftFSM` | I1, I2, I3, I4, I8, I9, I10, I11 (Joint Prerequisite), I13, I18, I20, I22, I25 |
+| **`PlacementAuthority`** | Partition assignment / singular ownership (F-002) | `global_coordination.py` PlacementAuthority | I7 |
 | **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I19, I21, I23, I26, I28, I39 |
 | **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT view over journaled discovery) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`), `CASStore` | — |
 | **`MeshAuthority`** | Gossip / region membership (F-002) | SWIM gossip, `MeshConsensus` | I24 |
 | **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox` | I27, I29, I30, I33 |
 | **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11 (Joint Prerequisite), I12, I14, I15, I16, I31, I32 |
 | **`RecoveryAuthority`** | Recovery & Regional Consensus Plane | `RecoveryManager`, `RecoveryProtocol`, `RegionModel`, `AuthorityTransfer` | I17, I34, I35, I36, I37 |
-| **`PresentationAuthority`** | Ephemeral & Read Projections (L4–L5) | FastAPI, Zustand Stores, Telemetry Normalizer | I38 *(tenant isolation is fail-closed in core `tenant_isolation.py` and may be mirrored at the HTTP edge; still prohibited from mutating L0–L3 / I1–I37)* |
+| **`PresentationAuthority`** | Ephemeral & Read Projections (L4–L5) | FastAPI, Zustand Stores, Telemetry Normalizer | HTTP-edge mirror of I38 only; must not mutate L0–L3 |
+| **`ExecutionAuthority` extra** | Core tenant isolation (I38) is enforced in `tenant_isolation.py` / EventBus independently of FastAPI | `assert_tenant_scope` | I38 |
 
 ---
 
@@ -271,7 +273,7 @@ flowchart TD
         Intent -->|durable append| Outbox["L2: DurableOutboxLedger"]:::impl
         Outbox --> Proj["L3: Materialized Projections (GlobalBudgetAggregate P-0000)"]:::impl
         
-        Outbox --> PORT_CRDT_BRIDGE[["PORT: DurableOutbox Settlement Bridge -> F-004 SettlementCoordinator"]]
+        Outbox --> PORT_F003_OUTBOX_NOTIFY_OUT[["PORT: F-004 DurableOutbox notification -> Emit"]]
         Outbox --> PORT_F019_BUS[["PORT: F-019 DurableOutbox EventBus Dispatch"]]
     end
     
@@ -342,8 +344,6 @@ flowchart TD
         Freeze --> FrozenGraph
         FrozenGraph --> GraphGenID
         FrozenGraph --> CapFP
-        GraphGenID --> GraphGenGate
-        CapFP --> GraphGenGate
     end
 
     subgraph Init["Process Bootstrap & Authority Attachment"]
@@ -568,7 +568,9 @@ flowchart TD
 
         Budget["HuntBudget.reserve"]:::impl
 
-        Rej["ScopeAuthorizationError (Skipped)"]:::for     Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
+        Rej["ScopeAuthorizationError (Skipped)"]:::forbidden
+        Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
+        Ticket["AuthorizedExecutionTicket I30 (ScopeToken + BudgetRes + Rev + CmdID + BlastRadius)"]:::impl
 
         InstallFilt["install_filter_from_scope -> egress_context ContextVar"]:::impl
 
@@ -633,7 +635,7 @@ flowchart TD
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28 / I31 / I32 / F-042)"]
 
-        PORT_F003_SETTLE_BRIDGE[["PORT: F-003 DurableOutbox Settlement Bridge"]]
+        PORT_F003_OUTBOX_NOTIFY_IN[["PORT: F-003 DurableOutbox notification -> Emit"]]
 
         Coord["SettlementCoordinator (5-Stage Claim Validation)"]:::impl
 
@@ -673,7 +675,7 @@ flowchart TD
 
         SettleNoWal["Settle DROPPED (No wal_id)"]:::forbidden
 
-        PORT_F003_SETTLE_BRIDGE --> Emit
+        PORT_F003_OUTBOX_NOTIFY_IN --> Emit
 
         Out --> Coord
 
@@ -700,7 +702,8 @@ flowchart TD
         FindingCreated --> DedupStage
         DedupStage --> FinalReport
 
-        FindingCreated -->|"HMAC Receipt Stamp"| Emit
+        FindingCreated -->|"HMAC Receipt Stamp"| ReceiptStamped["Receipt-stamped FINDING_CREATED"]:::impl
+        ReceiptStamped --> Emit
 
         Emit --> PORT_F019_BUS
 
@@ -728,7 +731,7 @@ flowchart TD
 
     EgressCompensate --> PORT_F006_REL
 
-    FindingCreated -->|"authoritative durable event"| Emit
+    ReceiptStamped -->|"authoritative durable event"| Emit
 
 ```
 
@@ -758,6 +761,10 @@ flowchart TD
 | **`SKIPPED_DISABLED` upstream** | n/a | Still satisfies non-join `_need_met` | Downstream may run or skip on its own `when` |
 | **Join sinks (`reporting`, …)** | n/a | Wait until **every** producer is terminal (incl. `FAILED` / `DEGRADED`) | Report still emits (partial allowed) |
 | **ResourceGuard CRITICAL / deadline** | n/a | Stop new stages; **keep** JOIN_SINKS | `reason="resource_pressure"` / `global_deadline_exceeded`; `emit_partial_report`; exit 4 |
+| **CRITICAL: PENDING producer** | n/a | SKIPPED_DISABLED | Force-terminal so join sinks unblock |
+| **CRITICAL: not-yet-launched ready node** | n/a | SKIPPED_DISABLED | Admission generation + inspect_pressure at `_dispatch` |
+| **CRITICAL: already RUNNING / launched** | n/a | Keep running | No kill; join waits for terminal |
+| **CRITICAL: JOIN_SINK (reporting, …)** | n/a | Keep dispatchable | Never skipped by `_skip_remaining_keep_sinks` |
 | **`FRONTIER_ONLY`** | discovery allowlist only | No PartitionWAL settle / no `FINDING_CREATED` | Spill JSONL + `frontier_merge_queue`; headers `X-Frontier-Only` |
 
 ---
@@ -858,7 +865,7 @@ flowchart TD
         COMPENSATED -->|"idempotent no-op<br/>(Δ=0)"| COMPENSATED
     end
 
-    LeaseTTL -->|"monotonic timeout check"| EXPIRED
+    LeaseTTL -->|"monotonic timeout check"| Reaper
     LeaseTTL -->|"reaper tick max(250ms, ttl/4)"| Reaper["LeaseReaper (I5 / I28)"]:::impl
     Reaper -->|"CAS PENDING -> COMPENSATING -> COMPENSATED"| Ledger["CompensationLedger"]:::impl
     Ledger -->|"idempotent replay"| COMPENSATED
@@ -911,13 +918,9 @@ flowchart TD
         
         SR --> SC["COMPLETED (Terminal)"]:::impl
         SR --> SDG["DEGRADED (Terminal)"]:::impl
-        SR --> SF["FAILED"]:::impl
-        
-        SF -->|"I33 retry"| SR
-        SF -->|"retry succeeded"| SC
-        SF -->|"retry degraded"| SDG
-        SF -->|"retries exhausted"| SSF
+        SR --> SF["FAILED (Terminal for this attempt)"]:::impl
         SF -->|"MVR non-must_succeed coerce"| SDG
+        SF -->|"must_succeed / retries already exhausted in retry.py"| SSF
     end
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
         FC["CANDIDATE"]:::impl --> FR["REPORTABLE (Surface Decision)"]:::impl
@@ -1134,7 +1137,7 @@ flowchart TD
     RebuildDispatch --> ReplayAgent
 ```
 
-Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `choose_lkg_snapshot` picks the verified snapshot with max (`commitIndex`, `term`). `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I38 hook is missing. MVR (`PIPELINE_CONTINUE_ON_NON_CRITICAL=true`) coerces non-`must_succeed` stage failures to `DEGRADED` so join sinks still emit; `FRONTIER_ONLY` keeps discovery running without PartitionWAL settle (spill + merge queue); `DagCheckpoint` records `CRASHED_IN_PROGRESS` independently of the FSM and round-trips `graph_gen_id`; ResourceGuard CRITICAL stops new stages, keeps JOIN_SINKS, writes `report_partial.*`, exit 4. `OutboxReplayAgent.tick()` in `RecoveryManager._finish` calls `replay_finding_dispatch` (HMAC FINDING_CREATED; EventBus still refuse-and-drops without receipt). WAL-committed-no-outbox reconstruct uses `dispatch_rebuilt_outbox_events`. Auto-finalize of crashed runs emits `report_partial` from `src/pipeline/mvr.py` (core stays free of `src.reporting`). Scheduler / lock / attach-fail / I35 FAIL_CLOSED exits use `EXIT_*` constants from `derive_job_and_exit`. Resume remaining-stage seed is the runtime Graph (plugin nodes omitted by import-time `STAGE_ORDER` still resume). Consumed I30 ticket ids persist on `DagCheckpoint` and are replayed via `ExecutionAuthorizer.remember_consumed` on attach. Production/staging refuse to attach without `AUTHORITY_SIGNING_KEY` or `APP_SECRET_KEY` (`PersistentSigningKeyRequired`).
+Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `choose_lkg_snapshot` picks the verified snapshot with max (`commitIndex`, `term`). `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I39 hook is missing. MVR (`PIPELINE_CONTINUE_ON_NON_CRITICAL=true`) coerces non-`must_succeed` stage failures to `DEGRADED` so join sinks still emit; `FRONTIER_ONLY` keeps discovery running without PartitionWAL settle (spill + merge queue); `DagCheckpoint` records `CRASHED_IN_PROGRESS` independently of the FSM and round-trips `graph_gen_id`; ResourceGuard CRITICAL stops new stages, keeps JOIN_SINKS, writes `report_partial.*`, exit 4. `OutboxReplayAgent.tick()` in `RecoveryManager._finish` calls `replay_finding_dispatch` (HMAC FINDING_CREATED; EventBus still refuse-and-drops without receipt). WAL-committed-no-outbox reconstruct uses `dispatch_rebuilt_outbox_events`. Auto-finalize of crashed runs emits `report_partial` from `src/pipeline/mvr.py` (core stays free of `src.reporting`). Scheduler / lock / attach-fail / I35 FAIL_CLOSED exits use `EXIT_*` constants from `derive_job_and_exit`. Resume remaining-stage seed is the runtime Graph (plugin nodes omitted by import-time `STAGE_ORDER` still resume). Consumed I30 ticket ids persist on `DagCheckpoint` and are replayed via `ExecutionAuthorizer.remember_consumed` on attach. Production/staging refuse to attach without `AUTHORITY_SIGNING_KEY` or `APP_SECRET_KEY` (`PersistentSigningKeyRequired`).
 
 ---
 
@@ -1154,6 +1157,7 @@ flowchart TD
         AuthMid --> JWT{"Verify JWT & Tenant"}:::impl
         JWT -->|Valid JWT| I38chk["I38 assert_tenant_scope"]:::impl
         I38chk --> Ctx["ContextVar tenant_id & user_id"]:::impl
+        I38chk -.->|"refuse: empty/mismatched tenant"| Refuse403
         JWT -->|Invalid / Expired| Refuse401["HTTP 401 Unauthorized"]:::forbidden
         Ctx --> ScopeCheck{"Verify Tenant Scope Token"}:::impl
         ScopeCheck -->|Mismatch| Refuse403["HTTP 403 Forbidden"]:::forbidden
@@ -1374,11 +1378,11 @@ flowchart TD
     end
     
     subgraph I33_Identity["I33 PORT F-004 Causal Chain"]
-        PORT_F004_CAUSAL_CHAIN["PORT: F-004 CommandId -> ExecutionId -> AttemptId -> SettlementId -> WalId -> EventId -> DeliveryId"]:::impl
+        PORT_F004_CAUSAL_CHAIN[["PORT: F-004 CommandId -> ExecutionId -> AttemptId -> SettlementId -> WalId -> EventId -> DeliveryId"]]
     end
     
     subgraph I31_Settlement["I31 PORT F-004 SettlementPipeline"]
-        PORT_F004_SETTLE["PORT: F-004 SettlementPipeline - WAL append from StageOutput; outbox is notification only"]:::impl
+        PORT_F004_SETTLE[["PORT: F-004 SettlementPipeline - WAL append from StageOutput; outbox is notification only"]]
     end
     
     subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I39)"]
@@ -1417,8 +1421,8 @@ flowchart TD
         I29g --> I30g["I30: Authorization Causality Quartet<br/><small>authorization.py [MODEL-CHECKED]</small>"]:::impl
         I22g --> I30g
         I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
-        I30g --> I38g["I38: Tenant Isolation<br/><small>tenant_isolation.py [ADVERSARIAL]</small>"]:::impl
-        I33g --> I38g
+        I38g["I38: Tenant Isolation<br/><small>tenant_isolation.py [ADVERSARIAL]</small>"]:::impl --> I30g
+        I38g --> I31g
 
         I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
         I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
@@ -1512,5 +1516,5 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `TICKET_CONSUME_STORE` | (empty) | I30 | Optional JSONL of consumed ticket ids; DagCheckpoint also persists `consumed_ticket_ids` and `remember_consumed` on attach |
 | `SPILL_FIRST` | `false` | Findings | Force spill-only I/O even without ResourceGuard PRESSURE |
 | `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
-SSURE |
-| `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
+| `CAPABILITY_FINGERPRINT_STRICT` | `true` (follows GRAPHGEN_STRICT if unset) | Graph | Fail-closed when stored post-prune capability fingerprint differs |
+| `PIPELINE_MAX_DURATION_SECONDS` | (config / unset) | Scheduler | Global deadline; remaining non-sinks skip with `global_deadline_exceeded` |
