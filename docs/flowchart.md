@@ -1492,3 +1492,4 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `DISK_PRESSURE_PCT` | `92` | ResourceGuard | PRESSURE threshold (disk utilisation %) |
 | `DISK_CRITICAL_PCT` | `95` | ResourceGuard | CRITICAL threshold: stop new stages, partial report, exit 4 |
 | `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
+| `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed `GraphGenerationMismatch` when stored GraphGenID differs |
