@@ -52,7 +52,11 @@ This document serves as the authoritative single source of truth for all environ
 | `DISK_PRESSURE_PCT` | float | `92` | ResourceGuard PRESSURE threshold (disk utilisation %). |
 | `DISK_CRITICAL_PCT` | float | `95` | ResourceGuard CRITICAL threshold; scheduler stops new work, emits partial report, exit 4. |
 | `MEM_PRESSURE_PCT` | float | `85` | Memory PRESSURE threshold. |
-| `OUTBOX_REPLAY_AGENT_ENABLED` | boolean | `true` | RecoveryManager ticks `OutboxReplayAgent` before READY. |
+| `OUTBOX_REPLAY_AGENT_ENABLED` | boolean | `true` | RecoveryManager ticks `OutboxReplayAgent` before READY; dispatch re-emits HMAC `FINDING_CREATED`. |
+| `GRAPHGEN_STRICT` | boolean | `true` | Fail-closed `GraphGenerationMismatch` when a stored GraphGenID is present and differs. Empty stored id (pre-MVR checkpoint) skips. |
+| `TICKET_CONSUME_STORE` | string | (empty) | Optional JSONL path of consumed I30 ticket ids (process-restart replay defense). |
+| `SPILL_FIRST` | boolean | `false` | Force spill-only I/O even without ResourceGuard PRESSURE. |
+| `RUN_DEAD_AFTER_S` | float | `120` | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead. |
 
 ---
 

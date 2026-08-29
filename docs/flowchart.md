@@ -369,6 +369,8 @@ flowchart TD
         Bind --> Recover
 
         Recover -->|"verify state"| Verify
+        Recover -->|"HMAC outbox replay"| ReplayFO["replay_finding_dispatch"]:::impl
+        Recover -->|"AUTO_FINALIZE_CRASHED (pipeline/mvr)"| FinalizeCrash["report_partial for CRASHED_IN_PROGRESS"]:::impl
         Recover -->|"attach authority"| Auth
         Recover -->|"apply_authority_recovery after attach"| Stamp
 
@@ -732,7 +734,7 @@ flowchart TD
 | **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). | `TESTED` (`graph_builder.py`) |
 | **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. Builtin `must_succeed=True` is **inherited** when a plugin omits it (default `False` is not an explicit downgrade). | `ADVERSARIAL` (`test_formal_invariants.py`, `test_mvr_survival.py`) |
 | **`I-GRAPH-07`** | **Immutable Sink Membership** | At `FREEZE`, $\text{reporting.needs} = \{ n \in \text{Nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$. Producer role is validated monotonically. | `PROPERTY-TESTED` (`graph_builder.py`) |
-| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$, where $\text{CanonicalNode}(n) = (n.\text{name}, \text{tuple}(\text{sorted}(n.\text{needs})), n.\text{weight}, n.\text{critical}, n.\text{timeout})$. Volatile fields (timestamps/paths) are strictly excluded. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
+| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$, where $\text{CanonicalNode}(n) = (n.\text{name}, \text{tuple}(\text{sorted}(n.\text{needs})), n.\text{weight}, n.\text{critical}, n.\text{timeout}, n.\text{must\_succeed}, \text{when\_hash})$. Volatile fields (timestamps/paths) are strictly excluded. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
 
 ---
 
@@ -1040,7 +1042,7 @@ flowchart TD
     Precedence -->|Suspend Signal| Exit7["Exit 7: STOPPED (Config Suspend)"]:::impl
     Precedence -->|Policy Violation| Exit2["Exit 2: COMPLETED (Policy Violation)"]:::impl
     Precedence -->|Degraded Probes| Exit4["Exit 4: COMPLETED (Partial Run)"]:::impl
-    Precedence -->|Runtime Error / OOM| Exit1["Exit 1: FAILED (Runtime Error)"]:::impl
+    Precedence -->|Unhandled / lock collision| Exit1["Exit 1: FAILED (Runtime Error)"]:::impl
     Precedence -->|Clean Run| Exit0["Exit 0: COMPLETED (Clean / Pass)"]:::impl
     
     subgraph ErrorMap["Runtime Failure Mappings"]
@@ -1059,10 +1061,10 @@ flowchart TD
 
 | Failure Domain | Retry | Rollback | Compensate | Fail-Closed | Authoritative Resolution |
 |---|---|---|---|---|---|
-| **WAL Corruption** | No | No | No | **Yes** | Restore LKG snapshot; optional SURVIVAL_READONLY if AUTO_ENTER_SURVIVAL_ON_CORRUPT |
+| **WAL Corruption** | No | No | No | **Yes** | Restore LKG snapshot (`choose_lkg_snapshot` = max verified commitIndex, term); optional SURVIVAL_READONLY if AUTO_ENTER_SURVIVAL_ON_CORRUPT |
 | **Authority Loss** | No | No | No | **Yes** | Await leader / quorum-1 restart. Optional `FRONTIER_ONLY` (default off) continues discovery without PartitionWAL settle. |
 | **Replication Divergence** | No | No | No | **Yes** | Restore local FSM from leader PartitionWAL |
-| **Event Delivery Failure** | **Yes** | No | No | No | Spill retained; DurableDLQ + `OutboxReplayAgent.tick` on READY (I32) |
+| **Event Delivery Failure** | **Yes** | No | No | No | Spill retained; DurableDLQ + `OutboxReplayAgent.tick` -> `replay_finding_dispatch` HMAC FINDING_CREATED on READY (I32) |
 | **Budget Inconsistency** | No | No | **Yes** | **Yes** | Phoenix + CompensationLedger CAS; LeaseReaper on monotonic deadline |
 | **FSM Invariant Violation** | No | No | No | **Yes** | Snapshot re-baseline plus sequential WAL replay |
 | **Egress Policy Violation** | No | No | **Yes** | **Yes** | Terminate subprocess; compensate reserved requests (Security Violation → Exit 3) |
@@ -1115,10 +1117,12 @@ flowchart TD
     ResourceCrit -->|"stop new stages, keep JOIN_SINKS"| Partial["emit_partial_report exit 4"]:::impl
     Ready -->|"heartbeat stage_status"| DagCkpt["DagCheckpoint (stage_status JSON, independent of FSM)"]:::impl
     DagCkpt -->|"CRASHED_IN_PROGRESS"| ResumeOrFinalize["--resume or --finalize-crashed"]:::impl
-    Ready -->|"OutboxReplayAgent.tick"| ReplayAgent["DurableDLQ replay"]:::impl
+    Ready -->|"OutboxReplayAgent.tick HMAC FINDING_CREATED"| ReplayAgent["DurableDLQ + replay_finding_dispatch"]:::impl
+    Rebuild -->|"WAL committed no outbox row"| RebuildDispatch["dispatch_rebuilt_outbox_events"]:::impl
+    RebuildDispatch --> ReplayAgent
 ```
 
-Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I37 hook is missing. MVR (`PIPELINE_CONTINUE_ON_NON_CRITICAL=true`) coerces non-`must_succeed` stage failures to `DEGRADED` so join sinks still emit; `FRONTIER_ONLY` keeps discovery running without PartitionWAL settle (spill + merge queue); `DagCheckpoint` records `CRASHED_IN_PROGRESS` independently of the FSM; ResourceGuard CRITICAL stops new stages, keeps JOIN_SINKS, writes `report_partial.*`, exit 4. `OutboxReplayAgent.tick()` runs in `RecoveryManager._finish`.
+Phoenix reconciliation (`budget_phoenix.py`) runs before READY: ghost `RESERVED` rows with no matching settlement are compensated via `CompensationLedger` (PENDING->COMPENSATING->COMPENSATED CAS). `LeaseReaper` ticks on monotonic deadlines. `choose_lkg_snapshot` picks the verified snapshot with max (`commitIndex`, `term`). `recovery_report.json` is written when `RECOVERY_WRITE_REPORT=true` (default). Auto-enter survival requires `AUTO_ENTER_SURVIVAL_ON_CORRUPT=true`. `RecoveryWatchdog` proposes survival on WAL/quorum/disk faults (cooldown 30s). `orphan_reconciler` classifies outbox-without-FSM as PRE_COMMIT (ignore with evidence) vs CROSS_EPOCH/UNKNOWN (human review). Operator probes: `/_healthz`, `/_readyz`, `/_survivalz` (`src/api/health.py`). Boot: `enforcement_check.verify()` fail-closed if an I1-I37 hook is missing. MVR (`PIPELINE_CONTINUE_ON_NON_CRITICAL=true`) coerces non-`must_succeed` stage failures to `DEGRADED` so join sinks still emit; `FRONTIER_ONLY` keeps discovery running without PartitionWAL settle (spill + merge queue); `DagCheckpoint` records `CRASHED_IN_PROGRESS` independently of the FSM and round-trips `graph_gen_id`; ResourceGuard CRITICAL stops new stages, keeps JOIN_SINKS, writes `report_partial.*`, exit 4. `OutboxReplayAgent.tick()` in `RecoveryManager._finish` calls `replay_finding_dispatch` (HMAC FINDING_CREATED; EventBus still refuse-and-drops without receipt). WAL-committed-no-outbox reconstruct uses `dispatch_rebuilt_outbox_events`. Auto-finalize of crashed runs emits `report_partial` from `src/pipeline/mvr.py` (core stays free of `src.reporting`). Scheduler / lock / attach-fail / I35 FAIL_CLOSED exits use `EXIT_*` constants from `derive_job_and_exit`.
 
 ---
 
