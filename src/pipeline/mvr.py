@@ -11,6 +11,7 @@ import atexit
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -153,18 +154,19 @@ def finalize_crashed_runs(output_dir: str | os.PathLike[str] | None) -> int:
 
     if not auto_finalize_crashed():
         return 0
+    root = Path(output_dir)
     written = 0
     try:
         from src.reporting.partial import emit_partial_report
     except Exception as exc:  # noqa: BLE001
         logger.debug("finalize_crashed_runs: partial reporter unavailable: %s", exc)
         return 0
-    for crashed in detect_crashed_runs(output_dir):
+    for crashed in detect_crashed_runs(root):
         try:
             emit_partial_report(
                 crashed.run_id,
                 "auto_finalize_crashed",
-                output_dir=output_dir,
+                output_dir=root,
             )
             written += 1
             logger.warning("auto-finalized crashed run %s", crashed.run_id)

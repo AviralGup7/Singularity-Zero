@@ -24,6 +24,33 @@ DEFAULT_KEY_ID = "authority-hmac-v1"
 _ephemeral_material: bytes | None = None
 
 
+class PersistentSigningKeyRequired(RuntimeError):
+    """HMAC receipts cannot verify across restart without an env key."""
+
+
+def signing_key_from_env() -> bool:
+    return bool(
+        os.environ.get("AUTHORITY_SIGNING_KEY", "").strip()
+        or os.environ.get("APP_SECRET_KEY", "").strip()
+    )
+
+
+def require_persistent_signing_key(*, force: bool = False) -> None:
+    """Fail-closed in production/staging when no persistent HMAC key is set.
+
+    Local/dev keeps the process-local random fallback so unit tests work.
+    """
+    env = os.environ.get("APP_ENV", "").strip().lower()
+    if not force and env not in {"production", "prod", "staging"}:
+        return
+    if signing_key_from_env():
+        return
+    raise PersistentSigningKeyRequired(
+        "AUTHORITY_SIGNING_KEY or APP_SECRET_KEY required so HMAC receipts "
+        "and I30 tickets verify across process restart"
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class KeyGenerationRecord:
     key_id: str

@@ -190,15 +190,6 @@ async def execute_remaining_stages(
         stage_methods=stage_methods, tool_status=getattr(config, "tool_status", None)
     )
     remaining_set = set(remaining_stages)
-    remaining_stages = [name for name in graph.topological_sort() if name in remaining_set]
-    remaining_stages.extend(sorted(remaining_set - set(remaining_stages)))
-    logger.info(
-        "Neural-Mesh ActorScheduler: greedy readiness loop "
-        "(%d nodes, %d remaining, %d pre-completed)",
-        len(graph.nodes),
-        len(remaining_stages),
-        len(checkpoint_mgr.completed_stages) if hasattr(checkpoint_mgr, "completed_stages") else 0,
-    )
 
     completed_stages: set[str] = set()
     if hasattr(checkpoint_mgr, "completed_stages"):
@@ -219,6 +210,29 @@ async def execute_remaining_stages(
                         completed_stages.add(stage_name)
         except Exception:
             logger.warning("Suppressed exception", exc_info=True)
+
+    # One Graph: plugin nodes omitted by import-time STAGE_ORDER still resume.
+    try:
+        from ._constants import STAGE_ORDER
+
+        import_order = {str(name) for name in STAGE_ORDER}
+    except Exception:
+        import_order = set()
+    for node in getattr(graph, "nodes", ()) or ():
+        name = str(getattr(node, "name", "") or "")
+        if not name or name in import_order or name in completed_stages:
+            continue
+        if name in stage_methods:
+            remaining_set.add(name)
+    remaining_stages = [name for name in graph.topological_sort() if name in remaining_set]
+    remaining_stages.extend(sorted(remaining_set - set(remaining_stages)))
+    logger.info(
+        "Neural-Mesh ActorScheduler: greedy readiness loop "
+        "(%d nodes, %d remaining, %d pre-completed)",
+        len(graph.nodes),
+        len(remaining_stages),
+        len(completed_stages),
+    )
 
     scheduler = ActorScheduler(
         graph=graph,

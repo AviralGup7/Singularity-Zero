@@ -350,6 +350,67 @@ class TestPlanRemainders(unittest.TestCase):
         self.assertEqual(settings["timeout_seconds"], 30.0)
         self.assertTrue(is_unavailable_error(FileNotFoundError("nuclei")))
 
+    def test_consumed_tickets_roundtrip_on_dag_checkpoint(self) -> None:
+        from src.core.checkpoint.dag_checkpoint import DagCheckpoint, DagCheckpointStore
+        from src.decision.authorization import ExecutionAuthorizer
+        from src.decision.hunt_budget import HuntBudget, HuntBudgetEnforcer
+
+        auth = ExecutionAuthorizer(
+            budget_enforcer=HuntBudgetEnforcer(HuntBudget(max_requests=10), label="t")
+        )
+        auth.remember_consumed(["tkt-a", "tkt-b"])
+        self.assertEqual(auth.consumed_ticket_ids(), frozenset({"tkt-a", "tkt-b"}))
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "dag_checkpoint.json"
+            store = DagCheckpointStore(path)
+            store.save(
+                DagCheckpoint(
+                    run_id="run-t",
+                    consumed_ticket_ids=sorted(auth.consumed_ticket_ids()),
+                )
+            )
+            loaded = store.load()
+            assert loaded is not None
+            self.assertEqual(loaded.consumed_ticket_ids, ["tkt-a", "tkt-b"])
+            other = ExecutionAuthorizer(
+                budget_enforcer=HuntBudgetEnforcer(HuntBudget(max_requests=10), label="t")
+            )
+            other.remember_consumed(loaded.consumed_ticket_ids)
+            self.assertIn("tkt-a", other.consumed_ticket_ids())
+
+    def test_production_signing_key_required(self) -> None:
+        import os
+
+        from src.core.frontier.receipt_crypto import (
+            PersistentSigningKeyRequired,
+            require_persistent_signing_key,
+        )
+
+        old_env = os.environ.get("APP_ENV")
+        old_a = os.environ.get("AUTHORITY_SIGNING_KEY")
+        old_s = os.environ.get("APP_SECRET_KEY")
+        try:
+            os.environ["APP_ENV"] = "production"
+            os.environ.pop("AUTHORITY_SIGNING_KEY", None)
+            os.environ.pop("APP_SECRET_KEY", None)
+            with self.assertRaises(PersistentSigningKeyRequired):
+                require_persistent_signing_key()
+            os.environ["APP_ENV"] = "development"
+            require_persistent_signing_key()
+        finally:
+            if old_env is None:
+                os.environ.pop("APP_ENV", None)
+            else:
+                os.environ["APP_ENV"] = old_env
+            if old_a is None:
+                os.environ.pop("AUTHORITY_SIGNING_KEY", None)
+            else:
+                os.environ["AUTHORITY_SIGNING_KEY"] = old_a
+            if old_s is None:
+                os.environ.pop("APP_SECRET_KEY", None)
+            else:
+                os.environ["APP_SECRET_KEY"] = old_s
+
     def test_core_recovery_manager_does_not_import_reporting(self) -> None:
         import ast
 

@@ -84,6 +84,9 @@ def attach_pipeline_authority(
     orchestrator: Any, run_id: str, config: Any
 ) -> PipelineAuthorityRuntime:
     """Build and bind authority objects after the scan WAL exists."""
+    from src.core.frontier.receipt_crypto import require_persistent_signing_key
+
+    require_persistent_signing_key()
     output = Path(getattr(config, "output_dir", ".") or ".")
     runtime = build_pipeline_authority_runtime(
         run_id=run_id,
@@ -94,6 +97,17 @@ def attach_pipeline_authority(
         total_budget=int(getattr(config, "global_budget_units", 10_000) or 10_000),
     )
     runtime.attach_to(orchestrator)
+    try:
+        from src.core.checkpoint.dag_checkpoint import DagCheckpointStore
+
+        snap = DagCheckpointStore(output / str(run_id) / "dag_checkpoint.json").load()
+        authorizer = getattr(runtime, "authorizer", None)
+        if snap is not None and snap.consumed_ticket_ids and authorizer is not None:
+            remember = getattr(authorizer, "remember_consumed", None)
+            if callable(remember):
+                remember(snap.consumed_ticket_ids)
+    except Exception:
+        pass
     return runtime
 
 

@@ -18,6 +18,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -464,6 +465,22 @@ class ExecutionAuthorizer:
             self._consumed_tickets.add(ticket.ticket_id)
             self._persist_consumed_locked(ticket.ticket_id)
             return True
+
+    def consumed_ticket_ids(self) -> frozenset[str]:
+        with self._lock:
+            return frozenset(self._consumed_tickets)
+
+    def remember_consumed(self, ticket_ids: Iterable[str]) -> int:
+        """Replay-defense: mark ids consumed without verifying signatures."""
+        added = 0
+        with self._lock:
+            for raw in ticket_ids:
+                tid = str(raw or "").strip()
+                if not tid or tid in self._consumed_tickets:
+                    continue
+                self._consumed_tickets.add(tid)
+                added += 1
+        return added
 
     def _consumed_store_path(self) -> str:
         return os.environ.get("TICKET_CONSUME_STORE", "").strip()

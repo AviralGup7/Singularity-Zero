@@ -821,6 +821,17 @@ class ActorScheduler:
                 gen = graph_gen_id(self._graph)
             except Exception:
                 gen = ""
+            tickets: list[str] = []
+            try:
+                runtime = getattr(self._ctx, "authority_runtime", None)
+                authorizer = getattr(runtime, "authorizer", None) or getattr(
+                    self._ctx, "execution_authorizer", None
+                )
+                getter = getattr(authorizer, "consumed_ticket_ids", None)
+                if callable(getter):
+                    tickets = sorted(str(x) for x in getter() if x)
+            except Exception:
+                tickets = []
             snap = DagCheckpoint(
                 run_id=run_id,
                 status="RUNNING",
@@ -829,6 +840,7 @@ class ActorScheduler:
                 failed=sorted(self._outcome.failed),
                 current_stage=current_stage,
                 graph_gen_id=gen,
+                consumed_ticket_ids=tickets,
             )
             DagCheckpointStore(Path(str(output_dir)) / run_id / "dag_checkpoint.json").save(snap)
         except Exception:

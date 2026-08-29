@@ -55,6 +55,7 @@ class DagCheckpoint:
     outputs_paths: dict[str, str] = field(default_factory=dict)
     clean_exit: bool = False
     graph_gen_id: str = ""
+    consumed_ticket_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -71,6 +72,7 @@ class DagCheckpoint:
             "outputs_paths": dict(self.outputs_paths),
             "clean_exit": self.clean_exit,
             "graph_gen_id": self.graph_gen_id,
+            "consumed_ticket_ids": list(self.consumed_ticket_ids),
         }
 
     @classmethod
