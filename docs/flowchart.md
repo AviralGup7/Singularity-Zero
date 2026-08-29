@@ -78,7 +78,7 @@ Every graph in this atlas adheres to a standardized, machine-verifiable visual t
 | `A -->|data| B` | **Dataflow & Ingestion** | Findings, URLs, payloads, context artifact ingestion |
 | `A -->|replicate| B` | **Replication** | Network journal sync, cross-region peer relay |
 | `A -->|state| B` | **State Transition** | Deterministic CAS lifecycle progression (e.g. `PENDING` $\rightarrow$ `RUNNING`) |
-| `A <--> B` | **Bidirectional** | Two independent directed relationships; prefer two `-->` edges when the directions have different labels |
+| `A <--> B` | **Bidirectional** | Two independent directed relationships; two independent directed relationships; `<-->` is allowed when both directions share one label |
 | `A -.->|label| B` | **Soft / Conditional** | Gossip, refuse-guard, or best-effort notification (not a hot-path `==>` ) |
 | `A -->|durable| B` | **Durable Side Effect** | Synchronous WAL commit, Outbox append, fsync flush |
 | `A -.->|when: cond| B` | **Scheduling Gate** | Runtime predicate evaluation (e.g. `OutputNonEmpty`) |
@@ -87,13 +87,14 @@ Every graph in this atlas adheres to a standardized, machine-verifiable visual t
 
 ### Typed Authority Taxonomy
 
-The term "authority" is strictly typed across this specification to avoid semantic overloading. All 37 invariants (I1–I37) are exhaustively governed:
+The term "authority" is strictly typed across this specification to avoid semantic overloading. All catalogued invariants (I1–I39) are exhaustively governed:
 
 | Typed Authority | Scope & Plane | Authoritative Entity | Governed Invariants |
 |---|---|---|---|
-| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate`, `RaftFSM` | I1, I2, I3, I4, I8, I9, I10, I11 (Joint Prerequisite), I13, I18, I20, I22, I25 |
-| **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I7, I19, I21, I23, I26, I28 |
-| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT view over journaled discovery) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`), `CASStore` | I24 |
+| **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate`, `RaftFSM` | I1, I2, I3, I4, I7, I8, I9, I10, I11 (Joint Prerequisite), I13, I18, I20, I22, I25 |
+| **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I19, I21, I23, I26, I28, I39 |
+| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT view over journaled discovery) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`), `CASStore` | — |
+| **`MeshAuthority`** | Gossip / region membership (F-002) | SWIM gossip, `MeshConsensus` | I24 |
 | **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox` | I27, I29, I30, I33 |
 | **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11 (Joint Prerequisite), I12, I14, I15, I16, I31, I32 |
 | **`RecoveryAuthority`** | Recovery & Regional Consensus Plane | `RecoveryManager`, `RecoveryProtocol`, `RegionModel`, `AuthorityTransfer` | I17, I34, I35, I36, I37 |
@@ -119,7 +120,7 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | Active |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | Active |
 | F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | Active |
-| F-033 | Global invariants I1–I37 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py`, `bootstrap/enforcement_check.py`, `invariant_registry.py` | — | Active |
+| F-033 | Global invariants I1–I39 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py`, `bootstrap/enforcement_check.py`, `invariant_registry.py` | — | Active |
 
 
 ---
@@ -324,11 +325,12 @@ flowchart TD
 
         CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
 
-        Freeze["7. FREEZE pruned runtime Graph; GraphGenID hashed on declared set before prune"]:::impl
+        Freeze["7. FREEZE: declared GraphGenID + post-prune capability fingerprint"]:::impl
 
         FrozenGraph["Frozen Runtime Graph (Immutable Node / Dependency Set)"]:::anchor
 
-        GraphGenID["GraphGenID (Canonical Frozen Graph Identity)"]:::property
+        GraphGenID["GraphGenID (declared, pre-prune)"]:::property
+        CapFP["capability_gen_id (post-prune executable set)"]:::property
 
         BaseNodes --> MergePlugins
         MergePlugins --> ProfileOverride
@@ -339,6 +341,9 @@ flowchart TD
 
         Freeze --> FrozenGraph
         FrozenGraph --> GraphGenID
+        FrozenGraph --> CapFP
+        GraphGenID --> GraphGenGate
+        CapFP --> GraphGenGate
     end
 
     subgraph Init["Process Bootstrap & Authority Attachment"]
@@ -392,6 +397,7 @@ flowchart TD
     GraphGenGate["GraphGenID Validation Gate"]:::property
 
     GraphGenID -->|"generation identity"| GraphGenGate
+    CapFP -->|"capability fingerprint"| GraphGenGate
 
     FrozenGraph -->|"frozen graph consumed at runtime"| StageGraphRoot
     FrozenGraph -->|"resume remaining = graph minus completed (not STAGE_ORDER)"| Scheduler
@@ -562,11 +568,7 @@ flowchart TD
 
         Budget["HuntBudget.reserve"]:::impl
 
-        Rej["ScopeAuthorizationError (Skipped)"]:::forbidden
-
-        Ticket["AuthorizedExecutionTicket I30 (ScopeToken + BudgetRes + Rev + CmdID + BlastRadius)"]:::impl
-
-        Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
+        Rej["ScopeAuthorizationError (Skipped)"]:::for     Consume["ExecutionAuthorizer.consume (Atomic Lock & Nonce Check)"]:::impl
 
         InstallFilt["install_filter_from_scope -> egress_context ContextVar"]:::impl
 
@@ -671,7 +673,7 @@ flowchart TD
 
         SettleNoWal["Settle DROPPED (No wal_id)"]:::forbidden
 
-        PORT_F003_SETTLE_BRIDGE --> Coord
+        PORT_F003_SETTLE_BRIDGE --> Emit
 
         Out --> Coord
 
@@ -741,7 +743,7 @@ flowchart TD
 | **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). | `TESTED` (`graph_builder.py`) |
 | **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. Builtin `must_succeed=True` is **inherited** when a plugin omits it (default `False` is not an explicit downgrade). | `ADVERSARIAL` (`test_formal_invariants.py`, `test_mvr_survival.py`) |
 | **`I-GRAPH-07`** | **Immutable Sink Membership** | At `FREEZE`, $\text{reporting.needs} = \{ n \in \text{Nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$. Producer role is validated monotonically. | `PROPERTY-TESTED` (`graph_builder.py`) |
-| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$, where $\text{CanonicalNode}(n) = (n.\text{name}, \text{tuple}(\text{sorted}(n.\text{needs})), n.\text{weight}, n.\text{critical}, n.\text{timeout}, n.\text{must\_succeed}, \text{when\_hash})$. Hash is of the *declared* graph *before* tool-availability prune. Volatile fields (timestamps/paths) and host tool probes are strictly excluded. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
+| **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$, where $\text{CanonicalNode}(n) = (n.\text{name}, \text{tuple}(\text{sorted}(n.\text{needs})), n.\text{weight}, n.\text{critical}, n.\text{timeout}, n.\text{must\_succeed}, \text{when\_hash})$. Declared GraphGenID is hashed *before* tool prune; a second capability fingerprint hashes the post-prune executable set. Resume checks both. Volatile fields (timestamps/paths) are excluded from both. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
 
 ---
 
@@ -862,6 +864,7 @@ flowchart TD
     Ledger -->|"idempotent replay"| COMPENSATED
     Phoenix["Phoenix reconcile_budget on boot"]:::impl -->|"ghost RESERVED"| Ledger
     Slab["QuotaSlabAllocator (I26 TTL reclaim)"]:::impl --> Reserve
+    I39mode["I39 transition_accounting_mode (I5 <-> I26 one command)"]:::impl --> Slab
     PORT_F004_RES_IN -->|"reserve request"| Reserve
     PORT_F004_COM_IN -->|"commit units"| CONSUMED
     PORT_F004_REL_IN -->|"release units"| COMPENSATED
@@ -874,7 +877,7 @@ $$\text{Multi-Raft Cross-Partition Quota Slab Conservation (I26): } \text{TotalB
 
 ## F-007 — Application state machines & lifecycle coupling
 
-Source: `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `src/jobs/run_outcome.py`. Absorbed F-008, F-027. ReadinessFSM in F-004 is the scheduler-local view of the same `StageStatus` enum (I33 `FAILED` -> `RUNNING`/`COMPLETED`/`DEGRADED` is legal; MVR coerces non-`must_succeed` `FAILED` -> `DEGRADED`).
+Source: `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `src/jobs/run_outcome.py`. Absorbed F-008, F-027. ReadinessFSM in F-004 is the scheduler-local view of the same `StageStatus` enum. Intra-stage retry lives in `retry.py` before a terminal write; the scheduler does not `FAILED` -> `RUNNING`. CAS still *permits* I33 `FAILED` -> `RUNNING`/`COMPLETED`/`DEGRADED` for a later attempt. MVR coerces non-`must_succeed` `FAILED` -> `DEGRADED`.
 
 ```mermaid
 flowchart TD
@@ -1149,7 +1152,8 @@ flowchart TD
     subgraph MultiTenantAuth["Multi-Tenant Boundary & JWT Security Context"]
         Req["Inbound HTTP / WebSocket Request"]:::impl --> AuthMid["Authentication Middleware"]:::impl
         AuthMid --> JWT{"Verify JWT & Tenant"}:::impl
-        JWT -->|Valid JWT| Ctx["ContextVar tenant_id & user_id"]:::impl
+        JWT -->|Valid JWT| I38chk["I38 assert_tenant_scope"]:::impl
+        I38chk --> Ctx["ContextVar tenant_id & user_id"]:::impl
         JWT -->|Invalid / Expired| Refuse401["HTTP 401 Unauthorized"]:::forbidden
         Ctx --> ScopeCheck{"Verify Tenant Scope Token"}:::impl
         ScopeCheck -->|Mismatch| Refuse403["HTTP 403 Forbidden"]:::forbidden
@@ -1301,13 +1305,13 @@ flowchart TD
 
 ---
 
-## F-033 — Global invariants I1–I37 enforcement & dependency graph
+## F-033 — Global invariants I1–I39 enforcement & dependency graph
 
 ### Formal Invariant Dependency & Enforcement Semantics
 
 An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **architectural / enforcement prerequisite** for $I_B$. The formal guarantees and cryptographic verifications of $I_B$ cannot be soundly admitted or enforced unless $I_A$ is satisfied.
 
-### Formal System Invariant Registry (I1–I37)
+### Formal System Invariant Registry (I1–I39)
 
 | Invariant | Formal Statement | Owning Chart | Enforcing Module | Primary Test Suite | Verification Level |
 |---|---|---|---|---|---|
@@ -1348,8 +1352,8 @@ An edge $I_A \longrightarrow I_B$ establishes that invariant $I_A$ is an **archi
 | **I35** | Dual-Plane Deterministic Recovery State Machine | F-018 | `recovery_protocol.py`, `recovery/manager.py`, `recovery/survival.py`, `recovery/orphan_reconciler.py` | `tests/unit/core/test_recovery_protocol.py`, `tests/unit/core/test_survival_path.py` | `MODEL-CHECKED` |
 | **I36** | Single-Writer Regions & Journal-Only Relay | F-002 | `region_model.py`, `replication.py` | `tests/unit/core/test_region_model.py`, `tests/unit/infrastructure/test_wal_replication.py` | `MODEL-CHECKED` |
 | **I37** | Zero Dual-Writer Fenced Authority Transfer (activate refuses unless replica_applied >= source_committed) | F-002 | `authority_transfer.py`, `global_coordination.py`, `migration_handler.py` | `tests/unit/core/test_authority_transfer.py` | `MODEL-CHECKED` + `ADVERSARIAL` |
-| **I38** | Tenant Isolation Enforcement (actor tenant must equal resource tenant; empty tenant fail-closed) | F-019 | `tenant_isolation.py` | `tests/unit/core/test_mvr_survival.py` | `ADVERSARIAL` |
-| **I40** | Budget Accounting Mode Transition Atomicity (I5 <-> I26 under one WAL command; no window where neither formula holds) | F-006 | `quota_slab.py` | `tests/unit/core/test_mvr_survival.py` | `PROPERTY-TESTED` |
+| **I38** | Tenant Isolation Enforcement (actor tenant must equal resource tenant; empty tenant fail-closed) | F-019 | `tenant_isolation.py` | `tests/unit/core/test_tenant_isolation.py` | `ADVERSARIAL` |
+| **I39** | Budget Accounting Mode Transition Atomicity (I5 <-> I26 under one WAL command; no window where neither formula holds) | F-006 | `quota_slab.py` | `tests/unit/core/test_budget_mode_transition.py` | `PROPERTY-TESTED` |
 
 ```mermaid
 flowchart TD
@@ -1369,20 +1373,15 @@ flowchart TD
         Ticket -->|"missing binding"| Reject["Refuse: Ticket Invalid"]:::forbidden
     end
     
-    subgraph I33_Identity["I33 Causal Identity Chain"]
-        Cmd --> ExecId["ExecutionId"]:::impl
-        ExecId --> AttId["AttemptId (retry n)"]:::impl
-        AttId --> StlId["SettlementId"]:::impl
-        StlId --> WalId["WalId"]:::impl
-        WalId --> EvtId["EventId"]:::impl
-        EvtId --> DlvId["DeliveryId"]:::impl
+    subgraph I33_Identity["I33 PORT F-004 Causal Chain"]
+        PORT_F004_CAUSAL_CHAIN["PORT: F-004 CommandId -> ExecutionId -> AttemptId -> SettlementId -> WalId -> EventId -> DeliveryId"]:::impl
     end
     
     subgraph I31_Settlement["I31 PORT F-004 SettlementPipeline"]
         PORT_F004_SETTLE["PORT: F-004 SettlementPipeline - WAL append from StageOutput; outbox is notification only"]:::impl
     end
     
-    subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I37)"]
+    subgraph ProofGraph["Unified Formal Invariant Proof & Causality Graph (I1–I39)"]
         I1g["I1: Hash-Chain Continuity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl --> I2g["I2: Log Monotonicity<br/><small>replicated_log.py [PROPERTY-TESTED]</small>"]:::impl
         I2g --> I3g["I3: Committed-State Confinement<br/><small>raft_cluster.py [MODEL-CHECKED]</small>"]:::impl
         I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
@@ -1404,6 +1403,8 @@ flowchart TD
         I14g --> I8g["I8: Projection Watermark Bound<br/><small>projection_stream.py [PRODUCTION-OBSERVED]</small>"]:::impl
 
         I26g["I26: Quota Slab Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl --> I5g["I5: Universal Budget Conservation<br/><small>global_coordination.py [PROPERTY-TESTED]</small>"]:::impl
+        I26g --> I39g["I39: Budget Mode Transition Atomicity<br/><small>quota_slab.py [PROPERTY-TESTED]</small>"]:::impl
+        I5g --> I39g
         I5g --> I6g["I6: Scoped Idempotency<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
         I6g --> I19g["I19: Lease Terminal Linearization<br/><small>lease_status.py [MODEL-CHECKED]</small>"]:::impl
         I19g --> I20g["I20: Policy Version Fencing<br/><small>policy_governance.py [FAULT-INJECTED]</small>"]:::impl
@@ -1416,6 +1417,8 @@ flowchart TD
         I29g --> I30g["I30: Authorization Causality Quartet<br/><small>authorization.py [MODEL-CHECKED]</small>"]:::impl
         I22g --> I30g
         I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
+        I30g --> I38g["I38: Tenant Isolation<br/><small>tenant_isolation.py [ADVERSARIAL]</small>"]:::impl
+        I33g --> I38g
 
         I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
         I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
@@ -1505,7 +1508,9 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `DISK_PRESSURE_PCT` | `92` | ResourceGuard | PRESSURE threshold (disk utilisation %) |
 | `DISK_CRITICAL_PCT` | `95` | ResourceGuard | CRITICAL threshold: stop new stages, partial report, exit 4 |
 | `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
-| `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed `GraphGenerationMismatch` when stored declared GraphGenID differs (hash excludes tool prune) |
+| `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed on declared GraphGenID *or* post-prune capability fingerprint mismatch |
 | `TICKET_CONSUME_STORE` | (empty) | I30 | Optional JSONL of consumed ticket ids; DagCheckpoint also persists `consumed_ticket_ids` and `remember_consumed` on attach |
 | `SPILL_FIRST` | `false` | Findings | Force spill-only I/O even without ResourceGuard PRESSURE |
+| `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
+SSURE |
 | `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
