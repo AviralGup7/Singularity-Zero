@@ -108,11 +108,11 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 | F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | Active |
 | F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | Active |
 | F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
-| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `_run_execution.py`, `stage_admit.py`, `process_sandbox.py`, `egress_context.py`, `shared_sessions.py`, `dedup/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
+| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `actor_scheduler.py`, `mvr.py`, `stage_admit.py`, `process_sandbox.py`, `findings/spill.py`, `frontier_only.py`, `reporting/partial.py` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
 | F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py` | F-011, F-038 | Active |
-| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py` | F-008, F-027 | Active |
-| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py` | F-024, F-030 | Active |
-| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `recovery/watchdog.py`, `recovery/orphan_reconciler.py`, `run_lock.py` | F-039 | Active |
+| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py`, `mvr.py` | F-008, F-027 | Active |
+| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`, `src/core/runtime/resource_guard.py` | F-024, F-030 | Active |
+| F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `frontier_only.py`, `dag_checkpoint.py`, `resource_guard.py`, `outbox/replay_agent.py` | F-039 | Active |
 | F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py`, `src/api/health.py` | F-023, F-026, F-031, F-043 | Active |
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | Active |
 | F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | Active |
@@ -393,7 +393,7 @@ flowchart TD
 
     Stamp --> Sub
 
-    Scheduler["ActorScheduler Greedy Readiness Loop"]:::impl
+    Scheduler["ActorScheduler Greedy Readiness Loop (MVR degrade-not-abort)"]:::impl
 
     ReadinessRoot["READINESS / STAGE STATUS CONTROL MODEL"]:::anchor
 
@@ -411,7 +411,7 @@ flowchart TD
 
         Takeover["subdomain_takeover"]:::impl
 
-        LiveH["live_hosts [critical=true]"]:::impl
+        LiveH["live_hosts [critical=true, must_succeed=true]"]:::impl
 
         WAF["waf"]:::impl
 
@@ -729,7 +729,7 @@ flowchart TD
 | **`I-GRAPH-03`** | **Root & Sink Validity** | $\ge 1 \text{ root } (\text{in\_degree}=0, \text{subdomains}), \ge 1 \text{ terminal sink } (\text{out\_degree}=0, \text{sarif\_export})$. All finding producers have directed paths to `reporting`. | `PROPERTY-TESTED` (`graph_builder.py`) |
 | **`I-GRAPH-04`** | **Isolated Node Prohibition** | Registered nodes lacking both `needs` and downstream consumers ($\text{in\_degree}=0 \land \text{out\_degree}=0$) fail validation unless declared root/sink. | `FAULT-INJECTED` (`test_formal_invariants.py`) |
 | **`I-GRAPH-05`** | **Stage Collision Policy** | Plugins override built-in IDs (`nodes_by_name[n.name] = n`). Duplicate IDs between conflicting plugins fail validation (`ValueError`). | `TESTED` (`graph_builder.py`) |
-| **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. | `ADVERSARIAL` (`test_formal_invariants.py`) |
+| **`I-GRAPH-06`** | **Plugin Override Safety** | Plugin overrides MUST preserve dependency monotonicity ($S_{\text{plugin}}.\text{needs} \supseteq S_{\text{builtin}}.\text{needs}$), criticality, producer role, and egress sandbox rules. Builtin `must_succeed=True` is **inherited** when a plugin omits it (default `False` is not an explicit downgrade). | `ADVERSARIAL` (`test_formal_invariants.py`, `test_mvr_survival.py`) |
 | **`I-GRAPH-07`** | **Immutable Sink Membership** | At `FREEZE`, $\text{reporting.needs} = \{ n \in \text{Nodes} \setminus \text{\_REPORT\_SINKS} \mid n \in \text{\_FINDING\_PRODUCER\_STAGES} \lor \text{\_produces\_findings}(n) \}$. Producer role is validated monotonically. | `PROPERTY-TESTED` (`graph_builder.py`) |
 | **`I-GRAPH-08`** | **Deterministic GraphGenID** | $\text{GraphGenID} = \text{SHA256}(\text{sorted}(\text{CanonicalNode}(n) \text{ for } n \in \text{Nodes}))$, where $\text{CanonicalNode}(n) = (n.\text{name}, \text{tuple}(\text{sorted}(n.\text{needs})), n.\text{weight}, n.\text{critical}, n.\text{timeout})$. Volatile fields (timestamps/paths) are strictly excluded. | `PROPERTY-TESTED` (`test_formal_invariants.py`) |
 
@@ -741,9 +741,12 @@ flowchart TD
 |---|---|---|---|
 | **`COMPLETED` / `DEGRADED` with output** | `when` true | Dispatch → `RUNNING` → terminal | Normal execution |
 | **`COMPLETED` / `DEGRADED` empty (gate false)** | `OutputNonEmpty` false through end of scan | Skip at drain | `reason="condition_never_satisfied"` → `SKIPPED` / `SKIPPED_DISABLED` |
-| **`FAILED` on critical upstream** | n/a | Block / skip dependents | `reason="upstream_critical_failure"` → often `SKIPPED_FAILED` path |
+| **`FAILED` on `must_succeed` / critical upstream** | n/a | Skip dependents; do **not** abort independent branches or JOIN_SINKS | `reason="upstream_critical_failure"` → `SKIPPED_FAILED`; reporting still runs |
+| **`FAILED` on non-`must_succeed` (MVR default)** | n/a | Coerce to `DEGRADED`, continue DAG | `_record_stage_failure` → `DEGRADED`; job exit 4 |
 | **`SKIPPED_DISABLED` upstream** | n/a | Still satisfies non-join `_need_met` | Downstream may run or skip on its own `when` |
-| **Join sinks (`reporting`, …)** | n/a | Wait until **every** producer is terminal (incl. `FAILED`) | Report still emits (partial allowed) |
+| **Join sinks (`reporting`, …)** | n/a | Wait until **every** producer is terminal (incl. `FAILED` / `DEGRADED`) | Report still emits (partial allowed) |
+| **ResourceGuard CRITICAL / deadline** | n/a | Stop new stages; **keep** JOIN_SINKS | `reason="resource_pressure"` / `global_deadline_exceeded`; `emit_partial_report`; exit 4 |
+| **`FRONTIER_ONLY`** | discovery allowlist only | No PartitionWAL settle / no `FINDING_CREATED` | Spill JSONL + `frontier_merge_queue`; headers `X-Frontier-Only` |
 
 ---
 
@@ -756,6 +759,8 @@ flowchart TD
 | **FAILED / ERROR** | Recorded (`wal_id` assigned) | `REJECTED` | No | `COMPENSATE` (Available += units) | `FAILED` / `DEGRADED` |
 | **EGRESS_VIOLATION** | Rejected / Refused | `DROPPED` | No | `COMPENSATE` (Available += units) | `FAILED` |
 | **SKIPPED / UNBUDGETED** | Not submitted to WAL | `N/A` | No | `COMPENSATE` (if reserved) | `SKIPPED_DISABLED` |
+| **FRONTIER_ONLY (authority down)** | Not submitted to PartitionWAL | `N/A` | No | none (no reserve) | Discovery stages continue; findings in `findings.spill.jsonl` |
+| **Outbox append failure after COMMITTED** | WAL unchanged | `COMMITTED` | **No** (I31 outbox-before-bus) | none | Spill retained; `OutboxReplayAgent` on READY |
 
 ---
 
@@ -776,6 +781,7 @@ flowchart TD
 | **Enterprise GRC & Reporting** | `src/reporting/` | `reporting`, `sarif_export`, `ci_export` | PDF/HTML compliance attestation (SOC2/ISO27001/PCI-DSS), SLA tracking, bug bounty platform clients (`ComplianceAttestation`, `SLATracker`, `AppleClient`, `AWSClient`). |
 | **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
 | **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
+| **MVR Survival & Partial Results** | `src/pipeline/mvr.py`, `src/core/findings/spill.py`, `src/core/frontier/frontier_only.py`, `src/core/checkpoint/dag_checkpoint.py`, `src/reporting/partial.py`, `src/core/runtime/resource_guard.py` | All stages + shutdown | Degrade non-`must_succeed` failures; spill findings before settle; FRONTIER_ONLY discovery; DAG checkpoint; partial SARIF/JSON on SIGINT/OOM. |
 
 ```mermaid
 flowchart LR
@@ -895,6 +901,7 @@ flowchart TD
         SF -->|"retry succeeded"| SC
         SF -->|"retry degraded"| SDG
         SF -->|"retries exhausted"| SSF
+        SF -->|"MVR non-must_succeed coerce"| SDG
     end
     subgraph Finding["Finding Lifecycle & Tri-Axial State Model"]
         FC["CANDIDATE"]:::impl --> FR["REPORTABLE (Surface Decision)"]:::impl
@@ -912,6 +919,8 @@ flowchart TD
 
     subgraph DerivationLattice["Total Precedence Derivation Lattice (derive_job_and_exit)"]
         Sig["SIGINT / Cancel"]:::impl --> PrecedenceDecision{"Precedence Evaluation<br/>derive_job_and_exit"}:::impl
+        Sig -->|"REPORT_EMIT_PARTIAL_ON_SHUTDOWN"| PartialRep["report_partial json/html/sarif"]:::impl
+        ResCrit["ResourceGuard CRITICAL"]:::impl --> PrecedenceDecision
         SF -->|"fatal infra error / retries exhausted"| PrecedenceDecision
         ConfigSuspend["Hot-Reload Suspend"]:::impl --> PrecedenceDecision
         FR -->|"policy evaluated"| PrecedenceDecision
@@ -973,6 +982,10 @@ flowchart TD
     Q -->|P2: Findings Buffer| P2["P2: Coalesced Findings Stream"]:::impl
     Q -->|P3: Periodic Metrics| P3["P3: 1s Rolling Aggregates"]:::impl
     Q -->|P4: Debug Traces| P4["P4: Lowest Priority / First Shed"]:::impl
+    Disk["disk/mem utilisation"]:::impl --> RG{"classify_pressure"}:::impl
+    RG -->|"WARN >=85% disk"| P4
+    RG -->|"PRESSURE >=92% disk"| P3
+    RG -->|"CRITICAL >=95% disk"| Halt["Stop new stages; emit_partial_report; exit 4"]:::impl
 ```
 
 ### Telemetry QoS Shedding Decision Matrix (`qos_admit.py`)
@@ -994,12 +1007,12 @@ Strict Priority: $$\text{Cancel (130)} > \text{Infra/Fatal (3)} > \text{Suspend 
 
 | Precedence | Observed Pipeline Condition | Exit Code | Terminal JobStatus | Failure Classification (I34) | Operator Action |
 |---|---|---|---|---|---|
-| **1 (Highest)** | SIGINT / User Cancellation | `130` | `STOPPED` | User Action | Clean shutdown; checkpoint saved |
+| **1 (Highest)** | SIGINT / User Cancellation | `130` | `STOPPED` | User Action | Write `report_partial.*`; DAG checkpoint left `CRASHED_IN_PROGRESS` unless clean exit |
 | **2** | Fatal stage failure / `pipeline_no_output` / Target down | `3` | `FAILED` | `INFRA_FAILURE` | Inspect logs, network, target connectivity |
 | **3** | Hot-reload configuration suspend | `7` | `STOPPED` | Policy / Configuration | Worker reloads configuration and resumes |
 | **4** | Findings count / CVSS severity exceeds policy rules | `2` | `COMPLETED` | Policy Gate Triggered | Review findings; triage or remediate |
-| **5** | Non-fatal stage failure (`DEGRADED` / `SKIPPED_FAILED`) | `4` | `COMPLETED` | `PARTIAL_RUN` | Review partial findings report |
-| **6** | Unhandled exception / OOM / Lock collision | `1` | `FAILED` | `RUNTIME_ERROR` | Inspect stack traces; check memory/locks |
+| **5** | Non-fatal / MVR-degraded / ResourceGuard CRITICAL | `4` | `COMPLETED` | `PARTIAL_RUN` | Review `report_partial.*` + spill JSONL |
+| **6** | Unhandled exception / lock collision | `1` | `FAILED` | `RUNTIME_ERROR` | Inspect stack traces. (OOM/disk CRITICAL is now exit 4 via ResourceGuard, not this row.) |
 | **7 (Lowest)** | All stages completed; findings within policy | `0` | `COMPLETED` | `CLEAN_RUN` | Standard clean pipeline exit |
 
 ```mermaid
@@ -1033,6 +1046,7 @@ flowchart TD
         WAL_Err["WALCorruptionError I15"]:::forbidden -->|"Unrecoverable"| Exit3
         Pol_Err["Policy Gate (No Log)"]:::forbidden -->|"Fail-Closed"| Exit2
         Egress_Err["EgressViolationError I29"]:::forbidden -->|"Scope Guard"| Exit3
+        ResG["ResourceGuard CRITICAL (disk>=95% / OOM)"]:::impl -->|"graceful finalize + partial report"| Exit4
         CollisionExit --> Exit1
     end
 ```
@@ -1044,9 +1058,9 @@ flowchart TD
 | Failure Domain | Retry | Rollback | Compensate | Fail-Closed | Authoritative Resolution |
 |---|---|---|---|---|---|
 | **WAL Corruption** | No | No | No | **Yes** | Restore LKG snapshot; optional SURVIVAL_READONLY if AUTO_ENTER_SURVIVAL_ON_CORRUPT |
-| **Authority Loss** | No | No | No | **Yes** | Await leader election or restart in quorum-1 mode |
+| **Authority Loss** | No | No | No | **Yes** | Await leader / quorum-1 restart. Optional `FRONTIER_ONLY` (default off) continues discovery without PartitionWAL settle. |
 | **Replication Divergence** | No | No | No | **Yes** | Restore local FSM from leader PartitionWAL |
-| **Event Delivery Failure** | **Yes** | No | No | No | Replay outbox dispatch by `DeliveryId` (I32) |
+| **Event Delivery Failure** | **Yes** | No | No | No | Spill retained; DurableDLQ + `OutboxReplayAgent.tick` on READY (I32) |
 | **Budget Inconsistency** | No | No | **Yes** | **Yes** | Phoenix + CompensationLedger CAS; LeaseReaper on monotonic deadline |
 | **FSM Invariant Violation** | No | No | No | **Yes** | Snapshot re-baseline plus sequential WAL replay |
 | **Egress Policy Violation** | No | No | **Yes** | **Yes** | Terminate subprocess; compensate reserved requests (Security Violation → Exit 3) |
@@ -1090,10 +1104,13 @@ flowchart TD
     Fresh -->|"initialize empty state"| Ready
     Inv -->|"WAL unreadable but LKG snapshot hash ok"| Survival["SURVIVAL_READONLY (reads/export/DLQ only)"]:::impl
     Survival -.->|"refuse mutate / reserve / scan run / transfer"| SurvivalBlock["Mutations refused (X-Survival-Mode)"]:::forbidden
-    AuthLoss["Authority / PartitionWAL unreachable"]:::impl -->|"AUTO_FRONTIER_ONLY_ON_AUTH_LOSS or --frontier-only"| FrontierOnly["FRONTIER_ONLY discovery allowlist"]:::impl
+    Inv -->|"authority / PartitionWAL unreachable"| AuthLoss["Authority / PartitionWAL unreachable"]:::impl
+    AuthLoss -->|"AUTO_FRONTIER_ONLY_ON_AUTH_LOSS or --frontier-only"| FrontierOnly["FRONTIER_ONLY discovery allowlist"]:::impl
     FrontierOnly -->|"spill + merge_queue, no PartitionWAL settle"| SpillPath["findings.spill.jsonl + frontier_merge_queue"]:::impl
-    ResourceCrit["ResourceGuard CRITICAL (disk>=95% / OOM)"]:::impl -->|"stop new stages, keep JOIN_SINKS"| Partial["emit_partial_report exit 4"]:::impl
-    DagCkpt["DagCheckpoint (stage_status JSON, independent of FSM)"]:::impl -->|"CRASHED_IN_PROGRESS"| ResumeOrFinalize["--resume or --finalize-crashed"]:::impl
+    Ready -->|"scan runtime"| ResourceCrit["ResourceGuard CRITICAL (disk>=95% / OOM)"]:::impl
+    ResourceCrit -->|"stop new stages, keep JOIN_SINKS"| Partial["emit_partial_report exit 4"]:::impl
+    Ready -->|"heartbeat stage_status"| DagCkpt["DagCheckpoint (stage_status JSON, independent of FSM)"]:::impl
+    DagCkpt -->|"CRASHED_IN_PROGRESS"| ResumeOrFinalize["--resume or --finalize-crashed"]:::impl
     Ready -->|"OutboxReplayAgent.tick"| ReplayAgent["DurableDLQ replay"]:::impl
 ```
 
@@ -1125,9 +1142,10 @@ flowchart TD
 
     Dispatch --> Healthz["/_healthz liveness"]:::impl
     Dispatch --> Readyz["/_readyz READY + invariants + disk"]:::impl
-    Dispatch --> Survivalz["/_survivalz SURVIVAL_READONLY dump"]:::impl
+    Dispatch --> Survivalz["/_survivalz SURVIVAL_READONLY + frontier_only dump"]:::impl
     Survivalz -.->|"mode SURVIVAL_READONLY"| MutRefuse["Refuse POST/PUT/PATCH/DELETE"]:::forbidden
     Dispatch --> FrontierHdr["X-Frontier-Only / X-Frontier-Reason"]:::impl
+    Survivalz --> FrontierHdr
 
     Dispatch --> Hook["useJobMonitor (React Hook)"]:::impl
     Hook -->|"progress stream"| SSE["SSE /api/jobs/:id/progress/stream"]:::impl
@@ -1466,3 +1484,11 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `AUTO_FRONTIER_ONLY_ON_AUTH_LOSS` | `false` | Recovery | Auto-enter FRONTIER_ONLY discovery mode when authority is unreachable |
 | `FINDINGS_SPILL_ENABLED` | `true` | Findings | Append-only JSONL spill before settlement |
 | `DAG_CHECKPOINT_ENABLED` | `true` | Checkpoint | Persist DAG stage_status independently of PartitionFSM |
+| `PIPELINE_STRICT_CRITICAL` | `false` | Scheduler | Treat every `critical=True` node as must-succeed (restores fail-fast abort) |
+| `FRONTIER_ONLY_ALLOWLIST` | `subdomains,live_hosts,urls,recon_validation,git_diff_crawl,parameters` | Recovery | Stages permitted while FRONTIER_ONLY is active |
+| `FINDINGS_SPILL_FSYNC_EVERY` | `50` | Findings | fsync spill JSONL every N lines |
+| `DAG_CHECKPOINT_HEARTBEAT_S` | `15` | Checkpoint | Heartbeat interval hint for DAG checkpoint writes |
+| `AUTO_FINALIZE_CRASHED_ON_STARTUP` | `false` | Checkpoint | Auto-finalize CRASHED_IN_PROGRESS runs on boot (opt-in) |
+| `DISK_PRESSURE_PCT` | `92` | ResourceGuard | PRESSURE threshold (disk utilisation %) |
+| `DISK_CRITICAL_PCT` | `95` | ResourceGuard | CRITICAL threshold: stop new stages, partial report, exit 4 |
+| `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
