@@ -480,6 +480,8 @@ class PlacementAuthority:
             revision=fenced.authority_revision,
             leader_term=fenced.leader_term,
             source_committed_offset=source_committed_offset,
+            fence_commit_index=source_committed_offset,
+            source_term=int(getattr(fenced, "leader_term", 0) or 0),
         )
         self.migration_states[aggregate_id] = f"FENCE_ISSUED:{src}->{dest}:{fenced.authority_epoch}"
         return fenced.authority_epoch
@@ -514,8 +516,15 @@ class PlacementAuthority:
             return False
         if fence_token is not None and str(fence_token) != str(rec.fence_token):
             return False
-        if replica_applied_offset is not None and source_committed_offset is not None:
-            if int(replica_applied_offset) < int(source_committed_offset):
+        source_off = source_committed_offset
+        if source_off is None:
+            source_off = getattr(rec, "fence_commit_index", None)
+        if source_off is None:
+            source_off = getattr(rec, "source_committed_offset", None)
+        if source_off is not None:
+            if replica_applied_offset is None:
+                return False
+            if int(replica_applied_offset) < int(source_off):
                 return False
         src_lease = self.lease_for(rec.from_partition)
         if int(src_lease.authority_epoch) != int(epoch):

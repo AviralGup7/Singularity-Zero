@@ -170,6 +170,7 @@ class ActorScheduler:
         )
         self._in_flight: dict[asyncio.Task[Any], _ScheduledTask] = {}
         self._launched: set[str] = set()
+        self._admission_gen = 0
         self._skipped: set[str] = set()
         self._injected: set[str] = set()
         self._failed_critical: str | None = None
@@ -570,6 +571,19 @@ class ActorScheduler:
         if node.name in self._launched:
             return
         if node.name in self._completed:
+            return
+        admission_gen = int(getattr(self, "_admission_gen", 0))
+        try:
+            from src.core.runtime.resource_guard import PressureLevel, inspect_pressure
+
+            _snap, level, _pct = inspect_pressure()
+            if level is PressureLevel.CRITICAL:
+                self._mark_skipped(node, reason="resource_guard_critical")
+                return
+        except Exception:
+            logger.debug("ResourceGuard admission probe skipped", exc_info=True)
+        if admission_gen != int(getattr(self, "_admission_gen", 0)):
+            self._mark_skipped(node, reason="resource_pressure")
             return
         self._launched.add(node.name)
         try:
@@ -1058,6 +1072,7 @@ class ActorScheduler:
             normalize_stage_status,
         )
 
+        self._admission_gen = int(getattr(self, "_admission_gen", 0)) + 1
         keep = set(self._JOIN_SINKS)
         for node in self._graph.nodes:
             if node.name in keep:

@@ -73,6 +73,13 @@ def graphgen_strict() -> bool:
     return raw not in {"0", "false", "no", "off"}
 
 
+def capability_strict() -> bool:
+    raw = os.environ.get("CAPABILITY_FINGERPRINT_STRICT")
+    if raw is None:
+        return graphgen_strict()
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
 def assert_graph_generation(stored: str | None, computed: str) -> None:
     """Fail-closed when both hashes are present and differ."""
     expected = str(stored or "").strip()
@@ -108,6 +115,7 @@ __all__ = [
     "assert_graph_generation",
     "canonical_node",
     "capability_gen_id",
+    "capability_strict",
     "graph_gen_id",
     "graphgen_strict",
 ]

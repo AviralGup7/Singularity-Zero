@@ -231,6 +231,23 @@ class EventBus:
                 data=dict(data or {}),
                 correlation_id=correlation_id or str(uuid.uuid4()),
             )
+        try:
+            from src.core.frontier.tenant_isolation import assert_tenant_scope
+            from src.core.tenant_context import TenantContext
+
+            actor = TenantContext.get_current_tenant()
+            resource = (data or {}).get("tenant_id")
+            if actor and resource:
+                assert_tenant_scope(resource_tenant=str(resource), actor_tenant=str(actor))
+        except Exception as exc:
+            if type(exc).__name__ == "TenantIsolationError":
+                logger.warning("I38: EventBus dropped cross-tenant emit source=%s", source)
+                return PipelineEvent(
+                    event_type=event_type,
+                    source=source,
+                    data=dict(data or {}),
+                    correlation_id=correlation_id or str(uuid.uuid4()),
+                )
         enriched = dict(data or {})
         if trace_id:
             enriched["trace_id"] = trace_id

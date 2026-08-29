@@ -75,6 +75,8 @@ class TransferRecord:
     revision: str
     leader_term: int
     source_committed_offset: int | None = None
+    fence_commit_index: int | None = None
+    source_term: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -87,6 +89,8 @@ class TransferRecord:
             "revision": self.revision,
             "leader_term": self.leader_term,
             "source_committed_offset": self.source_committed_offset,
+            "fence_commit_index": self.fence_commit_index,
+            "source_term": self.source_term,
         }
 
 
