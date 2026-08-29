@@ -89,10 +89,25 @@ def assert_graph_generation(stored: str | None, computed: str) -> None:
         )
 
 
+def assert_capability_generation(stored: str | None, computed: str) -> None:
+    """Fail-closed when a stored capability fingerprint is present and differs."""
+    expected = str(stored or "").strip()
+    actual = str(computed or "").strip()
+    if not expected:
+        return
+    if expected != actual:
+        raise CapabilityGenerationMismatch(
+            f"capability fingerprint mismatch stored={expected[:16]} computed={actual[:16]}"
+        )
+
+
 __all__ = [
+    "CapabilityGenerationMismatch",
     "GraphGenerationMismatch",
+    "assert_capability_generation",
     "assert_graph_generation",
     "canonical_node",
+    "capability_gen_id",
     "graph_gen_id",
     "graphgen_strict",
 ]
