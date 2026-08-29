@@ -91,6 +91,9 @@ class DagCheckpoint:
             outputs_paths={str(k): str(v) for k, v in dict(raw.get("outputs_paths") or {}).items()},
             clean_exit=bool(raw.get("clean_exit")),
             graph_gen_id=str(raw.get("graph_gen_id") or ""),
+            consumed_ticket_ids=[
+                str(x) for x in (raw.get("consumed_ticket_ids") or []) if str(x).strip()
+            ],
         )
 
     def is_crashed_in_progress(self) -> bool:
