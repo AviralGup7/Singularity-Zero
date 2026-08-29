@@ -489,11 +489,16 @@ class PlacementAuthority:
         epoch: int,
         fence_token: str | None = None,
         recovered_tickets: Any = (),
+        replica_applied_offset: int | None = None,
+        source_committed_offset: int | None = None,
     ) -> bool:
         """I37 stage 2: pending home becomes the only writer. Old token dies.
 
         ``recovered_tickets`` are checked *before* cutover. An I30-invalid
         ticket cannot be blessed by a successful transfer.
+
+        When both offsets are supplied, activation refuses unless the
+        replica has caught up (``replica_applied_offset >= source_committed_offset``).
         """
         from src.core.frontier.authority_transfer import (
             activate_lease,
@@ -505,6 +510,9 @@ class PlacementAuthority:
             return False
         if fence_token is not None and str(fence_token) != str(rec.fence_token):
             return False
+        if replica_applied_offset is not None and source_committed_offset is not None:
+            if int(replica_applied_offset) < int(source_committed_offset):
+                return False
         src_lease = self.lease_for(rec.from_partition)
         if int(src_lease.authority_epoch) != int(epoch):
             return False

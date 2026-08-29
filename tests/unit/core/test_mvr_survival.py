@@ -411,6 +411,107 @@ class TestPlanRemainders(unittest.TestCase):
             else:
                 os.environ["APP_SECRET_KEY"] = old_s
 
+    def test_graph_gen_id_ignores_tool_pruning(self) -> None:
+        from src.pipeline.graph_identity import graph_gen_id
+        from src.pipeline.services.pipeline_orchestrator.graph_builder import build_pipeline_graph
+
+        full = build_pipeline_graph(tool_status={"nuclei": True, "semgrep": True})
+        pruned = build_pipeline_graph(tool_status={"nuclei": False, "semgrep": True})
+        self.assertEqual(graph_gen_id(full), graph_gen_id(pruned))
+        self.assertTrue(pruned.declared_gen_id)
+        names_full = {n.name for n in full.nodes}
+        names_pruned = {n.name for n in pruned.nodes}
+        if "nuclei" in names_full:
+            self.assertNotIn("nuclei", names_pruned)
+
+    def test_cas_lease_fence_refuses_stale(self) -> None:
+        from src.core.frontier.lease_status import (
+            LeaseStatus,
+            StaleLeaseFenceError,
+            cas_lease_status,
+        )
+
+        cas_lease_status(LeaseStatus.ACTIVE, LeaseStatus.CONSUMED, fence=1, expected_fence=1)
+        with self.assertRaises(StaleLeaseFenceError):
+            cas_lease_status(LeaseStatus.ACTIVE, LeaseStatus.EXPIRED, fence=1, expected_fence=2)
+
+    def test_activate_ownership_requires_replica_catch_up(self) -> None:
+        from src.core.frontier.global_coordination import PlacementAuthority
+
+        pa = PlacementAuthority(home_region="local")
+        epoch = pa.initiate_transfer("agg", "P-0000", "P-0001", to_region="other")
+        self.assertFalse(
+            pa.activate_ownership(
+                "agg",
+                "P-0001",
+                epoch,
+                replica_applied_offset=3,
+                source_committed_offset=10,
+            )
+        )
+        self.assertTrue(
+            pa.activate_ownership(
+                "agg",
+                "P-0001",
+                epoch,
+                replica_applied_offset=10,
+                source_committed_offset=10,
+            )
+        )
+
+    def test_tenant_isolation_i38(self) -> None:
+        from src.core.frontier.tenant_isolation import TenantIsolationError, assert_tenant_scope
+
+        assert_tenant_scope(resource_tenant="t1", actor_tenant="t1")
+        with self.assertRaises(TenantIsolationError):
+            assert_tenant_scope(resource_tenant="t1", actor_tenant="t2")
+        with self.assertRaises(TenantIsolationError):
+            assert_tenant_scope(resource_tenant="t1", actor_tenant="")
+
+    def test_budget_mode_transition_atomic(self) -> None:
+        from src.core.frontier.quota_slab import (
+            BudgetModeTransitionError,
+            transition_accounting_mode,
+        )
+
+        snap = transition_accounting_mode(
+            total=100, consumed=10, outstanding=20, available=70, slab_units=15, to_multi_raft=True
+        )
+        self.assertEqual(snap["slab_reserved"], 15)
+        self.assertEqual(snap["available"], 55)
+        self.assertEqual(
+            snap["consumed"] + snap["outstanding"] + snap["slab_reserved"] + snap["available"],
+            100,
+        )
+        back = transition_accounting_mode(
+            total=snap["total"],
+            consumed=snap["consumed"],
+            outstanding=snap["outstanding"],
+            available=snap["available"],
+            slab_reserved=snap["slab_reserved"],
+            to_multi_raft=False,
+        )
+        self.assertEqual(back["slab_reserved"], 0)
+        self.assertEqual(back["available"], 70)
+        with self.assertRaises(BudgetModeTransitionError):
+            transition_accounting_mode(
+                total=100, consumed=10, outstanding=20, available=70, slab_units=80
+            )
+
+    def test_skip_pending_unblocks_join_sink(self) -> None:
+        from src.core.models.stage_status import StageStatus
+        from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
+
+        nuclei = StageNode(name="nuclei", needs=(), weight=1)
+        reporting = StageNode(name="reporting", needs=("nuclei",), weight=1)
+        sched = _scheduler((nuclei, reporting))
+        sched._ctx.result.stage_status["nuclei"] = StageStatus.PENDING.value
+        sched._skip_remaining_keep_sinks(reason="resource_guard_critical")
+        self.assertEqual(
+            sched._ctx.result.stage_status["nuclei"], StageStatus.SKIPPED_DISABLED.value
+        )
+        self.assertTrue(sched._need_met("nuclei", reporting))
+
     def test_core_recovery_manager_does_not_import_reporting(self) -> None:
         import ast
 

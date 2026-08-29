@@ -95,3 +95,20 @@ def require_transition(current: str | LeaseStatus, target: str | LeaseStatus) ->
     if not can_transition(src, dst):
         raise ValueError(f"Illegal lease transition (I28): {src.value} -> {dst.value}")
     return dst
+
+
+class StaleLeaseFenceError(PermissionError):
+    """Settle and reaper raced; only one CAS winner may mutate the lease."""
+
+
+def cas_lease_status(
+    current: str | LeaseStatus,
+    target: str | LeaseStatus,
+    *,
+    fence: int,
+    expected_fence: int,
+) -> LeaseStatus:
+    """I28: settle vs expire share a monotonic fence. Stale CAS refuses."""
+    if int(fence) != int(expected_fence):
+        raise StaleLeaseFenceError(f"I28: stale lease fence {fence} != expected {expected_fence}")
+    return require_transition(current, target)

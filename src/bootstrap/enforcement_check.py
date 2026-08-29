@@ -47,6 +47,7 @@ INVARIANT_HOOKS: tuple[InvariantHook, ...] = (
     InvariantHook("I36", "src.core.frontier.region_model"),
     InvariantHook("I37", "src.core.frontier.authority_transfer"),
     InvariantHook("I33", "src.core.frontier.causal_identity"),
+    InvariantHook("I38", "src.core.frontier.tenant_isolation"),
     InvariantHook("I28c", "src.core.frontier.compensation_log", required=False),
     InvariantHook("I5", "src.core.frontier.lease_reaper", required=False),
 )

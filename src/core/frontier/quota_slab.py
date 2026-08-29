@@ -114,4 +114,73 @@ class QuotaSlabAllocator:
             return sum(s.units for s in self._slabs.values() if s.status == "RESERVED")
 
 
-__all__ = ["QuotaSlabAllocator", "SlabLease"]
+class BudgetModeTransitionError(ValueError):
+    """I5/I26 conservation would break across a mode switch."""
+
+
+def transition_accounting_mode(
+    *,
+    total: int,
+    consumed: int,
+    outstanding: int,
+    available: int,
+    slab_reserved: int = 0,
+    slab_units: int = 0,
+    to_multi_raft: bool = True,
+) -> dict[str, int]:
+    """Atomically move units between Available and SlabReserved.
+
+    I5: Total = Consumed + Outstanding + Available
+    I26: Total = Consumed + Outstanding + SlabReserved + Available
+
+    The returned snapshot satisfies the destination formula. No intermediate
+    dict is published; callers must persist this mapping as one WAL command.
+    """
+    t = int(total)
+    c = int(consumed)
+    o = int(outstanding)
+    a = int(available)
+    s = int(slab_reserved)
+    move = int(slab_units)
+    if t < 0 or c < 0 or o < 0 or a < 0 or s < 0 or move < 0:
+        raise BudgetModeTransitionError("I40: negative budget component")
+    if to_multi_raft:
+        if c + o + a != t:
+            raise BudgetModeTransitionError(
+                f"I40: I5 preimage broken C+O+A={c + o + a} != total={t}"
+            )
+        if move > a:
+            raise BudgetModeTransitionError("I40: slab_units exceed Available")
+        a2 = a - move
+        s2 = s + move
+        if c + o + s2 + a2 != t:
+            raise BudgetModeTransitionError("I40: I26 postimage broken")
+        return {
+            "total": t,
+            "consumed": c,
+            "outstanding": o,
+            "available": a2,
+            "slab_reserved": s2,
+        }
+    if c + o + s + a != t:
+        raise BudgetModeTransitionError(
+            f"I40: I26 preimage broken C+O+S+A={c + o + s + a} != total={t}"
+        )
+    a2 = a + s
+    if c + o + a2 != t:
+        raise BudgetModeTransitionError("I40: I5 postimage broken")
+    return {
+        "total": t,
+        "consumed": c,
+        "outstanding": o,
+        "available": a2,
+        "slab_reserved": 0,
+    }
+
+
+__all__ = [
+    "BudgetModeTransitionError",
+    "QuotaSlabAllocator",
+    "SlabLease",
+    "transition_accounting_mode",
+]

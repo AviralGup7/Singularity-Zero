@@ -18,9 +18,10 @@ from src.core.frontier.compensation_log import CompensationLedger
 from src.core.frontier.lease_status import (
     OUTSTANDING,
     LeaseStatus,
+    StaleLeaseFenceError,
     can_transition,
+    cas_lease_status,
     normalize_lease_status,
-    require_transition,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class ReapableLease:
     status: LeaseStatus
     deadline_mono: float
     units: int = 0
+    fence_seq: int = 0
 
 
 LeaseSource = Callable[[], list[ReapableLease]]
@@ -80,10 +82,22 @@ class LeaseReaper:
                 continue
             if can_transition(status, LeaseStatus.EXPIRED):
                 try:
-                    require_transition(status, LeaseStatus.EXPIRED)
+                    cas_lease_status(
+                        status,
+                        LeaseStatus.EXPIRED,
+                        fence=int(getattr(lease, "fence_seq", 0) or 0),
+                        expected_fence=int(getattr(lease, "fence_seq", 0) or 0),
+                    )
                     if self.mutate is not None:
                         self.mutate(lease, LeaseStatus.EXPIRED)
                     status = LeaseStatus.EXPIRED
+                    try:
+                        lease.fence_seq = int(getattr(lease, "fence_seq", 0) or 0) + 1
+                    except Exception:
+                        pass
+                except StaleLeaseFenceError as exc:
+                    logger.info("LeaseReaper lost fence race for %s: %s", lease.lease_id, exc)
+                    continue
                 except Exception as exc:
                     logger.warning("LeaseReaper expire failed for %s: %s", lease.lease_id, exc)
                     continue

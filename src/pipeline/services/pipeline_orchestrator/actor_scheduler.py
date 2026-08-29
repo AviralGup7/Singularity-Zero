@@ -1015,11 +1015,14 @@ class ActorScheduler:
             logger.debug("Failed to emit skip progress for %s", name, exc_info=True)
 
     def _mark_skipped(self, node: StageNode, *, reason: str) -> None:
+        from src.core.models.stage_status import resolve_skip_status
+
         self._skipped.add(node.name)
         self._outcome.skipped.add(node.name)
-        self._ctx.result.stage_status[node.name] = StageStatus.SKIPPED.value
+        dest = resolve_skip_status(reason)
+        self._ctx.result.stage_status[node.name] = dest.value
         self._ctx.result.module_metrics[node.name] = {
-            "status": "skipped",
+            "status": dest.value.lower(),
             "reason": reason,
         }
         logger.info("Stage '%s' skipped: %s", node.name, reason)
@@ -1041,18 +1044,36 @@ class ActorScheduler:
         self._skip_remaining_keep_sinks(reason="global_deadline_exceeded")
 
     def _skip_remaining_keep_sinks(self, *, reason: str) -> None:
-        """Stop new work but keep reporting/sarif/ci_export dispatchable."""
+        """Stop new work but keep reporting/sarif/ci_export dispatchable.
+
+        Force-terminal any non-sink that is not already terminal, including
+        PENDING stages that were never launched, so join sinks cannot deadlock
+        waiting on a producer stuck in PENDING under ResourceGuard CRITICAL.
+        """
+        from src.core.models.stage_status import (
+            TERMINAL_STAGE_STATUSES,
+            normalize_stage_status,
+        )
+
         keep = set(self._JOIN_SINKS)
         for node in self._graph.nodes:
             if node.name in keep:
                 continue
-            if node.name in self._completed or node.name in self._skipped:
-                continue
-            if node.name in self._outcome.skipped:
-                continue
-            if node.name not in self._remaining:
-                continue
             if node.name in self._launched:
+                continue
+            raw = None
+            try:
+                raw = self._ctx.result.stage_status.get(node.name)
+            except Exception:
+                raw = None
+            status = normalize_stage_status(raw) if raw is not None else None
+            if status in TERMINAL_STAGE_STATUSES:
+                continue
+            if (
+                node.name in self._completed
+                or node.name in self._skipped
+                or node.name in self._outcome.skipped
+            ):
                 continue
             self._mark_skipped(node, reason=reason)
 

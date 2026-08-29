@@ -41,6 +41,9 @@ def canonical_node(node: Any) -> tuple[Any, ...]:
 
 
 def graph_gen_id(graph: Any) -> str:
+    declared = str(getattr(graph, "declared_gen_id", "") or "").strip()
+    if declared:
+        return declared
     nodes = tuple(getattr(graph, "nodes", ()) or ())
     payload = [canonical_node(n) for n in sorted(nodes, key=lambda n: str(getattr(n, "name", "")))]
     blob = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")

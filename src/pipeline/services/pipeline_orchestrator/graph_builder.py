@@ -351,8 +351,11 @@ def build_pipeline_graph(
         nodes_by_name[stage_node.name] = stage_node
 
     nodes = list(nodes_by_name.values())
+    from src.pipeline.graph_identity import graph_gen_id as _graph_gen_id
 
-    # Prune unavailable tools
+    declared_id = _graph_gen_id(Graph(nodes=tuple(nodes)))
+
+    # Prune unavailable tools (runtime capability; not part of GraphGenID)
     if tool_status:
         available_set = {name for name, avail in tool_status.items() if avail}
         pruned_stages = set()
@@ -382,7 +385,7 @@ def build_pipeline_graph(
             nodes = new_nodes
 
     nodes = _join_finding_producers(nodes)
-    return Graph(nodes=tuple(nodes))
+    return Graph(nodes=tuple(nodes), declared_gen_id=declared_id)
 
 
 _FINDING_PRODUCER_STAGES: frozenset[str] = frozenset(
