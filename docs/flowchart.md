@@ -94,7 +94,7 @@ The term "authority" is strictly typed across this specification to avoid semant
 | **`GovernanceAuthority`** | Partition Plane (Raft L0–L1, `P-0000`) | `ReplicatedPartitionLog`, `PolicyGovernanceGate`, `RaftFSM` | I1, I2, I3, I4, I8, I9, I10, I11 (Joint Prerequisite), I13, I18, I20, I22, I25 |
 | **`PlacementAuthority`** | Partition assignment / singular ownership (F-002) | `global_coordination.py` PlacementAuthority | I7 |
 | **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I19, I21, I23, I26, I28, I39 |
-| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT view over journaled discovery) | `NeuralState` OR-Sets (`subdomains`, `urls`, `findings`), `CASStore` | — |
+| **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT view over journaled discovery) | `NeuralState` OR-Sets (`subdomains`, `urls`, `candidates`) | Observations only; REPORTABLE requires I31 settlement |
 | **`MeshAuthority`** | Gossip / region membership (F-002) | SWIM gossip, `MeshConsensus` | I24 |
 | **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox` | I27, I29, I30, I33 |
 | **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11 (Joint Prerequisite), I12, I14, I15, I16, I31, I32 |
@@ -208,6 +208,8 @@ flowchart TD
         A ==>|"authoritative write"| OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
         A ==>|"authoritative write"| JA["FrontierWAL Journal (Scan Discovery)"]:::impl
         JA -->|"WALReplicationRelay (Journal Only I36)"| JB["Region B FrontierWAL Replica (Monotonic Read)"]:::impl
+        OA -->|"fence_commit_index (P-0000 commands/budget)"| OB["Region B PartitionWAL Replica"]:::singleNode
+        F -.->|"refuse unless replica_applied >= fence_commit_index"| OB
         B -.->|"refuse: foreign mutation rejected"| RejB["I36/I37 Refuse Foreign Writer"]:::forbidden
         
         GA["Gossip Node A1"]:::impl -.->|"gossip SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1"]:::specOnly
@@ -279,7 +281,7 @@ flowchart TD
     
     subgraph FrontierPlane["FRONTIER PLANE: Scan Discovery (CRDT View over Journaled Discovery)"]
         F_Targets["Target Subdomains & URLs"]:::impl
-        F_Findings["Findings CRDT Bag (REPORTABLE)"]:::impl
+        F_Findings["Findings CRDT candidates (untrusted until I31 settlement)"]:::impl
         F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
         F_Tombstones["Compaction Tombstones (Adaptive Gossip RTT x 3 Safety Factor TTL, Floor=300s)"]:::impl
         F_Targets -->|data| F_Findings
@@ -327,7 +329,8 @@ flowchart TD
 
         CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
 
-        Freeze["7. FREEZE: declared GraphGenID + post-prune capability fingerprint"]:::impl
+        DeclaredGraph["DeclaredGraph (pre-prune node set)"]:::impl
+        Freeze["7. FREEZE ExecutableGraph + both fingerprints"]:::impl
 
         FrozenGraph["Frozen Runtime Graph (Immutable Node / Dependency Set)"]:::anchor
 
@@ -339,7 +342,10 @@ flowchart TD
         ProfileOverride --> PruneTools
         PruneTools --> DynamicJoin
         DynamicJoin --> CycleCheck
-        CycleCheck -->|"deterministic graph generation"| Freeze
+        CycleCheck -->|"deterministic graph generation"| DeclaredGraph
+        DeclaredGraph -->|"GraphGenID hash input"| GraphGenID
+        PruneTools -->|"post-prune node set"| CapFP
+        DeclaredGraph --> Freeze
 
         Freeze --> FrozenGraph
         FrozenGraph --> GraphGenID
@@ -855,8 +861,8 @@ flowchart TD
         
         RESERVED -->|"cancel / reject<br/>(ΔO=-u, ΔA=+u)"| COMPENSATED["COMPENSATED<br/>(Available)"]:::impl
         ACTIVE -->|"egress abort / immediate budget release<br/>(ΔO=-u, ΔA=+u)"| COMPENSATED
-        RESERVED -->|"expire timeout<br/>(ΔO=-u, ΔA=+u)"| EXPIRED["EXPIRED<br/>(Available)"]:::impl
-        ACTIVE -->|"TTL elapsed<br/>(ΔO=-u, ΔA=+u)"| EXPIRED
+        RESERVED -->|"expire timeout (Outstanding only)"| EXPIRED["EXPIRED (not terminal)"]:::impl
+        ACTIVE -->|"TTL elapsed via LeaseReaper CAS"| EXPIRED
         ACTIVE -.->|"refuse: stale fence token"| FenceRej["Refuse: StaleLeaseFenceError"]:::forbidden
         RESERVED -.->|"refuse: stale fence token"| FenceRej
         
@@ -873,8 +879,10 @@ flowchart TD
     Slab["QuotaSlabAllocator (I26 TTL reclaim)"]:::impl --> Reserve
     I39mode["I39 transition_accounting_mode (I5 <-> I26 one command)"]:::impl --> Slab
     PORT_F004_RES_IN -->|"reserve request"| Reserve
-    PORT_F004_COM_IN -->|"commit units"| CONSUMED
-    PORT_F004_REL_IN -->|"release units"| COMPENSATED
+    PORT_F004_COM_IN -->|"commit units"| SettleCAS["SettleLeaseCAS (lease_id + fence)"]:::impl
+    SettleCAS --> CONSUMED
+    PORT_F004_REL_IN -->|"release units"| CompCAS["CompensateLeaseCAS (lease_id + fence)"]:::impl
+    CompCAS --> COMPENSATED
 ```
 
 $$\text{Partition-Local Budget Conservation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available} \quad \text{[Verified in Recovery VERIFY\_INVARIANTS]}$$
@@ -1172,11 +1180,15 @@ flowchart TD
     Dispatch --> FrontierHdr["X-Frontier-Only / X-Frontier-Reason"]:::impl
     Survivalz --> FrontierHdr
 
-    Dispatch --> Hook["useJobMonitor (React Hook)"]:::impl
+    PagesHook["Jobs / Findings / Cockpit pages"]:::impl --> Hook["useJobMonitor (React Hook)"]:::impl
     Hook -->|"progress stream"| SSE["SSE /api/jobs/:id/progress/stream"]:::impl
     Hook -->|"log stream"| WS["WebSocket /ws/logs/:id"]:::impl
     Hook -->|"triage stream"| Triage["WebSocket /ws/triage/:run_id"]:::impl
     Hook -->|"polling"| REST["REST /api/jobs/:id"]:::impl
+    Dispatch --> REST
+    Dispatch --> SSE
+    Dispatch --> WS
+    Dispatch --> Triage
     
     WS -.->|"reconnect / poll fallback"| REST
     Triage -.->|"reconnect / poll fallback"| REST
@@ -1188,7 +1200,7 @@ flowchart TD
     
     subgraph OutboxNotify["Outbox & Telemetry Pipeline"]
         Settle["Settlement COMMITTED"]:::impl ==>|"committed by StateAuthority"| Outbox["L2 DurableOutbox"]:::impl
-        Outbox -->|"durable dispatch (async, bounded non-blocking)"| LiveBus["event_bus.EventBus (In-Process Dispatch + Tenant Partitions)<br/><small>Decoupled: Bus fail never uncommits WAL (I32)</small>"]:::impl
+        Outbox -->|"durable dispatch (async, bounded non-blocking)"| LiveBus["event_bus.EventBus (I38 tenant partitions + I32 non-authority)"]:::impl
         LiveBus --> Fan["Fan-Out (Cap 5)"]:::impl
         App["Pipeline + Dashboard"]:::impl --> Prom["Prometheus Metrics (:9090)"]:::impl
         App --> Logs["tamper-evident audit log (HMAC)"]:::impl
@@ -1391,7 +1403,7 @@ flowchart TD
         I3g --> I7g["I7: Singular Partition Ownership<br/><small>global_coordination.py [MODEL-CHECKED]</small>"]:::impl
         I7g --> I17g["I17: Authority Uniqueness<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
         I17g --> I36g["I36: Single-Writer Region Relay<br/><small>region_model.py [MODEL-CHECKED]</small>"]:::impl
-        I36g --> I37g["I37: Zero Dual-Writer Transfer Fence<br/><small>authority_transfer.py [PRODUCTION-OBSERVED]</small>"]:::impl
+        I36g --> I37g["I37: Zero Dual-Writer Transfer Fence<br/><small>authority_transfer.py [MODEL-CHECKED + ADVERSARIAL]</small>"]:::impl
         I2g --> I4g["I4: Aggregate Monotonicity<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
         I18g["I18: Stale Command Rejection<br/><small>replicated_log.py [ADVERSARIAL]</small>"]:::impl --> I36g
 
@@ -1417,14 +1429,14 @@ flowchart TD
 
         I23g["I23: Partition Budget Isolation<br/><small>state.py [PROPERTY-TESTED]</small>"]:::impl --> I25g["I25: Policy Revocation Watermark<br/><small>raft_fsm.py [TESTED]</small>"]:::impl
         I25g --> I24g["I24: Mesh BootID Nonce Safety<br/><small>mesh/ [FAULT-INJECTED]</small>"]:::impl
-        I27g["I27: Bounded Claims & CAS Merkle Evidence<br/><small>resilience.py [PROPERTY-TESTED]</small>"]:::impl --> I29g["I29: Universal Network Egress Authority<br/><small>egress_context.py [ADVERSARIAL]</small>"]:::impl
+        I27g["I27: Bounded Claims & CAS Merkle Evidence<br/><small>execution_request.py [PROPERTY-TESTED]</small>"]:::impl --> I29g["I29: Universal Network Egress Authority<br/><small>egress_context.py [ADVERSARIAL]</small>"]:::impl
         I29g --> I30g["I30: Authorization Causality Quartet<br/><small>authorization.py [MODEL-CHECKED]</small>"]:::impl
         I22g --> I30g
         I30g --> I33g["I33: Causal Identity Chain<br/><small>causal_identity.py [PROPERTY-TESTED]</small>"]:::impl
         I38g["I38: Tenant Isolation<br/><small>tenant_isolation.py [ADVERSARIAL]</small>"]:::impl --> I30g
         I38g --> I31g
 
-        I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>event_bus.py [MODEL-CHECKED]</small>"]:::impl
+        I30g & I28g & I33g --> I31g["I31: Settlement-Gated Finding Emission<br/><small>state_authority.py / event_delivery.py [MODEL-CHECKED]</small>"]:::impl
         I31g --> I32g["I32: Outbox Decoupling Non-Authority<br/><small>event_bus.py [FAULT-INJECTED]</small>"]:::impl
         I28g & I32g --> I34g["I34: Failure Recovery Boundaries<br/><small>failure_model.py [FAULT-INJECTED]</small>"]:::impl
         I34g & I16g --> I35g["I35: Dual-Plane Recovery Protocol<br/><small>recovery_protocol.py [MODEL-CHECKED]</small>"]:::impl
@@ -1512,7 +1524,8 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `DISK_PRESSURE_PCT` | `92` | ResourceGuard | PRESSURE threshold (disk utilisation %) |
 | `DISK_CRITICAL_PCT` | `95` | ResourceGuard | CRITICAL threshold: stop new stages, partial report, exit 4 |
 | `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
-| `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed on declared GraphGenID *or* post-prune capability fingerprint mismatch |
+| `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed when stored declared GraphGenID differs |
+| `CAPABILITY_FINGERPRINT_STRICT` | follows GRAPHGEN_STRICT | Graph | Fail-closed when stored post-prune capability fingerprint differs |
 | `TICKET_CONSUME_STORE` | (empty) | I30 | Optional JSONL of consumed ticket ids; DagCheckpoint also persists `consumed_ticket_ids` and `remember_consumed` on attach |
 | `SPILL_FIRST` | `false` | Findings | Force spill-only I/O even without ResourceGuard PRESSURE |
 | `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
