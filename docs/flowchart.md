@@ -95,7 +95,7 @@ The term "authority" is strictly typed across this specification to avoid semant
 | **`PlacementAuthority`** | Partition assignment / singular ownership (F-002) | `global_coordination.py` PlacementAuthority | I7 |
 | **`BudgetAuthority`** | Partition Plane (`P-0000` L1 FSM / L3 Reconstructible View) | `GlobalBudgetAggregate`, `HuntBudget` | I5, I6, I19, I21, I23, I26, I28, I39 |
 | **`DiscoveryAuthority`** | Frontier Scan Plane (CRDT view over journaled discovery) | `NeuralState` OR-Sets (`subdomains`, `urls`, `candidates`) | — |
-| **`MeshAuthority`** | Gossip / region membership (F-002) | SWIM gossip, `MeshConsensus` | I24 |
+| **`MeshAuthority`** | Gossip / region membership (F-002) | SWIM gossip evidence-only (never grants partition authority); `MeshConsensus` | I24 |
 | **`ExecutionAuthority`** | Runtime Control & Scope Sandbox | `ExecutionAuthorizer`, `ProcessSandbox`, `tenant_isolation.py` (HTTP may mirror I38; Presentation must not mutate L0–L3) | I27, I29, I30, I33, I38 |
 | **`PersistenceAuthority`** | Storage & Durability Engine (L0/L2) | `PartitionWAL` (CRC-64 fsync), `DurableOutboxLedger` | I11 (Joint Prerequisite), I12, I14, I15, I16, I31, I32 |
 | **`RecoveryAuthority`** | Recovery & Regional Consensus Plane | `RecoveryManager`, `RecoveryProtocol`, `RegionModel`, `AuthorityTransfer` | I17, I34, I35, I36, I37 |
@@ -195,7 +195,7 @@ flowchart TD
 
     subgraph MultiRegionAuthority["Multi-Region Single-Writer & I37 Authority Transfer (I36, I37)"]
         A["Region A<br/>OWNED (Active Writer)"]:::impl -->|"initiate_transfer(Epoch E)"| F["FENCED<br/>(Zero-Writer; Linearizable Log CAS)"]:::impl
-        F -->|"activate_ownership(Epoch E+1) when replica caught up"| B["Region B<br/>OWNED (Active Writer)"]:::impl
+        F -->|"activate_ownership(Epoch E+1) only if PartitionWAL replicate caught_up (stub today; journal relay is non-authority I36)"| B["Region B<br/>OWNED (Active Writer)"]:::impl
         F -->|"abort_transfer / timeout (epoch bump)"| A
         
         F -.->|"refuse: stale epoch/token (WAL boundary)"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
@@ -703,6 +703,8 @@ flowchart TD
 
         FindingCreated -->|"HMAC Receipt Stamp"| ReceiptStamped["Receipt-stamped FINDING_CREATED"]:::impl
         ReceiptStamped -->|"authoritative durable event"| Emit
+        FindingCreated -.->|"side-channel notify (not a second SoT)"| PORT_F003_OUTBOX_NOTIFY_IN
+        PORT_F003_OUTBOX_NOTIFY_IN -.->|"evidence only; must not independently trigger"| Emit
 
         Emit --> PORT_F019_BUS
 
@@ -1260,7 +1262,7 @@ flowchart LR
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    Raft["Raft transport & consensus"] --> ImplCluster["MultiNodeRaftCluster with configurable peers; majority quorum"]:::impl
+    Raft["Raft transport & consensus"] --> ImplCluster["MultiNodeRaftCluster (lab/test in-process; prod default = quorum-1 single-home)"]:::singleNode
     Tickets["Jira ServiceNow DefectDojo"] --> Impl["Implemented"]:::impl
     Policy["Policy via Raft commands"] --> Impl
     Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]:::specOnly
@@ -1311,7 +1313,8 @@ flowchart TD
         MemJ["tests/test_support/journal.py MemoryJournal (Unit-test mock WAL)"]:::library
         CacheFacade -.->|"never truth / read facade"| SF
         CkptFacade -.->|"never truth / read facade"| Persist
-        AuthPlane["StateAuthority / PartitionWAL (F-003)"]:::impl -.->|"reject mutation from test mock"| MemJ
+        FrontFacade -.->|"read facade only; never mutate PartitionWAL"| AuthPlane["StateAuthority / PartitionWAL (F-003)"]:::impl
+        AuthPlane -.->|"reject mutation from test mock"| MemJ
     end
 ```
 
@@ -1535,15 +1538,17 @@ P0 items addressed in code+atlas this cycle are marked **closed**. Remaining ite
 
 | # | Status | Summary |
 |---|---|---|
-| P0-1 PartitionWAL continuous replication A→B | **open** | Frontier journal relay exists; authoritative PartitionWAL replicate path still required for multi-region activate. |
+| P0-1 PartitionWAL continuous replication A→B | **stub+refuse** | `PartitionWALReplicator` stub raises; activate_ownership must not unlock on journal relay alone. |
 | P0-2 Settlement dual-write | **closed (intent)** | `SettlementIntent` carries `budget_action` + `outbox_intent` on one WAL append; bus remains async/idempotent. |
 | P0-3 Kernel sandbox vs universal egress | **closed (prod default)** | `REQUIRE_KERNEL_SANDBOX` defaults true on prod/staging; degraded userspace is explicit non-prod. |
 | P0-4 Ticket consume durability | **closed (local floor)** | Default durable JSONL under `CSTP_DATA_DIR`/`.cstp`; multi-host still needs PartitionWAL consume command. |
 | P0-5 Monotonic lease after reboot | **closed (conservative)** | `ReapableLease.boot_id` + cross-boot expire; persist wall/ttl fields for reconstruction. |
-| P0-6 CRDT tombstone GC causal stability | **open** | Still RTT/time oriented; causal watermark GC not landed. |
+| P0-6 CRDT tombstone GC causal stability | **closed (watermark)** | TTL + `stable_gc_hlc` domination required before purge (`advance_stable_gc_watermark`). |
 | P0-7 Redis→SQLite shared-queue fiction | **closed (doc+code note)** | Fallback emulator documents local-outbox-only; not a multi-host bus. |
 | P0-8 SKIPPED_DISABLED satisfies hard needs | **closed** | Hard `needs` no longer met by SKIPPED_DISABLED; use `optional_needs`. |
 | P0-9 Silent FRESH on schema mismatch | **closed (policy)** | Messaging + `ALLOW_FRESH_ON_DURABLE_MISMATCH` refuse silent discard. |
-| P0-10 Raft single vs multi-node honesty | **open** | Capability matrix generator still required. |
-| Atlas ports / unicode / taxonomy | **partial** | ASCII arrows in mermaid; `check_atlas.py` expanded; full port pairing CI continues. |
+| P0-10 Raft single vs multi-node honesty | **closed (matrix)** | `raft_capabilities.py` matrix; prod default quorum-1; MultiNodeRaftCluster lab/test. |
+| P0-11 SWIM grants authority | **closed (rule)** | MeshAuthority = evidence-only; never grants partition authority. |
+| P0-12 Snapshot select unbound manifest | **closed (helper)** | `snapshot_manifest.select_snapshot` requires wal_id+digest (+ optional HMAC). |
+| Atlas ports / unicode / taxonomy | **partial** | NOTIFY_IN evidence edge; FrontFacade read edge; full taxonomy rename deferred. |
 

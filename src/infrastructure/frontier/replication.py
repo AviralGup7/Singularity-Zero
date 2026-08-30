@@ -288,3 +288,42 @@ class WALReplicationRelay:
 
 
 __all__ = ["WALReplicationRelay", "ReplicationCursor", "ReplicationLagExceededError"]
+
+
+class PartitionWALReplicationNotReady(RuntimeError):
+    """Raised when multi-region PartitionWAL continuous replicate is requested but not live."""
+
+
+class PartitionWALReplicator:
+    """Authoritative PartitionWAL A→B continuous replicate (P0-1).
+
+    Status: **stub**. Live path is still the Frontier journal relay
+    (:class:`WALReplicationRelay`) which is explicitly non-authority (I36).
+    Multi-region ``activate_ownership`` must refuse unless a concrete
+    subclass/provider is installed and reports ``caught_up=True``.
+    """
+
+    def __init__(self, *, source_wal: Any = None, sink_wal: Any = None) -> None:
+        self.source_wal = source_wal
+        self.sink_wal = sink_wal
+        self.enabled = False
+
+    def replicate_range(self, *, from_index: int, to_index: int | None = None) -> int:
+        """Copy committed PartitionWAL entries. Not implemented in this build."""
+        raise PartitionWALReplicationNotReady(
+            "PartitionWAL continuous replicate A→B is not enabled in this build; "
+            "only FrontierWAL journal relay (non-authority) is live. "
+            "Refuse multi-region activate_ownership until a provider is installed."
+        )
+
+    def caught_up(self, *, target_index: int) -> bool:
+        return False
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "kind": "partition_wal_replicator",
+            "enabled": False,
+            "authority": False,
+            "note": "stub — Frontier journal relay only; not PartitionWAL SoT replicate",
+        }
+

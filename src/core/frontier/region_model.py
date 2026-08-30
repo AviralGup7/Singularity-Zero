@@ -9,6 +9,10 @@ weaker model.
 
 Live CLI remains single-node quorum-1. Region id defaults to ``local``.
 Exotic multi-host failover is still out of scope; the outcome is named.
+
+P0-1: ``activate_ownership`` across regions requires a live PartitionWAL
+replicate path reporting caught_up. The Frontier journal relay alone is
+non-authority and must not unlock activate.
 """
 
 from __future__ import annotations

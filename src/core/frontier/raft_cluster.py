@@ -1,10 +1,15 @@
-"""Multi-Node Raft Cluster Coordinator and Virtual HA Cluster Engine (Level 0 Distributed Core).
+"""In-process multi-node Raft lab/test coordinator (Level 0).
 
-Provides a fully implemented 3-node (or N-node) fault-tolerant Raft consensus cluster:
-- In-process and networked multi-replica topology with automatic peer discovery
-- Quorum verification (> N // 2) ensuring commits survive crash/loss of minority nodes
-- Dynamic leader failover, term elections, and WAL replication barrier guarantees
-- Automatic state machine synchronization across followers (I1, I9, I11)
+Provides an N-node Raft cluster over :class:`InMemoryRaftTransport` for unit
+tests and local HA drills:
+
+- Quorum verification (> N // 2) inside one process
+- Leader failover / term elections under simulated isolation
+- WAL replication barrier across in-process followers (I1, I9, I11)
+
+**Not** the production CLI default. Live launcher remains single-node
+quorum-1 — see :mod:`src.core.frontier.raft_capabilities`. Networked
+multi-host Raft is out of scope for the default deployment matrix.
 """
 
 from __future__ import annotations

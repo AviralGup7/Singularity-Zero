@@ -75,6 +75,13 @@ def main() -> int:
             if "Architecture Review Residuals" not in text:
                 errors.append("PORT_F003_OUTBOX_NOTIFY_IN appears without edge and no residuals section")
 
+    # Phase-2 honesty anchors
+    if "raft_capabilities" not in text and "quorum-1" not in text.lower():
+        errors.append("atlas missing Raft deployment honesty (quorum-1 / raft_capabilities)")
+    if "evidence only" not in text.lower() and "evidence-only" not in text.lower():
+        # soft: SWIM must not grant authority
+        if "SWIM" in text and "grants authority" in text.lower():
+            errors.append("SWIM must not be described as granting authority")
     if errors:
         print("atlas check FAILED:")
         for item in errors:

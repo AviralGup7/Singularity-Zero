@@ -266,13 +266,23 @@ class LWWset[T]:
         with self._lock:
             return sum(1 for el in self._elements.values() if el.deleted)
 
-    def compact(self, max_tombstone_age_seconds: float = 86400.0) -> int:
+    def compact(
+        self,
+        max_tombstone_age_seconds: float = 86400.0,
+        *,
+        stable_hlc: HybridLogicalClock | None = None,
+    ) -> int:
         now = time.time()
         with self._lock:
             to_remove = [
                 k
                 for k, el in self._elements.items()
-                if el.deleted and (now - el.timestamp) >= max_tombstone_age_seconds
+                if _tombstone_causally_stable(
+                    el,
+                    stable_hlc=stable_hlc,
+                    now=now,
+                    max_age_seconds=max_tombstone_age_seconds,
+                )
             ]
             for k in to_remove:
                 del self._elements[k]
@@ -283,13 +293,20 @@ class LWWset[T]:
         max_tombstone_age_seconds: float,
         budget_ms: float,
         start_time: float,
+        *,
+        stable_hlc: HybridLogicalClock | None = None,
     ) -> int:
         now = time.time()
         with self._lock:
             tombstones = [
                 (k, el.timestamp)
                 for k, el in self._elements.items()
-                if el.deleted and (now - el.timestamp) >= max_tombstone_age_seconds
+                if _tombstone_causally_stable(
+                    el,
+                    stable_hlc=stable_hlc,
+                    now=now,
+                    max_age_seconds=max_tombstone_age_seconds,
+                )
             ]
         if not tombstones:
             return 0
@@ -437,6 +454,8 @@ class NeuralState:
         self._observed_max_gossip_rtt_sec: float = 10.0
         self._tombstone_safety_factor: float = 3.0
         self._min_tombstone_floor_sec: float = 300.0  # 5 min hard floor
+        # P0-6: causal stability watermark for tombstone GC (HLC dominated).
+        self._stable_gc_hlc: HybridLogicalClock | None = None
 
     def update_observed_gossip_rtt(self, observed_rtt_sec: float) -> None:
         """Track observed gossip convergence RTT to autotune tombstone TTL."""
@@ -448,6 +467,18 @@ class NeuralState:
         """Compute safe tombstone TTL = max(default, observed_max_rtt * safety_factor, min_floor)."""
         adaptive_ttl = self._observed_max_gossip_rtt_sec * self._tombstone_safety_factor
         return max(default_ttl_sec, adaptive_ttl, self._min_tombstone_floor_sec)
+
+    def advance_stable_gc_watermark(self, hlc: HybridLogicalClock | None = None) -> HybridLogicalClock:
+        """Advance the causal GC watermark (P0-6).
+
+        Tombstones are only purged when their HLC is dominated by this watermark
+        *and* the adaptive TTL has elapsed. Call after quorum-ack / gossip
+        convergence so concurrent writers cannot resurrect a purged key.
+        """
+        candidate = hlc if hlc is not None else self.hlc
+        if self._stable_gc_hlc is None or candidate.is_later_than(self._stable_gc_hlc):
+            self._stable_gc_hlc = candidate
+        return self._stable_gc_hlc
 
     def _trim_applied_wal_ids(self) -> None:
         if len(self.applied_wal_ids) <= 1000:
@@ -767,6 +798,31 @@ def _element_wins(candidate: LWWElement, existing: LWWElement) -> bool:
     return _stable_json(candidate.value) > _stable_json(existing.value)
 
 
+def _tombstone_causally_stable(
+    element: LWWElement,
+    *,
+    stable_hlc: HybridLogicalClock | None,
+    now: float,
+    max_age_seconds: float,
+) -> bool:
+    """P0-6: TTL alone is insufficient — require causal stability before GC.
+
+    A tombstone may be purged only when:
+      1. wall/mono age >= max_age_seconds (existing TTL floor), AND
+      2. either no stable watermark is configured (single-writer local), or
+         the element's HLC is strictly dominated by ``stable_hlc``
+         (no concurrent writer can still reference this dot).
+    """
+    if not element.deleted:
+        return False
+    if (now - float(element.timestamp)) < float(max_age_seconds):
+        return False
+    if stable_hlc is None:
+        return True
+    # Dominated: stable watermark is later than the tombstone's HLC.
+    return stable_hlc.is_later_than(element.hlc)
+
+
 def _merge_metadata(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     merged = _clone_value(left)
     for key, value in right.items():
@@ -843,24 +899,27 @@ def compact_state(
 ) -> dict[str, Any]:
     start_time = time.time()
     budget_ms = budget.budget_ms
+    stable = getattr(state, "_stable_gc_hlc", None)
 
     purged_subdomains = state.subdomains.compact_with_budget(
-        max_tombstone_age_seconds, budget_ms, start_time
+        max_tombstone_age_seconds, budget_ms, start_time, stable_hlc=stable
     )
 
     purged_urls = 0
     if (time.time() - start_time) * 1000.0 < budget_ms:
         purged_urls = state.urls.compact_with_budget(
-            max_tombstone_age_seconds, budget_ms, start_time
+            max_tombstone_age_seconds, budget_ms, start_time, stable_hlc=stable
         )
 
     purged_findings = 0
     if (time.time() - start_time) * 1000.0 < budget_ms:
         purged_findings = state.findings.compact_with_budget(
-            max_tombstone_age_seconds, budget_ms, start_time
+            max_tombstone_age_seconds, budget_ms, start_time, stable_hlc=stable
         )
     if (time.time() - start_time) * 1000.0 < budget_ms and hasattr(state, "candidates"):
-        state.candidates.compact_with_budget(max_tombstone_age_seconds, budget_ms, start_time)
+        state.candidates.compact_with_budget(
+            max_tombstone_age_seconds, budget_ms, start_time, stable_hlc=stable
+        )
 
     total_elapsed_ms = (time.time() - start_time) * 1000.0
     budget.adjust(total_elapsed_ms)
