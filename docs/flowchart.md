@@ -234,7 +234,7 @@ flowchart TD
     MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> KeyRing["AuthorityKeyRing (Multi-Generation Overlap)"]:::impl
     KeyRing -->|"active (Gen N)"| Derive["HMAC Key Derivation"]:::impl
     KeyRing -->|"overlap (Gen N-1)"| OverlapVerify["Historical Verification Window (Zero Downtime)"]:::impl
-    RotateCmd["RotateAuthorityKeyCommand (commands.py → KeyRing.rotate_key)"]:::impl -->|"ceremony"| KeyRing
+    RotateCmd["RotateAuthorityKeyCommand (commands.py -> KeyRing.rotate_key)"]:::impl -->|"ceremony"| KeyRing
     Derive --> ReceiptKey["CommandReceipt Key (key_generation bound)"]:::impl
     Derive --> MeshKey["mesh_secret_key HKDF (AES-256-GCM material)"]:::impl
     Derive --> JWTKey["jwt_session_key HKDF"]:::impl
@@ -755,7 +755,7 @@ flowchart TD
 | **`COMPLETED` / `DEGRADED` empty (gate false)** | `OutputNonEmpty` false through end of scan | Skip at drain | `reason="condition_never_satisfied"` → `SKIPPED` / `SKIPPED_DISABLED` |
 | **`FAILED` on `must_succeed` / critical upstream** | n/a | Skip dependents; do **not** abort independent branches or JOIN_SINKS | `reason="upstream_critical_failure"` → `SKIPPED_FAILED`; reporting still runs |
 | **`FAILED` on non-`must_succeed` (MVR default)** | n/a | Coerce to `DEGRADED`, continue DAG | `_record_stage_failure` → `DEGRADED`; job exit 4 |
-| **`SKIPPED_DISABLED` upstream** | n/a | Still satisfies non-join `_need_met` | Downstream may run or skip on its own `when` |
+| **`SKIPPED_DISABLED` upstream** | n/a | Satisfies **only** `optional_needs` (hard `needs` stay unmet) | Downstream blocked unless dep listed in `optional_needs` |
 | **Join sinks (`reporting`, …)** | n/a | Wait until **every** producer is terminal (incl. `FAILED` / `DEGRADED`) | Report still emits (partial allowed) |
 | **ResourceGuard CRITICAL / deadline** | n/a | Stop new stages; **keep** JOIN_SINKS | `reason="resource_pressure"` / `global_deadline_exceeded`; `emit_partial_report`; exit 4 |
 | **CRITICAL: PENDING producer** | n/a | SKIPPED_DISABLED | Force-terminal so join sinks unblock |
@@ -767,6 +767,9 @@ flowchart TD
 ---
 
 ### Settle Outcome Decision Table
+
+**Dual-write contract:** one `SettlementIntent` WAL record carries `budget_action` (`COMMIT`/`RELEASE`/`NONE`) and `outbox_intent`. Budget projection and outbox append are derived from that record; the bus remains at-least-once with idempotent consumers. Never skip durable outbox intent after an authoritative commit (defer bus under pressure is OK).
+
 
 | Stage Attempt Outcome | WAL Result | Settle Status | `FINDING_CREATED` Emitted? | I28 Budget Action | Stage Terminal Status |
 |---|---|---|---|---|---|
@@ -1302,9 +1305,9 @@ flowchart TD
     end
 
     subgraph Facades["Thin non-authoritative import facades (Must not mutate authoritative logs)"]
-        CacheFacade["src/cache → pipeline.unified_cache"]:::library
-        CkptFacade["src/checkpoint → core.checkpoint"]:::library
-        FrontFacade["src/frontier facades → core.frontier / infrastructure WAL"]:::library
+        CacheFacade["src/cache -> pipeline.unified_cache"]:::library
+        CkptFacade["src/checkpoint -> core.checkpoint"]:::library
+        FrontFacade["src/frontier facades -> core.frontier / infrastructure WAL"]:::library
         MemJ["tests/test_support/journal.py MemoryJournal (Unit-test mock WAL)"]:::library
         CacheFacade -.->|"never truth / read facade"| SF
         CkptFacade -.->|"never truth / read facade"| Persist
@@ -1496,8 +1499,10 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | Observability | OpenTelemetry OTLP collector gRPC endpoint |
 | `AUTHORITY_SIGNING_KEY_ID` | `authority-hmac-v1` | Frontier Crypto | Key identifier for HMAC receipt verification |
 | `AUTO_ENTER_SURVIVAL_ON_CORRUPT` | `false` | Recovery | Auto-enter `SURVIVAL_READONLY` when WAL is unreadable but LKG snapshot verifies |
-| `REQUIRE_KERNEL_SANDBOX` | `false` | Sandbox | Boot fail-closed if kernel NetNS+seccomp is degraded |
-| `EGRESS_STRICT_CONTEXT` | `true` | Egress | Assert non-null egress ContextVar on network paths |
+| `REQUIRE_KERNEL_SANDBOX` | `true` in prod/staging (else `false`) | Sandbox | Force KERNEL_ENFORCED; userspace hooks alone are not a native-tool boundary |
+| `EGRESS_STRICT_CONTEXT` | `true` | Egress | Fail-closed intent; never silent allow-all |
+| `EGRESS_RESOLVE_CHECK` | `true` in prod/staging | Egress | DNS A/AAAA validation of every hop (SSRF/rebind hardening) |
+| `ALLOW_FRESH_ON_DURABLE_MISMATCH` | `false` | Recovery | Opt-in only; refuse silent FRESH when durable state exists |
 | `RECOVERY_WRITE_REPORT` | `true` | Recovery | Write `recovery_report.json` before READY |
 | `BUDGET_PHOENIX_ON_BOOT` | `true` | Recovery | Reconcile Outstanding/Consumed/Compensated from durable history |
 | `ARCHIVE_VERIFY_THEN_DELETE` | `true` | Storage | Hard-enforce archive verify before deleting hot runs |
@@ -1518,7 +1523,27 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
 | `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed when stored declared GraphGenID differs |
 | `CAPABILITY_FINGERPRINT_STRICT` | follows GRAPHGEN_STRICT | Graph | Fail-closed when stored post-prune/post-join/post-CycleCheck capability fingerprint differs |
-| `TICKET_CONSUME_STORE` | (empty) | I30 | Optional JSONL of consumed ticket ids; DagCheckpoint also persists `consumed_ticket_ids` and `remember_consumed` on attach |
+| `TICKET_CONSUME_STORE` | `$CSTP_DATA_DIR/consumed_tickets.jsonl` or `./.cstp/consumed_tickets.jsonl` | I30 | Durable consume ledger (process-local floor); DagCheckpoint mirrors ids; PartitionWAL ConsumeExecutionTicket is the multi-host target |
 | `SPILL_FIRST` | `false` | Findings | Force spill-only I/O even without ResourceGuard PRESSURE |
 | `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
 | `PIPELINE_MAX_DURATION_SECONDS` | (config / unset) | Scheduler | Global deadline; remaining non-sinks skip with `global_deadline_exceeded` |
+
+
+## Architecture Review Residuals (2026-08-30)
+
+P0 items addressed in code+atlas this cycle are marked **closed**. Remaining items stay open with owners.
+
+| # | Status | Summary |
+|---|---|---|
+| P0-1 PartitionWAL continuous replication A→B | **open** | Frontier journal relay exists; authoritative PartitionWAL replicate path still required for multi-region activate. |
+| P0-2 Settlement dual-write | **closed (intent)** | `SettlementIntent` carries `budget_action` + `outbox_intent` on one WAL append; bus remains async/idempotent. |
+| P0-3 Kernel sandbox vs universal egress | **closed (prod default)** | `REQUIRE_KERNEL_SANDBOX` defaults true on prod/staging; degraded userspace is explicit non-prod. |
+| P0-4 Ticket consume durability | **closed (local floor)** | Default durable JSONL under `CSTP_DATA_DIR`/`.cstp`; multi-host still needs PartitionWAL consume command. |
+| P0-5 Monotonic lease after reboot | **closed (conservative)** | `ReapableLease.boot_id` + cross-boot expire; persist wall/ttl fields for reconstruction. |
+| P0-6 CRDT tombstone GC causal stability | **open** | Still RTT/time oriented; causal watermark GC not landed. |
+| P0-7 Redis→SQLite shared-queue fiction | **closed (doc+code note)** | Fallback emulator documents local-outbox-only; not a multi-host bus. |
+| P0-8 SKIPPED_DISABLED satisfies hard needs | **closed** | Hard `needs` no longer met by SKIPPED_DISABLED; use `optional_needs`. |
+| P0-9 Silent FRESH on schema mismatch | **closed (policy)** | Messaging + `ALLOW_FRESH_ON_DURABLE_MISMATCH` refuse silent discard. |
+| P0-10 Raft single vs multi-node honesty | **open** | Capability matrix generator still required. |
+| Atlas ports / unicode / taxonomy | **partial** | ASCII arrows in mermaid; `check_atlas.py` expanded; full port pairing CI continues. |
+

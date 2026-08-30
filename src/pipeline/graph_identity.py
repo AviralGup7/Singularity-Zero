@@ -36,6 +36,7 @@ def canonical_node(node: Any) -> tuple[Any, ...]:
     return (
         str(getattr(node, "name", "")),
         tuple(sorted(str(n) for n in (getattr(node, "needs", ()) or ()))),
+        tuple(sorted(str(n) for n in (getattr(node, "optional_needs", ()) or ()))),
         int(getattr(node, "weight", 0) or 0),
         bool(getattr(node, "critical", False)),
         int(getattr(node, "timeout", 0) or 0),

@@ -535,12 +535,16 @@ class ActorScheduler:
             )
         if status in {StageStatus.COMPLETED, StageStatus.DEGRADED}:
             return True
-        if (
-            status is StageStatus.SKIPPED_DISABLED
-            or dep in self._skipped
-            or dep in self._outcome.skipped
-        ):
-            return True
+        # P0 review: SKIPPED_DISABLED must not silently satisfy hard needs.
+        # Only optional_needs (or scheduler-internal skip bookkeeping for the
+        # same node being optional) may treat disabled upstream as met.
+        optional = set(getattr(node, "optional_needs", ()) or ())
+        if status is StageStatus.SKIPPED_DISABLED:
+            return dep in optional
+        if dep in self._skipped or dep in self._outcome.skipped:
+            # Internal skip set: allow only when marked optional or previously
+            # completed path already recorded.
+            return dep in optional or dep in self._completed
         if dep in self._completed:
             return True
         return False

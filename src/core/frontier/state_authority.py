@@ -82,6 +82,7 @@ class SettlementResult:
     attempt_id: str = ""
     settlement_id: str = ""
     budget_reservation_id: str = ""
+    outbox_intent: bool = True
     event_ids: tuple[str, ...] = ()
     delivery_ids: tuple[str, ...] = ()
 
@@ -98,6 +99,7 @@ class SettlementResult:
             "attempt_id": self.attempt_id,
             "settlement_id": self.settlement_id,
             "budget_reservation_id": self.budget_reservation_id,
+            "outbox_intent": bool(self.outbox_intent),
             "event_ids": list(self.event_ids),
             "delivery_ids": list(self.delivery_ids),
         }
@@ -417,6 +419,8 @@ class SettlementIntent:
     budget_action: str = "COMMIT"  # "COMMIT", "RELEASE", "NONE"
     budget_request_count: int = 1
     budget_reservation_id: str = ""
+    # P0: outbox intent rides the same SettlementIntent WAL record (dual-write fix).
+    outbox_intent: bool = True
     lease_action: str = "ACK"  # "ACK", "RELEASE", "NONE"
     lease_target_url: str = ""
     lease_worker_id: str = ""
@@ -444,6 +448,7 @@ class SettlementIntent:
             "budget_action": self.budget_action,
             "budget_request_count": self.budget_request_count,
             "budget_reservation_id": self.budget_reservation_id,
+            "outbox_intent": bool(self.outbox_intent),
             "lease_action": self.lease_action,
             "lease_target_url": self.lease_target_url,
             "lease_worker_id": self.lease_worker_id,
@@ -474,6 +479,7 @@ class SettlementIntent:
             budget_action=str(mapping.get("budget_action") or "COMMIT"),
             budget_request_count=int(mapping.get("budget_request_count") or 1),
             budget_reservation_id=str(mapping.get("budget_reservation_id") or ""),
+            outbox_intent=bool(mapping.get("outbox_intent", True)),
             lease_action=str(mapping.get("lease_action") or "ACK"),
             lease_target_url=str(mapping.get("lease_target_url") or ""),
             lease_worker_id=str(mapping.get("lease_worker_id") or ""),

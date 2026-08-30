@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""CI gate: flowchart.md mermaid fences, P0 syntax, port pairing."""
+"""CI gate: flowchart.md mermaid fences, P0 syntax, ports, ASCII safety."""
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ATLAS = ROOT / "docs" / "flowchart.md"
+
+# Unicode arrows forbidden inside mermaid fences (atlas ASCII safety).
+_BAD_ARROWS = ("→", "↔", "⇒", "⟶", "⟷")
+
+
+def _mermaid_blocks(text: str) -> list[str]:
+    return re.findall(r"```mermaid([\s\S]*?)```", text)
 
 
 def main() -> int:
@@ -37,12 +45,42 @@ def main() -> int:
         errors.append("I40 still in registry; use I39")
     if "Global invariants I1–I37" in text:
         errors.append("F-033 heading still I1–I37")
+    # Settle verb honesty (code uses RELEASE not COMPENSATE for budget_action)
+    if re.search(r"\|\s*`COMPENSATE`\s*\(Available", text):
+        errors.append("settle table still uses COMPENSATE budget_action; code uses RELEASE")
+    # ASCII safety inside mermaid
+    for i, block in enumerate(_mermaid_blocks(text)):
+        for arrow in _BAD_ARROWS:
+            if arrow in block:
+                errors.append(f"mermaid block {i}: forbidden unicode arrow {arrow!r}")
+                break
+    # Port pairing: every *_OUT should have a sibling *_IN (best-effort)
+    ports = set(re.findall(r"PORT_[A-Z0-9_]+", text))
+    for port in sorted(ports):
+        if port.endswith("_OUT"):
+            sibling = port[: -len("_OUT")] + "_IN"
+            if sibling not in ports and port not in {
+                # known intentionally one-sided export markers
+                "PORT_EMIT_PARTIAL_ON_SHUTDOWN",
+            }:
+                # soft: only error if both naming conventions appear elsewhere
+                if any(p.endswith("_IN") for p in ports):
+                    errors.append(f"port pairing: {port} missing {sibling}")
+    # dangling PORT_F003_OUTBOX_NOTIFY_IN must have an edge somewhere
+    if "PORT_F003_OUTBOX_NOTIFY_IN" in text:
+        if not re.search(r"PORT_F003_OUTBOX_NOTIFY_IN\s*--+>", text) and not re.search(
+            r"-->\s*PORT_F003_OUTBOX_NOTIFY_IN", text
+        ):
+            # allow reference in prose tables without edge only if marked residual
+            if "Architecture Review Residuals" not in text:
+                errors.append("PORT_F003_OUTBOX_NOTIFY_IN appears without edge and no residuals section")
+
     if errors:
         print("atlas check FAILED:")
         for item in errors:
             print(" -", item)
         return 1
-    print(f"atlas check OK mermaid_blocks={opens}")
+    print(f"atlas check OK mermaid_blocks={opens} ports={len(ports)}")
     return 0
 
 

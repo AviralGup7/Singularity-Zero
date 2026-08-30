@@ -53,6 +53,7 @@ class RecoveryAction(StrEnum):
     IDEMPOTENT_NOOP = "idempotent_noop"
     IDEMPOTENT_REPLAY = "idempotent_replay"
     FRESH = "fresh"
+    QUARANTINE = "quarantine"
     FAIL_CLOSED = "fail_closed"
 
 
@@ -284,7 +285,7 @@ DURABLE_BOUNDARIES: dict[DurableObject, DurableBoundary] = {
             "Frontier: keep as STALE projection. Partition: FAIL_CLOSED."
         ),
         snapshot_semantically_old="Valid cache. Replay WAL on top (I21).",
-        schema_newer_than_reader="FAIL_CLOSED for this snapshot. Try another, else FRESH.",
+        schema_newer_than_reader="QUARANTINE snapshot + require migration/operator. Never silent FRESH when durable bytes exist.",
         notes="verify_checkpoint_against_fsm rejects index/hash ahead of FSM.",
     ),
     DurableObject.DURABLE_OUTBOX: DurableBoundary(
@@ -389,7 +390,7 @@ CRASH_RESOLUTIONS: dict[CrashWindow, CrashResolution] = {
         reconstructible=True,
         deterministic=True,
         idempotent=True,
-        operator_action="Discard the snapshot. Partition plane: stop. Frontier: recover remaining journal or FRESH.",
+        operator_action="Quarantine the snapshot (do not discard silently). Partition plane: stop. Frontier: migrate or operator-ack FRESH.",
         notes="A snapshot claiming a future log index / missing wal_id is not authority.",
     ),
     CrashWindow.SNAPSHOT_BEHIND_WAL: _resolution(
@@ -429,11 +430,11 @@ CRASH_RESOLUTIONS: dict[CrashWindow, CrashResolution] = {
         CrashWindow.SCHEMA_NEWER_THAN_READER,
         action=RecoveryAction.FAIL_CLOSED,
         partition=RecoveryAction.FAIL_CLOSED,
-        frontier=RecoveryAction.FRESH,
+        frontier=RecoveryAction.QUARANTINE,
         reconstructible=False,
         deterministic=True,
         idempotent=True,
-        operator_action="Upgrade the reader. Do not down-migrate. Frontier may start a fresh run.",
+        operator_action="Upgrade the reader. Do not down-migrate. Quarantine durable snapshot; never silent-FRESH.",
         notes="Unknown future schema is not interpreted.",
     ),
     CrashWindow.SCHEMA_OLDER_THAN_READER: _resolution(
@@ -805,6 +806,29 @@ def run_recovery_protocol(observed: ObservedDurableState) -> RecoveryVerdict:
             notes=tuple(notes),
         )
 
+    def _quarantine(note: str) -> RecoveryVerdict:
+        # P0: durable bytes exist but are unreadable — do not discard_snapshot.
+        fail_phase = getattr(RecoveryPhase, "FAILED", RecoveryPhase.FRESH)
+        try:
+            session.advance(fail_phase)
+        except Exception:
+            pass
+        notes.append("QUARANTINE: " + note)
+        return RecoveryVerdict(
+            phase=fail_phase,
+            plane=plane,
+            action=RecoveryAction.QUARANTINE,
+            windows=tuple(windows),
+            snapshot_stale=True,
+            discard_snapshot=False,
+            rebuild_outbox=False,
+            replay_delivery=False,
+            orphan_outbox_ids=(),
+            discarded_delivery_ids=(),
+            path=tuple(session.path),
+            notes=tuple(notes),
+        )
+
     if not observed.snapshot_present and not observed.wal_present:
         return _fresh("no snapshot and no WAL")
 
@@ -814,8 +838,10 @@ def run_recovery_protocol(observed: ObservedDurableState) -> RecoveryVerdict:
         if observed.snapshot_schema_version > observed.reader_schema_version:
             windows.append(CrashWindow.SCHEMA_NEWER_THAN_READER)
             action = resolution_for(CrashWindow.SCHEMA_NEWER_THAN_READER).action_for(plane)
+            if action is RecoveryAction.QUARANTINE:
+                return _quarantine("schema newer than reader")
             if action is RecoveryAction.FRESH:
-                return _fresh("schema newer than reader")
+                return _quarantine("schema newer than reader (refused silent FRESH)")
             return _fail("schema newer than reader")
         if 0 < observed.snapshot_schema_version < observed.reader_schema_version:
             windows.append(CrashWindow.SCHEMA_OLDER_THAN_READER)

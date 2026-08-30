@@ -77,6 +77,29 @@ class ReconstructedState:
 class RecoveryManager:
     """Load a checkpoint snapshot, replay the WAL journal, reconstruct state."""
 
+
+    def _refuse_silent_fresh(self, *, reason: str, durable_present: bool) -> bool:
+        """P0: never enter FRESH when durable state exists unless operator opts in.
+
+        Set ``ALLOW_FRESH_ON_DURABLE_MISMATCH=true`` to override (audit logged).
+        """
+        import os
+
+        if not durable_present:
+            return False
+        allow = os.environ.get("ALLOW_FRESH_ON_DURABLE_MISMATCH", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if allow:
+            logger.warning("ALLOW_FRESH_ON_DURABLE_MISMATCH: proceeding to FRESH despite durable state (%s)", reason)
+            return False
+        logger.error("Refusing silent FRESH; durable state present (%s). Quarantine/migrate required.", reason)
+        return True
+
+
     def __init__(
         self,
         output_dir: Path,
@@ -111,6 +134,9 @@ class RecoveryManager:
         """Return reconstructed state from checkpoint snapshot + WAL journal."""
         mode = self._coerce_mode(wal_replay)
         if force_fresh:
+            # Explicit operator force — still log if durable state is present.
+            snap = pre_recovered_state or self._load_checkpoint_snapshot(resume_from)
+            self._refuse_silent_fresh(reason="force_fresh", durable_present=snap is not None)
             return self._finish(self._fresh(mode))
 
         checkpoint = pre_recovered_state
@@ -137,9 +163,19 @@ class RecoveryManager:
                 "Recovery Manager: checkpoint %s has no usable context snapshot; starting fresh",
                 run_id,
             )
+            if self._refuse_silent_fresh(reason="unusable_context_snapshot", durable_present=True):
+                raise RuntimeError(
+                    "QUARANTINE: durable checkpoint present but context unusable; "
+                    "set ALLOW_FRESH_ON_DURABLE_MISMATCH=true to override"
+                )
             return self._finish(self._fresh(mode))
 
         if not self._payload_is_compatible(payload, run_id):
+            if self._refuse_silent_fresh(reason="incompatible_payload", durable_present=True):
+                raise RuntimeError(
+                    "QUARANTINE: durable checkpoint incompatible with reader; "
+                    "set ALLOW_FRESH_ON_DURABLE_MISMATCH=true to override"
+                )
             return self._finish(self._fresh(mode))
 
         wal = self._open_wal(run_id)
@@ -191,7 +227,17 @@ class RecoveryManager:
                 )
             )
         if verdict.phase.value == "fresh":
+            if self._refuse_silent_fresh(reason="protocol_verdict_fresh", durable_present=True):
+                raise RuntimeError(
+                    "QUARANTINE: recovery protocol requested FRESH with durable state; "
+                    "set ALLOW_FRESH_ON_DURABLE_MISMATCH=true to override"
+                )
             return self._finish(self._fresh(mode))
+        if getattr(verdict, "action", None) is not None and str(getattr(verdict.action, "value", verdict.action)) == "quarantine":
+            raise RuntimeError(
+                "QUARANTINE: recovery protocol refused to interpret durable state "
+                f"({', '.join(verdict.notes) if getattr(verdict, 'notes', None) else 'see protocol notes'})"
+            )
         if discard_snapshot:
             # Keep the run id so the existing journal is reused; do not restore ctx.
             logger.warning(

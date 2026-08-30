@@ -2,6 +2,12 @@
 
 Emulates standard Redis operations and specific queue Lua scripts using
 a SQLite/in-memory backend.
+
+P0 architecture note: SQLite fallback is a *local producer outbox / cache*,
+not a multi-host distributed queue. Distinct API and worker hosts must not
+treat independent SQLite files as a shared job bus — enqueue with globally
+unique job IDs and require Redis (or another shared broker) for cross-host
+workers.
 """
 
 from __future__ import annotations

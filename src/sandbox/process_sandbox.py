@@ -125,6 +125,11 @@ class ProcessSandbox:
         self.enforcement_level = self.capabilities.enforcement_level
         self.degraded_reason = self.capabilities.degraded_reason
 
+        # Production/staging: REQUIRE_KERNEL_SANDBOX=true forces KERNEL_ENFORCED
+        # (review P0: userspace hooks are not a security boundary for native tools).
+        if self._env_requires_kernel_sandbox():
+            required_enforcement_level = SandboxEnforcementLevel.KERNEL_ENFORCED
+
         # Refuse "kernel-enforced" claims when capability is unavailable
         if required_enforcement_level is not None:
             req_str = (
@@ -145,6 +150,24 @@ class ProcessSandbox:
             logger.info(
                 "ProcessSandbox operating in DEGRADED_USERSPACE mode: %s", self.degraded_reason
             )
+
+    @staticmethod
+    def _env_requires_kernel_sandbox() -> bool:
+        import os
+
+        raw = os.environ.get("REQUIRE_KERNEL_SANDBOX", "").strip().lower()
+        if raw in {"1", "true", "yes", "on"}:
+            return True
+        if raw in {"0", "false", "no", "off"}:
+            return False
+        # Default true for production/staging profiles.
+        env = (
+            os.environ.get("APP_ENV")
+            or os.environ.get("ENVIRONMENT")
+            or os.environ.get("CSTP_ENV")
+            or ""
+        ).strip().lower()
+        return env in {"prod", "production", "staging", "stage"}
 
     def check_egress(self, host: str, port: int | None = None) -> None:
         """Enforce I29 before the worker opens a destination."""

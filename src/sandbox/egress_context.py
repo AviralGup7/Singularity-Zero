@@ -101,10 +101,30 @@ def assert_egress_allowed(host: str, port: int | None = None) -> None:
 
 
 def assert_url_egress_allowed(url: str) -> None:
-    """Parse *url* and enforce I29 against its host/port."""
+    """Parse *url* and enforce I29 against its host/port.
+
+    When ``EGRESS_RESOLVE_CHECK=true`` (default in production/staging), also
+    resolve DNS and validate every A/AAAA (redirect/DNS-rebind hardening).
+    """
+    import os
+
     raw = str(url or "").strip()
     if not raw:
         raise EgressViolationError("I29: empty URL")
+    resolve = os.environ.get("EGRESS_RESOLVE_CHECK", "").strip().lower()
+    if not resolve:
+        env = (
+            os.environ.get("APP_ENV")
+            or os.environ.get("ENVIRONMENT")
+            or os.environ.get("CSTP_ENV")
+            or ""
+        ).strip().lower()
+        resolve = "true" if env in {"prod", "production", "staging", "stage"} else "false"
+    if resolve in {"1", "true", "yes", "on"}:
+        from src.sandbox.network_isolation import validate_url_resolved
+
+        validate_url_resolved(url, get_current_egress_filter())
+        return
     parsed = urlparse(raw if "://" in raw else f"https://{raw}")
     host = parsed.hostname or ""
     if not host:

@@ -171,6 +171,9 @@ class StageNode:
         records.
     needs:
         Tuple of stage names whose completion is a hard prerequisite.
+    optional_needs:
+        Soft prerequisites: SKIPPED_DISABLED does not block; COMPLETED/DEGRADED
+        preferred. Hard ``needs`` still apply.
         Order is irrelevant; the scheduler resolves readiness from the
         ``needs`` set.
     when:
@@ -208,6 +211,7 @@ class StageNode:
     timeout: int | None = None
     critical: bool = False
     must_succeed: bool = False
+    optional_needs: tuple[str, ...] = ()
     allow_degraded_downstream: bool = True
 
 

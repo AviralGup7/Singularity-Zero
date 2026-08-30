@@ -27,6 +27,31 @@ from src.core.frontier.lease_status import (
 logger = logging.getLogger(__name__)
 
 
+def current_boot_id() -> str:
+    """Stable-enough boot marker for mono-deadline invalidation after restart."""
+    import os
+    from pathlib import Path
+
+    for candidate in (
+        os.environ.get("CSTP_BOOT_ID", "").strip(),
+        _read_text("/proc/sys/kernel/random/boot_id"),
+        os.environ.get("HOSTNAME", "").strip(),
+    ):
+        if candidate:
+            return candidate
+    return f"pid-{os.getpid()}"
+
+
+def _read_text(path: str) -> str:
+    try:
+        from pathlib import Path
+
+        return Path(path).read_text(encoding="utf-8").strip()
+    except Exception:
+        return ""
+
+
+
 @dataclass(slots=True)
 class ReapableLease:
     reservation_id: str
@@ -35,6 +60,10 @@ class ReapableLease:
     deadline_mono: float
     units: int = 0
     fence_seq: int = 0
+    # P0: mono deadlines are boot-session only. Persist wall+duration+boot_id for recovery.
+    issued_at_unix: float = 0.0
+    ttl_seconds: float = 0.0
+    boot_id: str = ""
 
 
 LeaseSource = Callable[[], list[ReapableLease]]
@@ -78,8 +107,14 @@ class LeaseReaper:
                 continue
             if status not in OUTSTANDING:
                 continue
-            if lease.deadline_mono > now_mono:
+            cross_boot = bool(lease.boot_id) and lease.boot_id != current_boot_id()
+            if not cross_boot and lease.deadline_mono > now_mono:
                 continue
+            if cross_boot:
+                logger.info(
+                    "LeaseReaper: cross-boot lease %s expired conservatively",
+                    lease.lease_id,
+                )
             if can_transition(status, LeaseStatus.EXPIRED):
                 try:
                     cas_lease_status(

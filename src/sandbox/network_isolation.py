@@ -131,3 +131,50 @@ class NetworkEgressFilter:
             raise EgressViolationError(
                 f"Destination '{host}' is outside authorized scope or targets prohibited metadata (I29)"
             )
+
+
+def validate_url_resolved(url: str, filt: NetworkEgressFilter) -> list[str]:
+    """Resolve *url* and validate every A/AAAA against *filt* (SSRF hardening).
+
+    Returns the list of resolved IP strings that passed. Raises
+    :class:`EgressViolationError` if the host/URL is blocked or any address
+    fails the scope/metadata checks. Callers that follow redirects must invoke
+    this again on each hop.
+    """
+    from urllib.parse import urlparse
+    import socket
+
+    raw = str(url or "").strip()
+    if not raw:
+        raise EgressViolationError("I29: empty URL")
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    scheme = (parsed.scheme or "https").lower()
+    if scheme not in {"http", "https"}:
+        raise EgressViolationError(f"I29: scheme not allowed: {scheme}")
+    host = parsed.hostname or ""
+    if not host:
+        raise EgressViolationError(f"I29: URL has no host: {url!r}")
+    filt.validate_destination_or_raise(host, parsed.port)
+    # If host is already an IP, single-address check is enough.
+    try:
+        import ipaddress
+
+        ipaddress.ip_address(host)
+        return [host]
+    except ValueError:
+        pass
+    addrs: list[str] = []
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise EgressViolationError(f"I29: DNS resolution failed for {host}: {exc}") from exc
+    for info in infos:
+        sockaddr = info[4]
+        ip = sockaddr[0]
+        filt.validate_destination_or_raise(ip, parsed.port)
+        if ip not in addrs:
+            addrs.append(ip)
+    if not addrs:
+        raise EgressViolationError(f"I29: no resolved addresses for {host}")
+    return addrs
+

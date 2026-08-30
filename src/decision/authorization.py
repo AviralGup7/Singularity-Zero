@@ -479,11 +479,27 @@ class ExecutionAuthorizer:
                 if not tid or tid in self._consumed_tickets:
                     continue
                 self._consumed_tickets.add(tid)
+                self._persist_consumed_locked(tid)
                 added += 1
         return added
 
     def _consumed_store_path(self) -> str:
-        return os.environ.get("TICKET_CONSUME_STORE", "").strip()
+        """Durable consume ledger path (P0: must not be host-amnesia by default).
+
+        Prefer ``TICKET_CONSUME_STORE``. Otherwise use
+        ``$CSTP_DATA_DIR/consumed_tickets.jsonl`` or ``./.cstp/consumed_tickets.jsonl``.
+        DagCheckpoint also mirrors ids; this file is the process-local durability floor
+        until ConsumeExecutionTicket is a PartitionWAL command.
+        """
+        from pathlib import Path
+
+        explicit = os.environ.get("TICKET_CONSUME_STORE", "").strip()
+        if explicit:
+            return explicit
+        data = os.environ.get("CSTP_DATA_DIR", "").strip()
+        if data:
+            return str(Path(data) / "consumed_tickets.jsonl")
+        return str(Path(".cstp") / "consumed_tickets.jsonl")
 
     def _load_consumed_store(self) -> None:
         path = self._consumed_store_path()
