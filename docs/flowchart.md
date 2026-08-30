@@ -839,9 +839,9 @@ flowchart TD
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    PORT_F004_RES_IN[["PORT: F-004 Execution Gate Reserve In"]]
-    PORT_F004_COM_IN[["PORT: F-004 Settlement Finding Commit In"]]
-    PORT_F004_REL_IN[["PORT: F-004 Compensation / Release In"]]
+    PORT_F004_RES_IN[["PORT: F-004 Execution Gate Reserve In (pairs with PORT_F006_RES)"]]
+    PORT_F004_COM_IN[["PORT: F-004 Settlement Finding Commit In (pairs with PORT_F006_COM)"]]
+    PORT_F004_REL_IN[["PORT: F-004 Compensation / Release In (pairs with PORT_F006_REL)"]]
 
     subgraph ClockModel["Multi-Clock Binding Model (src/core/frontier/state.py)"]
         HLC["Hybrid Logical Clock (HLC)"]:::impl -->|"clock"| EventOrder["Scan Journal Ordering (I23)"]:::impl
@@ -1495,7 +1495,8 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `MESH_LEADER_ELECTION_TIMEOUT_SEC` | `10.0` | Mesh Consensus | Raft-lite Redis lease consensus timeout |
 | `MESH_PEER_RATE_LIMIT_PPS` | `200` | Mesh Gossip | Maximum gossip packets per second per peer |
 | `OBSERVABILITY_METRICS_PORT` | `9090` | Observability | Prometheus metrics scraping port |
-| `PROMETHEUS_HOST` / `OBSERVABILITY_METRICS_HOST` | `127.0.0.1` | Observability | Prometheus bind address (alias pair) |
+| `PROMETHEUS_HOST` / `OBSERVABILITY_METRICS_HOST` | dual alias; **startup refuse if both set and disagree** (10.5) |
+| `PROMETHEUS_HOST_LEGACY_NOTE` / `OBSERVABILITY_METRICS_HOST` | `127.0.0.1` | Observability | Prometheus bind address (alias pair) |
 | `PROMETHEUS_REQUIRE_MTLS` / `OBSERVABILITY_METRICS_MTLS` | `false` | Observability | Require mTLS for Prometheus scrapes (alias pair) |
 | `WAL_GROUP_COMMIT_BATCH_SIZE` | `64` | Partition WAL | Group commit entry batch size before fsync |
 | `WAL_GROUP_COMMIT_WINDOW_MS` | `1.0` | Partition WAL | Group commit maximum window duration in ms |
@@ -1551,4 +1552,7 @@ P0 items addressed in code+atlas this cycle are marked **closed**. Remaining ite
 | P0-11 SWIM grants authority | **closed (rule)** | MeshAuthority = evidence-only; never grants partition authority. |
 | P0-12 Snapshot select unbound manifest | **closed (helper)** | `snapshot_manifest.select_snapshot` requires wal_id+digest (+ optional HMAC). |
 | Atlas ports / unicode / taxonomy | **partial** | NOTIFY_IN evidence edge; FrontFacade read edge; full taxonomy rename deferred. |
+| Review 10.5 dual PROMETHEUS_* env | **closed** | `refuse_conflicting_observability_env` on ObservabilityConfig.from_env. |
+| ScopeGroupLock on stage_admit | **closed (prod default)** | `admit_stage` acquires ScopeGroupLock; released after stage; `STAGE_ADMIT_REQUIRE_SCOPE_LOCK`. |
+| F-002 runtime⇄region / F-033 ports | **open (doc)** | Mesh evidence-only; multi-region still single-home default; no invented F-033 port mesh. |
 

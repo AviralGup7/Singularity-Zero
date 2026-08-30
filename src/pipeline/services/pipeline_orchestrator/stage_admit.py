@@ -18,6 +18,35 @@ from src.decision.models import ExecutionRequest, ScopeToken, TargetSpec
 
 logger = logging.getLogger(__name__)
 
+# Process-local scope-group locks keyed by orchestrator id (I30 residual).
+_ORCH_SCOPE_LOCKS: dict[int, Any] = {}
+
+
+def _scope_lock_for(orchestrator: Any) -> Any:
+    from src.infrastructure.task_pool import ScopeGroupLock
+
+    key = id(orchestrator)
+    lock = _ORCH_SCOPE_LOCKS.get(key)
+    if lock is None:
+        lock = ScopeGroupLock()
+        _ORCH_SCOPE_LOCKS[key] = lock
+    return lock
+
+
+def release_stage_scope_lock(ctx: Any) -> None:
+    """Release ScopeGroupLock acquired by admit_stage (best-effort)."""
+    lock = getattr(ctx, "_stage_scope_lock", None)
+    if lock is None:
+        return
+    try:
+        lock.release()
+    except Exception as exc:
+        logger.debug("stage scope lock release failed: %s", exc)
+    try:
+        delattr(ctx, "_stage_scope_lock")
+    except Exception:
+        pass
+
 
 class StageAdmissionError(RuntimeError):
     """Stage was refused a ticket or failed the sandbox egress check."""
@@ -126,6 +155,59 @@ def admit_stage(
     if not consumed:
         raise StageAdmissionError(f"I30: stage '{stage_name}' ticket consume failed before sandbox")
     host = request.target.host
+    # ScopeGroupLock: co-locate subdomain stages under one scope-group fence.
+    # Held until orchestrator calls release_stage_scope_lock after the stage.
+    import os
+
+    require_lock = os.environ.get("STAGE_ADMIT_REQUIRE_SCOPE_LOCK", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    # Default on for prod/staging profiles.
+    if not os.environ.get("STAGE_ADMIT_REQUIRE_SCOPE_LOCK", "").strip():
+        env = (
+            (
+                os.environ.get("APP_ENV")
+                or os.environ.get("ENVIRONMENT")
+                or os.environ.get("CSTP_ENV")
+                or ""
+            )
+            .strip()
+            .lower()
+        )
+        require_lock = env in {"prod", "production", "staging", "stage"}
+    try:
+        sgl = _scope_lock_for(orchestrator)
+        owner = f"{getattr(ctx, 'run_id', 'run')}:{stage_name}"
+        ok = sgl.acquire(target_id=str(host), scope_group=None, ttl_seconds=3600, owner_id=owner)
+        if ok:
+            try:
+                setattr(ctx, "_stage_scope_lock", sgl)
+            except Exception:
+                sgl.release()
+                raise
+        elif require_lock:
+            raise StageAdmissionError(
+                f"I30: stage '{stage_name}' could not acquire ScopeGroupLock for host={host}"
+            )
+        else:
+            logger.warning(
+                "Stage '%s' proceeding without ScopeGroupLock (host=%s); set "
+                "STAGE_ADMIT_REQUIRE_SCOPE_LOCK=true to fail closed",
+                stage_name,
+                host,
+            )
+    except StageAdmissionError:
+        raise
+    except Exception as exc:
+        if require_lock:
+            raise StageAdmissionError(
+                f"I30: stage '{stage_name}' ScopeGroupLock error: {exc}"
+            ) from exc
+        logger.warning("ScopeGroupLock unavailable for stage %s: %s", stage_name, exc)
+
     # Install process-wide I29 filter for in-process httpx/requests (F-004).
     # install_filter_from_scope also enables raw-client hooks so analysis/recon
     # call sites that bypass shared_sessions still enforce the active filter.
@@ -180,4 +262,5 @@ __all__ = [
     "build_stage_request",
     "consume_stage_ticket",
     "failed_stage_output",
+    "release_stage_scope_lock",
 ]

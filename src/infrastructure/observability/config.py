@@ -226,6 +226,40 @@ class AlertConfig:
     channels: list[dict[str, str]] = field(default_factory=list)
 
 
+def _env_pair_conflict(primary: str, alias: str) -> tuple[str, str] | None:
+    """Return (primary_val, alias_val) if both set and disagree (review 10.5)."""
+    a = os.getenv(primary)
+    b = os.getenv(alias)
+    if a is None or b is None:
+        return None
+    av = str(a).strip()
+    bv = str(b).strip()
+    if not av or not bv:
+        return None
+    if av.lower() != bv.lower():
+        return av, bv
+    return None
+
+
+def refuse_conflicting_observability_env() -> None:
+    """Fail closed when dual env names disagree (OBSERVABILITY_* vs PROMETHEUS_*)."""
+    pairs = (
+        ("OBSERVABILITY_METRICS_PORT", "PROMETHEUS_PORT"),
+        ("OBSERVABILITY_METRICS_HOST", "PROMETHEUS_HOST"),
+        ("OBSERVABILITY_METRICS_MTLS", "PROMETHEUS_REQUIRE_MTLS"),
+    )
+    conflicts: list[str] = []
+    for primary, alias in pairs:
+        hit = _env_pair_conflict(primary, alias)
+        if hit is not None:
+            conflicts.append(f"{primary}={hit[0]!r} conflicts with {alias}={hit[1]!r}")
+    if conflicts:
+        raise RuntimeError(
+            "Observability dual-env conflict (set only one name per setting, or make values match): "
+            + "; ".join(conflicts)
+        )
+
+
 @dataclass
 class ObservabilityConfig:
     """Top-level observability configuration.
@@ -269,6 +303,7 @@ class ObservabilityConfig:
         Returns:
             ObservabilityConfig populated from environment.
         """
+        refuse_conflicting_observability_env()
         env_str = os.getenv("OBSERVABILITY_ENV", "development").lower()
         environment = (
             Environment(env_str)

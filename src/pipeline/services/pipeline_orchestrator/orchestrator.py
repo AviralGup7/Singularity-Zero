@@ -978,7 +978,11 @@ class PipelineOrchestrator:
 
             try:
                 try:
-                    from .stage_admit import StageAdmissionError, admit_stage
+                    from .stage_admit import (
+                        StageAdmissionError,
+                        admit_stage,
+                        release_stage_scope_lock,
+                    )
 
                     admit_stage(self, ctx, stage_name, config)
                 except StageAdmissionError as exc:
@@ -989,6 +993,7 @@ class PipelineOrchestrator:
                         stage_name, error=str(exc), reason="admission_refused"
                     )
                     self._settle_stage_attempt(ctx, stage_name, stage_output)
+                    release_stage_scope_lock(ctx)
                     return 1
 
                 stage_output = await self._run_stage_with_retry(
@@ -1020,8 +1025,10 @@ class PipelineOrchestrator:
                 await self._record_stage_post_run(stage_name, ctx, checkpoint_mgr)
 
                 if terminal == "failed":
+                    release_stage_scope_lock(ctx)
                     return 1
                 if terminal == "skipped":
+                    release_stage_scope_lock(ctx)
                     return None
 
                 if stage_name in {"subdomains", "live_hosts", "urls"}:
@@ -1036,6 +1043,7 @@ class PipelineOrchestrator:
                             event_trigger="stage_failed",
                             error=stage_metrics.get("error", "Fatal recon failure"),
                         )
+                        release_stage_scope_lock(ctx)
                         return 1
 
                 progress_emitter(
@@ -1055,9 +1063,11 @@ class PipelineOrchestrator:
                     data={"contract": self._build_stage_output_contract(stage_name, elapsed, ctx)},
                 )
 
+                release_stage_scope_lock(ctx)
                 return None
 
             except Exception as exc:
+                release_stage_scope_lock(ctx)
                 logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
                 error_text = str(exc) or exc.__class__.__name__
                 reason = (
