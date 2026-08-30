@@ -226,10 +226,10 @@ class Graph:
 
     nodes: tuple[StageNode, ...] = field(default_factory=tuple)
     edges: tuple[tuple[str, str], ...] = field(default_factory=tuple)
-    # SHA-256 of the *declared* node set (before tool-availability prune).
-    # GRAPHGEN_STRICT resume compares this, not the host-pruned graph.
+    # SHA-256 of the *declared* node set (plugin merge + profile, before prune).
+    # Frozen at snapshot time; later prune/join must not change this string.
     declared_gen_id: str = ""
-    # SHA-256 of the *post-prune* executable node set (host capability).
+    # SHA-256 of the post-prune, post-join, post-cycle-check executable graph.
     capability_gen_id: str = ""
 
     def __post_init__(self) -> None:

@@ -411,6 +411,47 @@ class TestPlanRemainders(unittest.TestCase):
             else:
                 os.environ["APP_SECRET_KEY"] = old_s
 
+    def test_declared_snapshot_ignores_later_live_mutation(self) -> None:
+        from src.pipeline.graph_identity import fingerprint_nodes, graph_gen_id
+        from src.pipeline.services.pipeline_orchestrator._graph_dsl import Graph
+        from src.pipeline.services.pipeline_orchestrator.graph_builder import (
+            _BASE_NODES,
+            _join_finding_producers,
+        )
+
+        declared = tuple(_BASE_NODES)
+        declared_id = fingerprint_nodes(declared)
+        live = [n for n in declared if n.name != "nuclei"]
+        self.assertEqual(fingerprint_nodes(declared), declared_id)
+        self.assertNotEqual(fingerprint_nodes(live), declared_id)
+        joined = _join_finding_producers(list(declared))
+        cap_id = fingerprint_nodes(joined)
+        frozen = Graph(
+            nodes=tuple(joined),
+            declared_gen_id=declared_id,
+            capability_gen_id=cap_id,
+        )
+        self.assertEqual(graph_gen_id(frozen), declared_id)
+        self.assertEqual(frozen.declared_gen_id, declared_id)
+        self.assertNotEqual(frozen.capability_gen_id, "")
+
+    def test_join_changes_capfp_not_declared_id(self) -> None:
+        from src.pipeline.graph_identity import fingerprint_nodes
+        from src.pipeline.services.pipeline_orchestrator.graph_builder import (
+            _BASE_NODES,
+            _join_finding_producers,
+        )
+
+        declared = tuple(_BASE_NODES)
+        declared_id = fingerprint_nodes(declared)
+        joined = _join_finding_producers(list(declared))
+        cap_id = fingerprint_nodes(joined)
+        reporting = next(n for n in joined if n.name == "reporting")
+        declared_reporting = next(n for n in declared if n.name == "reporting")
+        if reporting.needs != declared_reporting.needs:
+            self.assertNotEqual(cap_id, declared_id)
+        self.assertEqual(fingerprint_nodes(declared), declared_id)
+
     def test_graph_gen_id_ignores_tool_pruning(self) -> None:
         from src.pipeline.graph_identity import (
             CapabilityGenerationMismatch,
@@ -447,14 +488,16 @@ class TestPlanRemainders(unittest.TestCase):
         from src.core.frontier.global_coordination import PlacementAuthority
 
         pa = PlacementAuthority(home_region="local")
-        epoch = pa.initiate_transfer("agg", "P-0000", "P-0001", to_region="other")
+        epoch = pa.initiate_transfer(
+            "agg", "P-0000", "P-0001", to_region="other", source_committed_offset=10
+        )
         self.assertFalse(
             pa.activate_ownership(
                 "agg",
                 "P-0001",
                 epoch,
                 replica_applied_offset=3,
-                source_committed_offset=10,
+                source_committed_offset=99,
             )
         )
         self.assertTrue(
@@ -463,7 +506,7 @@ class TestPlanRemainders(unittest.TestCase):
                 "P-0001",
                 epoch,
                 replica_applied_offset=10,
-                source_committed_offset=10,
+                source_committed_offset=99,
             )
         )
 

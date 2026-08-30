@@ -662,16 +662,26 @@ class HuntBudgetEnforcer:
             return False
 
     def release_requests(self, count: int = 1) -> None:
-        """Release unused reservations if dispatch or execution failed before execution."""
+        """Release unused reservations if dispatch or execution failed before execution.
+
+        I28: RESERVED -> COMPENSATED must enter CompensateLeaseCAS. A stale
+        fence (settle or expire already won) skips the ledger write.
+        """
         if count <= 0:
             return
         with self._lock:
             remaining = int(count)
+            from src.core.frontier.lease_status import LeaseStatus, StaleLeaseFenceError
+
             if self._global_budget is not None:
                 from src.core.frontier.commands import settlement_return
 
                 while remaining > 0 and self._open_subleases:
                     sl_id, units = self._open_subleases.pop(0)
+                    try:
+                        self._lease_fence.cas(sl_id, LeaseStatus.COMPENSATED)
+                    except (StaleLeaseFenceError, ValueError):
+                        continue
                     if units > remaining:
                         env = settlement_return(
                             sublease_id=sl_id,
@@ -689,6 +699,15 @@ class HuntBudgetEnforcer:
                         ).to_envelope()
                         self._global_budget.apply_command(env)
                         remaining -= units
+            try:
+                for rid in list(self._issued_identities):
+                    try:
+                        self._lease_fence.cas(rid, LeaseStatus.COMPENSATED)
+                        break
+                    except (StaleLeaseFenceError, ValueError):
+                        continue
+            except Exception:
+                pass
             self._requests_reserved = max(0, self._requests_reserved - int(count))
 
     def record_request(self, count: int = 1) -> None:

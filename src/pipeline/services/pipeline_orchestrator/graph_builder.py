@@ -351,14 +351,13 @@ def build_pipeline_graph(
         nodes_by_name[stage_node.name] = stage_node
 
     nodes = list(nodes_by_name.values())
-    from src.pipeline.graph_identity import (
-        capability_gen_id as _capability_gen_id,
-    )
-    from src.pipeline.graph_identity import (
-        graph_gen_id as _graph_gen_id,
-    )
+    from src.pipeline.graph_identity import fingerprint_nodes
 
-    declared_id = _graph_gen_id(Graph(nodes=tuple(nodes)))
+    # Snapshot the declared node set *after* plugin merge + profile and
+    # *before* tool prune. StageNode is frozen; this tuple is the GraphGenID
+    # input and must not be the list the pruner later mutates.
+    declared_nodes = tuple(nodes)
+    declared_id = fingerprint_nodes(declared_nodes)
 
     # Prune unavailable tools (runtime capability; not part of GraphGenID)
     if tool_status:
@@ -390,9 +389,12 @@ def build_pipeline_graph(
             nodes = new_nodes
 
     nodes = _join_finding_producers(nodes)
-    cap_id = _capability_gen_id(Graph(nodes=tuple(nodes)))
+    # Cycle-check the joined executable set, then hash CapFP from that
+    # immutable Graph so join+validation is in the fingerprint.
+    executable = Graph(nodes=tuple(nodes))
+    cap_id = fingerprint_nodes(executable.nodes)
     return Graph(
-        nodes=tuple(nodes),
+        nodes=executable.nodes,
         declared_gen_id=declared_id,
         capability_gen_id=cap_id,
     )

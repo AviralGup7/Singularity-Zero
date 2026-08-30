@@ -53,7 +53,7 @@ def test_mark_skipped_by_name_emits_skip_and_does_not_crash() -> None:
         scheduler._mark_skipped_by_name("waf", reason="planner_dropped")
         emit.assert_called_once_with("waf", "planner_dropped")
     assert "waf" in scheduler._outcome.skipped
-    assert scheduler._ctx.result.stage_status["waf"] == StageStatus.SKIPPED.value
+    assert scheduler._ctx.result.stage_status["waf"] == StageStatus.SKIPPED_DISABLED.value
 
 
 def test_mark_skipped_emits_reason() -> None:
@@ -64,3 +64,30 @@ def test_mark_skipped_emits_reason() -> None:
     ) as emit:
         scheduler._mark_skipped(node, reason="condition_never_satisfied")
         emit.assert_called_once_with("waf", "condition_never_satisfied")
+
+
+def test_skip_remaining_force_terminals_pending_candidate() -> None:
+    scheduler = _scheduler()
+    scheduler._skip_remaining_keep_sinks(reason="resource_guard_critical")
+    assert scheduler._ctx.result.stage_status["waf"] == StageStatus.SKIPPED_DISABLED.value
+    assert "waf" in scheduler._outcome.skipped
+
+
+def test_dispatch_admission_race_cannot_leave_candidate_pending() -> None:
+    """CRITICAL / admission_gen bump between ready and spawn force-skips."""
+    scheduler = _scheduler()
+
+    def _critical_pressure(*_a, **_k):
+        from src.core.runtime.resource_guard import PressureLevel
+
+        scheduler._admission_gen = int(getattr(scheduler, "_admission_gen", 0)) + 1
+        return object(), PressureLevel.CRITICAL, 99.0
+
+    with patch(
+        "src.core.runtime.resource_guard.inspect_pressure",
+        side_effect=_critical_pressure,
+    ):
+        node = scheduler._graph.nodes[0]
+        scheduler._dispatch(node)
+    assert node.name not in scheduler._launched
+    assert scheduler._ctx.result.stage_status["waf"] == StageStatus.SKIPPED_DISABLED.value

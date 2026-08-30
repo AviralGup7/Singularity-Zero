@@ -470,6 +470,7 @@ class PlacementAuthority:
         )
         self._leases[src] = fenced
         self.ownership_epochs[aggregate_id] = fenced.authority_epoch
+        frozen_index = source_committed_offset
         self._transfers[str(aggregate_id)] = TransferRecord(
             aggregate_id=str(aggregate_id),
             from_partition=src,
@@ -479,9 +480,10 @@ class PlacementAuthority:
             fence_token=token,
             revision=fenced.authority_revision,
             leader_term=fenced.leader_term,
-            source_committed_offset=source_committed_offset,
-            fence_commit_index=source_committed_offset,
+            source_committed_offset=frozen_index,
+            fence_commit_index=frozen_index,
             source_term=int(getattr(fenced, "leader_term", 0) or 0),
+            transfer_id=f"xfer_{src}_{dest}_{fenced.authority_epoch}",
         )
         self.migration_states[aggregate_id] = f"FENCE_ISSUED:{src}->{dest}:{fenced.authority_epoch}"
         return fenced.authority_epoch
@@ -516,12 +518,12 @@ class PlacementAuthority:
             return False
         if fence_token is not None and str(fence_token) != str(rec.fence_token):
             return False
-        # Frozen at initiate_transfer. Callers cannot advance the fence point.
+        # Frozen at initiate_transfer. Callers cannot advance the fence
+        # point: ignore ``source_committed_offset`` on activate.
+        _ = source_committed_offset
         source_off = getattr(rec, "fence_commit_index", None)
         if source_off is None:
             source_off = getattr(rec, "source_committed_offset", None)
-        if source_off is None:
-            source_off = source_committed_offset
         if source_off is not None:
             if replica_applied_offset is None:
                 return False

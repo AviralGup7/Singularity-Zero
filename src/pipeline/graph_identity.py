@@ -50,22 +50,27 @@ def _hash_nodes(nodes: Any) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
+def fingerprint_nodes(nodes: Any) -> str:
+    """SHA-256 of CanonicalNode tuples (GraphGenID and CapFP share this hasher)."""
+    return _hash_nodes(tuple(nodes or ()))
+
+
 def graph_gen_id(graph: Any) -> str:
-    """Logical identity of the *declared* graph (pre-prune)."""
+    """Logical identity of the *declared* graph (pre-prune snapshot)."""
     declared = str(getattr(graph, "declared_gen_id", "") or "").strip()
     if declared:
         return declared
     nodes = tuple(getattr(graph, "nodes", ()) or ())
-    return _hash_nodes(nodes)
+    return fingerprint_nodes(nodes)
 
 
 def capability_gen_id(graph: Any) -> str:
-    """Host capability identity of the *post-prune* executable graph."""
+    """Host capability identity of the post-prune, post-join, post-cycle-check graph."""
     stored = str(getattr(graph, "capability_gen_id", "") or "").strip()
     if stored:
         return stored
     nodes = tuple(getattr(graph, "nodes", ()) or ())
-    return _hash_nodes(nodes)
+    return fingerprint_nodes(nodes)
 
 
 def graphgen_strict() -> bool:
@@ -116,6 +121,7 @@ __all__ = [
     "canonical_node",
     "capability_gen_id",
     "capability_strict",
+    "fingerprint_nodes",
     "graph_gen_id",
     "graphgen_strict",
 ]
