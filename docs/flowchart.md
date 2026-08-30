@@ -1538,10 +1538,10 @@ P0 items addressed in code+atlas this cycle are marked **closed**. Remaining ite
 
 | # | Status | Summary |
 |---|---|---|
-| P0-1 PartitionWAL continuous replication A→B | **stub+refuse** | `PartitionWALReplicator` stub raises; activate_ownership must not unlock on journal relay alone. |
+| P0-1 PartitionWAL continuous replication A→B | **stub+gate** | `PartitionWALReplicator` stub + registry; `activate_ownership` refuses unless replicator `caught_up`. |
 | P0-2 Settlement dual-write | **closed (intent)** | `SettlementIntent` carries `budget_action` + `outbox_intent` on one WAL append; bus remains async/idempotent. |
 | P0-3 Kernel sandbox vs universal egress | **closed (prod default)** | `REQUIRE_KERNEL_SANDBOX` defaults true on prod/staging; degraded userspace is explicit non-prod. |
-| P0-4 Ticket consume durability | **closed (local floor)** | Default durable JSONL under `CSTP_DATA_DIR`/`.cstp`; multi-host still needs PartitionWAL consume command. |
+| P0-4 Ticket consume durability | **closed (local+WAL cmd)** | Process-local durable floor + `ConsumeExecutionTicketCommand` on PartitionFSM (`consumed_ticket_ids`). |
 | P0-5 Monotonic lease after reboot | **closed (conservative)** | `ReapableLease.boot_id` + cross-boot expire; persist wall/ttl fields for reconstruction. |
 | P0-6 CRDT tombstone GC causal stability | **closed (watermark)** | TTL + `stable_gc_hlc` domination required before purge (`advance_stable_gc_watermark`). |
 | P0-7 Redis→SQLite shared-queue fiction | **closed (doc+code note)** | Fallback emulator documents local-outbox-only; not a multi-host bus. |

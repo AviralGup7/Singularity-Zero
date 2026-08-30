@@ -720,7 +720,13 @@ class GossipEngine:
                 logger.info("Peer '%s' resurrected and re-added to mesh", node_id)
 
     def elect_leader(self) -> str:
-        """Elect a deterministic leader from live local membership."""
+        """Pick a deterministic *mesh gossip* coordinator from live membership.
+
+        P0-11: this is **evidence-only**. The returned id is a SWIM/mesh
+        gossip coordinator hint — it does **not** grant PartitionWAL /
+        Raft / StateAuthority leadership. Callers must never treat
+        ``leader_id`` as authority-home or quorum membership.
+        """
         with self._mesh_lock:
             candidates = [
                 self.local_node.id,

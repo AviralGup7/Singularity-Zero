@@ -327,3 +327,16 @@ class PartitionWALReplicator:
             "note": "stub — Frontier journal relay only; not PartitionWAL SoT replicate",
         }
 
+
+_PARTITION_WAL_REPLICATOR: PartitionWALReplicator | None = None
+
+
+def get_partition_wal_replicator() -> PartitionWALReplicator | None:
+    """Return the process-wide PartitionWAL replicator if one was installed."""
+    return _PARTITION_WAL_REPLICATOR
+
+
+def set_partition_wal_replicator(replicator: PartitionWALReplicator | None) -> None:
+    """Install or clear the PartitionWAL continuous-replicate provider (P0-1)."""
+    global _PARTITION_WAL_REPLICATOR
+    _PARTITION_WAL_REPLICATOR = replicator

@@ -507,6 +507,10 @@ class PlacementAuthority:
         caller passes one), activation refuses unless
         ``replica_applied_offset >= source_committed``. Missing replica
         offset while a source offset is known is refuse (must prove catch-up).
+
+        P0-1: if a PartitionWAL replicator is registered, it must report
+        ``caught_up`` at the fence index. The Frontier journal relay alone
+        never unlocks activate_ownership.
         """
         from src.core.frontier.authority_transfer import (
             activate_lease,
@@ -528,6 +532,20 @@ class PlacementAuthority:
             if replica_applied_offset is None:
                 return False
             if int(replica_applied_offset) < int(source_off):
+                return False
+        # P0-1: multi-region activate must not proceed on Frontier journal relay alone.
+        # When a PartitionWAL replicator is installed, it must report caught_up.
+        try:
+            from src.infrastructure.frontier.replication import get_partition_wal_replicator
+
+            pwal_rep = get_partition_wal_replicator()
+        except Exception:
+            pwal_rep = None
+        if pwal_rep is not None and source_off is not None:
+            try:
+                if not pwal_rep.caught_up(target_index=int(source_off)):
+                    return False
+            except Exception:
                 return False
         src_lease = self.lease_for(rec.from_partition)
         if int(src_lease.authority_epoch) != int(epoch):

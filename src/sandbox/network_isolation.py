@@ -177,4 +177,3 @@ def validate_url_resolved(url: str, filt: NetworkEgressFilter) -> list[str]:
     if not addrs:
         raise EgressViolationError(f"I29: no resolved addresses for {host}")
     return addrs
-

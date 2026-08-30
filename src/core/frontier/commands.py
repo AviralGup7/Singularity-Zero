@@ -18,6 +18,7 @@ COMMAND_TYPES: tuple[str, ...] = (
     "ReserveGlobalBudgetCommand",
     "AllocateSubLeaseCommand",
     "AuthorizeExecutionCommand",
+    "ConsumeExecutionTicketCommand",
     "SubmitExecutionClaim",
     "CancelExecutionCommand",
     "SettlementReturnCommand",
@@ -320,4 +321,33 @@ def make_rotate_authority_key_command(
             "key_material_b64": key_material_b64,
         },
         command_id=command_id,
+    )
+
+
+def consume_execution_ticket(
+    *,
+    ticket_id: str,
+    aggregate_id: str = "execution_tickets",
+    run_id: str = "",
+    command_id: str = "",
+    expected_aggregate_version: int | None = None,
+) -> TypedCommand:
+    """Multi-host ticket consume intent (P0-4 target).
+
+    Authoritative CAS consume must go through PartitionWAL / Raft so hosts
+    share one consumed set. Process-local JSONL remains the durability floor
+    when this command is not yet applied by the FSM.
+    """
+    tid = str(ticket_id or "").strip()
+    if not tid:
+        raise ValueError("ticket_id required")
+    return TypedCommand(
+        command_type="ConsumeExecutionTicketCommand",
+        aggregate_id=aggregate_id,
+        payload={
+            "ticket_id": tid,
+            "run_id": str(run_id or ""),
+        },
+        command_id=command_id,
+        expected_aggregate_version=expected_aggregate_version,
     )

@@ -160,7 +160,7 @@ def signing_key_id() -> str:
 
 def active_key_generation() -> int:
     """Return the active monotonic key generation counter."""
-    return GLOBAL_KEY_RING.active_generation()
+    return GLOBAL_KEY_RING.active_generation
 
 
 def _signing_key(key_id: str | None = None) -> bytes:
@@ -235,7 +235,7 @@ def apply_rotate_authority_key_command(payload: dict) -> KeyGenerationRecord:
 
     new_key_id = str(payload.get("new_key_id") or "").strip()
     if not new_key_id:
-        new_key_id = f"authority-hmac-v{GLOBAL_KEY_RING.active_generation() + 1}"
+        new_key_id = f"authority-hmac-v{GLOBAL_KEY_RING.active_generation + 1}"
     raw_b64 = str(payload.get("key_material_b64") or "").strip()
     if raw_b64:
         material = base64.b64decode(raw_b64)

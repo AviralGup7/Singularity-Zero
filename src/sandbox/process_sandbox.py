@@ -162,11 +162,15 @@ class ProcessSandbox:
             return False
         # Default true for production/staging profiles.
         env = (
-            os.environ.get("APP_ENV")
-            or os.environ.get("ENVIRONMENT")
-            or os.environ.get("CSTP_ENV")
-            or ""
-        ).strip().lower()
+            (
+                os.environ.get("APP_ENV")
+                or os.environ.get("ENVIRONMENT")
+                or os.environ.get("CSTP_ENV")
+                or ""
+            )
+            .strip()
+            .lower()
+        )
         return env in {"prod", "production", "staging", "stage"}
 
     def check_egress(self, host: str, port: int | None = None) -> None:

@@ -77,7 +77,6 @@ class ReconstructedState:
 class RecoveryManager:
     """Load a checkpoint snapshot, replay the WAL journal, reconstruct state."""
 
-
     def _refuse_silent_fresh(self, *, reason: str, durable_present: bool) -> bool:
         """P0: never enter FRESH when durable state exists unless operator opts in.
 
@@ -94,11 +93,16 @@ class RecoveryManager:
             "on",
         }
         if allow:
-            logger.warning("ALLOW_FRESH_ON_DURABLE_MISMATCH: proceeding to FRESH despite durable state (%s)", reason)
+            logger.warning(
+                "ALLOW_FRESH_ON_DURABLE_MISMATCH: proceeding to FRESH despite durable state (%s)",
+                reason,
+            )
             return False
-        logger.error("Refusing silent FRESH; durable state present (%s). Quarantine/migrate required.", reason)
+        logger.error(
+            "Refusing silent FRESH; durable state present (%s). Quarantine/migrate required.",
+            reason,
+        )
         return True
-
 
     def __init__(
         self,
@@ -233,7 +237,10 @@ class RecoveryManager:
                     "set ALLOW_FRESH_ON_DURABLE_MISMATCH=true to override"
                 )
             return self._finish(self._fresh(mode))
-        if getattr(verdict, "action", None) is not None and str(getattr(verdict.action, "value", verdict.action)) == "quarantine":
+        if (
+            getattr(verdict, "action", None) is not None
+            and str(getattr(verdict.action, "value", verdict.action)) == "quarantine"
+        ):
             raise RuntimeError(
                 "QUARANTINE: recovery protocol refused to interpret durable state "
                 f"({', '.join(verdict.notes) if getattr(verdict, 'notes', None) else 'see protocol notes'})"

@@ -50,7 +50,6 @@ def _read_text(path: str) -> str:
         return ""
 
 
-
 @dataclass(slots=True)
 class ReapableLease:
     reservation_id: str

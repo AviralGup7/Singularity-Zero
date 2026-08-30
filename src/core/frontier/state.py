@@ -468,7 +468,9 @@ class NeuralState:
         adaptive_ttl = self._observed_max_gossip_rtt_sec * self._tombstone_safety_factor
         return max(default_ttl_sec, adaptive_ttl, self._min_tombstone_floor_sec)
 
-    def advance_stable_gc_watermark(self, hlc: HybridLogicalClock | None = None) -> HybridLogicalClock:
+    def advance_stable_gc_watermark(
+        self, hlc: HybridLogicalClock | None = None
+    ) -> HybridLogicalClock:
         """Advance the causal GC watermark (P0-6).
 
         Tombstones are only purged when their HLC is dominated by this watermark

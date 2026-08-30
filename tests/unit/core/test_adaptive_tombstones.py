@@ -30,7 +30,9 @@ class TestAdaptiveTombstoneTTL(unittest.TestCase):
         s.add("x", hlc=HybridLogicalClock(physical_time=100.0, logical_counter=1, node_id="n1"))
         # delete via remove if available else mark
         if hasattr(s, "remove"):
-            s.remove("x", hlc=HybridLogicalClock(physical_time=100.0, logical_counter=2, node_id="n1"))
+            s.remove(
+                "x", hlc=HybridLogicalClock(physical_time=100.0, logical_counter=2, node_id="n1")
+            )
         else:
             # fallback: direct element mutate under lock
             with s._lock:

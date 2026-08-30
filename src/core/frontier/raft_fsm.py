@@ -126,6 +126,8 @@ class PartitionFSM:
         self.aggregates: dict[str, AggregateState] = {}
         self.idempotency_index: dict[str, CommandResult] = {}
         self.revocation_registry: set[str] = set()
+        # P0-4: multi-host consumed execution tickets (PartitionWAL / Raft SoT).
+        self.consumed_ticket_ids: set[str] = set()
         self.subleases: dict[str, SubLeaseRecord] = {}
         self.key_revocation_epoch: int = 0
         self.policy_watermark: int = 1
@@ -185,6 +187,9 @@ class PartitionFSM:
             k: CommandResult.from_dict(v) for k, v in payload.get("idempotency_index", {}).items()
         }
         self.revocation_registry = set(payload.get("revocation_registry", []))
+        self.consumed_ticket_ids = {
+            str(x) for x in (payload.get("consumed_ticket_ids") or []) if str(x).strip()
+        }
         self.subleases = {
             k: SubLeaseRecord.from_dict(v) for k, v in payload.get("subleases", {}).items()
         }
@@ -204,6 +209,7 @@ class PartitionFSM:
             "aggregates": {k: v.to_dict() for k, v in self.aggregates.items()},
             "idempotency_index": {k: v.to_dict() for k, v in self.idempotency_index.items()},
             "revocation_registry": sorted(list(self.revocation_registry)),
+            "consumed_ticket_ids": sorted(list(self.consumed_ticket_ids)),
             "subleases": {k: v.to_dict() for k, v in self.subleases.items()},
         }
 
@@ -267,6 +273,10 @@ class PartitionFSM:
         # Transition dispatch table
         if cmd_type == "AuthorizeExecutionCommand":
             return self._handle_authorize_execution(cmd, current_version, raft_term, raft_index)
+        elif cmd_type == "ConsumeExecutionTicketCommand":
+            return self._handle_consume_execution_ticket(
+                cmd, current_version, raft_term, raft_index
+            )
         elif cmd_type == "SubmitExecutionClaim":
             return self._handle_submit_claim(cmd, current_version, raft_term, raft_index)
         elif cmd_type == "CancelExecutionCommand":
@@ -292,6 +302,71 @@ class PartitionFSM:
                 error_message=f"Unrecognized command type: {cmd_type}",
             )
             return result, ()
+
+    def _handle_consume_execution_ticket(
+        self,
+        cmd: CommandEnvelope,
+        current_version: int,
+        raft_term: int,
+        raft_index: int,
+    ) -> tuple[CommandResult, tuple[EventEnvelope, ...]]:
+        """CAS-consume an execution ticket id into partition state (P0-4)."""
+        ticket_id = str(cmd.payload.get("ticket_id") or "").strip()
+        if not ticket_id:
+            return (
+                CommandResult(
+                    status="REJECTED",
+                    aggregate_id=cmd.aggregate_id,
+                    resulting_aggregate_version=current_version,
+                    result_code="MISSING_TICKET_ID",
+                    error_message="ConsumeExecutionTicketCommand requires ticket_id",
+                ),
+                (),
+            )
+        if ticket_id in self.consumed_ticket_ids:
+            return (
+                CommandResult(
+                    status="REJECTED",
+                    aggregate_id=cmd.aggregate_id,
+                    resulting_aggregate_version=current_version,
+                    result_code="TICKET_ALREADY_CONSUMED",
+                    error_message=f"ticket already consumed: {ticket_id}",
+                ),
+                (),
+            )
+        self.consumed_ticket_ids.add(ticket_id)
+        new_version = current_version + 1
+        self.aggregates[cmd.aggregate_id] = AggregateState(
+            aggregate_id=cmd.aggregate_id,
+            aggregate_type="execution_tickets",
+            version=new_version,
+            state_payload={"last_ticket_id": ticket_id},
+        )
+        evt_id = EventEnvelope.derive_event_id(self.partition_id, raft_index, 0)
+        event = EventEnvelope(
+            event_id=evt_id,
+            event_type="ExecutionTicketConsumedEvent",
+            aggregate_id=cmd.aggregate_id,
+            aggregate_version=new_version,
+            payload={
+                "ticket_id": ticket_id,
+                "run_id": str(cmd.payload.get("run_id") or ""),
+            },
+            correlation_id=cmd.correlation_id,
+            causation_id=cmd.causation_id,
+            partition_id=self.partition_id,
+            raft_term=raft_term,
+            raft_index=raft_index,
+        )
+        return (
+            CommandResult(
+                status="SUCCESS",
+                aggregate_id=cmd.aggregate_id,
+                resulting_aggregate_version=new_version,
+                result_code="TICKET_CONSUMED",
+            ),
+            (event,),
+        )
 
     def _handle_authorize_execution(
         self,

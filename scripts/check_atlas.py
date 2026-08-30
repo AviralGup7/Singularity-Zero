@@ -73,7 +73,9 @@ def main() -> int:
         ):
             # allow reference in prose tables without edge only if marked residual
             if "Architecture Review Residuals" not in text:
-                errors.append("PORT_F003_OUTBOX_NOTIFY_IN appears without edge and no residuals section")
+                errors.append(
+                    "PORT_F003_OUTBOX_NOTIFY_IN appears without edge and no residuals section"
+                )
 
     # Phase-2 honesty anchors
     if "raft_capabilities" not in text and "quorum-1" not in text.lower():

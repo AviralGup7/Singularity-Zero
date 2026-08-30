@@ -504,11 +504,15 @@ class ExecutionAuthorizer:
         if persist in {"1", "true", "yes", "on"}:
             return str(Path(".cstp") / "consumed_tickets.jsonl")
         env = (
-            os.environ.get("APP_ENV")
-            or os.environ.get("ENVIRONMENT")
-            or os.environ.get("CSTP_ENV")
-            or ""
-        ).strip().lower()
+            (
+                os.environ.get("APP_ENV")
+                or os.environ.get("ENVIRONMENT")
+                or os.environ.get("CSTP_ENV")
+                or ""
+            )
+            .strip()
+            .lower()
+        )
         if env in {"prod", "production", "staging", "stage"}:
             return str(Path(".cstp") / "consumed_tickets.jsonl")
         # Dev/test default: memory-only unless CSTP_DATA_DIR / TICKET_CONSUME_STORE set.

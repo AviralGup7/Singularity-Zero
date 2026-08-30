@@ -114,11 +114,15 @@ def assert_url_egress_allowed(url: str) -> None:
     resolve = os.environ.get("EGRESS_RESOLVE_CHECK", "").strip().lower()
     if not resolve:
         env = (
-            os.environ.get("APP_ENV")
-            or os.environ.get("ENVIRONMENT")
-            or os.environ.get("CSTP_ENV")
-            or ""
-        ).strip().lower()
+            (
+                os.environ.get("APP_ENV")
+                or os.environ.get("ENVIRONMENT")
+                or os.environ.get("CSTP_ENV")
+                or ""
+            )
+            .strip()
+            .lower()
+        )
         resolve = "true" if env in {"prod", "production", "staging", "stage"} else "false"
     if resolve in {"1", "true", "yes", "on"}:
         from src.sandbox.network_isolation import validate_url_resolved

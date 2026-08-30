@@ -20,7 +20,10 @@ def test_raft_capability_matrix_prod_default_quorum_1():
     assert "single_node_propose_commit" in names
     assert "networked_multi_host_raft" in names
     prod = [c for c in report["capabilities"] if c["production_default"]]
-    assert all(c["name"] == "single_node_propose_commit" or not c["name"].startswith("networked") for c in prod)
+    assert all(
+        c["name"] == "single_node_propose_commit" or not c["name"].startswith("networked")
+        for c in prod
+    )
     with pytest.raises(RuntimeError):
         assert_production_raft_claim("active-active raft in production")
 
@@ -90,3 +93,46 @@ def test_snapshot_manifest_select_requires_binding():
     )
     chosen2 = select_snapshot([good, forged], verify_key=key)
     assert chosen2.snapshot_id == "s2"
+
+
+def test_consume_execution_ticket_fsm_cas():
+    from src.core.frontier.commands import consume_execution_ticket
+    from src.core.frontier.raft_fsm import PartitionFSM
+
+    fsm = PartitionFSM(partition_id="P-0000")
+    env = consume_execution_ticket(ticket_id="tkt-1", run_id="run-a").to_envelope()
+    result, events = fsm._handle_consume_execution_ticket(env, 0, 1, 1)
+    assert result.result_code == "TICKET_CONSUMED"
+    assert "tkt-1" in fsm.consumed_ticket_ids
+    assert events and events[0].event_type == "ExecutionTicketConsumedEvent"
+
+    result2, _ = fsm._handle_consume_execution_ticket(
+        consume_execution_ticket(ticket_id="tkt-1").to_envelope(), 1, 1, 2
+    )
+    assert result2.result_code == "TICKET_ALREADY_CONSUMED"
+
+
+def test_partition_wal_replicator_registry():
+    from src.infrastructure.frontier.replication import (
+        PartitionWALReplicator,
+        get_partition_wal_replicator,
+        set_partition_wal_replicator,
+    )
+
+    set_partition_wal_replicator(None)
+    assert get_partition_wal_replicator() is None
+    rep = PartitionWALReplicator()
+    set_partition_wal_replicator(rep)
+    try:
+        assert get_partition_wal_replicator() is rep
+        assert rep.caught_up(target_index=1) is False
+    finally:
+        set_partition_wal_replicator(None)
+
+
+def test_swim_elect_leader_doc_is_evidence_only():
+    from pathlib import Path
+
+    src = Path("src/infrastructure/mesh/gossip/engine.py").read_text(encoding="utf-8")
+    assert "def elect_leader" in src
+    assert "evidence-only" in src or "does **not** grant" in src
