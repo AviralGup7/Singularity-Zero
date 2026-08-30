@@ -639,6 +639,27 @@ class HuntBudgetEnforcer:
             self._requests_reserved = max(0, self._requests_reserved - reserved_take)
             self._requests_consumed += int(count)
             self._requests_emitted = self._requests_consumed
+            try:
+                from src.core.frontier.lease_status import LeaseStatus, StaleLeaseFenceError
+
+                for rid in list(self._issued_identities):
+                    try:
+                        self._lease_fence.cas(rid, LeaseStatus.CONSUMED)
+                        break
+                    except (StaleLeaseFenceError, ValueError):
+                        continue
+            except Exception:
+                pass
+
+    def expire_reservation(self, reservation_id: str) -> bool:
+        """Reaper path: CAS RESERVED/ACTIVE -> EXPIRED. False if settle already won."""
+        from src.core.frontier.lease_status import LeaseStatus, StaleLeaseFenceError
+
+        try:
+            self._lease_fence.cas(str(reservation_id), LeaseStatus.EXPIRED)
+            return True
+        except (StaleLeaseFenceError, ValueError):
+            return False
 
     def release_requests(self, count: int = 1) -> None:
         """Release unused reservations if dispatch or execution failed before execution."""

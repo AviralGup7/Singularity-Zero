@@ -467,6 +467,25 @@ class TestPlanRemainders(unittest.TestCase):
             )
         )
 
+    def test_fence_commit_index_does_not_advance_after_fence(self) -> None:
+        from src.core.frontier.global_coordination import PlacementAuthority
+
+        pa = PlacementAuthority(home_region="local")
+        epoch = pa.initiate_transfer(
+            "agg2", "P-0000", "P-0001", to_region="other", source_committed_offset=5
+        )
+        rec = pa._transfers["agg2"]
+        self.assertEqual(rec.fence_commit_index, 5)
+        self.assertTrue(
+            pa.activate_ownership(
+                "agg2",
+                "P-0001",
+                epoch,
+                replica_applied_offset=5,
+                source_committed_offset=99,
+            )
+        )
+
     def test_tenant_isolation_i38(self) -> None:
         from src.core.frontier.tenant_isolation import TenantIsolationError, assert_tenant_scope
 

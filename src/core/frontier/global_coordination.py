@@ -516,11 +516,12 @@ class PlacementAuthority:
             return False
         if fence_token is not None and str(fence_token) != str(rec.fence_token):
             return False
-        source_off = source_committed_offset
-        if source_off is None:
-            source_off = getattr(rec, "fence_commit_index", None)
+        # Frozen at initiate_transfer. Callers cannot advance the fence point.
+        source_off = getattr(rec, "fence_commit_index", None)
         if source_off is None:
             source_off = getattr(rec, "source_committed_offset", None)
+        if source_off is None:
+            source_off = source_committed_offset
         if source_off is not None:
             if replica_applied_offset is None:
                 return False
