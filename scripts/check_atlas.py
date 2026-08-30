@@ -25,6 +25,14 @@ def main() -> int:
         errors.append("F-004 Ticket node missing")
     if "PORT_F003_OUTBOX_NOTIFY_OUT" not in text or "PORT_F003_OUTBOX_NOTIFY_IN" not in text:
         errors.append("outbox notify port pair missing")
+    if "PORT_F003_OUTBOX_NOTIFY_IN --> Emit" in text:
+        errors.append("F-003 notify port must not independently trigger Emit")
+    if "PORT_F019_BUS_IN" not in text:
+        errors.append("F-019 inbound EventBus port missing")
+    if "DeclaredGraph --> ProfileOverride" in text:
+        errors.append("DeclaredGraph must not feed the live prune path")
+    if ":::anchor" in text or ":::property" in text:
+        errors.append("F-004 uses extra classDefs not in the Legend taxonomy")
     if "| **I40** |" in text:
         errors.append("I40 still in registry; use I39")
     if "Global invariants I1–I37" in text:
