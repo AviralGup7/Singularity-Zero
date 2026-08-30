@@ -193,3 +193,27 @@ __all__ = [
     "strict_critical",
     "unbind_run",
 ]
+
+
+def report_partial(
+    run_id: str,
+    reason: str = "manual",
+    *,
+    output_dir: str | None = None,
+    ctx: object | None = None,
+) -> int:
+    """Atlas/F-004/F-018 name for partial report emission.
+
+    Wraps :func:`src.reporting.partial.emit_partial_report` and falls back to
+    the in-process bound partial emitter used on SIGINT/OOM.
+    """
+    try:
+        from src.reporting.partial import emit_partial_report
+
+        result = emit_partial_report(run_id, reason, output_dir=output_dir, ctx=ctx)
+        written = getattr(result, "findings_emitted_at_shutdown", None)
+        if written is None:
+            written = getattr(result, "findings_count", 0)
+        return int(written or 0)
+    except Exception:
+        return int(emit_bound_partial_report(reason) or 0)

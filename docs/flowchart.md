@@ -110,8 +110,8 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 | Id | Chart | Source Specification & Symbols | Absorbed | Status |
 |---|---|---|---|---|
 | F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | Active |
-| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `launcher.py` | F-021, F-040 | Active |
-| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
+| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `src/cli/launcher.py` | F-021, F-040 | Active |
+| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `command_envelope.py` / `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
 | F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `actor_scheduler.py`, `mvr.py`, `stage_admit.py`, `process_sandbox.py`, `findings/spill.py`, `frontier_only.py`, `reporting/partial.py` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
 | F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py` | F-011, F-038 | Active |
 | F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py`, `mvr.py` | F-008, F-027 | Active |
@@ -178,13 +178,13 @@ flowchart TD
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    subgraph Topology["Spatial Deployment & Multi-Region Topology (launcher.py, multi-region.md)"]
-        Browser["React 19 Dashboard (:5173 / :8000)"]:::impl -->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
+    subgraph Topology["Spatial Deployment & Multi-Region Topology (cli/launcher.py, multi-region.md; default single-home)"]
+        Browser["React 19 Dashboard (Vite :5000 / API :8000)"]:::impl -->|"REST / WebSocket"| API["FastAPI Dashboard Server (:8000)"]:::impl
         API -->|"REST / WebSocket"| Browser
         API -->|"Redis Job Queue & Streams<br/>(Circuit Breaker + Local SQLite Spool Fallback)"| Worker["Pipeline Background Worker Daemon"]:::impl
         Worker -->|"job status / lease heartbeat"| API
         Worker ==>|"subproc spawn"| Tools["Security Tool Subprocesses (nuclei, httpx, etc.)"]:::impl
-        Worker -->|"metrics push"| PromSink["Prometheus / Grafana (:9090)"]:::impl
+        Worker -->|"metrics push"| PromSink["Prometheus metrics (:9090; Grafana optional separate)"]:::impl
         
         Worker ==> Orch["Pipeline Orchestrator"]:::impl
         Orch ==> Engines["Recon / Analysis / Fuzz / Exploit"]:::impl
@@ -201,7 +201,7 @@ flowchart TD
         F -.->|"refuse: stale epoch/token (WAL boundary)"| Rej1["Refuse: Stale Epoch / Token"]:::forbidden
         F -.->|"refuse: mutation while fenced"| Rej2["Refuse: Partition FENCED"]:::forbidden
         
-        A -.->|"delayed activate rejected: activation_token_mismatch"| RejDelayed["Refuse: Stale Activation Token"]:::forbidden
+        A -.->|"delayed activate rejected: stale fence / epoch (activation token)"| RejDelayed["Refuse: Stale Activation Token"]:::forbidden
         F -.->|"refuse: replica_applied < fence_commit_index"| RejLag["Refuse: Replica Not Caught Up"]:::forbidden
         
         A ==>|"authoritative write"| OA["P-0000 Leader PartitionWAL (Commands & Budget)"]:::impl
@@ -234,10 +234,10 @@ flowchart TD
     MasterKey["AUTHORITY_SIGNING_KEY / APP_SECRET_KEY"]:::impl --> KeyRing["AuthorityKeyRing (Multi-Generation Overlap)"]:::impl
     KeyRing -->|"active (Gen N)"| Derive["HMAC Key Derivation"]:::impl
     KeyRing -->|"overlap (Gen N-1)"| OverlapVerify["Historical Verification Window (Zero Downtime)"]:::impl
-    RotateCmd["Raft: RotateAuthorityKey Command"]:::impl -->|"ceremony"| KeyRing
+    RotateCmd["RotateAuthorityKeyCommand (commands.py → KeyRing.rotate_key)"]:::impl -->|"ceremony"| KeyRing
     Derive --> ReceiptKey["CommandReceipt Key (key_generation bound)"]:::impl
-    Derive --> MeshKey["MESH_SECRET (AES-256-GCM)"]:::impl
-    Derive --> JWTKey["JWT Session Key"]:::impl
+    Derive --> MeshKey["mesh_secret_key HKDF (AES-256-GCM material)"]:::impl
+    Derive --> JWTKey["jwt_session_key HKDF"]:::impl
     MasterKey -.->|"Missing in Env (Pre-Raft Bootstrap Guard)"| Fallback["Refuse: Missing Master Secret FAILS_CLOSED"]:::forbidden
 ```
 
@@ -382,7 +382,7 @@ flowchart TD
 
         Recover -->|"verify state"| Verify
         Recover -->|"HMAC outbox replay"| ReplayFO["replay_finding_dispatch"]:::impl
-        Recover -->|"AUTO_FINALIZE_CRASHED (pipeline/mvr)"| FinalizeCrash["report_partial for CRASHED_IN_PROGRESS"]:::impl
+        Recover -->|"AUTO_FINALIZE_CRASHED (pipeline/mvr)"| FinalizeCrash["mvr.report_partial / emit_partial_report for CRASHED_IN_PROGRESS"]:::impl
         Recover -->|"attach authority"| Auth
         Recover -->|"apply_authority_recovery after attach"| Stamp
 
@@ -559,7 +559,7 @@ flowchart TD
     Scheduler -->|"evaluate persisted lifecycle"| P_PEND
     Scheduler -->|"dispatch actor"| P_DISP
 
-    Req["ExecutionRequest (ScopeGroupLock + Target RunLock)"]:::impl
+    Req["ExecutionRequest + ScopeToken (RunLock/ScopeGroupLock optional task_pool)"]:::impl
 
     P_DISP -->|"ExecutionRequest for dispatched stage"| Req
 
@@ -622,7 +622,7 @@ flowchart TD
         Viol["EgressViolationError (Out-of-Scope / IMDS Deny)"]:::forbidden
         KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
         SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
-        EgressCompensate["I28 Budget COMPENSATE"]:::impl
+        EgressCompensate["I28 Budget RELEASE"]:::impl
 
         Guard -.->|"refuse IMDS / out-of-scope"| Viol
         Viol --> KillSubproc
@@ -631,7 +631,7 @@ flowchart TD
 
         Exploit["Standalone SafeExploiter.execute"]:::impl
 
-        Exploit -->|"Mandatory ScopeToken + Budget Reservation"| Ticket
+        Exploit -->|"ScopeToken + authorize/consume (+ HuntBudget when attached)"| Ticket
     end
 
     subgraph SettlementPipeline["Settlement & Deduplication Pipeline (I28 / I31 / I32 / F-042)"]
@@ -771,10 +771,10 @@ flowchart TD
 | Stage Attempt Outcome | WAL Result | Settle Status | `FINDING_CREATED` Emitted? | I28 Budget Action | Stage Terminal Status |
 |---|---|---|---|---|---|
 | **COMPLETED (with findings)** | Committed (`wal_id` assigned) | `COMMITTED` | **Yes** (strict I31) | `COMMIT` (Consumed += units) | `COMPLETED` |
-| **COMPLETED (zero findings)** | Committed (`wal_id` assigned) | `COMMITTED` | No | `COMPENSATE` (Available += units) | `COMPLETED` |
-| **FAILED / ERROR** | Recorded (`wal_id` assigned) | `REJECTED` | No | `COMPENSATE` (Available += units) | `FAILED` / `DEGRADED` |
-| **EGRESS_VIOLATION** | Rejected / Refused | `DROPPED` | No | `COMPENSATE` (Available += units) | `FAILED` |
-| **SKIPPED / UNBUDGETED** | Not submitted to WAL | `N/A` | No | `COMPENSATE` (if reserved) | `SKIPPED_DISABLED` |
+| **COMPLETED (zero findings)** | Committed (`wal_id` assigned) | `COMMITTED` | No | `RELEASE` (Available += units) | `COMPLETED` |
+| **FAILED / ERROR** | Recorded (`wal_id` assigned) | `REJECTED` | No | `RELEASE` (Available += units) | `FAILED` / `DEGRADED` |
+| **EGRESS_VIOLATION** | Rejected / Refused | `DROPPED` | No | `RELEASE` (Available += units) | `FAILED` |
+| **SKIPPED / UNBUDGETED** | Not submitted to WAL | `N/A` | No | `RELEASE` (if reserved) | `SKIPPED_DISABLED` |
 | **FRONTIER_ONLY (authority down)** | Not submitted to PartitionWAL | `N/A` | No | none (no reserve) | Discovery stages continue; findings in `findings.spill.jsonl` |
 | **Outbox append failure after COMMITTED** | WAL unchanged | `COMMITTED` | **No** (I31 outbox-before-bus) | none | Spill retained; `OutboxReplayAgent` on READY |
 | **ResourceGuard PRESSURE / SPILL_FIRST** | WAL may be committed | skip outbox/bus | No | none | Spill JSONL only; merge later |
@@ -785,19 +785,19 @@ flowchart TD
 
 | Domain Subsystem | Active Package Path | Pipeline Attachment Stage | Primary Responsibility & Core Classes |
 |---|---|---|---|
-| **Asset Discovery & Recon** | `src/recon/` | `subdomains`, `live_hosts`, `urls` | OSINT ingestion, Cloud recon (AWS/Azure/GCP), JS AST parsing, API spec reconstruction, TLS/SSL configuration analysis (`APISchemaReconstructor`, `CloudBucketScanner`, `AlienURL`, `TLSAnalyzer`). |
-| **Vulnerability Analysis** | `src/analysis/` | `passive_scan`, `active_scan`, `semgrep` | Modular active/passive checks, behavioral timing diffing, bug bounty heuristics, AST check registration, XXE detection, gRPC reflection fuzzing, OAuth security testing (`AcceleratedMatcher`, `PluginRegistration`, `GrpcFuzzer`, `test_xxe_vulnerabilities`, `test_oauth_oidc_security`). |
-| **Autonomous Exploitation** | `src/exploitation/` | `subdomain_takeover`, `validation` | Proof-of-concept verification, SSRF pivoting, DNS rebinding, deserialization, cloud takeover (`ExploitationCampaign`, `DeserializationExploitationEngine`, `DNSRebindEngine`). |
-| **Protocol & Payload Fuzzing**| `src/fuzzing/` | `active_scan` (Optional) | AST grammar mutators (JSON/XML/HTML/SQL), low-level fork server, HTTP/2 framing fuzzer (`BaseASTMutator`, `ForkServer`, `FramingFuzzer`). |
-| **Dynamic Detection Runtime** | `src/detection/` | `validation`, `waf` | Multi-family detector bundles, headless browser DOM XSS execution, WAF fingerprinting & evasion (`DetectorBundle`, `DetectionRuntime`, `WAFDetection`). |
-| **API Access & Security Tests**| `src/api_tests/` | `access_control` | REST/GraphQL specification parser, BOLA/BFLA access control testing, JWT tampering (`APITester`, `AuthMatrixTester`). |
-| **Execution Manifests & Scenarios**| `src/execution/` | `stage_admit.py`, `_run_execution.py` | Active check catalog, isolated execution caching, multi-step scenario models (`ActiveManifestRegistry`, `IsolatedResponseCacheFactory`, `ScenarioEngine`). |
+| **Asset Discovery & Recon** | `src/recon/` | `subdomains`, `live_hosts`, `urls` | OSINT ingestion, Cloud recon (AWS/Azure/GCP), JS AST parsing, API spec reconstruction, TLS/SSL configuration analysis (recon package: schema/cloud/TLS helpers — see `src/recon/`). |
+| **Vulnerability Analysis** | `src/analysis/` | `passive_scan`, `active_scan`, `semgrep` | Modular active/passive checks, behavioral timing diffing, bug bounty heuristics, AST check registration, XXE detection, gRPC reflection fuzzing, OAuth security testing (analysis active/passive packages + plugin registration). |
+| **Autonomous Exploitation** | `src/exploitation/` | `subdomain_takeover`, `validation` | Proof-of-concept verification, SSRF pivoting, DNS rebinding, deserialization, cloud takeover (`ExploitationCampaign`, SafeExploiter engines under `src/exploitation/`). |
+| **Protocol & Payload Fuzzing**| `src/fuzzing/` | `active_scan` (Optional) | AST grammar mutators (JSON/XML/HTML/SQL), low-level fork server, HTTP/2 framing fuzzer (AST mutators + HTTP/2/framing fuzzers under `src/fuzzing/`). |
+| **Dynamic Detection Runtime** | `src/detection/` | `validation`, `waf` | Multi-family detector bundles, headless browser DOM XSS execution, WAF fingerprinting & evasion (detector bundles + browser/WAF helpers under `src/detection/`). |
+| **API Access & Security Tests**| `src/api_tests/` | `access_control` | REST/GraphQL specification parser, BOLA/BFLA access control testing, JWT tampering (API access-control testers under `src/api_tests/`). |
+| **Execution Manifests & Scenarios**| `src/execution/` | `stage_admit.py`, `_run_execution.py` | Active check catalog, isolated execution caching, multi-step scenario models (manifests/scenarios under `src/execution/`). |
 | **Threat Feed & IOC Ingestion** | `src/intel/` | `intelligence` | External threat feed aggregation, indicator extraction, and IOC watchlists (`FeedAggregator`, `Watchlist`, `Indicator`). |
-| **Attack Graph & Risk Intelligence**| `src/intelligence/` | `intelligence`, `threat_modeling` | Multi-vulnerability attack chain correlation, CVSS risk modeling, campaign proposals (`ThreatIntelCorrelator`, `AttackChain`, `CalibratedSeverityModel`). |
-| **Machine Learning & Triage** | `src/learning/` | Post-Scan Sinks / `F-002` | Run drift tracking, anomaly scoring, FP/TP feedback loops, analyst triage collaboration (`BaselineTracker`, `FeedbackLoop`, `FindingDeduplicator`). |
-| **Enterprise GRC & Reporting** | `src/reporting/` | `reporting`, `sarif_export`, `ci_export` | PDF/HTML compliance attestation (SOC2/ISO27001/PCI-DSS), SLA tracking, bug bounty platform clients (`ComplianceAttestation`, `SLATracker`, `AppleClient`, `AWSClient`). |
-| **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (`NotificationBridge`, `Digest`, `SnoozeBook`). |
-| **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (`Broadcaster`, `ConnectionManager`). |
+| **Attack Graph & Risk Intelligence**| `src/intelligence/` | `intelligence`, `threat_modeling` | Multi-vulnerability attack chain correlation, CVSS risk modeling, campaign proposals (correlation/risk under `src/intelligence/`). |
+| **Machine Learning & Triage** | `src/learning/` | Post-Scan Sinks / `F-002` | Run drift tracking, anomaly scoring, FP/TP feedback loops, analyst triage collaboration (learning baselines/triage under `src/learning/`). |
+| **Enterprise GRC & Reporting** | `src/reporting/` | `reporting`, `sarif_export`, `ci_export` | PDF/HTML compliance attestation (SOC2/ISO27001/PCI-DSS), SLA tracking, bug bounty platform clients (GRC/reporting clients under `src/reporting/`). |
+| **Alert Routing & Escalation** | `src/notifications/`| EventBus Consumer / `F-019` | Outbound alerts (Slack/Discord/Teams/PagerDuty/Email), snooze management, burst escalations (notification routing under `src/notifications/`). |
+| **Real-Time Telemetry & Streams**| `src/realtime/`, `src/websocket_server/` | `F-009`, `F-019` | QoS admission shedding (`qos_admit`), standalone high-throughput WebSocket broadcasting (realtime/websocket broadcasters under `src/realtime/`, `src/websocket_server/`). |
 | **MVR Survival & Partial Results** | `src/pipeline/mvr.py`, `src/core/findings/spill.py`, `src/core/frontier/frontier_only.py`, `src/core/checkpoint/dag_checkpoint.py`, `src/reporting/partial.py`, `src/core/runtime/resource_guard.py` | All stages + shutdown | Degrade non-`must_succeed` failures; spill findings before settle; FRONTIER_ONLY discovery; DAG checkpoint; partial SARIF/JSON on SIGINT/OOM. |
 
 ```mermaid
@@ -812,7 +812,7 @@ flowchart LR
     subgraph PackageAuthority["Package Path Authority Model"]
         Core["core/frontier/*<br/>(StateAuthority, WAL, CRDT, Raft)"]:::impl
         Facade["frontier/*, tests/test_support/*<br/>(Facades, MemoryJournal Mock)"]:::library
-        Cache["cache/*, checkpoint/*<br/>(UnifiedCache, FileCheckpoint)"]:::library
+        Cache["cache/*, checkpoint/*<br/>(UnifiedCache, CheckpointManager/FileCheckpoint alias)"]:::library
         Domain["intel/*, intelligence/*<br/>(IOC Feeds, Attack Chains)"]:::impl
         
         Facade -->|"forwarding only"| Core
@@ -1415,7 +1415,7 @@ flowchart TD
         I5g --> I39g
         I5g --> I6g["I6: Scoped Idempotency<br/><small>raft_fsm.py [PROPERTY-TESTED]</small>"]:::impl
         I6g --> I19g["I19: Lease Terminal Linearization<br/><small>lease_status.py [MODEL-CHECKED]</small>"]:::impl
-        I19g --> I20g["I20: Policy Version Fencing<br/><small>policy_governance.py [FAULT-INJECTED]</small>"]:::impl
+        I19g --> I20g["I20: Policy Version Fencing<br/><small>policy_governance.py (learning/frontier re-export) [FAULT-INJECTED]</small>"]:::impl
         I19g --> I21g["I21: Projection Recovery Invariance<br/><small>outbox.py [FAULT-INJECTED]</small>"]:::impl
         I19g --> I28g["I28: Hardened Lease Transitions<br/><small>hunt_budget.py [MODEL-CHECKED]</small>"]:::impl
 
@@ -1489,8 +1489,8 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `MESH_LEADER_ELECTION_TIMEOUT_SEC` | `10.0` | Mesh Consensus | Raft-lite Redis lease consensus timeout |
 | `MESH_PEER_RATE_LIMIT_PPS` | `200` | Mesh Gossip | Maximum gossip packets per second per peer |
 | `OBSERVABILITY_METRICS_PORT` | `9090` | Observability | Prometheus metrics scraping port |
-| `PROMETHEUS_HOST` | `127.0.0.1` | Observability | Prometheus scrape binding address (localhost default) |
-| `PROMETHEUS_REQUIRE_MTLS` | `false` | Observability | Require mTLS client certificates for Prometheus scrapes |
+| `PROMETHEUS_HOST` / `OBSERVABILITY_METRICS_HOST` | `127.0.0.1` | Observability | Prometheus bind address (alias pair) |
+| `PROMETHEUS_REQUIRE_MTLS` / `OBSERVABILITY_METRICS_MTLS` | `false` | Observability | Require mTLS for Prometheus scrapes (alias pair) |
 | `WAL_GROUP_COMMIT_BATCH_SIZE` | `64` | Partition WAL | Group commit entry batch size before fsync |
 | `WAL_GROUP_COMMIT_WINDOW_MS` | `1.0` | Partition WAL | Group commit maximum window duration in ms |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | Observability | OpenTelemetry OTLP collector gRPC endpoint |

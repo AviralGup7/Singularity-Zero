@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 
+def file_checkpoint_cls() -> Any:
+    from src.core.checkpoint.file_checkpoint import FileCheckpoint
+
+    return FileCheckpoint
+
+
 def checkpoint_manager_cls() -> Any:
     from src.core.checkpoint.manager import CheckpointManager
 
@@ -17,4 +23,4 @@ def attempt_recovery(*args: Any, **kwargs: Any) -> Any:
     return _attempt(*args, **kwargs)
 
 
-__all__ = ["attempt_recovery", "checkpoint_manager_cls"]
+__all__ = ["file_checkpoint_cls", "attempt_recovery", "checkpoint_manager_cls"]

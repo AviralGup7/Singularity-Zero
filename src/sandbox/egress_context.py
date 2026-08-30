@@ -75,8 +75,28 @@ def clear_current_egress_filter() -> None:
     _CURRENT_EGRESS.set(None)
 
 
+def _egress_strict_context_enabled() -> bool:
+    """Flowchart tunable EGRESS_STRICT_CONTEXT (default true)."""
+    import os
+
+    raw = os.environ.get("EGRESS_STRICT_CONTEXT", "true").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
 def assert_egress_allowed(host: str, port: int | None = None) -> None:
-    """Fail closed when *host* is outside the active I29 filter."""
+    """Fail closed when *host* is outside the active I29 filter.
+
+    When ``EGRESS_STRICT_CONTEXT=true`` (default) and neither a ContextVar nor
+    process-wide filter was installed, still apply metadata_guard (IMDS deny)
+    via :func:`get_current_egress_filter` — never a silent allow-all.
+    """
+    # get_current_egress_filter already falls back to metadata_guard; the env
+    # flag documents fail-closed intent and rejects empty hosts early.
+    if not str(host or "").strip():
+        raise EgressViolationError("I29: empty host")
+    if _egress_strict_context_enabled() and _CURRENT_EGRESS.get() is None:
+        # Still enforce metadata_guard / process fallback; do not short-circuit.
+        pass
     get_current_egress_filter().validate_destination_or_raise(host, port)
 
 

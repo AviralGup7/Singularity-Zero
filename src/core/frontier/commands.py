@@ -24,6 +24,7 @@ COMMAND_TYPES: tuple[str, ...] = (
     "LeaseTimeoutCommand",
     "ExpireSubLeaseCommand",
     "SyncKeyRevocationCommand",
+    "RotateAuthorityKeyCommand",
     "PromotePolicyCommand",
     "RollbackPolicyCommand",
 )
@@ -300,4 +301,23 @@ def sync_key_revocation(
         payload={"revocation_epoch": int(revocation_epoch)},
         command_id=command_id,
         expected_aggregate_version=expected_aggregate_version,
+    )
+
+
+def make_rotate_authority_key_command(
+    *,
+    command_id: str = "",
+    new_key_id: str,
+    key_material_b64: str = "",
+    aggregate_id: str = "authority_keys",
+) -> TypedCommand:
+    """Raft/operator ceremony: rotate AuthorityKeyRing active generation (I13)."""
+    return TypedCommand(
+        command_type="RotateAuthorityKeyCommand",
+        aggregate_id=aggregate_id,
+        payload={
+            "new_key_id": new_key_id,
+            "key_material_b64": key_material_b64,
+        },
+        command_id=command_id,
     )

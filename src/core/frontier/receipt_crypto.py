@@ -115,6 +115,14 @@ class AuthorityKeyRing:
         with self._lock:
             return self._active_generation
 
+    def active_material(self) -> bytes:
+        """Raw bytes for the active generation (HKDF input for domain keys)."""
+        with self._lock:
+            rec = self._keys.get(self._active_key_id)
+            if rec is None:
+                raise RuntimeError("AuthorityKeyRing has no active key")
+            return rec.raw_material
+
     def get_key_material(self, key_id: str | None = None) -> bytes:
         with self._lock:
             target_id = key_id or self._active_key_id
@@ -206,3 +214,31 @@ def verify_receipt_signature(payload: Mapping[str, Any], signature: str) -> bool
     # 2. Try with active key in key ring (overlap fallback)
     active_expected = sign_receipt(payload, key_id=GLOBAL_KEY_RING.active_key_id)
     return hmac.compare_digest(active_expected, str(signature))
+
+
+def mesh_secret_key(master: bytes | None = None) -> bytes:
+    """Derive 32-byte MESH_SECRET material (AES-256-GCM) from the authority master."""
+    material = master if master is not None else GLOBAL_KEY_RING.active_material()
+    return domain_separated_key(material, purpose="mesh-aes-256-gcm")
+
+
+def jwt_session_key(master: bytes | None = None) -> bytes:
+    """Derive JWT session signing key bytes from the authority master."""
+    material = master if master is not None else GLOBAL_KEY_RING.active_material()
+    return domain_separated_key(material, purpose="jwt-session")
+
+
+def apply_rotate_authority_key_command(payload: dict) -> KeyGenerationRecord:
+    """Apply RotateAuthorityKeyCommand payload to GLOBAL_KEY_RING."""
+    import base64
+    import secrets
+
+    new_key_id = str(payload.get("new_key_id") or "").strip()
+    if not new_key_id:
+        new_key_id = f"authority-hmac-v{GLOBAL_KEY_RING.active_generation() + 1}"
+    raw_b64 = str(payload.get("key_material_b64") or "").strip()
+    if raw_b64:
+        material = base64.b64decode(raw_b64)
+    else:
+        material = secrets.token_bytes(32)
+    return GLOBAL_KEY_RING.rotate_key(new_key_id, material)

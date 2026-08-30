@@ -65,13 +65,19 @@ class PartitionWAL:
         wal_dir: Path | str | None = None,
         *,
         group_commit: bool = True,
-        group_commit_batch_size: int = 64,
-        group_commit_window_ms: float = 1.0,
+        group_commit_batch_size: int | None = None,
+        group_commit_window_ms: float | None = None,
         active_epoch: int = 1,
     ) -> None:
+        import os
+
         self.partition_id = partition_id
         self.node_id = node_id
         self.group_commit = group_commit
+        if group_commit_batch_size is None:
+            group_commit_batch_size = int(os.environ.get("WAL_GROUP_COMMIT_BATCH_SIZE", "64"))
+        if group_commit_window_ms is None:
+            group_commit_window_ms = float(os.environ.get("WAL_GROUP_COMMIT_WINDOW_MS", "1.0"))
         self.group_commit_batch_size = group_commit_batch_size
         self.group_commit_window_ms = group_commit_window_ms
         self.active_epoch = int(active_epoch)
