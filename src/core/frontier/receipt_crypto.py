@@ -28,6 +28,17 @@ class PersistentSigningKeyRequired(RuntimeError):
     """HMAC receipts cannot verify across restart without an env key."""
 
 
+def domain_separated_key(material: bytes, *, purpose: str) -> bytes:
+    """HKDF-SHA256 Expand from a master secret with a purpose label (B19).
+
+    Receipt HMAC, mesh AEAD, and JWT must not share raw key bytes.
+    """
+    salt = b"singularity-zero-hkdf-v1"
+    prk = hmac.new(salt, material, hashlib.sha256).digest()
+    info = f"cstp/{purpose}".encode()
+    return hmac.new(prk, info + b"\x01", hashlib.sha256).digest()
+
+
 def signing_key_from_env() -> bool:
     return bool(
         os.environ.get("AUTHORITY_SIGNING_KEY", "").strip()

@@ -576,13 +576,17 @@ class NeuralState:
             findings = delta["findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self._ingest_finding(finding, ts, vclock, prefer_reportable=True)
+                    self._ingest_finding(
+                        finding, ts, vclock, prefer_reportable=self._prefer_reportable()
+                    )
 
         if "reportable_findings" in delta:
             findings = delta["reportable_findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self._ingest_finding(finding, ts, vclock, prefer_reportable=True)
+                    self._ingest_finding(
+                        finding, ts, vclock, prefer_reportable=self._prefer_reportable()
+                    )
 
         # active_scan_findings / vulnerabilities are evidence bags, not the
         # reportable CRDT. Route through lifecycle; they cannot bypass it.
@@ -603,6 +607,18 @@ class NeuralState:
             self.applied_wal_ids.add(wal_id)
             self.last_wal_id = wal_id
             self._trim_applied_wal_ids()
+
+    @staticmethod
+    def _prefer_reportable() -> bool:
+        """FRONTIER_ONLY observations stay candidates until later settlement."""
+        try:
+            from src.core.frontier.frontier_only import is_frontier_only
+
+            if is_frontier_only():
+                return False
+        except Exception:
+            pass
+        return True
 
     def _ingest_finding(
         self,

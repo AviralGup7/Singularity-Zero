@@ -6,6 +6,7 @@ Importing it from `src.frontier.journal` is deprecated to prevent test mocks in 
 
 from __future__ import annotations
 
+import os
 import warnings
 from typing import Any
 
@@ -21,6 +22,11 @@ from src.frontier.verify import replay_gap
 
 class MemoryJournal:
     def __init__(self) -> None:
+        env = os.environ.get("APP_ENV", "").strip().lower()
+        if env in {"production", "prod", "staging"}:
+            raise RuntimeError(
+                f"MemoryJournal is test-only and cannot be constructed when APP_ENV={env!r}"
+            )
         self._entries: list[dict[str, Any]] = []
 
     def append(self, payload: dict[str, Any]) -> str:
