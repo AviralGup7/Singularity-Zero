@@ -499,7 +499,20 @@ class ExecutionAuthorizer:
         data = os.environ.get("CSTP_DATA_DIR", "").strip()
         if data:
             return str(Path(data) / "consumed_tickets.jsonl")
-        return str(Path(".cstp") / "consumed_tickets.jsonl")
+        # Durable-by-default when opted in or production/staging profile.
+        persist = os.environ.get("CSTP_PERSIST_CONSUMED_TICKETS", "").strip().lower()
+        if persist in {"1", "true", "yes", "on"}:
+            return str(Path(".cstp") / "consumed_tickets.jsonl")
+        env = (
+            os.environ.get("APP_ENV")
+            or os.environ.get("ENVIRONMENT")
+            or os.environ.get("CSTP_ENV")
+            or ""
+        ).strip().lower()
+        if env in {"prod", "production", "staging", "stage"}:
+            return str(Path(".cstp") / "consumed_tickets.jsonl")
+        # Dev/test default: memory-only unless CSTP_DATA_DIR / TICKET_CONSUME_STORE set.
+        return ""
 
     def _load_consumed_store(self) -> None:
         path = self._consumed_store_path()

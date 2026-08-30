@@ -189,6 +189,10 @@ def test_verify_report_shows_journal_ahead(tmp_path: Path, monkeypatch: pytest.M
 def test_i35_newer_checkpoint_schema_starts_fresh(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """I35: newer schema with durable bytes must quarantine, not silent FRESH.
+
+    Operators may opt into FRESH via ALLOW_FRESH_ON_DURABLE_MISMATCH=true.
+    """
     checkpoint = CheckpointState(
         pipeline_run_id="run-future",
         completed_stages=["recon"],
@@ -215,6 +219,16 @@ def test_i35_newer_checkpoint_schema_starts_fresh(
         stage_order=["recon", "scan"],
         wal_factory=_FakeWal,
     )
+    # Default: refuse silent FRESH when durable incompatible checkpoint exists.
+    monkeypatch.delenv("ALLOW_FRESH_ON_DURABLE_MISMATCH", raising=False)
+    try:
+        manager.recover()
+        raise AssertionError("expected QUARANTINE RuntimeError")
+    except RuntimeError as exc:
+        assert "QUARANTINE" in str(exc)
+
+    # Opt-in FRESH still available for operator recovery drills.
+    monkeypatch.setenv("ALLOW_FRESH_ON_DURABLE_MISMATCH", "true")
     state = manager.recover()
     assert state.can_recover is False
     assert state.source == "none"

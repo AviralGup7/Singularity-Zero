@@ -160,7 +160,7 @@ def signing_key_id() -> str:
 
 def active_key_generation() -> int:
     """Return the active monotonic key generation counter."""
-    return GLOBAL_KEY_RING.active_generation
+    return GLOBAL_KEY_RING.active_generation()
 
 
 def _signing_key(key_id: str | None = None) -> bytes:

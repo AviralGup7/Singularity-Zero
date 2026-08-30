@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 def current_boot_id() -> str:
     """Stable-enough boot marker for mono-deadline invalidation after restart."""
     import os
-    from pathlib import Path
 
     for candidate in (
         os.environ.get("CSTP_BOOT_ID", "").strip(),

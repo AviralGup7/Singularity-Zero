@@ -1526,7 +1526,7 @@ In accordance with §0 (Maintenance Contract), retired IDs are preserved as stab
 | `MEM_PRESSURE_PCT` | `85` | ResourceGuard | Memory PRESSURE threshold |
 | `GRAPHGEN_STRICT` | `true` | Graph | Fail-closed when stored declared GraphGenID differs |
 | `CAPABILITY_FINGERPRINT_STRICT` | follows GRAPHGEN_STRICT | Graph | Fail-closed when stored post-prune/post-join/post-CycleCheck capability fingerprint differs |
-| `TICKET_CONSUME_STORE` | `$CSTP_DATA_DIR/consumed_tickets.jsonl` or `./.cstp/consumed_tickets.jsonl` | I30 | Durable consume ledger (process-local floor); DagCheckpoint mirrors ids; PartitionWAL ConsumeExecutionTicket is the multi-host target |
+| `TICKET_CONSUME_STORE` | `$CSTP_DATA_DIR/...` or `./.cstp/...` in prod/staging (else memory) | I30 | Durable consume ledger (process-local floor); DagCheckpoint mirrors ids; PartitionWAL ConsumeExecutionTicket is the multi-host target |
 | `SPILL_FIRST` | `false` | Findings | Force spill-only I/O even without ResourceGuard PRESSURE |
 | `RUN_DEAD_AFTER_S` | `120` | Checkpoint | Heartbeat age after which a RUNNING DAG checkpoint is worker-dead |
 | `PIPELINE_MAX_DURATION_SECONDS` | (config / unset) | Scheduler | Global deadline; remaining non-sinks skip with `global_deadline_exceeded` |

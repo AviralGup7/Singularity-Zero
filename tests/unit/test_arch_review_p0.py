@@ -7,12 +7,21 @@ from types import SimpleNamespace
 
 def test_ticket_consume_store_defaults_to_durable_path(tmp_path, monkeypatch):
     monkeypatch.delenv("TICKET_CONSUME_STORE", raising=False)
+    monkeypatch.delenv("CSTP_PERSIST_CONSUMED_TICKETS", raising=False)
     monkeypatch.setenv("CSTP_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("APP_ENV", raising=False)
     from src.decision.authorization import ExecutionAuthorizer
 
     svc = ExecutionAuthorizer.__new__(ExecutionAuthorizer)
     path = svc._consumed_store_path()
     assert path == str(tmp_path / "consumed_tickets.jsonl")
+
+    monkeypatch.delenv("CSTP_DATA_DIR", raising=False)
+    monkeypatch.setenv("APP_ENV", "production")
+    assert svc._consumed_store_path().endswith("consumed_tickets.jsonl")
+
+    monkeypatch.setenv("APP_ENV", "dev")
+    assert svc._consumed_store_path() == ""
 
 
 def test_optional_needs_skipped_disabled_only_for_optional():

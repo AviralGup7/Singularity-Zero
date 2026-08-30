@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - learning optional in some test shards
     class PolicyGovernanceGate:  # type: ignore[no-redef]
         """Minimal stub when learning package is unavailable."""
 
-        def allow(self, *_args, **_kwargs) -> bool:
+        def allow(self, *_args: object, **_kwargs: object) -> bool:
             return True
 
 

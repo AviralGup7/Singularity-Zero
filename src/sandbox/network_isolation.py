@@ -141,8 +141,8 @@ def validate_url_resolved(url: str, filt: NetworkEgressFilter) -> list[str]:
     fails the scope/metadata checks. Callers that follow redirects must invoke
     this again on each hop.
     """
-    from urllib.parse import urlparse
     import socket
+    from urllib.parse import urlparse
 
     raw = str(url or "").strip()
     if not raw:
@@ -170,7 +170,7 @@ def validate_url_resolved(url: str, filt: NetworkEgressFilter) -> list[str]:
         raise EgressViolationError(f"I29: DNS resolution failed for {host}: {exc}") from exc
     for info in infos:
         sockaddr = info[4]
-        ip = sockaddr[0]
+        ip = str(sockaddr[0])
         filt.validate_destination_or_raise(ip, parsed.port)
         if ip not in addrs:
             addrs.append(ip)
