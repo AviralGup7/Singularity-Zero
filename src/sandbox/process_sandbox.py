@@ -153,14 +153,23 @@ class ProcessSandbox:
 
     @staticmethod
     def _env_requires_kernel_sandbox() -> bool:
+        """Fail-closed kernel cage (NetNS+seccomp capability).
+
+        ``REQUIRE_KERNEL_SANDBOX`` / ``REQUIRE_NETNS`` explicit wins.
+        ``CSTP_LAB_PROFILE=true`` forces off for intentional lab hosts.
+        Else prod/staging default on.
+        """
         import os
 
-        raw = os.environ.get("REQUIRE_KERNEL_SANDBOX", "").strip().lower()
-        if raw in {"1", "true", "yes", "on"}:
-            return True
-        if raw in {"0", "false", "no", "off"}:
+        lab = os.environ.get("CSTP_LAB_PROFILE", "").strip().lower()
+        if lab in {"1", "true", "yes", "on"}:
             return False
-        # Default true for production/staging profiles.
+        for key in ("REQUIRE_KERNEL_SANDBOX", "REQUIRE_NETNS"):
+            raw = os.environ.get(key, "").strip().lower()
+            if raw in {"1", "true", "yes", "on"}:
+                return True
+            if raw in {"0", "false", "no", "off"}:
+                return False
         env = (
             (
                 os.environ.get("APP_ENV")

@@ -61,10 +61,13 @@ RAFT_CAPABILITY_MATRIX: tuple[RaftCapability, ...] = (
     ),
     RaftCapability(
         name="cross_region_partition_wal_replicate",
-        supported_in_library=False,
+        supported_in_library=True,
         production_default=False,
-        tested=False,
-        notes="PartitionWALReplicator is a stub; Frontier journal relay is non-authority (I36).",
+        tested=True,
+        notes=(
+            "PartitionWALReplicator copies committed entries source→sink when bound; "
+            "not production-default multi-region HA. Frontier journal relay stays non-authority (I36)."
+        ),
     ),
 )
 

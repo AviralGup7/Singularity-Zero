@@ -57,6 +57,29 @@ def build_pipeline_authority_runtime(
         runtime.hunt_budget.set_reserve_gate(None)
     runtime.bandit = BayesianParameterBandit()
     runtime.authorizer = ExecutionAuthorizer(budget_enforcer=runtime.hunt_budget)
+
+    def _wal_consume_ticket(ticket_id: str) -> bool:
+        """Propose ConsumeExecutionTicketCommand on the partition log (P0-4)."""
+        from src.core.frontier.commands import consume_execution_ticket
+
+        log = getattr(runtime, "partition_log", None)
+        if log is None or not hasattr(log, "propose_and_commit"):
+            return False
+        cmd = consume_execution_ticket(ticket_id=str(ticket_id), run_id=str(run_id)).to_envelope()
+        receipt, _events = log.propose_and_commit(cmd)
+        code = str(getattr(receipt, "result_code", "") or "")
+        return code in {"TICKET_CONSUMED", "SUCCESS"} or str(
+            getattr(receipt, "status", "")
+        ).upper() in {
+            "SUCCESS",
+            "APPLIED",
+            "OK",
+        }
+
+    try:
+        runtime.authorizer.set_wal_consume_fn(_wal_consume_ticket, require=False)
+    except Exception:
+        pass
     runtime.settlement.budget_enforcer = runtime.hunt_budget
     return runtime
 

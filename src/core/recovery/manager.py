@@ -419,8 +419,45 @@ class RecoveryManager:
             storage_config=self.storage_config,
         )
         if can_recover and state is not None:
+            # P0-12: if payload carries a snapshot manifest, verify binding fields.
+            self._assert_checkpoint_manifest_safe(state)
             return state
         return None
+
+    def _assert_checkpoint_manifest_safe(self, state: Any) -> None:
+        """Refuse checkpoints that advertise a manifest but fail binding checks."""
+        import os
+
+        raw = getattr(state, "manifest", None) or getattr(state, "snapshot_manifest", None)
+        if raw is None and isinstance(state, dict):
+            raw = state.get("manifest") or state.get("snapshot_manifest")
+        if raw is None:
+            return
+        try:
+            from src.core.frontier.snapshot_manifest import (
+                SnapshotManifest,
+                SnapshotSelectionError,
+                select_snapshot,
+            )
+        except Exception:
+            return
+        try:
+            if isinstance(raw, SnapshotManifest):
+                candidates = [raw]
+            elif isinstance(raw, (list, tuple)):
+                candidates = [
+                    SnapshotManifest.from_mapping(x) if not isinstance(x, SnapshotManifest) else x
+                    for x in raw
+                ]
+            else:
+                candidates = [SnapshotManifest.from_mapping(raw)]
+            key_hex = os.environ.get("SNAPSHOT_MANIFEST_HMAC_KEY", "").strip()
+            key = bytes.fromhex(key_hex) if key_hex else None
+            select_snapshot(candidates, verify_key=key, require_signature=bool(key))
+        except SnapshotSelectionError as exc:
+            raise RuntimeError(f"QUARANTINE: snapshot manifest selection failed: {exc}") from exc
+        except Exception as exc:
+            logger.warning("snapshot manifest check skipped: %s", exc)
 
     def _load_specific_run(self, run_id: str) -> CheckpointState | None:
         from src.core.storage.factory import create_checkpoint_store

@@ -297,34 +297,126 @@ class PartitionWALReplicationNotReady(RuntimeError):
 class PartitionWALReplicator:
     """Authoritative PartitionWAL A→B continuous replicate (P0-1).
 
-    Status: **stub**. Live path is still the Frontier journal relay
-    (:class:`WALReplicationRelay`) which is explicitly non-authority (I36).
-    Multi-region ``activate_ownership`` must refuse unless a concrete
-    subclass/provider is installed and reports ``caught_up=True``.
+    When ``source_wal`` and ``sink_wal`` expose ``load_all_entries`` /
+    ``append_entry`` (as :class:`~src.core.frontier.replicated_log.PartitionWAL`
+    does), this provider copies **committed** entries by raft_index into the
+    sink. Frontier journal relay remains non-authority (I36).
+
+    Enable with ``set_partition_wal_replicator(...)`` or
+    ``PARTITION_WAL_REPLICATE=true`` plus bound WALs. Unbound instances stay
+    disabled and report ``caught_up=False`` so activate_ownership still refuses.
     """
 
-    def __init__(self, *, source_wal: Any = None, sink_wal: Any = None) -> None:
+    def __init__(
+        self, *, source_wal: Any = None, sink_wal: Any = None, enabled: bool | None = None
+    ) -> None:
+        import os
+
         self.source_wal = source_wal
         self.sink_wal = sink_wal
-        self.enabled = False
+        if enabled is None:
+            raw = os.environ.get("PARTITION_WAL_REPLICATE", "").strip().lower()
+            enabled = raw in {"1", "true", "yes", "on"} or (
+                source_wal is not None and sink_wal is not None
+            )
+        self.enabled = bool(enabled)
+        self._last_replicated_index: int = 0
+        self._lock = threading.RLock()
+
+    def bind(self, *, source_wal: Any, sink_wal: Any) -> None:
+        """Attach source/sink WALs and enable replicate."""
+        with self._lock:
+            self.source_wal = source_wal
+            self.sink_wal = sink_wal
+            self.enabled = True
 
     def replicate_range(self, *, from_index: int, to_index: int | None = None) -> int:
-        """Copy committed PartitionWAL entries. Not implemented in this build."""
-        raise PartitionWALReplicationNotReady(
-            "PartitionWAL continuous replicate A→B is not enabled in this build; "
-            "only FrontierWAL journal relay (non-authority) is live. "
-            "Refuse multi-region activate_ownership until a provider is installed."
-        )
+        """Copy committed PartitionWAL entries from source into sink.
+
+        Returns the number of entries appended to the sink.
+        """
+        with self._lock:
+            if not self.enabled or self.source_wal is None or self.sink_wal is None:
+                raise PartitionWALReplicationNotReady(
+                    "PartitionWAL replicator not enabled or missing source/sink WALs; "
+                    "Frontier journal relay alone is non-authority (I36)."
+                )
+            if not hasattr(self.source_wal, "load_all_entries"):
+                raise PartitionWALReplicationNotReady("source_wal lacks load_all_entries")
+            if not hasattr(self.sink_wal, "append_entry"):
+                raise PartitionWALReplicationNotReady("sink_wal lacks append_entry")
+
+            try:
+                records = list(self.source_wal.load_all_entries() or [])
+            except Exception as exc:
+                raise PartitionWALReplicationNotReady(f"source load failed: {exc}") from exc
+
+            # Build sink index set to skip duplicates
+            sink_idxs: set[int] = set()
+            if hasattr(self.sink_wal, "load_all_entries"):
+                try:
+                    for entry, _committed in self.sink_wal.load_all_entries() or []:
+                        sink_idxs.add(int(getattr(entry, "raft_index", 0) or 0))
+                except Exception:
+                    pass
+
+            copied = 0
+            hi = int(to_index) if to_index is not None else None
+            lo = int(from_index)
+            max_idx = self._last_replicated_index
+            for entry, committed in records:
+                if not committed:
+                    continue
+                idx = int(getattr(entry, "raft_index", 0) or 0)
+                if idx < lo:
+                    continue
+                if hi is not None and idx > hi:
+                    continue
+                if idx in sink_idxs:
+                    max_idx = max(max_idx, idx)
+                    continue
+                self.sink_wal.append_entry(entry, committed=True, sync=True)
+                sink_idxs.add(idx)
+                copied += 1
+                max_idx = max(max_idx, idx)
+            self._last_replicated_index = max(self._last_replicated_index, max_idx)
+            return copied
 
     def caught_up(self, *, target_index: int) -> bool:
-        return False
+        """True when sink has replicated through *target_index* (committed)."""
+        with self._lock:
+            if not self.enabled or self.sink_wal is None:
+                return False
+            target = int(target_index)
+            if self._last_replicated_index >= target and target >= 0:
+                return True
+            if not hasattr(self.sink_wal, "load_all_entries"):
+                return False
+            try:
+                records = list(self.sink_wal.load_all_entries() or [])
+            except Exception:
+                return False
+            max_committed = 0
+            for entry, committed in records:
+                if not committed:
+                    continue
+                max_committed = max(max_committed, int(getattr(entry, "raft_index", 0) or 0))
+            self._last_replicated_index = max(self._last_replicated_index, max_committed)
+            return self._last_replicated_index >= target
 
     def status(self) -> dict[str, Any]:
         return {
             "kind": "partition_wal_replicator",
-            "enabled": False,
-            "authority": False,
-            "note": "stub — Frontier journal relay only; not PartitionWAL SoT replicate",
+            "enabled": bool(self.enabled),
+            "authority": True if self.enabled and self.source_wal is not None else False,
+            "last_replicated_index": int(self._last_replicated_index),
+            "has_source": self.source_wal is not None,
+            "has_sink": self.sink_wal is not None,
+            "note": (
+                "local PartitionWAL committed-entry copy"
+                if self.enabled
+                else "disabled — install via set_partition_wal_replicator or PARTITION_WAL_REPLICATE"
+            ),
         }
 
 

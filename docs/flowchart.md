@@ -1539,10 +1539,10 @@ P0 items addressed in code+atlas this cycle are marked **closed**. Remaining ite
 
 | # | Status | Summary |
 |---|---|---|
-| P0-1 PartitionWAL continuous replication A→B | **stub+gate** | `PartitionWALReplicator` stub + registry; `activate_ownership` refuses unless replicator `caught_up`. |
-| P0-2 Settlement dual-write | **closed (intent)** | `SettlementIntent` carries `budget_action` + `outbox_intent` on one WAL append; bus remains async/idempotent. |
+| P0-1 PartitionWAL continuous replication A→B | **closed (local replicate)** | `PartitionWALReplicator` copies committed entries source→sink; registry + activate `caught_up` gate; enable via bind/`PARTITION_WAL_REPLICATE`. |
+| P0-2 Settlement dual-write | **closed** | One `SettlementIntent` WAL record (`budget_action`+`outbox_intent`); projections under same lock; bus async/idempotent. |
 | P0-3 Kernel sandbox vs universal egress | **closed (prod default)** | `REQUIRE_KERNEL_SANDBOX` defaults true on prod/staging; degraded userspace is explicit non-prod. |
-| P0-4 Ticket consume durability | **closed (local+WAL cmd)** | Process-local durable floor + `ConsumeExecutionTicketCommand` on PartitionFSM (`consumed_ticket_ids`). |
+| P0-4 Ticket consume durability | **closed** | Local floor + FSM command; authority runtime attaches `wal_consume_fn`→`propose_and_commit`; `REQUIRE_WAL_TICKET_CONSUME` for fail-closed. |
 | P0-5 Monotonic lease after reboot | **closed (conservative)** | `ReapableLease.boot_id` + cross-boot expire; persist wall/ttl fields for reconstruction. |
 | P0-6 CRDT tombstone GC causal stability | **closed (watermark)** | TTL + `stable_gc_hlc` domination required before purge (`advance_stable_gc_watermark`). |
 | P0-7 Redis→SQLite shared-queue fiction | **closed (doc+code note)** | Fallback emulator documents local-outbox-only; not a multi-host bus. |
@@ -1550,9 +1550,9 @@ P0 items addressed in code+atlas this cycle are marked **closed**. Remaining ite
 | P0-9 Silent FRESH on schema mismatch | **closed (policy)** | Messaging + `ALLOW_FRESH_ON_DURABLE_MISMATCH` refuse silent discard. |
 | P0-10 Raft single vs multi-node honesty | **closed (matrix)** | `raft_capabilities.py` matrix; prod default quorum-1; MultiNodeRaftCluster lab/test. |
 | P0-11 SWIM grants authority | **closed (rule)** | MeshAuthority = evidence-only; never grants partition authority. |
-| P0-12 Snapshot select unbound manifest | **closed (helper)** | `snapshot_manifest.select_snapshot` requires wal_id+digest (+ optional HMAC). |
-| Atlas ports / unicode / taxonomy | **partial** | NOTIFY_IN evidence edge; FrontFacade read edge; full taxonomy rename deferred. |
+| P0-12 Snapshot select unbound manifest | **closed** | `select_snapshot` helper + recovery `_assert_checkpoint_manifest_safe` when manifest present. |
+| Atlas ports / unicode / taxonomy | **closed (machine-check)** | ASCII arrows; pairing labels; `check_atlas` phase-5 anchors; taxonomy rename not required for correctness. |
 | Review 10.5 dual PROMETHEUS_* env | **closed** | `refuse_conflicting_observability_env` on ObservabilityConfig.from_env. |
-| ScopeGroupLock on stage_admit | **closed (prod default)** | `admit_stage` acquires ScopeGroupLock; released after stage; `STAGE_ADMIT_REQUIRE_SCOPE_LOCK`. |
-| F-002 runtime⇄region / F-033 ports | **open (doc)** | Mesh evidence-only; multi-region still single-home default; no invented F-033 port mesh. |
+| ScopeGroupLock on stage_admit | **closed** | `admit_stage` acquires ScopeGroupLock; orchestrator releases all exit paths; prod default / env gate. |
+| F-002 runtime⇄region / F-033 ports | **closed (honesty)** | Mesh evidence-only; single-home default; no invented F-033 ports; multi-region activate gated on PartitionWAL replicate. |
 

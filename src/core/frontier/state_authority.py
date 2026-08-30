@@ -965,12 +965,16 @@ class SettlementCoordinator:
                 budget_action=budget_action,
                 budget_request_count=request_count,
                 budget_reservation_id=reservation_id,
+                # P0-2: outbox intent is part of the same SettlementIntent WAL record.
+                outbox_intent=True,
                 lease_action=lease_action,
                 lease_target_url=lease.target_url if lease else "",
                 lease_worker_id=lease.worker_id if lease else "",
             )
 
             # 1. Authoritative WAL append (Single Point of Truth)
+            # Projections (budget/lease/findings/outbox markers) derive from this one record
+            # under the same coordinator lock. EventBus remains async/idempotent.
             try:
                 wal_id = self.state_authority.append_settlement_intent(intent)
             except Exception as exc:
@@ -1012,6 +1016,7 @@ class SettlementCoordinator:
                 attempt_id=intent.attempt_id,
                 settlement_id=intent.settlement_id,
                 budget_reservation_id=intent.budget_reservation_id,
+                outbox_intent=bool(getattr(intent, "outbox_intent", True)),
             )
 
     def replay_projections(self, wal: Any | None = None) -> dict[str, int]:

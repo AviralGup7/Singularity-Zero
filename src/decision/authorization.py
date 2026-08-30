@@ -153,6 +153,9 @@ class ExecutionAuthorizer:
         self,
         secret_key: str | None = None,
         budget_enforcer: Any | None = None,
+        *,
+        wal_consume_fn: Any | None = None,
+        require_wal_consume: bool | None = None,
     ) -> None:
         material = (
             secret_key
@@ -164,7 +167,36 @@ class ExecutionAuthorizer:
         self._budget_enforcer = budget_enforcer
         self._consumed_tickets: set[str] = set()
         self._lock = threading.Lock()
+        # P0-4: optional PartitionWAL/Raft consume callback (multi-host SoT).
+        self._wal_consume_fn = wal_consume_fn
+        if require_wal_consume is None:
+            raw = os.environ.get("REQUIRE_WAL_TICKET_CONSUME", "").strip().lower()
+            if raw in {"1", "true", "yes", "on"}:
+                require_wal_consume = True
+            elif raw in {"0", "false", "no", "off"}:
+                require_wal_consume = False
+            else:
+                env = (
+                    (
+                        os.environ.get("APP_ENV")
+                        or os.environ.get("ENVIRONMENT")
+                        or os.environ.get("CSTP_ENV")
+                        or ""
+                    )
+                    .strip()
+                    .lower()
+                )
+                require_wal_consume = (
+                    env in {"prod", "production", "staging", "stage"} and wal_consume_fn is not None
+                )
+        self._require_wal_consume = bool(require_wal_consume)
         self._load_consumed_store()
+
+    def set_wal_consume_fn(self, fn: Any | None, *, require: bool | None = None) -> None:
+        """Attach/detach PartitionWAL consume proposer (P0-4 multi-host)."""
+        self._wal_consume_fn = fn
+        if require is not None:
+            self._require_wal_consume = bool(require)
 
     def _normalize_path(self, raw_path: str) -> str:
         """Adversarial normalization of URL paths (URL unquoting + path traversal collapsing)."""
@@ -459,6 +491,21 @@ class ExecutionAuthorizer:
                     return False
             if not self.verify_ticket(ticket):
                 return False
+            # P0-4: multi-host SoT — propose ConsumeExecutionTicket through PartitionWAL/Raft
+            # when a wal_consume_fn is attached. Local set+JSONL remains the process floor.
+            if self._wal_consume_fn is not None:
+                try:
+                    ok = bool(self._wal_consume_fn(ticket.ticket_id))
+                except Exception as exc:
+                    if self._require_wal_consume:
+                        raise ScopeAuthorizationError(
+                            f"I30: PartitionWAL ticket consume failed: {exc}"
+                        ) from exc
+                    ok = False
+                if not ok and self._require_wal_consume:
+                    raise ScopeAuthorizationError(
+                        "I30: PartitionWAL ticket consume refused (REQUIRE_WAL_TICKET_CONSUME)"
+                    )
             # I30 single-use only. I28 budget commits at SettlementCoordinator
             # (BudgetProjection) so crash-before-settle keeps the reservation
             # and WAL replay can reconstruct consumption exactly once.

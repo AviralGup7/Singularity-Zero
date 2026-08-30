@@ -84,6 +84,26 @@ def main() -> int:
         # soft: SWIM must not grant authority
         if "SWIM" in text and "grants authority" in text.lower():
             errors.append("SWIM must not be described as granting authority")
+
+    # Phase-5: residual honesty anchors
+    if "PartitionWALReplicator" not in text and "partition_wal" not in text.lower():
+        errors.append("atlas missing PartitionWAL replicate honesty anchor")
+    if "ConsumeExecutionTicket" not in text and "consumed_ticket" not in text.lower():
+        errors.append("atlas missing ConsumeExecutionTicket / consumed_ticket anchor")
+    if "optional_needs" not in text:
+        errors.append("atlas missing optional_needs (P0-8)")
+    if "quorum-1" not in text.lower() and "quorum 1" not in text.lower():
+        errors.append("atlas missing quorum-1 production default honesty")
+    # F-004/F-006 pairing labels preferred
+    if "PORT_F004_RES_IN" in text and "PORT_F006_RES" in text:
+        if "pairs with PORT_F006_RES" not in text and "PORT_F006_RES" in text:
+            pass  # soft
+    # Retired I40 already checked
+    # Taxonomy: forbid inventing PORT_F033_* without F-033 section body
+    f033_ports = [x for x in ports if x.startswith("PORT_F033")]
+    if f033_ports and "F-033" not in text:
+        errors.append(f"F-033 ports declared without F-033 section: {f033_ports}")
+
     if errors:
         print("atlas check FAILED:")
         for item in errors:
