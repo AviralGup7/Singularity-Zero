@@ -71,6 +71,8 @@ class PipelineAuthorityRuntime:
             spool_dir=str(spool_dir) if spool_dir is not None else None
         )
         self.outbox = DurableOutboxLedger(partition_id="P-0000", outbox_dir=outbox_dir)
+        # I31: settlement appends durable outbox under the same lock as WAL intent.
+        self.settlement.bind_outbox(self.outbox)
         self.pid = AdaptivePIDController()
         self.bandit = bandit
         self.authorizer = authorizer

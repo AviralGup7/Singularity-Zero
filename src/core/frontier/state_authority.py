@@ -83,6 +83,8 @@ class SettlementResult:
     settlement_id: str = ""
     budget_reservation_id: str = ""
     outbox_intent: bool = True
+    # True when durable outbox rows were appended under the settlement lock (WAL→outbox before bus).
+    outbox_appended: bool = False
     event_ids: tuple[str, ...] = ()
     delivery_ids: tuple[str, ...] = ()
 
@@ -100,6 +102,7 @@ class SettlementResult:
             "settlement_id": self.settlement_id,
             "budget_reservation_id": self.budget_reservation_id,
             "outbox_intent": bool(self.outbox_intent),
+            "outbox_appended": bool(getattr(self, "outbox_appended", False)),
             "event_ids": list(self.event_ids),
             "delivery_ids": list(self.delivery_ids),
         }
@@ -751,11 +754,14 @@ class SettlementCoordinator:
         budget_enforcer: Any | None = None,
         queue: Any | None = None,
         partition_router: Any | None = None,
+        outbox: Any | None = None,
     ) -> None:
         self.state_authority = state_authority
         self.budget_enforcer = budget_enforcer
         self.queue = queue
         self.partition_router = partition_router
+        # Durable outbox for WAL→outbox under settle lock (I31). EventBus stays notify-only.
+        self.outbox = outbox
 
         self.state_projection = StateProjection(self.state_authority.state)
         self.budget_projection = BudgetProjection(self.budget_enforcer)
@@ -768,6 +774,70 @@ class SettlementCoordinator:
             self.findings_projection,
         )
         self._lock = threading.RLock()
+
+    def bind_outbox(self, outbox: Any | None) -> None:
+        """Attach durable outbox used for WAL→outbox append under settle lock."""
+        self.outbox = outbox
+
+    def _append_outbox_for_intent(
+        self,
+        intent: SettlementIntent,
+        wal_id: str,
+        findings: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+    ) -> tuple[bool, tuple[str, ...]]:
+        """Append FINDING_CREATED envelopes to durable outbox (I31: after WAL, before bus).
+
+        Returns (appended_ok, event_ids). Missing outbox with outbox_intent and findings
+        is treated as not-appended so callers must not notify the bus.
+        """
+        if not bool(getattr(intent, "outbox_intent", True)):
+            return True, ()
+        if not findings:
+            return True, ()
+        outbox = self.outbox
+        if outbox is None or not hasattr(outbox, "append_events"):
+            return False, ()
+        try:
+            from src.core.contracts.command_envelope import EventEnvelope
+            from src.core.frontier.causal_identity import derive_event_id_from_wal
+
+            envelopes = []
+            event_ids: list[str] = []
+            for seq, finding in enumerate(findings):
+                if not isinstance(finding, dict):
+                    continue
+                event_id = derive_event_id_from_wal(str(wal_id), seq)
+                event_ids.append(event_id)
+                envelopes.append(
+                    EventEnvelope(
+                        event_id=event_id,
+                        event_type="FINDING_CREATED",
+                        aggregate_id=str(intent.execution_id or ""),
+                        aggregate_version=1,
+                        payload={
+                            "finding": dict(finding),
+                            "wal_id": str(wal_id),
+                            "settlement_id": str(intent.settlement_id or ""),
+                            "command_id": str(intent.command_id or ""),
+                            "execution_id": str(intent.execution_id or ""),
+                            "attempt_id": str(intent.attempt_id or ""),
+                            "stage_name": str(intent.stage_name or ""),
+                            "event_id": event_id,
+                        },
+                        correlation_id=str(intent.command_id or intent.execution_id or ""),
+                        causation_id=str(wal_id),
+                        partition_id=str(intent.partition_id or "P-0000"),
+                    )
+                )
+            if envelopes:
+                outbox.append_events(envelopes)
+            return True, tuple(event_ids)
+        except Exception as exc:
+            logger.warning(
+                "I31: durable outbox append failed after WAL commit (bus must not notify): %s",
+                exc,
+            )
+            return False, ()
 
     def settle_claim(
         self,
@@ -999,11 +1069,17 @@ class SettlementCoordinator:
                     settlement_id=intent.settlement_id,
                 )
 
-            # 2. Drive projections
+            # 2. Drive projections (same lock as WAL intent)
             self.projection_engine.apply_intent(intent, wal_id=wal_id)
 
             status = "COMMITTED" if result.outcome == "COMPLETED" else "REJECTED"
             committed_findings = _dict_findings_from_delta(deltas_dict)
+            # 3. Durable outbox BEFORE any EventBus notify (I31 order: WAL → outbox → bus)
+            outbox_ok, event_ids = (True, ())
+            if status == "COMMITTED" and committed_findings:
+                outbox_ok, event_ids = self._append_outbox_for_intent(
+                    intent, str(wal_id), tuple(committed_findings)
+                )
             return SettlementResult(
                 execution_id=exec_id,
                 status=status,
@@ -1017,6 +1093,8 @@ class SettlementCoordinator:
                 settlement_id=intent.settlement_id,
                 budget_reservation_id=intent.budget_reservation_id,
                 outbox_intent=bool(getattr(intent, "outbox_intent", True)),
+                outbox_appended=bool(outbox_ok),
+                event_ids=event_ids,
             )
 
     def replay_projections(self, wal: Any | None = None) -> dict[str, int]:
@@ -1147,19 +1225,29 @@ class SettlementCoordinator:
 
         self.state_authority.project_stage_output(ctx, stage_name, stage_output, wal_id=wal_id)
         self.projection_engine.apply_intent(intent, wal_id=wal_id)
+        status = "COMMITTED" if outcome == "COMPLETED" else "REJECTED"
+        outbox_ok, event_ids = (True, ())
+        if status == "COMMITTED" and committed_findings:
+            outbox_ok, event_ids = self._append_outbox_for_intent(
+                intent, str(wal_id), tuple(committed_findings)
+            )
         return SettlementResult(
             execution_id=exec_id,
-            status="COMMITTED" if outcome == "COMPLETED" else "REJECTED",
+            status=status,
             wal_id=wal_id,
             committed_findings_count=len(committed_findings),
-            committed_findings=committed_findings,
+            committed_findings=tuple(committed_findings)
+            if not isinstance(committed_findings, tuple)
+            else committed_findings,
             error=""
             if outcome == "COMPLETED"
             else (stage_output.error or stage_output.reason or ""),
             command_id=identity.command_id,
             attempt_id=identity.attempt_id,
             settlement_id=identity.settlement_id,
-            budget_reservation_id=reservation_id,
+            outbox_intent=bool(getattr(intent, "outbox_intent", True)),
+            outbox_appended=bool(outbox_ok),
+            event_ids=event_ids,
         )
 
 

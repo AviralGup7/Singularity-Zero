@@ -175,7 +175,8 @@ def dispatch_committed_findings(
 ) -> int:
     """Publish FINDING_CREATED only after durable settlement (I31).
 
-    Order: assert causality → append DurableOutbox → EventBus notify.
+    Order: assert causality → durable outbox (prefer settlement-lock append) →
+    EventBus notify. Bus never runs without outbox durability for findings.
     Outbox or bus failures are logged; they do not un-commit settlement (I32).
     Duplicate DeliveryId is skipped so crash-replay of dispatch is a no-op (I33).
     """
@@ -265,9 +266,26 @@ def dispatch_committed_findings(
             return published
     except Exception:
         logger.debug("spill_first_active probe skipped", exc_info=True)
-    if outbox is not None and envelopes:
+
+    # Prefer outbox already appended under SettlementCoordinator lock (WAL→outbox).
+    # If settlement reported outbox_appended=False with findings, refuse bus notify.
+    settle_outbox_done = getattr(settle_res, "outbox_appended", None)
+    if (
+        settle_outbox_done is False
+        and dict_findings
+        and bool(getattr(settle_res, "outbox_intent", True))
+    ):
+        logger.warning(
+            "%s: settlement did not append durable outbox; refusing EventBus notify "
+            "(I31 WAL→outbox→bus). Replay rebuilds outbox then bus.",
+            I32_EVENTBUS_NON_AUTHORITY,
+        )
+        return published
+
+    if settle_outbox_done is not True and outbox is not None and envelopes:
         try:
             outbox.append_events(envelopes)
+            outbox_ok = True
         except Exception as exc:
             must_not(FailureClass.EVENT_DELIVERY_FAILURE, "rollback")
             outbox_ok = False
@@ -278,6 +296,8 @@ def dispatch_committed_findings(
                 I32_EVENTBUS_NON_AUTHORITY,
                 exc,
             )
+    elif settle_outbox_done is True:
+        outbox_ok = True
 
     if not outbox_ok:
         # I31 order is WAL → outbox → bus. Do not notify consumers of a

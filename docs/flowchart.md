@@ -1540,7 +1540,7 @@ P0 items addressed in code+atlas this cycle are marked **closed**. Remaining ite
 | # | Status | Summary |
 |---|---|---|
 | P0-1 PartitionWAL continuous replication A→B | **closed (local replicate)** | `PartitionWALReplicator` copies committed entries source→sink; registry + activate `caught_up` gate; enable via bind/`PARTITION_WAL_REPLICATE`. |
-| P0-2 Settlement dual-write | **closed** | One `SettlementIntent` WAL record (`budget_action`+`outbox_intent`); projections under same lock; bus async/idempotent. |
+| P0-2 Settlement dual-write | **closed** | One `SettlementIntent` WAL record; projections + **durable outbox append under settle lock**; EventBus notify-only after `outbox_appended` (I31 WAL→outbox→bus). |
 | P0-3 Kernel sandbox vs universal egress | **closed (prod default)** | `REQUIRE_KERNEL_SANDBOX` defaults true on prod/staging; degraded userspace is explicit non-prod. |
 | P0-4 Ticket consume durability | **closed** | Local floor + FSM command; authority runtime attaches `wal_consume_fn`→`propose_and_commit`; `REQUIRE_WAL_TICKET_CONSUME` for fail-closed. |
 | P0-5 Monotonic lease after reboot | **closed (conservative)** | `ReapableLease.boot_id` + cross-boot expire; persist wall/ttl fields for reconstruction. |
