@@ -90,10 +90,6 @@ for f in files:
                     broken = True
                     reason = "wrong anchor slug"
 
-            if rel_path_md == "api-reference.md":
-                if anchor == "-global-security--governance-headers":
-                    broken = True
-                    reason = "wrong anchor slug"
 
             if rel_path_md == "performance.md":
                 if anchor == "-bottleneck-detection--mesh-auto-scaling":

@@ -4,7 +4,7 @@ Persists FALSE_POSITIVE findings into a regression watchlist on every run comple
 detects re-emergences on subsequent runs, produces notifications for regression alerts,
 and exposes watchlist URLs for re-injection at elevated confidence thresholds.
 
-Per EVOLUTION_ALPHA_PLAN.md Phase 9.2 hardening + GAP_ANALYSIS.md Phase 9.2.
+Per false positive re-evaluation regression hardening.
 """
 
 from __future__ import annotations

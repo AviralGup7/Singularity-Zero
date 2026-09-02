@@ -111,16 +111,16 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 |---|---|---|---|---|
 | F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | Active |
 | F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `src/cli/launcher.py` | F-021, F-040 | Active |
-| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `replicated_log.py`, `receipt_crypto.py`, `command_envelope.py` / `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
+| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), `replicated_log.py`, `receipt_crypto.py`, `command_envelope.py` / `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
 | F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `actor_scheduler.py`, `mvr.py`, `stage_admit.py`, `process_sandbox.py`, `findings/spill.py`, `frontier_only.py`, `reporting/partial.py` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
-| F-006 | Leases, time & global budget | [architecture.md](architecture.md), [FORMAL_COMMAND_SPECIFICATION.md](FORMAL_COMMAND_SPECIFICATION.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py` | F-011, F-038 | Active |
+| F-006 | Leases, time & global budget | [architecture.md](architecture.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py` | F-011, F-038 | Active |
 | F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py`, `mvr.py` | F-008, F-027 | Active |
 | F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`, `src/core/runtime/resource_guard.py` | F-024, F-030 | Active |
 | F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `frontier_only.py`, `dag_checkpoint.py`, `resource_guard.py`, `outbox/replay_agent.py` | F-039 | Active |
-| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [api-reference.md](api-reference.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py`, `src/api/health.py` | F-023, F-026, F-031, F-043 | Active |
+| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py`, `src/api/health.py` | F-023, F-026, F-031, F-043 | Active |
 | F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | Active |
-| F-022 | Gap-analysis status | [GAP_ANALYSIS.md](GAP_ANALYSIS.md) | — | Active |
-| F-025 | Non-authoritative planes, caches & multi-tier storage | [architecture/cache-unification.md](architecture/cache-unification.md), [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | Active |
+| F-022 | Gap-analysis status | `src/dashboard/fastapi/routers/gap_analysis.py` | — | Active |
+| F-025 | Non-authoritative planes, caches & multi-tier storage | [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | Active |
 | F-033 | Global invariants I1–I39 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py`, `bootstrap/enforcement_check.py`, `invariant_registry.py` | — | Active |
 
 
@@ -139,8 +139,6 @@ flowchart TD
 
     Index["docs/index.md"] --> Arch["architecture.md"]
     Index --> Overview["architecture-overview.md"]
-    Index --> Formal["FORMAL_COMMAND_SPECIFICATION.md"]
-    Index --> Gaps["GAP_ANALYSIS.md"]
     Index --> Atlas["flowchart.md THIS FILE"]
     Index --> Code["codebase.md"]
     Index --> Cmds["commands.md"]
@@ -152,7 +150,6 @@ flowchart TD
     Index --> Multi["multi-region.md"]
     Index --> Perf["performance.md"]
     Index --> Gloss["glossary.md"]
-    Index --> ApiDoc["api-reference.md"]
     Index --> Start["getting-started.md"]
     Index --> Deploy["deployment.md"]
     Index --> CICD["ci-cd-integration.md"]
@@ -160,9 +157,6 @@ flowchart TD
     Index --> Trouble["troubleshooting.md"]
     Index --> PagesOver["frontend_pages_overview.md"]
     Index --> Sec["../SECURITY.md"]
-    Arch --> ExecReq["architecture/execution-request-contract.md"]
-    Arch --> CacheDoc["architecture/cache-unification.md"]
-    Arch --> Consolidation["architecture/code-consolidation.md"]
 ```
 
 ---

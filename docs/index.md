@@ -11,13 +11,8 @@ Live scan path is **FrontierWAL + SettlementCoordinator + scan EventBus** (F-004
 - **[Getting Started](getting-started.md)**: Install, first scan, exit codes, config trees.
 - **[Codebase Map](codebase.md)**: `src/`, `frontend/src/`, `tests/`, `configs/`, `deploy/`, `scripts/`.
 - **[System Architecture Specification](architecture.md)**: 10 axioms, 6-level hierarchy, I1–I29 plus I30–I37, dual-log honesty, operational lifecycles.
-- **[Formal Command & State Transition Specification](FORMAL_COMMAND_SPECIFICATION.md)**: Command matrix, I28 lease FSM (`EXPIRED` is not terminal), I35–I37 recovery.
 - **[Architecture Overview](architecture-overview.md)**: Subsystems and single source of authority.
 - **[Flowchart Atlas](flowchart.md)**: Survivor charts F-001–F-033. No full rewrite.
-- **[Architecture Gap Analysis](GAP_ANALYSIS.md)**: What is LIVE vs LIBRARY vs open.
-- **[ExecutionRequest Contract](architecture/execution-request-contract.md)**: Decision → authorize → consume → sandbox → settle.
-- **[Cache Unification](architecture/cache-unification.md)**: Single-flight multi-tier cache (non-authoritative).
-- **[Codebase Consolidation & Subsystem Authority](architecture/code-consolidation.md)**: Canonical 32-package map, authority classification, disambiguation rules, and facade boundaries.
 
 ---
 
@@ -47,7 +42,6 @@ Live scan path is **FrontierWAL + SettlementCoordinator + scan EventBus** (F-004
 
 - **[Frontend Handbook](frontend.md)**: React 19, Zustand, normalizer, real SSE/WS paths.
 - **[Frontend Pages Overview](frontend_pages_overview.md)**: Routes from `RouteConfig.tsx` only.
-- **[API Reference](api-reference.md)**: Generated OpenAPI dump.
 
 ---
 

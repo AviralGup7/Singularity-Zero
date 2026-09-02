@@ -174,9 +174,6 @@ The repository enforces automated quality gates in CI/CD pipelines to prevent su
    ```bash
    # Verify contract integrity
    python scripts/validate_openapi.py
-
-   # Sync active schema to docs/api-reference.md
-   python scripts/validate_openapi.py --write
    ```
 
 5. **Secret Leakage Prevention (`scripts/verify_bundle_secrets.py`)**:

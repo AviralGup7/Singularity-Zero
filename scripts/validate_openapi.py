@@ -1,8 +1,8 @@
 """OpenAPI Contract Quality, Schema Drift, and Documentation Sync Gate.
 
 Validates active FastAPI dashboard schemas against a baseline specification
-to prevent accidental downstream integration breaks, and synchronizes the
-documentation in docs/api-reference.md.
+to prevent accidental downstream integration breaks, and optionally synchronizes
+documentation when docs/api-reference.md is present.
 """
 
 from __future__ import annotations
@@ -163,36 +163,34 @@ def main() -> int:
 
         print("OpenAPI Validation Gate: [PASS] - Schemas are fully backward-compatible.")
 
-        # 2. Enrich OpenAPI schema and validate docs/api-reference.md
-        enriched_spec = enrich_openapi_metadata(dict(active_openapi))
-        yaml_str = yaml.dump(enriched_spec, sort_keys=True, default_flow_style=False)
+        # 2. Enrich OpenAPI schema and validate docs/api-reference.md if present
+        if docs_path.exists():
+            enriched_spec = enrich_openapi_metadata(dict(active_openapi))
+            yaml_str = yaml.dump(enriched_spec, sort_keys=True, default_flow_style=False)
+            current_doc_content = docs_path.read_text(encoding="utf-8")
 
-        if not docs_path.exists():
-            print(f"Documentation file missing at {docs_path}. Bootstrapping...")
-            docs_path.parent.mkdir(parents=True, exist_ok=True)
-            docs_path.write_text("# API Reference\n\n```yaml\n```\n", encoding="utf-8")
+            # Regex substitution to place YAML inside the fenced block
+            updated_doc_content = re.sub(
+                r"```yaml\n.*?\n```", f"```yaml\n{yaml_str}```", current_doc_content, flags=re.DOTALL
+            )
 
-        current_doc_content = docs_path.read_text(encoding="utf-8")
-
-        # Regex substitution to place YAML inside the fenced block
-        updated_doc_content = re.sub(
-            r"```yaml\n.*?\n```", f"```yaml\n{yaml_str}```", current_doc_content, flags=re.DOTALL
-        )
-
-        write_mode = "--write" in sys.argv
-        if current_doc_content != updated_doc_content:
-            if write_mode:
-                docs_path.write_text(updated_doc_content, encoding="utf-8")
-                print(
-                    f"Successfully updated and synchronized {docs_path} with active OpenAPI spec."
-                )
+            write_mode = "--write" in sys.argv
+            if current_doc_content != updated_doc_content:
+                if write_mode:
+                    docs_path.write_text(updated_doc_content, encoding="utf-8")
+                    print(
+                        f"Successfully updated and synchronized {docs_path} with active OpenAPI spec."
+                    )
+                    return 0
+                print("WARNING: docs/api-reference.md is out of sync with the active FastAPI spec.")
+                print("Please run: python scripts/validate_openapi.py --write to synchronize the file.")
+                print("Documentation Sync Gate: [WARN] - schema compatibility still passed.")
                 return 0
-            print("WARNING: docs/api-reference.md is out of sync with the active FastAPI spec.")
-            print("Please run: python scripts/validate_openapi.py --write to synchronize the file.")
-            print("Documentation Sync Gate: [WARN] - schema compatibility still passed.")
-            return 0
+            else:
+                print("Documentation Sync Gate: [PASS] - docs/api-reference.md is fully in sync.")
+                return 0
         else:
-            print("Documentation Sync Gate: [PASS] - docs/api-reference.md is fully in sync.")
+            print("Documentation Sync Gate: [SKIPPED] - docs/api-reference.md not present.")
             return 0
 
     except Exception as exc:

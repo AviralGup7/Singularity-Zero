@@ -45,7 +45,7 @@ Key terms for Singularity-Zero. Architecture contract: [architecture.md](archite
 - **Circuit breaker**: CLOSED → OPEN → HALF_OPEN. One async HALF_OPEN probe; `_trial_generation` increments on enter HALF_OPEN. OPEN stops new HuntBudget reserves (`set_reserve_gate`).
 - **qos_admit(event, disk_pct)**: admit | coalesce | drop. ≥85 DROP P4; ≥92 DROP P3/P4, COALESCE P1/P2.
 - **CRDT / HLC**: LWW-Sets keyed by Hybrid Logical Clocks. `tick()` / `update(remote)` must not mix `time.time()` into monotonic.
-- **Ghost-Actor / Ghost-VFS**: In-process + gossip handoff, not a running multi-host migrator. Encrypted RAM isolation is Python `bytearray` ([architecture.md](architecture.md) §7.13, [GAP_ANALYSIS.md](GAP_ANALYSIS.md)).
+- **Ghost-Actor / Ghost-VFS**: In-process + gossip handoff, not a running multi-host migrator. Encrypted RAM isolation is Python `bytearray` ([architecture.md](architecture.md) §7.13).
 - **CSI**: Composite Severity Index 0–10 ([architecture.md](architecture.md) §7.11).
 - **WAL trim**: never drop ids newer than `last_wal_id`.
 - **HMAC key**: `AUTHORITY_SIGNING_KEY` then `APP_SECRET_KEY` then process-local random. No published fallback.
