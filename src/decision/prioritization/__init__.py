@@ -23,68 +23,35 @@ def register_prioritization_handlers(
     _filter_reportable_findings_handler = filter_handler
 
 
+from src.decision.prioritization.engine import (
+    _diff_score,
+    _get_dynamic_thresholds,
+    _is_likely_false_positive,
+    annotate_finding_decisions as _engine_annotate,
+    classify_finding as _engine_classify,
+    filter_reportable_findings as _engine_filter,
+)
+
+
 def _default_classify_finding(
     finding: dict[str, Any], target_profile: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    """Resilient classification fallback that attempts analysis binding lazily."""
-    try:
-        from src.analysis.intelligence.decision_engine import (
-            classify_finding as ana_classify,
-        )
-
-        return ana_classify(finding, target_profile)
-    except Exception:
-        conf = float(finding.get("confidence", 0.5) or 0.5)
-        decision = "HIGH" if conf >= 0.72 else ("MEDIUM" if conf >= 0.45 else "DROP")
-        return {
-            "decision": decision,
-            "reason": f"Fallback classification based on confidence {conf:.2f}",
-            "confidence_factors": {"base": conf},
-            "diff_score": 0,
-            "diff_classification": "",
-            "suppress_reason": "",
-            "thresholds_used": {"low": 0.45, "medium": 0.58, "high": 0.72},
-            "reportable": decision != "DROP",
-        }
+    """Model-backed classification fallback when no external handler is registered."""
+    return _engine_classify(finding, target_profile)
 
 
 def _default_annotate_finding_decisions(
     findings: list[dict[str, Any]], target_profile: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
-    """Resilient annotation fallback that attempts analysis binding lazily."""
-    try:
-        from src.analysis.intelligence.decision_engine import (
-            annotate_finding_decisions as ana_annotate,
-        )
-
-        return ana_annotate(findings, target_profile)
-    except Exception:
-        annotated = []
-        for f in findings:
-            item = dict(f)
-            dec = _default_classify_finding(item, target_profile)
-            item["decision"] = dec["decision"]
-            item["reportable"] = dec.get("reportable", dec["decision"] != "DROP")
-            item["decision_reason"] = dec.get("reason", "")
-            item["diff_score"] = dec.get("diff_score", 0)
-            item["diff_classification"] = dec.get("diff_classification", "")
-            item["suppress_reason"] = dec.get("suppress_reason", "")
-            annotated.append(item)
-        return annotated
+    """Model-backed annotation fallback when no external handler is registered."""
+    return _engine_annotate(findings, target_profile)
 
 
 def _default_filter_reportable_findings(
     findings: list[dict[str, Any]], target_profile: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
-    """Resilient filtering fallback that attempts analysis binding lazily."""
-    try:
-        from src.analysis.intelligence.decision_engine import (
-            filter_reportable_findings as ana_filter,
-        )
-
-        return ana_filter(findings)
-    except Exception:
-        return [f for f in findings if str(f.get("decision", "MEDIUM")).upper() != "DROP"]
+    """Model-backed filtering fallback when no external handler is registered."""
+    return _engine_filter(findings)
 
 
 def annotate_finding_decisions(*args: Any, **kwargs: Any) -> Any:

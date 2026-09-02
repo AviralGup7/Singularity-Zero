@@ -32,14 +32,18 @@ forbidden_modules = src.analysis, src.pipeline, src.dashboard
 [importlinter:contract:5]
 name = "Facade pattern: detection must not import from analysis"
 type = forbidden
-source_modules = src.detection
-forbidden_modules = src.analysis
+source_modules =
+    src.detection
+forbidden_modules =
+    src.analysis
 
 [importlinter:contract:5b]
 name = "Facade pattern: decision must not import from analysis"
 type = forbidden
-source_modules = src.decision
-forbidden_modules = src.analysis
+source_modules =
+    src.decision
+forbidden_modules =
+    src.analysis
 
 [importlinter:contract:6]
 name = "Core must not depend on infrastructure"

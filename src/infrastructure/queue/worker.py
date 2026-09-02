@@ -33,7 +33,21 @@ class Worker(
         shutdown_timeout: Seconds to wait for running jobs during shutdown.
         _info: WorkerInfo instance tracking worker state.
         _running: Whether the worker is currently running.
-        _shutdown_requested: Whether shutdown has been requested.
         _active_tasks: Set of currently running asyncio tasks.
-        _lock: Thread lock for state synchronization.
     """
+
+    pass
+
+
+def main() -> None:
+    """Entry point delegating to worker_lite runner."""
+    from src.infrastructure.queue.worker_lite import main as _worker_main
+
+    _worker_main()
+
+
+if __name__ == "__main__":
+    main()
+
+
+__all__ = ["Worker", "main"]

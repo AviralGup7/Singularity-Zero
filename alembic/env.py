@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 try:
     from src.core.models.pipeline_state import Base
 
-    target_metadata: MetaData | None = Base.metadata
+    target_metadata: MetaData | None = Base.metadata if Base is not None else MetaData()
 except Exception:
     target_metadata = None
     # Raise instead of just warning — without metadata, autogenerate produces empty/wrong migrations

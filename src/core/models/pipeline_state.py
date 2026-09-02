@@ -9,6 +9,13 @@ from src.core.models.stage_status import (
     transition_stage_status,
 )
 
+try:
+    from sqlalchemy.orm import declarative_base
+
+    Base = declarative_base()
+except Exception:  # pragma: no cover
+    Base = None  # type: ignore[assignment, misc]
+
 
 @dataclass(frozen=True)
 class StageMetrics:

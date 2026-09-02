@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/YOUR_GITHUB_ORG/cyber-security-test-pipeline  # REQUIRED: Replace with your GitHub org before deploying
+  repository: ghcr.io/aviralgup7/cyber-security-test-pipeline
   pullPolicy: IfNotPresent
   tag: ""
 

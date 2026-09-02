@@ -1,4 +1,10 @@
-"""Cluster membership / bloom sync facade."""
+"""Cluster membership / bloom sync facade.
+
+Note:
+    This package serves as a lightweight facade for bloom mesh synchronization.
+    The distributed P2P gossip protocol, consensus, and state replication engine
+    reside authoritatively in :mod:`src.infrastructure.mesh`.
+"""
 
 from __future__ import annotations
 
