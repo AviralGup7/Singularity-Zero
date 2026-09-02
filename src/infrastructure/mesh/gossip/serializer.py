@@ -27,14 +27,16 @@ def derive_mesh_key(secret: bytes) -> bytes:
     return hashlib.sha256(b"mesh_gossip_aes_gcm:" + secret).digest()
 
 
-def encrypt_mesh_payload(secret: bytes, payload: dict[str, Any]) -> str:
+def encrypt_mesh_payload(
+    secret: bytes, payload: dict[str, Any], *, nonce: bytes | None = None
+) -> str:
     """Encrypt payload dictionary using AES-256-GCM, returning base64-encoded ciphertext."""
     key = derive_mesh_key(secret)
     aesgcm = AESGCM(key)
-    nonce = os.urandom(12)  # 96-bit standard GCM nonce
+    gcm_nonce = nonce if (nonce is not None and len(nonce) == 12) else os.urandom(12)
     plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
-    return base64.b64encode(nonce + ciphertext).decode("ascii")
+    ciphertext = aesgcm.encrypt(gcm_nonce, plaintext, None)
+    return base64.b64encode(gcm_nonce + ciphertext).decode("ascii")
 
 
 def decrypt_mesh_payload(secret: bytes, enc_payload_b64: str) -> dict[str, Any]:

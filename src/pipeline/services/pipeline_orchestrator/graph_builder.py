@@ -33,7 +33,9 @@ if TYPE_CHECKING:
 
 from ._graph_dsl import (
     All,
+    DeclaredGraph,
     FlagSet,
+    FrozenGraph,
     Graph,
     OutputNonEmpty,
     StageNode,
@@ -391,9 +393,9 @@ def build_pipeline_graph(
     nodes = _join_finding_producers(nodes)
     # Cycle-check the joined executable set, then hash CapFP from that
     # immutable Graph so join+validation is in the fingerprint.
-    executable = Graph(nodes=tuple(nodes))
+    executable = FrozenGraph(nodes=tuple(nodes))
     cap_id = fingerprint_nodes(executable.nodes)
-    return Graph(
+    return FrozenGraph(
         nodes=executable.nodes,
         declared_gen_id=declared_id,
         capability_gen_id=cap_id,

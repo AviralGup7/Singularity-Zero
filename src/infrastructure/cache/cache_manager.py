@@ -77,7 +77,33 @@ class CacheManager:
         """Global cache epoch generation counter."""
         return self._cache_generation
 
-    def bump_generation(self, reason: str = "") -> int:
+    def set_distributed_invalidation_publisher(self, publisher: Any) -> None:
+        """Register a callback or channel to broadcast cache invalidations to peer nodes (Item 5)."""
+        self._distributed_publisher = publisher
+
+    def _broadcast_invalidation(self, payload: dict[str, Any]) -> None:
+        pub = getattr(self, "_distributed_publisher", None)
+        if callable(pub):
+            try:
+                pub(payload)
+            except Exception as exc:
+                logger.debug("Failed publishing distributed cache invalidation: %s", exc)
+
+    def handle_distributed_invalidation(self, payload: Mapping[str, Any]) -> int:
+        """Handle incoming cache invalidation message from remote cluster peer (Item 5)."""
+        action = str(payload.get("action", ""))
+        if action == "bump_generation":
+            reason = str(payload.get("reason", "remote_bump"))
+            return self.bump_generation(reason=reason, broadcast=False)
+        elif action == "invalidate_by_tags":
+            raw_tags = payload.get("tags", [])
+            tags = set(raw_tags) if isinstance(raw_tags, (list, tuple, set)) else set()
+            namespace = payload.get("namespace")
+            purged = self.invalidate_by_tags(tags, namespace=namespace, broadcast=False)
+            return len(purged)
+        return 0
+
+    def bump_generation(self, reason: str = "", *, broadcast: bool = True) -> int:
         """Increment global cache generation and invalidate volatile query tiers."""
         self._cache_generation += 1
         logger.info(
@@ -87,6 +113,8 @@ class CacheManager:
         )
         self.clear(namespace="analytics")
         self.clear(namespace="queries")
+        if broadcast:
+            self._broadcast_invalidation({"action": "bump_generation", "reason": reason})
         return self._cache_generation
 
     def handle_outbox_invalidation_event(self, event_type: str, payload: Mapping[str, Any]) -> int:
@@ -107,6 +135,35 @@ class CacheManager:
             self.bump_generation(reason="policy_version_bumped")
             purged_count = 1
         return purged_count
+
+    def subscribe_to_event_bus(self, event_bus: Any = None) -> None:
+        """Subscribe this cache manager's invalidation handler to the ring bus / event bus."""
+        bus = event_bus
+        if bus is None:
+            try:
+                from src.core.frontier.ring_bus import get_frontier_ring_bus
+
+                bus = get_frontier_ring_bus()
+            except Exception:
+                bus = None
+        if bus is not None and hasattr(bus, "subscribe"):
+            for ev in (
+                "FINDING_FALSE_POSITIVE",
+                "FINDING_STATUS_CHANGED",
+                "TARGET_REMOVED",
+                "SCOPE_MODIFIED",
+                "POLICY_UPDATED",
+                "POLICY_VERSION_BUMPED",
+            ):
+                try:
+                    bus.subscribe(
+                        ev,
+                        lambda p, ev_name=ev: self.handle_outbox_invalidation_event(
+                            ev_name, p if isinstance(p, Mapping) else {}
+                        ),
+                    )
+                except Exception as exc:
+                    logger.debug("Failed subscribing cache invalidation to event %s: %s", ev, exc)
 
     def _register_with_lifecycle(self) -> None:
         """Register close() with the lifecycle manager for ordered shutdown."""
@@ -269,7 +326,7 @@ class CacheManager:
         return total
 
     def invalidate_by_tags(
-        self, tags: builtins.set[str], namespace: str | None = None
+        self, tags: builtins.set[str], namespace: str | None = None, *, broadcast: bool = True
     ) -> list[str]:
         """Invalidate all entries with the specified tags."""
         if not tags:
@@ -297,6 +354,10 @@ class CacheManager:
                 self._invalidation.unregister_entry(key)
 
             self._tiers._metrics.deletes += len(keys_to_invalidate)
+            if broadcast:
+                self._broadcast_invalidation(
+                    {"action": "invalidate_by_tags", "tags": list(tags), "namespace": namespace}
+                )
             return sorted(keys_to_invalidate)
         except Exception as exc:
             logger.warning("Tag invalidation error: %s", exc)

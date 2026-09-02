@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.middleware import (
     AuditLoggingMiddleware,
+    AuthenticationMiddleware,
     CSRFProtectionMiddleware,
     RequestTimingMiddleware,
     SecurityHeadersMiddleware,
@@ -92,4 +93,5 @@ def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
     app.add_middleware(RequestTimingMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(AuditLoggingMiddleware)
+    app.add_middleware(AuthenticationMiddleware)
     app.add_middleware(ResponseValidationMiddleware)

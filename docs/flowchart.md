@@ -110,17 +110,17 @@ Only active, non-merged charts appear here. Merged IDs are listed in the Retired
 | Id | Chart | Source Specification & Symbols | Absorbed | Status |
 |---|---|---|---|---|
 | F-001 | Documentation portal map | [index.md](index.md), [getting-started.md](getting-started.md), [deployment.md](deployment.md) | — | Active |
-| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `src/cli/launcher.py` | F-021, F-040 | Active |
-| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), `replicated_log.py`, `receipt_crypto.py`, `command_envelope.py` / `schema_upcaster.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
-| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `actor_scheduler.py`, `mvr.py`, `stage_admit.py`, `process_sandbox.py`, `findings/spill.py`, `frontier_only.py`, `reporting/partial.py` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
-| F-006 | Leases, time & global budget | [architecture.md](architecture.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py` | F-011, F-038 | Active |
-| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `run_outcome.py`, `mvr.py` | F-008, F-027 | Active |
-| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`, `src/core/runtime/resource_guard.py` | F-024, F-030 | Active |
+| F-002 | System topology, regions & deployment | [architecture-overview.md](architecture-overview.md), [multi-region.md](multi-region.md), [deployment.md](deployment.md), `region_model.py` (I36), `authority_transfer.py` (I37), `sharding.py`, `bidder.py`, `balancer.py`, `sync.py`, `membership.py`, `src/cli/launcher.py` | F-021, F-040 | Active |
+| F-003 | Authority plane, Raft L0–L5 & security keys | [architecture.md](architecture.md), `replicated_log.py`, `receipt_crypto.py`, `command_envelope.py`, `marshaller.py`, `ring_bus.py`, `state.py` | F-012, F-014, F-016, F-034, F-037, F-044 | Active |
+| F-004 | Live scan path, execution DAG & egress sandbox | [architecture.md](architecture.md), [codebase.md](codebase.md), [commands.md](commands.md), `graph_builder.py`, `actor_scheduler.py`, `capacity_manager.py`, `mvr.py`, `stage_admit.py`, `scope_stage.py`, `sbom_generate.py`, `sbom_diff.py`, `finding_revalidation.py`, `report_distribution.py`, `session_provisioning.py`, `fp_watchlist.py`, `probe_suites/` | F-005, F-010, F-013, F-015, F-017, F-029, F-035, F-036, F-042 | Active |
+| F-006 | Leases, time & global budget | [architecture.md](architecture.md), `hunt_budget.py`, `lease_status.py`, `compensation_log.py`, `lease_reaper.py`, `budget_phoenix.py`, `quota_slab.py`, `src/infrastructure/checkpoint/distributed.py` | F-011, F-038 | Active |
+| F-007 | Application state machines & lifecycle coupling | `src/jobs/status.py`, `src/core/models/stage_status.py`, `src/core/contracts/finding_lifecycle.py`, `src/core/lifecycle.py`, `run_outcome.py`, `mvr.py` | F-008, F-027 | Active |
+| F-009 | Resilience: breaker, QoS, PID & bulkhead | [architecture.md](architecture.md), [performance.md](performance.md), `src/resilience/`, `src/pipeline/self_healing/`, `src/pipeline/retry/classifier.py`, `src/realtime/prioritized_broker.py`, `src/realtime/qos_admit.py`, `src/core/runtime/resource_guard.py` | F-024, F-030 | Active |
 | F-018 | Failure decision tree, concurrency & I35 recovery | [FAILURE_MODES.md](FAILURE_MODES.md), `failure_model.py` (I34), `recovery_protocol.py` (I35), `recovery/manager.py`, `recovery/survival.py`, `frontier_only.py`, `dag_checkpoint.py`, `resource_guard.py`, `outbox/replay_agent.py` | F-039 | Active |
-| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py`, `src/api/health.py` | F-023, F-026, F-031, F-043 | Active |
-| F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `run_outcome.py` | F-045 | Active |
+| F-019 | Operator surface, multi-tenancy & telemetry | [frontend.md](frontend.md), [OBSERVABILITY_CATALOG.md](OBSERVABILITY_CATALOG.md), `telemetry/normalizer.ts`, `middleware.py`, `src/api/health.py`, `src/dashboard/fastapi/routers/`, `src/websocket_server/`, `src/learning/repositories/schema.py` | F-023, F-026, F-031, F-043 | Active |
+| F-020 | Tests, CI shards & quality policy gates | [testing.md](testing.md), [ci-cd-integration.md](ci-cd-integration.md), `.github/workflows/ci.yml`, `playwright.yml`, `mutation.yml`, `dast.yml`, `run_outcome.py` | F-045 | Active |
 | F-022 | Gap-analysis status | `src/dashboard/fastapi/routers/gap_analysis.py` | — | Active |
-| F-025 | Non-authoritative planes, caches & multi-tier storage | [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | Active |
+| F-025 | Non-authoritative planes, caches & multi-tier storage | [environment-variables.md](environment-variables.md), `src/infrastructure/cache/`, `src/infrastructure/cache/backends/file.py`, `src/pipeline/unified_cache/`, facades `src/cache/`, `src/checkpoint/`, `src/frontier/` | F-028, F-032, F-041 | Active |
 | F-033 | Global invariants I1–I39 enforcement & dependency graph | `invariant_graph.py`, `global_invariants.py`, `causal_identity.py`, `event_delivery.py`, `bootstrap/enforcement_check.py`, `invariant_registry.py` | — | Active |
 
 
@@ -207,6 +207,21 @@ flowchart TD
         GA["Gossip Node A1"]:::impl -.->|"gossip SWIM UDP (AES-256-GCM Nonce 96-bit I24)"| GB["Gossip Node B1 (mesh not live; see F-022 Region-B SWIM)"]:::specOnly
         Consensus["MeshConsensus (Adaptive RTT Timeout 10x + Pre-Vote Guard)"]:::impl --> GA & GB
     end
+
+    subgraph MeshCoordination["Neural Mesh Coordination & Task Scheduling (src/infrastructure/mesh/)"]
+        ShardRing["NeuralMeshShardRing (sharding.py)<br/>Weighted Consistent Hashing, 3 Virtual Nodes/Weight, 30s Debounced Rebalance"]:::impl
+        Bidder["MeshBidder (bidder.py)<br/>Hardware Telemetry Auction: CPU/RAM Headroom, Bandwidth & WAN Penalties"]:::impl
+        Balancer["NeuralMeshBalancer (balancer.py)<br/>Exponential Moving-Average Duration Scoring (0.7 EMA + 0.3 Sample)"]:::impl
+        MeshSync["MeshSync (sync.py)<br/>Redis Pub/Sub State Sync, Versioned Schema, 4096-SHA256 Idempotency Cache"]:::impl
+        Membership["ClusterMembership (membership.py)<br/>SWIM FSM: alive -> suspect -> left -> dead, Incarnation Tie-Break, Conflict Revocation"]:::impl
+
+        Worker -->|"register capability & bid"| Bidder
+        Bidder -->|"evaluated bids"| Balancer
+        Balancer -->|"weighted selection"| ShardRing
+        ShardRing -->|"key route / partition assign"| Worker
+        Membership -->|"peer status & incarnation"| ShardRing & Bidder
+        MeshSync -->|"broadcast state & invalidate"| Worker & State
+    end
 ```
 
 ---
@@ -232,6 +247,8 @@ flowchart TD
     Derive --> ReceiptKey["CommandReceipt Key (key_generation bound)"]:::impl
     Derive --> MeshKey["mesh_secret_key HKDF (AES-256-GCM material)"]:::impl
     Derive --> JWTKey["jwt_session_key HKDF"]:::impl
+    Derive --> MarshallerKey["Binary Marshaller Integrity Key HKDF (_derive_integrity_key)"]:::impl
+    MarshallerKey --> Marshaller["Zero-Allocation Binary Marshaller (src/core/frontier/marshaller.py)<br/>MessagePack/msgspec, 10MiB Cap, Dev-Secret Guard"]:::impl
     MasterKey -.->|"Missing in Env (Pre-Raft Bootstrap Guard)"| Fallback["Refuse: Missing Master Secret FAILS_CLOSED"]:::forbidden
 ```
 
@@ -249,8 +266,9 @@ flowchart TD
     subgraph AuthoritativeStrata["L0–L3: Authoritative Partition Plane (Raft & WAL)"]
         Tuner["Policy Governance Gate"]:::impl --> Promo["Promote / Rollback Policy"]:::impl
         Promo --> EnvelopeIn["Canonical Envelope (v3)"]:::impl
-        EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (+10s / -5s Monotonic Gate)"]:::impl
         Admit --> Log["ReplicatedPartitionLog"]:::impl
+        EnvelopeIn --> Admit["Admission Clock-Skew Check I22 (+10s / -5s Monotonic Gate)"]:::impl
+        ConfChange["Joint Consensus ConfChangeEntry (Cold,new dynamic membership)"]:::impl --> Log
         
         Leader["Leader PartitionWAL (Group Commit 64 entries / 1ms configurable)"]:::impl
         F1["Follower PartitionWAL Replica (Group Commit)"]:::impl
@@ -258,6 +276,8 @@ flowchart TD
         Leader -->|"AppendEntries RPC"| F1 & F2
         F1 & F2 -->|"Majority Quorum ACKs (>= 2 of 3)"| Leader
         Leader --> Commit["Advance commitIndex & FSM Barrier"]:::impl
+        Leader --> Fencing["Monotonic Storage Fencing Token (MeshConsensus.fencing_token)"]:::impl
+        Leader --> Compaction["PartitionWAL.compact_log (Prune in-memory records up to snapshot)"]:::impl
 
         Log --> Leader
         Commit ==> Apply["L1: FSM.Apply (Pure Deterministic Zero I/O)"]:::impl
@@ -275,10 +295,12 @@ flowchart TD
         F_Findings["Findings CRDT candidates (untrusted until I31 settlement)"]:::impl
         F_Candidates["Candidates CRDT Bag (Non-Reportable)"]:::impl
         F_Tombstones["Compaction Tombstones (Adaptive Gossip RTT x 3 Safety Factor TTL, Floor=300s)"]:::impl
+        RingBus["FrontierRingBus (src/core/frontier/ring_bus.py)<br/>Shared-Memory Ring Buffer, 50% Downsample, 256 Max Tasks, SHM Pointers"]:::impl
         F_Targets -->|data| F_Findings
         F_Targets -->|data| F_Candidates
         F_Findings -->|"garbage-collect / retire"| F_Tombstones
         F_Candidates -->|"garbage-collect / retire"| F_Tombstones
+        F_Targets & F_Findings --> RingBus
     end
     
     subgraph ReadProjections["READ PROJECTIONS: Strictly Non-Authoritative Strata (L4–L5)"]
@@ -318,10 +340,10 @@ flowchart TD
 
         CycleCheck["6. VERIFY: Acyclic & Safety Check (I-GRAPH-01..08)"]:::impl
 
-        DeclaredGraph["DeclaredGraph snapshot (pre-prune; not live)"]:::library
+        DeclaredGraph["DeclaredGraph (pre-prune sealed type in _graph_dsl.py)"]:::impl
         Freeze["7. FREEZE fingerprints onto FrozenGraph"]:::impl
 
-        FrozenGraph["Frozen Runtime Graph (Immutable Node / Dependency Set)"]:::impl
+        FrozenGraph["Frozen Runtime Graph (FrozenGraph immutable instance)"]:::impl
 
         GraphGenID["GraphGenID (declared, pre-prune)"]:::library
         CapFP["capability_gen_id (post-prune, post-join, post-CycleCheck)"]:::library
@@ -348,9 +370,9 @@ flowchart TD
 
         Launch["launch: Dashboard + Background Worker"]:::impl
 
-        Scan["scan run: Runtime Pipeline"]:::impl
+        Scan["scan run / resume: Runtime Pipeline"]:::impl
 
-        Sys["system doctor / status / setup / cleanup"]:::impl
+        Sys["system doctor / status / setup / cleanup / backup / restore"]:::impl
 
         Runtime["src.pipeline.runtime"]:::impl
 
@@ -457,9 +479,31 @@ flowchart TD
 
         CiExp["ci_export"]:::impl
 
+        Scope["scope_stage (In-Scope vs Out-of-Scope URL Partitioning)"]:::impl
+
+        SbomGen["sbom_generate (CycloneDX / SPDX SBOM Extraction)"]:::impl
+
+        SbomDiff["sbom_diff (Software Bill of Materials Package Drift)"]:::impl
+
+        Reval["finding_revalidation (Automated Endpoint Re-probe Verification)"]:::impl
+
+        Dist["report_distribution (Webhook & Artifact Storage Dispatch)"]:::impl
+
+        SessionProv["session_provisioning (Authenticated Cookies / CSRF Rotation)"]:::impl
+
+        FPWatchlist["FPWatchlistManager (Regex & Signature False Positive Filtering)"]:::impl
+
+        ProbeSuites["Dynamic Modular Probe Suites (smuggling_suite, json_suite, auth_bypass_suite, active_scan_adaptive)"]:::impl
+
+        TicketSinks["Bug Bounty & Ticketing Sinks (HackerOne, Bugcrowd, Jira, DefectDojo, ServiceNow)"]:::impl
+
+        LazyCatalog["_LAZY_STAGE_REGISTRY (On-Demand Dynamic importlib Plugin Catalog)"]:::impl
+
         Dedup["dedup_stage (Structural Parameterized Fingerprinting)"]:::impl
 
-        StageGraphRoot --> Sub
+        StageGraphRoot --> LazyCatalog
+        LazyCatalog --> SessionProv
+        SessionProv --> Sub
 
         Sub --> Takeover
         Sub --> LiveH
@@ -467,21 +511,26 @@ flowchart TD
         LiveH --> WAF
         LiveH --> Urls
 
-        Urls --> ReconVal
-        Urls --> GitDiff
-        Urls --> Params
+        Urls --> Scope
+        Scope --> ReconVal
+        Scope --> GitDiff
+        Scope --> Params
 
         WAF --> Rank
         Params --> Rank
-        Urls --> Rank
+        Scope --> Rank
 
         Rank --> Passive
         LiveH --> Passive
         Urls --> Passive
 
         Passive --> Active
+        Active --> ProbeSuites
         Passive --> Semgrep
         Passive --> Nuclei
+
+        Semgrep --> SbomGen
+        SbomGen --> SbomDiff
 
         Rank --> Access
         Passive --> Access
@@ -493,11 +542,12 @@ flowchart TD
 
         Passive --> Val
         Active --> Val
+        Val --> Reval
 
         Passive --> Intel
         Active --> Intel
         Nuclei --> Intel
-        Val --> Intel
+        Reval --> Intel
 
         Intel --> Threat
 
@@ -506,33 +556,40 @@ flowchart TD
         Access -->|"wait: ALL producers terminal, FAILED included"| Report
         Threat -->|"wait: ALL producers terminal, FAILED included"| Report
         Val -->|"wait: ALL producers terminal, FAILED included"| Report
+        Reval -->|"wait: ALL producers terminal, FAILED included"| Report
         Semgrep -->|"wait: ALL producers terminal, FAILED included"| Report
+        SbomDiff -->|"wait: ALL producers terminal, FAILED included"| Report
         Passive -->|"wait: ALL producers terminal, FAILED included"| Report
         Takeover -->|"wait: ALL producers terminal, FAILED included"| Report
 
         DynProducers -->|"composition: _join_finding_producers (wait: ALL producers terminal, FAILED included)"| Report
+        FPWatchlist -->|"filter_findings before report build"| Report
 
         Report --> Sarif
         Report --> CiExp
         Report --> Dedup
+        Report --> Dist
+        Report --> TicketSinks
     end
 
     subgraph ReadinessFSM["Scheduler Readiness vs Persisted StageStatus"]
         P_PEND["PENDING<br/>(persisted)"]:::impl
         P_CAND["READY candidate<br/>(scheduler-local; not persisted)"]:::impl
+        CapacityGate["CapacityManager & ConcurrencyGovernor (Pre-Dispatch RAM Estimation & Slot Gate)"]:::impl
         P_DISP["DISPATCH actor<br/>(scheduler-local; not persisted)"]:::impl
         P_RUN["RUNNING<br/>(persisted)"]:::impl
         P_COMP["COMPLETED<br/>(persisted terminal)"]:::impl
         P_DEG["DEGRADED<br/>(persisted terminal)"]:::impl
         P_FAIL["FAILED<br/>(persisted terminal)"]:::impl
-        P_DEF["DEFERRED<br/>(scheduler-local control state; not persisted)"]:::vacuous
+        P_DEF["P_DEF (DEFERRED)<br/>(scheduler-local condition wait; max 5 deferrals starvation guard)"]:::impl
         P_SKIP["SKIPPED_DISABLED<br/>(persisted terminal)"]:::impl
         P_SKIP_FAIL["SKIPPED_FAILED<br/>(persisted terminal)"]:::impl
         DownstreamRun["downstream execution continues (non-critical)"]:::impl
 
         ReadinessRoot --> P_PEND
         P_PEND -->|"_need_met: deps COMPLETED / DEGRADED / SKIPPED_DISABLED"| P_CAND
-        P_CAND -->|"when.is_satisfied == True"| P_DISP
+        P_CAND -->|"admit: RAM & slots available"| CapacityGate
+        CapacityGate -->|"when.is_satisfied == True"| P_DISP
         P_CAND -.->|"resource_pressure / admission_gen"| P_SKIP
         P_DISP -.->|"inspect_pressure CRITICAL / admission_gen"| P_SKIP
         P_DISP -->|"spawn execution"| P_RUN
@@ -611,11 +668,11 @@ flowchart TD
         Socket --> Out
         Stream --> Out
         Browser --> Out
-        Subproc --> Out
+        Subproc["run_external_tool / Process Sandbox (asyncio.create_subprocess_exec + _kill_process_tree + traceparent)"]:::impl --> Out
 
         Viol["EgressViolationError (Out-of-Scope / IMDS Deny)"]:::forbidden
-        KillSubproc["Kill Process & Drop Untrusted Claim"]:::forbidden
-        SettleDrop["Settle DROPPED (No Finding)"]:::forbidden
+        KillSubproc["Kill Process Tree (taskkill / killpg) & Drop Untrusted Claim"]:::forbidden
+        SettleDrop["Settle DROPPED (No Finding, outbox_appended=None)"]:::impl
         EgressCompensate["I28 Budget RELEASE"]:::impl
 
         Guard -.->|"refuse IMDS / out-of-scope"| Viol
@@ -873,6 +930,12 @@ flowchart TD
     SettleCAS --> CONSUMED
     PORT_F004_REL_IN -->|"release units"| CompCAS["CompensateLeaseCAS (lease_id + fence)"]:::impl
     CompCAS --> COMPENSATED
+
+    DistCheckpoint["DistributedCheckpointStore (src/infrastructure/checkpoint/distributed.py)<br/>Redis MULTI/EXEC Pipelines, 24h TTL, Heartbeat Renewal & steal_lease()"]:::impl
+    WorkerHeartbeat["WorkerLite Lease Heartbeat Loop<br/>(0.5x lease_seconds atomic RENEW_LEASE_SCRIPT CAS)"]:::impl --> ACTIVE
+    ACTIVE -->|"checkpoint heartbeat"| DistCheckpoint
+    Reaper -->|"dead-worker lease recovery"| DistCheckpoint
+    Reserve -.->|"circuit breaker tripped / quota denied"| BudgetDenied["Refuse: BudgetReserveDenied (raise_on_denial)"]:::forbidden
 ```
 
 $$\text{Partition-Local Budget Conservation (I5): } \text{TotalBudget} \equiv \text{Consumed} + \text{Outstanding} + \text{Available} \quad \text{[Verified in Recovery VERIFY\_INVARIANTS]}$$
@@ -898,16 +961,23 @@ flowchart TD
         JP --> JR["RUNNING"]:::impl
         JP --> JF["FAILED (Terminal)"]:::impl
         JP --> JD["STOPPED (Terminal)"]:::impl
+        JP --> JQ["QUARANTINED (Terminal: Poison Pill)"]:::impl
+        JP --> JDL["DEAD_LETTER (Terminal: DLQ Expired)"]:::impl
         JS --> JR
         JS --> JX["STOPPING"]:::impl
         JS --> JF
         JS --> JD
+        JS --> JQ
+        JS --> JDL
         JR --> JX
         JR --> JC["COMPLETED (Terminal)"]:::impl
         JR --> JF
         JR --> JD
+        JR --> JQ
+        JR --> JDL
         JX --> JD
         JX --> JF
+        JX --> JQ
     end
     subgraph Stage["Stage CAS (src/core/models/stage_status.py)"]
         SP["PENDING"]:::impl --> SR["RUNNING"]:::impl
@@ -932,10 +1002,24 @@ flowchart TD
         T_OPEN["OPEN"]:::impl --> T_CLOSED["CLOSED"]:::impl
 
         C_VAL & C_EXP -.->|"refines confidence of"| FR
+        FF -.->|"TriAxialFindingState.validate: FALSE_POSITIVE cannot be EXPLOITABLE"| RejExp["Refuse: Inconsistent Confidence"]:::forbidden
+        FR -.->|"TriAxialFindingState.validate: REPORTABLE requires >= PASSIVE_ONLY"| RejHeur["Refuse: Raw Heuristic Cannot Be Reportable"]:::forbidden
+    end
+
+    subgraph ProcessLifecycle["Process Lifecycle & Topologically Sorted Shutdown (src/core/lifecycle.py)"]
+        LifecycleMgr["LifecycleManager (src/core/lifecycle.py)"]:::impl
+        ShutdownHooks["Topological Shutdown Hooks: register_shutdown(name, cleanup, after=[...])"]:::impl
+        ThreadJoin["Daemon Thread Joining (_join_tracked_threads, 5s timeout)"]:::impl
+        TaskCancel["Two-Phase Async Task Cancellation (_cancel_tracked_tasks, 5s timeout)"]:::impl
+
+        LifecycleMgr --> ShutdownHooks
+        ShutdownHooks --> ThreadJoin
+        ThreadJoin --> TaskCancel
     end
 
     subgraph DerivationLattice["Total Precedence Derivation Lattice (derive_job_and_exit)"]
         Sig["SIGINT / Cancel"]:::impl --> PrecedenceDecision{"Precedence Evaluation<br/>derive_job_and_exit"}:::impl
+        Sig --> LifecycleMgr
         Sig -->|"REPORT_EMIT_PARTIAL_ON_SHUTDOWN"| PartialRep["report_partial json/html/sarif"]:::impl
         ResCrit["ResourceGuard CRITICAL"]:::impl --> PrecedenceDecision
         SF -->|"fatal infra error / retries exhausted"| PrecedenceDecision
@@ -991,6 +1075,7 @@ flowchart TD
         HALF_OPEN -->|"Trial Probe OK"| CLOSED
         HALF_OPEN -->|"Trial Probe Failed"| OPEN
     end
+    PubSubCB["Distributed Breaker Sync (Redis Pub/Sub cstp:breaker:state_changed)"]:::impl <--> CB
     OPEN -->|"set_endpoint_reserve_gate"| NoTicket["HuntBudget Gate: BudgetReserveDenied (Per-Endpoint Breaker Open)"]:::forbidden
     Evt["TelemetryEvent Stream"]:::impl --> Q{"qos_admit"}:::impl
     Q -->|P0: Critical Audit| P0["P0: 50ms Timeout -> Emergency Ring Buffer"]:::impl
@@ -1000,9 +1085,38 @@ flowchart TD
     Q -->|P3: Periodic Metrics| P3["P3: 1s Rolling Aggregates"]:::impl
     Q -->|P4: Debug Traces| P4["P4: Lowest Priority / First Shed"]:::impl
     Disk["disk/mem utilisation"]:::impl --> RG{"classify_pressure"}:::impl
+    Hysteresis["Schmitt-Trigger Hysteresis (5% Deadband: Enter 92%, Exit <87%)"]:::impl --> RG
     RG -->|"WARN >=85% disk"| P4
     RG -->|"PRESSURE >=92% disk"| P3
     RG -->|"CRITICAL >=95% disk"| Halt["Stop new stages; emit_partial_report; exit 4"]:::impl
+
+    subgraph SelfHealingSub["Autonomous Self-Healing Framework (src/pipeline/self_healing/)"]
+        SelfHealingCtrl["SelfHealingController (controller.py)<br/>EventBus HEALTH_METRIC_EMITTED Listener"]:::impl
+        Dampening["DampeningWindow (dampening.py)<br/>Suppresses Flapping Remediations"]:::impl
+        ActionReg["CorrectiveActionRegistry<br/>Executes Registered Remediations"]:::impl
+        HistoryStore["CorrectionHistoryStore<br/>Auto-Escalates Chronic Failures to ESCALATE_ANALYST"]:::impl
+        AggBreaker["_collect_breaker_metrics()<br/>Aggregates tool_circuit_breakers_aggregate (Prevents Alert Storms)"]:::impl
+
+        SelfHealingCtrl --> Dampening
+        Dampening --> ActionReg
+        ActionReg --> HistoryStore
+    end
+
+    subgraph ErrorTaxonomy["Error Classification & Resilience Policies (src/pipeline/retry/, src/resilience/)"]
+        Classifier["classify_error() (classifier.py)<br/>Permanent OS Errors vs Transient Failures"]:::impl
+        RetryAfter["parse_retry_after() & override_backoff() (retry_after.py)<br/>Capped at 300s, Overrides Math Backoff"]:::impl
+        BreakerStorePersist["BreakerStore & MemoryBreakerJournal (persistence.py)<br/>Atomic JSON .tmp -> Replace & Append Journal"]:::impl
+        Probes["ProbeDispatcher (probes.py)<br/>Active Half-Open Endpoint Probing"]:::impl
+
+        Classifier --> RetryAfter
+    end
+
+    Load --> SelfHealingCtrl
+    OPEN --> AggBreaker
+    AggBreaker --> SelfHealingCtrl
+    HALF_OPEN --> Probes
+    CB --> BreakerStorePersist
+    Load --> Classifier
 ```
 
 ### Telemetry QoS Shedding Decision Matrix (`qos_admit.py`)
@@ -1151,12 +1265,12 @@ flowchart TD
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
     subgraph MultiTenantAuth["Multi-Tenant Boundary & JWT Security Context"]
-        Req["Inbound HTTP / WebSocket Request"]:::impl --> AuthMid["Authentication Middleware"]:::impl
-        AuthMid --> JWT{"Verify JWT & Tenant"}:::impl
-        JWT -->|Valid JWT| I38chk["I38 assert_tenant_scope"]:::impl
-        I38chk --> Ctx["ContextVar tenant_id & user_id"]:::impl
+        Req["Inbound HTTP / WebSocket Request"]:::impl --> AuthMid["AuthenticationMiddleware (Ingress JWT / API Key -> sets request.state.user_id & tenant_id)"]:::impl
+        AuthMid --> JWT{"Verify JWT Signature, Expiry & TRL (jti blocklist)"}:::impl
+        JWT -->|Valid JWT & Unrevoked| I38chk["I38 assert_tenant_scope"]:::impl
+        I38chk --> Ctx["ContextVar tenant_id & user_id (Audit Logging Identity Bound)"]:::impl
         I38chk -.->|"refuse: empty/mismatched tenant"| Refuse403
-        JWT -->|Invalid / Expired| Refuse401["HTTP 401 Unauthorized"]:::forbidden
+        JWT -->|Invalid / Expired / Revoked in TRL| Refuse401["HTTP 401 Unauthorized"]:::forbidden
         Ctx --> ScopeCheck{"Verify Tenant Scope Token"}:::impl
         ScopeCheck -->|Mismatch| Refuse403["HTTP 403 Forbidden"]:::forbidden
         ScopeCheck -->|Authorized| ScopeSigned["Signed Context Attached to Request"]:::impl
@@ -1196,6 +1310,34 @@ flowchart TD
         App["Pipeline + Dashboard"]:::impl --> Prom["Prometheus Metrics (:9090)"]:::impl
         App --> Logs["tamper-evident audit log (HMAC)"]:::impl
         Prom --> Graf["Grafana Dashboard"]:::impl
+        TelemetryStore["Relational Telemetry DB: telemetry.db (src/learning/repositories/schema.py)<br/>22 Tables: scan_runs, findings, feedback_events, attack_chains, risk_scores, graph_nodes/edges, SLAs, reviewer_actions"]:::impl
+        LiveBus --> TelemetryStore
+        App --> TelemetryStore
+    end
+
+    subgraph FastAPIRouterSurface["FastAPI 36-Router Execution & Security Control Surface (src/dashboard/fastapi/)"]
+        CoreRouters["Core API: jobs, targets, findings, reports, cockpit, launcher, audit, health"]:::impl
+        SecRouters["Security API: /api/csrf-token, /api/auth/token, /api/auth/me, /api/security/keys, /api/audit/verify"]:::impl
+        IntelRouters["Intelligence API: risk, risk_domain, gap_analysis, learning, triage, notes, export, replay"]:::impl
+        InfraRouters["Infrastructure API: cache, mesh, bloom, self_healing, notifications, webhooks, imports, registry, projects"]:::impl
+        CompRouters["Compliance API: compliance, access_logs, evidence_custody, forensics_trace, tracing, evasion, remediated"]:::impl
+        PromMetrics["GET /metrics (Admin Prometheus Scrape) & GET /api/dashboard"]:::impl
+
+        Dispatch --> CoreRouters & SecRouters & IntelRouters & InfraRouters & CompRouters & PromMetrics
+    end
+
+    subgraph LiveGapEngine["Customer Vulnerability Detection Gap Engine (routers/gap_analysis.py)"]
+        GapSvc["/api/gap-analysis<br/>23 Categories: IDOR, SSRF, XSS, CSRF, Token Leak, SSTI, Race Conditions, Business Logic, Payment, AI Surface, etc."]:::impl
+        IntelRouters --> GapSvc
+    end
+
+    subgraph WebSocketPlatform["WebSocket Streaming & Admin Infrastructure (src/websocket_server/)"]
+        WSStreams["5 Active WS Streams: /ws/scan-progress, /ws/job-status, /ws/logs/{id}, /ws/dashboard, /ws/evasion-telemetry"]:::impl
+        WSAdmin["Admin Plane: /admin/websocket/connections, /admin/websocket/broadcast, /admin/websocket/stats, /admin/websocket/config"]:::impl
+        WSInfra["ConnectionManager, Broadcaster, HeartbeatMonitor, ReconnectionManager"]:::impl
+
+        Dispatch --> WSStreams & WSAdmin
+        WSInfra --> WSStreams & WSAdmin
     end
 ```
 
@@ -1222,6 +1364,8 @@ flowchart TD
         Push --> Scan["security-scan Semgrep p/ci"]:::impl
         Push --> Hard["hardening check"]:::impl
         Push --> Iac["iac-scan (checkov)"]:::impl
+        Push --> Trivy["trivy filesystem scan (aquasecurity/trivy-action)"]:::impl
+        Push --> GitLeaks["gitleaks secret scan (gitleaks/gitleaks-action)"]:::impl
         Shards --> Infra["unit-infra"]:::impl
         Shards --> Core["unit-core"]:::impl
         Shards --> Pipe["unit-pipeline"]:::impl
@@ -1233,7 +1377,14 @@ flowchart TD
         Shards --> Suites["suites: integration + architecture + regression"]:::impl
         Shards --> Combine["coverage combine job (needs: test)"]:::impl
         Combine --> Cov["coverage fail_under 45"]:::impl
-        Lint & Mypy & TS & FE & Combine & Audit & Scan & Hard & Iac --> Ok["CI passed"]:::impl
+        Lint & Mypy & TS & FE & Combine & Audit & Scan & Hard & Iac & Trivy & GitLeaks --> Ok["CI passed"]:::impl
+    end
+
+    subgraph SecondaryWorkflows["Secondary CI/CD Workflows (.github/workflows/)"]
+        PlaywrightWF["playwright.yml (Playwright E2E Browser Test Suite)"]:::impl
+        MutationWF["mutation.yml (Cosmic Ray Mutation Testing)"]:::impl
+        DastWF["dast.yml (Live Pipeline Dynamic Analysis)"]:::impl
+        ReleaseWF["release.yml & publish.yml (Release Packaging & GHCR Image Push)"]:::impl
     end
 
     subgraph PolicyGateSub["CI/CD Quality Contract & Policy Gates (F-045)"]
@@ -1256,15 +1407,21 @@ flowchart LR
     classDef vacuous fill:#27272a,stroke:#71717a,stroke-width:1px,color:#a1a1aa;
     classDef forbidden fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fca5a5;
 
-    Raft["Raft transport & consensus"] --> ImplCluster["MultiNodeRaftCluster (lab/test in-process; prod default = quorum-1 single-home)"]:::singleNode
+    Raft["Raft transport & dynamic membership"] --> ImplCluster["MultiNodeRaftCluster (dynamic Cold,new membership + compaction)"]:::impl
     Tickets["Jira ServiceNow DefectDojo"] --> Impl["Implemented"]:::impl
     Policy["Policy via Raft commands"] --> Impl
+    DistBreaker["Distributed Breaker & Cache Pub/Sub"] --> Impl
+    OnlineBackup["SQLite Online Backup & Restore"] --> Impl
+    TRL["Token Revocation List (TRL)"] --> Impl
     Ghost["Multi-host Ghost migration"] --> Open["Open / single-node"]:::specOnly
     MeshB["Region-B SWIM / mesh layer"] --> OpenMesh["Open / not live (I24 local nonce only)"]:::specOnly
     WASM["WASM AEVE"] --> Flag["Feature Flagged"]:::specOnly
     PPO["PPO / DRL"] --> Heur["Heuristic stub"]:::specOnly
     GNN["GNN attack graph"] --> Dijk["Dijkstra Shortest-Path Algorithm (Algorithmic Primitive)"]:::library
 ```
+
+> **Note:** F-022 documents *internal codebase roadmap* implementation gaps. It is distinct from the *live customer-facing* vulnerability detection gap analysis service (`/api/gap-analysis` in `src/dashboard/fastapi/routers/gap_analysis.py`), which actively evaluates real-time scanning coverage across 23 vulnerability categories against target telemetry (see F-019).
+
 
 ---
 
@@ -1287,14 +1444,23 @@ flowchart TD
     end
 
     subgraph MultiTierCache["Multi-Tier Cache & Storage Hierarchy (F-041)"]
-        Call["Cache Read Request"]:::impl --> SF["Single-Flight In-Memory LRU (L1)"]:::impl
-        SF -->|Hit| Return["Return Cached Output"]:::impl
-        SF -->|Miss| Persist["SQLite cache_layer.db / Redis (L2)<br/>(CRC-64 Integrity Gate: Fail-Open to Recompute)"]:::impl
-        Persist -->|Miss / Corrupt CRC| Origin["Stage Execution (Compute)"]:::impl
-        Origin --> Write["Write-Through to L1 & L2 (with CRC-64 Envelope)"]:::impl
-        OutboxEvt["Outbox Invalidation Events<br/>(FINDING_FALSE_POSITIVE, TARGET_REMOVED, POLICY_UPDATED)"]:::impl -->|"CacheGeneration Epoch Bump & Tag Invalidation"| SF & Persist
+        Call["Cache Read Request"]:::impl --> BloomGate["NeuralBloomMesh (BloomMeshSynchronizer)<br/>Duplicate Query Pre-Filter"]:::impl
+        BloomGate -->|"admitted query"| L1["L1: MemoryBackend (In-Memory LRU)"]:::impl
+        L1 -->|Hit| Return["Return Cached Output"]:::impl
+        L1 -->|Miss| L2["L2: SQLiteBackend cache_layer.db / Redis<br/>(CRC-64 Integrity Gate)"]:::impl
+        L2 -->|Hit| BackfillL1["Backfill L1"]:::impl
+        BackfillL1 --> Return
+        L2 -->|Miss / Corrupt CRC| L3["L3: FileBackend (src/infrastructure/cache/backends/file.py)<br/>Multi-Directory Disk Store"]:::impl
+        L3 -->|Hit| BackfillL2["Backfill L2 & L1"]:::impl
+        BackfillL2 --> Return
+        L3 -->|Miss| Origin["Stage Execution (Compute)"]:::impl
+        Origin --> Write["Write-Through to L1, L2 & L3 (with CRC-64 Envelope)"]:::impl
+        OutboxEvt["Outbox Invalidation Events<br/>(FINDING_FALSE_POSITIVE, TARGET_REMOVED, POLICY_UPDATED)"]:::impl -->|"CacheGeneration Epoch Bump & Tag Invalidation"| L1 & L2 & L3
+        CacheBus["Distributed Cache Invalidation Bus (Redis Pub/Sub cstp:cache:invalidation)"]:::impl <-->|"cross-worker eviction"| L1
         Done["Completed Scan Run"]:::impl --> Hot["Hot NVMe Storage (output/run_id/)"]:::impl
+        Hot --> DeltaCkpt["Append-Only Delta Checkpoints (dag_checkpoint.deltas.jsonl)"]:::impl
         Hot --> Index["index_runs Metadata"]:::impl
+        Hot --> BackupRestore["Automated Online Snapshot (sqlite3.Connection.backup)<br/>+ cstp system backup / restore CLI"]:::impl
         Hot --> PruneCheck{"Older than RETENTION_DAYS (14 Days)?"}:::impl
         PruneCheck -->|Yes| Arch["Transactional Move (Archive -> Verify -> Manifest -> Delete Hot)"]:::impl
         Arch --> PruneJob["cstp system cleanup (Crash-Safe Prune & Manifest)"]:::impl

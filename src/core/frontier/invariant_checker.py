@@ -72,7 +72,7 @@ INVARIANT_VERIFICATION_MATRIX: dict[str, dict[str, Any]] = {
         "evidence": "test_formal_invariants.py",
     },
     "I8": {
-        "name": "Single-Node Raft Consensus",
+        "name": "Projection Watermark Bound & Single-Node Raft Consensus",
         "level": InvariantVerificationLevel.PRODUCTION_OBSERVED,
         "evidence": "test_formal_invariants.py",
     },
@@ -220,6 +220,16 @@ INVARIANT_VERIFICATION_MATRIX: dict[str, dict[str, Any]] = {
         "name": "Zero Dual-Writer Fenced Authority Transfer",
         "level": InvariantVerificationLevel.PRODUCTION_OBSERVED,
         "evidence": "test_authority_transfer.py, test_formal_invariants.py",
+    },
+    "I38": {
+        "name": "Multi-Tenant Partition Boundary & Token Isolation",
+        "level": InvariantVerificationLevel.MODEL_CHECKED,
+        "evidence": "test_tenant_isolation.py",
+    },
+    "I39": {
+        "name": "Budget Mode Transition Atomicity",
+        "level": InvariantVerificationLevel.PROPERTY_TESTED,
+        "evidence": "test_budget_modes.py",
     },
 }
 

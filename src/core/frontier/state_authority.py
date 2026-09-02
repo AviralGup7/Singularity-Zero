@@ -72,7 +72,7 @@ class SettlementResult:
     """Outcome of settling an ExecutionResult, RawExecutionClaim, or StageOutput."""
 
     execution_id: str
-    status: str  # "COMMITTED", "DEDUPLICATED", "REJECTED"
+    status: str  # "COMMITTED", "DEDUPLICATED", "REJECTED", "DROPPED" (F-004)
     wal_id: str | None = None
     committed_findings_count: int = 0
     committed_deltas_count: int = 0
@@ -84,7 +84,7 @@ class SettlementResult:
     budget_reservation_id: str = ""
     outbox_intent: bool = True
     # True when durable outbox rows were appended under the settlement lock (WAL→outbox before bus).
-    outbox_appended: bool = False
+    outbox_appended: bool | None = None
     event_ids: tuple[str, ...] = ()
     delivery_ids: tuple[str, ...] = ()
 

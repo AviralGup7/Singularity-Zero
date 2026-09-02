@@ -23,6 +23,7 @@ code are still loadable by the new one and vice-versa.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -172,6 +173,9 @@ class ActorScheduler:
         self._launched: set[str] = set()
         self._admission_gen = 0
         self._skipped: set[str] = set()
+        self._deferred: set[str] = set()
+        self._deferral_counts: dict[str, int] = {}
+        self._max_deferrals: int = int(os.getenv("MAX_DEFERRALS_PER_NODE", "5"))
         self._injected: set[str] = set()
         self._failed_critical: str | None = None
         self._outcome = SchedulerOutcome()
@@ -470,7 +474,21 @@ class ActorScheduler:
             if not self._deps_satisfied(node):
                 continue
             if not self._condition_holds(node):
+                # P_DEF (DEFERRED): dependencies met, waiting on dynamic when condition
+                self._deferred.add(node.name)
+                count = self._deferral_counts.get(node.name, 0) + 1
+                self._deferral_counts[node.name] = count
+                if count >= self._max_deferrals and not self._in_flight:
+                    # Starvation guard: if no other stages in-flight can satisfy condition
+                    logger.info(
+                        "ActorScheduler: stage '%s' exceeded max deferrals (%d); marking skipped",
+                        node.name,
+                        self._max_deferrals,
+                    )
+                    self._mark_skipped(node, reason="condition_never_satisfied")
+                    self._deferred.discard(node.name)
                 continue
+            self._deferred.discard(node.name)
             if self._is_large_debt_node(node):
                 continue
             ready.append((node.weight * -1, index, node))

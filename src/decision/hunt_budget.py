@@ -50,6 +50,11 @@ from typing import Any, TypeVar
 logger = logging.getLogger(__name__)
 
 
+class BudgetReserveDenied(RuntimeError):
+    """Raised or referenced when a budget reservation is explicitly denied by circuit breaker or gate (F-009)."""
+    pass
+
+
 # Default category weights for "high-value" bug-bounty categories.
 # Operators can override the list via ``hunt_mode.high_value_categories``.
 DEFAULT_HIGH_VALUE_CATEGORIES: tuple[str, ...] = (
@@ -408,6 +413,8 @@ class HuntBudgetEnforcer:
         self,
         count: int = 1,
         endpoint: str | tuple[str, str, int | None] | None = None,
+        *,
+        raise_on_denial: bool = False,
     ) -> dict[str, str] | None:
         """Reserve quota and return I30 causal identity, or None if exhausted or endpoint circuit OPEN (Item 19).
 
@@ -415,16 +422,22 @@ class HuntBudgetEnforcer:
         never minted: count<=0 or a rejected GlobalBudget command returns None.
         """
         if count <= 0:
+            if raise_on_denial:
+                raise BudgetReserveDenied("Reservation count must be positive")
             return None
         placement = getattr(self, "_placement", None)
         if placement is not None and hasattr(placement, "is_fenced"):
             try:
                 if placement.is_fenced(self._partition_id):
+                    if raise_on_denial:
+                        raise BudgetReserveDenied(f"Partition {self._partition_id} is fenced")
                     return None
-            except Exception:
+            except Exception as exc:
                 logger.debug(
                     "I37 fence check failed closed", extra={"partition": self._partition_id}
                 )
+                if raise_on_denial:
+                    raise BudgetReserveDenied(f"I37 fence check failed closed: {exc}") from exc
                 return None
 
         # 1. Per-Endpoint Circuit Breaker Gate (Item 19)
@@ -438,9 +451,13 @@ class HuntBudgetEnforcer:
                             "HuntBudget reservation blocked by OPEN circuit for endpoint %s",
                             endpoint,
                         )
+                        if raise_on_denial:
+                            raise BudgetReserveDenied(f"Circuit breaker OPEN for endpoint {endpoint}")
                         return None
-                except Exception:
+                except Exception as exc:
                     logger.debug("Endpoint reserve gate failed closed for %s", endpoint)
+                    if raise_on_denial:
+                        raise BudgetReserveDenied(f"Endpoint reserve gate failed closed for {endpoint}: {exc}") from exc
                     return None
 
         # 2. Global reserve gate fallback
@@ -448,9 +465,13 @@ class HuntBudgetEnforcer:
         if callable(gate):
             try:
                 if not gate():
+                    if raise_on_denial:
+                        raise BudgetReserveDenied("Global reserve gate closed")
                     return None
-            except Exception:
+            except Exception as exc:
                 logger.debug("HuntBudget reserve gate failed closed")
+                if raise_on_denial:
+                    raise BudgetReserveDenied(f"Global reserve gate failed closed: {exc}") from exc
                 return None
         with self._lock:
             if self._budget.max_requests is not None:
@@ -825,6 +846,7 @@ def _coerce_optional[T: (float, int)](value: Any, caster: Callable[[Any], T]) ->
 
 __all__ = [
     "BudgetAxis",
+    "BudgetReserveDenied",
     "BudgetSnapshot",
     "DEFAULT_HIGH_VALUE_CATEGORIES",
     "HuntBudget",

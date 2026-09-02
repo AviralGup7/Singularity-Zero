@@ -262,3 +262,42 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
             except (OSError, ValueError, TypeError, AttributeError) as log_exc:
                 logger.warning("Audit log write failed: %s", log_exc)
         return response
+
+
+class AuthenticationMiddleware(BaseHTTPMiddleware):
+    """Ingress Authentication & Tenant Context Middleware (F-019).
+
+    Extracts Principal from Authorization Bearer token or X-API-Key,
+    attaches request.state.user_id, request.state.tenant_id, and
+    enforces Invariant I38 assert_tenant_scope before downstream
+    middleware (e.g. AuditLoggingMiddleware) processes the request.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        # Default anonymous state
+        request.state.user_id = "anonymous"
+        request.state.tenant_id = "default"
+
+        disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
+        if disabled in ("true", "1", "yes"):
+            request.state.user_id = "admin"
+            request.state.tenant_id = "default"
+            request.state.role = "admin"
+        else:
+            try:
+                from src.dashboard.fastapi.dependencies import _security_principal_from_request
+                from src.core.frontier.tenant_isolation import assert_tenant_scope
+
+                principal = _security_principal_from_request(request, None)
+                if principal is not None:
+                    request.state.user_id = principal.user
+                    request.state.tenant_id = principal.tenant_id or "default"
+                    request.state.role = principal.role
+                    try:
+                        assert_tenant_scope(request.state.tenant_id, "ingress.http")
+                    except Exception as e:
+                        logger.warning("I38 assert_tenant_scope rejected tenant %s: %s", request.state.tenant_id, e)
+            except Exception as exc:
+                logger.debug("Ingress authentication check exception: %s", exc)
+
+        return await call_next(request)

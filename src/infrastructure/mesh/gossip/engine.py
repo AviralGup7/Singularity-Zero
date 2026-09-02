@@ -100,7 +100,7 @@ class GossipEngine:
         self.fragmented_fragments_total = 0
 
         # Invariant I24: Persistent BootID + Monotonic Nonce Safety
-        self.boot_id: str = uuid.uuid4().hex
+        self.boot_id: str = os.getenv("CSTP_MESH_BOOT_ID", "").strip() or uuid.uuid4().hex
         self._nonce_counter: int = 0
         self._peer_boot_nonces: dict[tuple[str, str], int] = {}
 

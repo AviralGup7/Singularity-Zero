@@ -89,6 +89,7 @@ class PartitionWAL:
             self._wal_path = base_dir / f"raft_wal_{partition_id}_{node_id}.aof"
 
         self._in_memory_records: list[tuple[CommittedEntry, bool]] = []
+        self._last_compacted_index: int = 0
         self._pending_buffer: list[bytes] = []
         self._last_flush_time: float = time.monotonic()
         self._lock = threading.RLock()
@@ -96,6 +97,35 @@ class PartitionWAL:
     @property
     def wal_path(self) -> Path | None:
         return self._wal_path
+
+    @property
+    def last_compacted_index(self) -> int:
+        return self._last_compacted_index
+
+    def compact_log(self, up_to_index: int) -> int:
+        """Compact/truncate in-memory records up to up_to_index (Invariant I12).
+        
+        Returns count of pruned in-memory records.
+        """
+        with self._lock:
+            if up_to_index <= self._last_compacted_index:
+                return 0
+            original_len = len(self._in_memory_records)
+            self._in_memory_records = [
+                (entry, committed)
+                for entry, committed in self._in_memory_records
+                if getattr(entry, "raft_index", getattr(entry, "index", 0)) > up_to_index
+            ]
+            self._last_compacted_index = up_to_index
+            pruned = original_len - len(self._in_memory_records)
+            logger.info(
+                "PartitionWAL %s compacted %d entries up to index %d (retained %d)",
+                self.partition_id,
+                pruned,
+                up_to_index,
+                len(self._in_memory_records),
+            )
+            return pruned
 
     def cas_fence_epoch(self, expected_epoch: int, new_epoch: int, new_token: str) -> bool:
         """Linearizable CAS against the partition log: bump active_epoch if expected_epoch matches."""

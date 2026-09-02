@@ -418,6 +418,23 @@ class CircuitBreaker:
                 old,
                 new_state,
             )
+        sync_hook = getattr(self, "_distributed_sync_hook", None)
+        if callable(sync_hook):
+            try:
+                sync_hook(self.name, new_state, now)
+            except Exception as exc:
+                self._logger.debug("Distributed breaker sync hook error for %s: %s", self.name, exc)
+
+    def set_distributed_sync_hook(self, hook: Any) -> None:
+        """Register a hook to broadcast state changes across cluster nodes (Item 4)."""
+        with self._lock:
+            self._distributed_sync_hook = hook
+
+    def apply_remote_state(self, new_state: str, timestamp: float) -> None:
+        """Apply remote state update received from distributed pub/sub (Item 4)."""
+        with self._lock:
+            if timestamp >= getattr(self, "_last_state_change", 0.0):
+                self._set_state_locked(new_state, timestamp, log=True)
 
 
 @dataclass(slots=True, frozen=True)

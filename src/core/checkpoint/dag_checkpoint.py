@@ -143,10 +143,64 @@ class DagCheckpointStore:
             return None
         return DagCheckpoint.from_dict(raw)
 
+    def delta_path(self) -> Path:
+        return self._path.with_suffix(self._path.suffix + ".deltas.jsonl")
+
+    def save_delta(self, stage_id: str, stage_status: str, outputs_path: str = "", findings_count: int = 0) -> None:
+        """Append a localized stage execution delta rather than re-serializing the entire state (Item 11)."""
+        if not dag_checkpoint_enabled():
+            return
+        delta = {
+            "ts": time.time(),
+            "stage_id": stage_id,
+            "status": stage_status,
+            "outputs_path": outputs_path,
+            "findings_count": findings_count,
+        }
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.delta_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(delta) + "\n")
+
+    def load_with_deltas(self) -> DagCheckpoint | None:
+        """Load base checkpoint and replay localized stage deltas (Item 11)."""
+        cp = self.load()
+        if cp is None:
+            return None
+        d_path = self.delta_path()
+        if d_path.exists():
+            try:
+                with open(d_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        delta = json.loads(line)
+                        stage_id = delta.get("stage_id")
+                        status = delta.get("status")
+                        if stage_id and status:
+                            cp.stage_status[stage_id] = status
+                            if status == "COMPLETED" and stage_id not in cp.completed:
+                                cp.completed.append(stage_id)
+                            elif status == "FAILED" and stage_id not in cp.failed:
+                                cp.failed.append(stage_id)
+                        if delta.get("outputs_path") and stage_id:
+                            cp.outputs_paths[stage_id] = delta["outputs_path"]
+                        if delta.get("findings_count"):
+                            cp.findings_count_so_far += int(delta["findings_count"])
+            except Exception as exc:
+                logger.warning("Failed replaying delta checkpoints from %s: %s", d_path, exc)
+        return cp
+
     def mark_clean_exit(self, checkpoint: DagCheckpoint, status: str = "COMPLETED") -> None:
         checkpoint.status = status
         checkpoint.clean_exit = True
         self.save(checkpoint)
+        d_path = self.delta_path()
+        if d_path.exists():
+            try:
+                d_path.unlink()
+            except OSError:
+                pass
 
 
 def detect_crashed_runs(root: Path | str) -> list[DagCheckpoint]:

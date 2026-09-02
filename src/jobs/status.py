@@ -34,10 +34,18 @@ class JobStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     STOPPED = "stopped"
+    QUARANTINED = "quarantined"
+    DEAD_LETTER = "dead_letter"
 
 
 TERMINAL_JOB_STATUSES: frozenset[JobStatus] = frozenset(
-    {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STOPPED}
+    {
+        JobStatus.COMPLETED,
+        JobStatus.FAILED,
+        JobStatus.STOPPED,
+        JobStatus.QUARANTINED,
+        JobStatus.DEAD_LETTER,
+    }
 )
 
 ACTIVE_JOB_STATUSES: frozenset[JobStatus] = frozenset(
@@ -51,6 +59,8 @@ _ALLOWED: dict[JobStatus, frozenset[JobStatus]] = {
             JobStatus.RUNNING,
             JobStatus.FAILED,
             JobStatus.STOPPED,  # cancel arrived before start
+            JobStatus.QUARANTINED,
+            JobStatus.DEAD_LETTER,
         }
     ),
     JobStatus.STARTING: frozenset(
@@ -59,6 +69,8 @@ _ALLOWED: dict[JobStatus, frozenset[JobStatus]] = {
             JobStatus.STOPPING,
             JobStatus.FAILED,
             JobStatus.STOPPED,
+            JobStatus.QUARANTINED,
+            JobStatus.DEAD_LETTER,
         }
     ),
     JobStatus.RUNNING: frozenset(
@@ -67,12 +79,16 @@ _ALLOWED: dict[JobStatus, frozenset[JobStatus]] = {
             JobStatus.COMPLETED,
             JobStatus.FAILED,
             JobStatus.STOPPED,
+            JobStatus.QUARANTINED,
+            JobStatus.DEAD_LETTER,
         }
     ),
-    JobStatus.STOPPING: frozenset({JobStatus.STOPPED, JobStatus.FAILED}),
+    JobStatus.STOPPING: frozenset({JobStatus.STOPPED, JobStatus.FAILED, JobStatus.QUARANTINED}),
     JobStatus.COMPLETED: frozenset(),
     JobStatus.FAILED: frozenset(),
     JobStatus.STOPPED: frozenset(),
+    JobStatus.QUARANTINED: frozenset(),
+    JobStatus.DEAD_LETTER: frozenset(),
 }
 
 
@@ -89,6 +105,10 @@ def parse_job_status(value: object) -> JobStatus:
         return JobStatus.FAILED
     if raw in {"cancelled", "canceled"}:
         return JobStatus.STOPPED
+    if raw in {"quarantine", "quarantined", "poison_pill"}:
+        return JobStatus.QUARANTINED
+    if raw in {"dead_letter", "dlq"}:
+        return JobStatus.DEAD_LETTER
     return JobStatus.PENDING
 
 

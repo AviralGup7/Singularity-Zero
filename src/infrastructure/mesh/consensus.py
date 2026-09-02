@@ -57,10 +57,16 @@ class _LeaderRecord:
     node_id: str
     term: int
     acquired_at: float
+    fencing_token: int = 0
 
     def to_json(self) -> str:
         return json.dumps(
-            {"node_id": self.node_id, "term": self.term, "acquired_at": self.acquired_at},
+            {
+                "node_id": self.node_id,
+                "term": self.term,
+                "acquired_at": self.acquired_at,
+                "fencing_token": self.fencing_token,
+            },
             separators=(",", ":"),
             sort_keys=True,
         )
@@ -70,15 +76,17 @@ class _LeaderRecord:
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8")
         payload = json.loads(raw)
+        term = int(payload["term"])
         return cls(
             node_id=str(payload["node_id"]),
-            term=int(payload["term"]),
+            term=term,
             acquired_at=float(payload.get("acquired_at", 0.0)),
+            fencing_token=int(payload.get("fencing_token", term)),
         )
 
     @classmethod
     def empty(cls) -> _LeaderRecord:
-        return cls(node_id="", term=0, acquired_at=0.0)
+        return cls(node_id="", term=0, acquired_at=0.0, fencing_token=0)
 
 
 class MeshConsensus:
@@ -210,7 +218,19 @@ class MeshConsensus:
             node_id=self._lease.node_id,
             term=self._lease.term,
             acquired_at=self._lease.acquired_at,
+            fencing_token=getattr(self._lease, "fencing_token", self._lease.term),
         )
+
+    @property
+    def fencing_token(self) -> int:
+        """Monotonic storage fencing token bound to leader lease (Item 9)."""
+        if not self.is_leader():
+            return 0
+        return getattr(self._lease, "fencing_token", self.term)
+
+    def validate_fencing_token(self, token: int) -> bool:
+        """Validate if token is currently valid, unexpired, and held by local node."""
+        return self.is_leader() and token == self.fencing_token and token > 0
 
     # ----------------------------------------------------------------- internal
 

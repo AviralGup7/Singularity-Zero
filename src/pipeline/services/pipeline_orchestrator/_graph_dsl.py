@@ -328,6 +328,18 @@ class Graph:
         return tuple(order)
 
 
+@dataclass(frozen=True)
+class DeclaredGraph(Graph):
+    """Snapshot of declared graph nodes (pre-prune; before capability filtering)."""
+    pass
+
+
+@dataclass(frozen=True)
+class FrozenGraph(Graph):
+    """Immutable, validated executable graph with sealed capability fingerprint."""
+    pass
+
+
 def _result_of(ctx: Any) -> Any:
     """Return ``ctx.result`` if present, else ``ctx`` itself.
 

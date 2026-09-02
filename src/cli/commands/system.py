@@ -453,3 +453,39 @@ class {name.capitalize()}Reporter:
         f"[success]SUCCESS: Plugin {name} scaffolded at {target_path} and registered![/success]"
     )
     return 0
+
+
+def handle_backup(args: Namespace) -> int:
+    """Execute online SQLite snapshot backup (Item 13)."""
+    from src.infrastructure.storage.backup_service import SqliteOnlineBackupService
+
+    db_path = getattr(args, "db", None) or os.environ.get("DATABASE_PATH", "cyber_pipeline.db")
+    target_path = getattr(args, "output", None) or f"{db_path}.bak"
+    try:
+        manifest = SqliteOnlineBackupService.backup_database(db_path, target_path)
+        console.print(
+            f"[success]Backup completed successfully: {target_path} (SHA-256: {manifest['sha256'][:10]})[/success]"
+        )
+        return 0
+    except Exception as exc:
+        console.print(f"[error]Backup failed: {exc}[/error]")
+        return 1
+
+
+def handle_restore(args: Namespace) -> int:
+    """Restore SQLite database from backup with integrity check (Item 13)."""
+    from src.infrastructure.storage.backup_service import SqliteOnlineBackupService
+
+    backup_path = getattr(args, "backup", None)
+    target_path = getattr(args, "target", None) or os.environ.get("DATABASE_PATH", "cyber_pipeline.db")
+    if not backup_path:
+        console.print("[error]Backup file path is required (--backup)[/error]")
+        return 1
+    try:
+        SqliteOnlineBackupService.restore_database(backup_path, target_path)
+        console.print(f"[success]Database restored successfully to {target_path}[/success]")
+        return 0
+    except Exception as exc:
+        console.print(f"[error]Restore failed: {exc}[/error]")
+        return 1
+

@@ -67,11 +67,13 @@ import argparse
 from src.cli.commands.scan import handle_resume, handle_scan
 from src.cli.commands.start import handle_dashboard, handle_launch, handle_worker
 from src.cli.commands.system import (
+    handle_backup,
     handle_cleanup,
     handle_dlq,
     handle_doctor,
     handle_finalize_crashed,
     handle_plugin_new,
+    handle_restore,
     handle_setup,
     handle_status,
 )
@@ -210,6 +212,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output-root", default="output", help="Root that contains run directories."
     )
 
+    backup = sys_sub.add_parser("backup", help="Create an online SQLite snapshot backup (Item 13).")
+    backup.add_argument("--db", default=None, help="Path to SQLite database file to backup")
+    backup.add_argument("--output", default=None, help="Destination backup file path")
+
+    restore = sys_sub.add_parser(
+        "restore", help="Restore an SQLite database from snapshot backup (Item 13)."
+    )
+    restore.add_argument("--backup", required=True, help="Path to snapshot backup file")
+    restore.add_argument("--target", default=None, help="Destination database restore path")
+
     launch = subparsers.add_parser(
         "launch", help="Start the dashboard and background queue worker in a single process."
     )
@@ -264,7 +276,8 @@ def main() -> int:
         elif args.area == "scan":
             if args.command == "run":
                 return handle_scan(args)
-
+            elif args.command == "resume":
+                return handle_resume(args)
         elif args.area == "plugin":
             if args.cmd == "new":
                 return handle_plugin_new(args)
@@ -283,6 +296,10 @@ def main() -> int:
                 return handle_dlq(args)
             elif args.cmd == "finalize-crashed":
                 return handle_finalize_crashed(args)
+            elif args.cmd == "backup":
+                return handle_backup(args)
+            elif args.cmd == "restore":
+                return handle_restore(args)
 
     except KeyboardInterrupt:
         console.print("\n[warning]Operation aborted by user.[/warning]")

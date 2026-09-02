@@ -49,6 +49,8 @@ def derive_job_and_exit(
     policy: Any | None = None,
     *,
     cancel: bool = False,
+    suspend: bool = False,
+    runtime_error: bool = False,
     degraded_probes: Sequence[str] = (),
     policy_violated: bool | None = None,
     fatal_stages: Sequence[str] = (),
@@ -56,14 +58,16 @@ def derive_job_and_exit(
 ) -> RunOutcome:
     """Total function from observed machines onto operator job + CI exit.
 
-    Strict total precedence order:
-      130 (cancel) > 3 (infra/fatal/no_output) > 2 (policy violation) > 4 (degraded) > 0 (clean/pass)
+    Strict total precedence order (F-007 / F-018 7-tier lattice):
+      130 (cancel) > 3 (infra/fatal/no_output) > 7 (suspend) > 2 (policy violation) > 4 (degraded) > 1 (runtime error) > 0 (clean/pass)
 
     Exit codes (stable taxonomy):
         0  — completed; findings absent or under policy
+        1  — failed; non-fatal unhandled runtime error
         2  — completed; findings exceeded policy
         3  — infra / fatal stage failure / pipeline_no_output
         4  — partial (DEGRADED or SKIPPED_FAILED, non-fatal)
+        7  — stopped; hot-reload / configuration suspend
       130  — cancelled
     """
     if cancel:
@@ -110,6 +114,15 @@ def derive_job_and_exit(
                 degraded_stages=degraded,
             )
 
+    if suspend:
+        return RunOutcome(
+            job_status=JobStatus.STOPPED,
+            exit_code=EXIT_SUSPEND,
+            reason="suspend",
+            degraded_stages=degraded,
+            failed_stages=failed,
+        )
+
     violated = bool(policy_violated)
     if violated:
         return RunOutcome(
@@ -125,6 +138,15 @@ def derive_job_and_exit(
             job_status=JobStatus.COMPLETED,
             exit_code=EXIT_PARTIAL,
             reason="degraded",
+            degraded_stages=degraded,
+            failed_stages=failed,
+        )
+
+    if runtime_error:
+        return RunOutcome(
+            job_status=JobStatus.FAILED,
+            exit_code=EXIT_ERROR,
+            reason="runtime_error",
             degraded_stages=degraded,
             failed_stages=failed,
         )

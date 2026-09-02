@@ -243,3 +243,35 @@ redis.call('HSET', job_key, unpack(hash_args))
 redis.call('ZADD', queue_key, score, job_key)
 return {1, job_id}
 """
+
+RENEW_LEASE_SCRIPT = """
+local job_key = KEYS[1]
+local expected_worker = ARGV[1]
+local expected_lease_version = ARGV[2]
+local lease_seconds = tonumber(ARGV[3])
+local now = tonumber(ARGV[4])
+
+if redis.call('EXISTS', job_key) == 0 then
+    return {0, 'not_found'}
+end
+
+local state = redis.call('HGET', job_key, 'state')
+if state ~= 'claimed' and state ~= 'running' then
+    return {0, 'wrong_state', state}
+end
+
+local current_worker = redis.call('HGET', job_key, 'worker_id')
+if current_worker ~= expected_worker then
+    return {0, 'worker_mismatch', current_worker}
+end
+
+local current_version = redis.call('HGET', job_key, 'lease_version')
+if current_version ~= expected_lease_version then
+    return {0, 'lease_version_mismatch', current_version}
+end
+
+local new_expires = now + lease_seconds
+redis.call('HSET', job_key, 'lease_expires_at', tostring(new_expires))
+return {1, 'renewed', tostring(new_expires)}
+"""
+

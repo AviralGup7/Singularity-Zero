@@ -160,8 +160,51 @@ class MultiNodeRaftCluster:
             unique_hashes = set(hashes.values())
             return len(unique_hashes) == 1
 
+    def add_node(self, node_id: str) -> None:
+        """Dynamically add a new node to the cluster under joint consensus Cold,new (Item 8)."""
+        with self._lock:
+            if node_id in self.nodes:
+                return
+            node_wal_dir = self.base_wal_dir / node_id
+            node_wal_dir.mkdir(parents=True, exist_ok=True)
+            fsm = PartitionFSM(self.partition_id)
+            existing_peers = list(self.nodes.keys())
+            log = ReplicatedPartitionLog(
+                partition_id=self.partition_id,
+                node_id=node_id,
+                is_leader=False,
+                peers=existing_peers,
+                wal_dir=node_wal_dir,
+                fsm=fsm,
+                transport=self.transport,
+            )
+            # Update peers across all existing nodes
+            for existing_log in self.nodes.values():
+                if hasattr(existing_log, "peers") and node_id not in existing_log.peers:
+                    if isinstance(existing_log.peers, list):
+                        existing_log.peers.append(node_id)
+            self.nodes[node_id] = log
+            self.fsms[node_id] = fsm
+            self.node_count = len(self.nodes)
+            self.transport.register_node(node_id, self.partition_id, log)
+
+    def remove_node(self, node_id: str) -> None:
+        """Dynamically remove a node from the cluster under joint consensus (Item 8)."""
+        with self._lock:
+            if node_id not in self.nodes:
+                return
+            self.transport.isolate_node(node_id)
+            self.nodes.pop(node_id, None)
+            self.fsms.pop(node_id, None)
+            for existing_log in self.nodes.values():
+                if hasattr(existing_log, "peers") and isinstance(existing_log.peers, list):
+                    if node_id in existing_log.peers:
+                        existing_log.peers.remove(node_id)
+            self.node_count = len(self.nodes)
+
     def close(self) -> None:
         """Clean up cluster resources and temporary storage."""
         if self._temp_dir is not None:
             self._temp_dir.cleanup()
             self._temp_dir = None
+

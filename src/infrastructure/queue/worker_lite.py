@@ -33,6 +33,7 @@ from src.infrastructure.queue.lua_scripts import (
     COMPLETE_JOB_SCRIPT,
     FAIL_JOB_SCRIPT,
     RELEASE_LEASE_SCRIPT,
+    RENEW_LEASE_SCRIPT,
 )
 from src.infrastructure.queue.worker_phase import WorkerPhase
 
@@ -401,6 +402,37 @@ class LiteWorker:
         output = stdout.decode("utf-8", errors="replace")
         return [line.strip() for line in output.splitlines() if line.strip()]
 
+    async def _renew_lease_heartbeat(self, job_id: str, job_key_str: str) -> None:
+        """Continuously renew the lease at 0.5 * lease_seconds while job is running (Item 3)."""
+        interval = max(0.05, self.lease_seconds * 0.5)
+        while not self._shutdown_requested and job_id in self._job_task_map:
+            try:
+                await asyncio.sleep(interval)
+                task = self._job_task_map.get(job_id)
+                if task is None or task.done():
+                    break
+                lease_version = self._job_lease_versions.get(job_id, "")
+                if not lease_version or "renew_lease" not in self._shas:
+                    continue
+                ret = await self._redis.evalsha(
+                    self._shas["renew_lease"],
+                    1,
+                    job_key_str,
+                    self.worker_id,
+                    lease_version,
+                    str(self.lease_seconds),
+                    str(time.time()),
+                )
+                if ret and int(ret[0]) == 1:
+                    logger.debug("Lease renewed for job %s (expires: %s)", job_id, ret[2])
+                else:
+                    logger.warning("Failed to renew lease for job %s: %s", job_id, ret)
+                    break
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("Lease renewal heartbeat exception for %s: %s", job_id, exc)
+
     async def _process_job(self, job_id: str, job_type: str, payload: dict[str, Any]) -> None:
         """Process a claimed job with clean subprocess execution and error isolation."""
         job_key = self._job_key(job_id)
@@ -659,9 +691,17 @@ class LiteWorker:
                                 owner="queue_worker_lite",
                                 name=job_id,
                             )
+                            renewal_task = get_task_registry().create_task(
+                                self._renew_lease_heartbeat(job_id, job_key_str),
+                                owner="queue_worker_lite",
+                                name=f"renew_{job_id}",
+                            )
                             self._active_tasks.add(task)
+                            self._active_tasks.add(renewal_task)
                             self._job_task_map[job_id] = task
                             task.add_done_callback(self._active_tasks.discard)
+                            task.add_done_callback(lambda _, rt=renewal_task: rt.cancel())
+                            renewal_task.add_done_callback(self._active_tasks.discard)
                             task.add_done_callback(
                                 lambda _, jid=job_id: self._job_task_map.pop(jid, None)
                             )
@@ -767,6 +807,7 @@ class LiteWorker:
         self._shas["complete_job"] = await self._redis.script_load(COMPLETE_JOB_SCRIPT)
         self._shas["fail_job"] = await self._redis.script_load(FAIL_JOB_SCRIPT)
         self._shas["release_lease"] = await self._redis.script_load(RELEASE_LEASE_SCRIPT)
+        self._shas["renew_lease"] = await self._redis.script_load(RENEW_LEASE_SCRIPT)
 
         self._setup_signal_handlers()
         await self._register()

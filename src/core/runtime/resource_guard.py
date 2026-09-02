@@ -104,9 +104,16 @@ def _pct_threshold(name: str, default: float) -> float:
         return default
 
 
-def classify_pressure(*, disk_pct: float, mem_pct: float | None = None) -> PressureLevel:
-    """Map utilisation percentages onto WARN / PRESSURE / CRITICAL.
+def classify_pressure(
+    *,
+    disk_pct: float,
+    mem_pct: float | None = None,
+    previous_level: PressureLevel | None = None,
+    hysteresis_pct: float = 5.0,
+) -> PressureLevel:
+    """Map utilisation percentages onto WARN / PRESSURE / CRITICAL with Schmitt-trigger hysteresis.
 
+    Prevents rapid oscillation and flapping across threshold boundaries (Item 14).
     Defaults: disk warn 85, pressure 92, critical 95; mem pressure 85, critical 92.
     """
     disk_warn = _pct_threshold("DISK_WARN_PCT", 85.0)
@@ -114,6 +121,23 @@ def classify_pressure(*, disk_pct: float, mem_pct: float | None = None) -> Press
     disk_critical = _pct_threshold("DISK_CRITICAL_PCT", 95.0)
     mem_pressure = _pct_threshold("MEM_PRESSURE_PCT", 85.0)
     mem_critical = _pct_threshold("MEM_CRITICAL_PCT", 92.0)
+
+    prev = previous_level if previous_level is not None else _current_level
+
+    # If currently CRITICAL, remain CRITICAL until below threshold - deadband
+    if prev == PressureLevel.CRITICAL:
+        if disk_pct >= (disk_critical - hysteresis_pct) or (
+            mem_pct is not None and mem_pct >= (mem_critical - hysteresis_pct)
+        ):
+            return PressureLevel.CRITICAL
+
+    # If currently PRESSURE, remain PRESSURE until below threshold - deadband
+    if prev in {PressureLevel.PRESSURE, PressureLevel.CRITICAL}:
+        if disk_pct >= (disk_pressure - hysteresis_pct) or (
+            mem_pct is not None and mem_pct >= (mem_pressure - hysteresis_pct)
+        ):
+            return PressureLevel.PRESSURE
+
     level = PressureLevel.OK
     if disk_pct >= disk_warn:
         level = PressureLevel.WARN

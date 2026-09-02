@@ -679,6 +679,25 @@ def create_jwt(principal: Principal) -> dict[str, Any]:
     }
 
 
+_REVOKED_JTIS: set[str] = set()
+_REVOKED_LOCK = threading.Lock()
+
+
+def revoke_token(jti: str) -> None:
+    """Add a JWT ID (jti) to the Token Revocation List (Item 12)."""
+    if jti:
+        with _REVOKED_LOCK:
+            _REVOKED_JTIS.add(str(jti))
+
+
+def is_token_revoked(jti: str | None) -> bool:
+    """Check if a JWT ID is present in the Token Revocation List (Item 12)."""
+    if not jti:
+        return False
+    with _REVOKED_LOCK:
+        return str(jti) in _REVOKED_JTIS
+
+
 def authenticate_jwt_token(token: str) -> Principal | None:
     try:
         payload = jwt.decode(
@@ -689,6 +708,9 @@ def authenticate_jwt_token(token: str) -> Principal | None:
         )
         token_type = str(payload.get("type") or "access")
         if token_type != "access":
+            return None
+        jti = payload.get("jti")
+        if is_token_revoked(jti):
             return None
     except jwt.PyJWTError:
         return None

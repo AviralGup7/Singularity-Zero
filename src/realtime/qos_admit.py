@@ -35,20 +35,37 @@ def qos_admit(
     event: Any,
     disk_pct: float,
     *,
+    ram_pct: float = 0.0,
+    cpu_pct: float = 0.0,
+    spool_depth: int = 0,
     backpressure_pct: float = DISK_BACKPRESSURE_PCT,
     emergency_pct: float = DISK_EMERGENCY_PCT,
 ) -> QoSDecision:
-    """Return admit | coalesce | drop for one event under disk pressure."""
+    """Return admit | coalesce | drop for an event under multi-dimensional QoS pressure (F-009)."""
     qos = _qos_of(event)
-    pct = float(disk_pct)
-    if pct >= float(emergency_pct):
+    d_pct = float(disk_pct)
+    r_pct = float(ram_pct)
+    c_pct = float(cpu_pct)
+    s_depth = int(spool_depth)
+
+    # 1. Spool saturation check (> 1000 items)
+    if s_depth > 1000:
+        if int(qos) == 0:
+            return QoSDecision.ADMIT
+        return QoSDecision.DROP
+
+    # 2. Severe resource pressure (>= 92% Disk or > 90% RAM)
+    if d_pct >= float(emergency_pct) or r_pct > 90.0:
         if qos in {QoSClass.P3_TELEMETRY, QoSClass.P4_DEBUG}:
             return QoSDecision.DROP
         if qos in {QoSClass.P1_LIFECYCLE, QoSClass.P2_FINDINGS}:
             return QoSDecision.COALESCE
         return QoSDecision.ADMIT
-    if pct >= float(backpressure_pct) and qos is QoSClass.P4_DEBUG:
+
+    # 3. Moderate resource pressure (>= 85% Disk or > 90% CPU)
+    if (d_pct >= float(backpressure_pct) or c_pct > 90.0) and qos is QoSClass.P4_DEBUG:
         return QoSDecision.DROP
+
     return QoSDecision.ADMIT
 
 
